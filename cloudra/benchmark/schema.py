@@ -105,7 +105,7 @@ class BondChangeSet(BaseModel):
 class MechanismEdge(BaseModel):
     """One elementary step connecting two species nodes via a TS node.
 
-    ``barrier_kcal_mol`` 逐边承载能垒（kcal/mol，相对该步起点最小值；easy 单步
+    ``barrier_kcal_mol`` 逐边承载能垒（kcal/mol，相对对应稳定中间体；easy 单步
     题即"相对反应物络合物"）：gold 侧 = 参考答案能垒，交付侧 = agent 声明的值。
     评分不读最终消息散文：harness 从交付日志逐边推出能垒，gold 边与交付步
     **按端点物种对应匹配**（gold 的 ``<任务>_E<n>`` 边 id 是题库内部约定、

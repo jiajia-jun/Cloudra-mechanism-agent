@@ -10,7 +10,7 @@ v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定�
 
 TASKS = {
     # 2026-10-18：NR1 槽正式换为甲酰胺脱水，旧频哪醇 Gold 不再用于此题。
-    # Gaussian16 B3LYP-D3(BJ)/def2-SVP 气相纯电子能，逐边相对各自起点。
+    # Gaussian16 B3LYP-D3(BJ)/def2-SVP 气相纯电子能；反应垒相对稳定中间体。
     # 来源：gold_compute/queue_20261018/results/NR1/{REPORT.txt,mechanism_graph.json}。
     # 统一映射：1=N、2=C、3=O、4=保留于 N 的 H、5=首步迁到 O 的 H、6=C 上的 H。
     # 两个构象边连接式相同；不是断键步。E4 的工作流 candidate_only 原因和
@@ -39,8 +39,9 @@ TASKS = {
             },
             {
                 "out": "[N:1]#[C:2][H:6].[O:3]([H:4])[H:5]",
-                "type": "formimidic acid INT-1c dehydration by N-H to O proton transfer and C-O cleavage with C-N triple-bond formation -> hydrogen cyanide and water",
-                "barrier": 64.93,
+                "type": "formimidic acid INT-1c dehydration by N-H to O proton transfer and C-O cleavage with C-N triple-bond formation -> hydrogen cyanide and water; barrier referenced to stable INT-1a",
+                # TS4 - 稳定 INT-1a；64.93 是相对直接连接构象 INT-1c 的值。
+                "barrier": 68.85,
             },
         ],
     },

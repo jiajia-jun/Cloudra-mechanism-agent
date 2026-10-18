@@ -1,0 +1,16 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/NY3_I2b_m_optfreq.chk
+%nproc=4
+%mem=6144MB
+#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+
+NY3 carbamic acid I2 saddle displaced -0.40 along its -272.97 mode
+
+0 1
+C        0.06058100    -0.14880500    -0.00801500
+O        0.33448000    -1.31914000    -0.00393500
+N       -1.22335500     0.33992100     0.03954800
+H       -1.97281200    -0.33899900    -0.11932600
+O        1.03629900     0.79884400    -0.00789600
+H       -1.46611200     1.32069400    -0.34594200
+H        0.67269400     1.69405200     0.15117100
+

@@ -5,7 +5,7 @@
 """
 
 TASKS = {
-    # 原报告 11.89/6.95 相对分离单体；本参考 16.18/10.77 各减本通道 IRC 连通接触体。
+    # 原报告 11.89/6.95 相对分离单体；本参考 16.18/10.77 各减本通道稳定接触体。
     # 入口构象不同，不将两逐步能垒之差作为共同参考的面选择性。
     "L1": {
         "name_en": "formonitrile oxide + norbornene [3+2] cycloaddition: determine both facial pathways",
@@ -14,7 +14,7 @@ TASKS = {
         "the atom mapping; establish each product's stereochemical relationship to that "
         "bridge from actual 3D geometries and give explicit stereochemical SMILES rather "
         "than relying on an unverified endo/exo or syn/anti name; use each pathway's own "
-        "IRC-connected contact minimum as the starting reference for its elementary-step "
+        "stable contact minimum as the energy reference for its elementary-step "
         "barrier; record the energy difference between the distinct contact conformers "
         "separately and do not treat the difference between their substrate-specific "
         "barriers as a common-reference facial selectivity; investigate C-C and C-O bond "
@@ -32,8 +32,8 @@ TASKS = {
                     "smiles": ["C#[N+][O-].C1=CC2CCC1C2"],
                     "properties": {
                         "energy_hartree": -441.019350272,
-                        "evidence_log": "ts/ts_0036/jobs/declaration_0009/reactant_frequency/reactant_frequency.log",
-                        "reference_note": "this channel's own IRC-connected contact "
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0036/jobs/declaration_0009/reactant_frequency/reactant_frequency.log",
+                        "reference_note": "this channel's own stable contact "
                         "minimum; not a separated-monomer "
                         "reference",
                     },
@@ -44,8 +44,8 @@ TASKS = {
                     "smiles": ["C#[N+][O-].C1=CC2CCC1C2"],
                     "properties": {
                         "energy_hartree": -441.020095712,
-                        "evidence_log": "ts/ts_0037/jobs/declaration_0001/reactant_frequency/reactant_frequency.log",
-                        "reference_note": "this channel's own IRC-connected contact "
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0037/jobs/declaration_0001/reactant_frequency/reactant_frequency.log",
+                        "reference_note": "this channel's own stable contact "
                         "minimum; not a separated-monomer "
                         "reference",
                     },
@@ -56,7 +56,7 @@ TASKS = {
                     "smiles": [],
                     "properties": {
                         "energy_hartree": -441.002183678,
-                        "evidence_log": "ts/ts_0036/jobs/declaration_0006/ts_opt/refine.log",
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0036/jobs/declaration_0006/frequency/frequency.log",
                     },
                 },
                 {
@@ -65,7 +65,7 @@ TASKS = {
                     "smiles": [],
                     "properties": {
                         "energy_hartree": -440.9943166,
-                        "evidence_log": "ts/ts_0037/jobs/declaration_0001/ts_opt/refine.log",
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0037/jobs/declaration_0001/frequency/frequency.log",
                     },
                 },
                 {
@@ -73,8 +73,8 @@ TASKS = {
                     "role": "product",
                     "smiles": ["C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12"],
                     "properties": {
-                        "energy_hartree": -441.09827366,
-                        "evidence_log": "gold_compute/queue_20261018/results/HL1/jobs/HL1_P_exo_optfreq.log",
+                        "energy_hartree": -441.09827373,
+                        "evidence_log": "gold_compute/queue_20261018/evidence/results/HL1/jobs/HL1_armend_relax_ts0036.log",
                     },
                 },
                 {
@@ -82,8 +82,8 @@ TASKS = {
                     "role": "product",
                     "smiles": ["C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12"],
                     "properties": {
-                        "energy_hartree": -441.095689093,
-                        "evidence_log": "gold_compute/queue_20261018/results/HL1/jobs/HL1_P_endo_optfreq.log",
+                        "energy_hartree": -441.095689377,
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0037/jobs/declaration_0001/product_frequency/product_frequency.log",
                     },
                 },
             ],

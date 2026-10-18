@@ -1,0 +1,1134 @@
+{
+  "format_version": 7,
+  "run_id": "ts_0040",
+  "pipeline_id": "c822148a4e3db80c39145c36a0611054949ffad04ea6a7eb14539618ca88457b",
+  "declaration_revision": 2,
+  "optimization_checkpoints": {},
+  "budget_action_keys": {},
+  "budget_reservations": {},
+  "attempt_history": [
+    {
+      "declaration_revision": 1,
+      "selected_candidate_id": null,
+      "job_steps": [],
+      "stage_records": [
+        {
+          "stage": "declare",
+          "status": "done",
+          "detail": "reaction declared; each calculation requires its own method",
+          "artifacts": [],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "build",
+          "status": "done",
+          "detail": "both endpoints built",
+          "artifacts": [
+            "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/generated_seed.xyz",
+            "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/generated_seed.mol",
+            "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/prepared_structure.json"
+          ],
+          "source_input_revision": 1
+        },
+        {
+          "stage": "map",
+          "status": "blocked",
+          "detail": "reactant: The concrete structure has 4 symmetric heavy-atom bindings; without concrete atom-map labels the binding is not unique.; product: Explicit heavy-atom binding accepted against the concrete graph.",
+          "artifacts": [],
+          "source_input_revision": 1
+        }
+      ],
+      "reason": "candidate 0 gives the declared regioisomeric step: C2-N3 broken and C1-C2 bond order 1->2; the four candidates differ only by permutations of the two equivalent N-methyls and interchangeable hydrogen labels",
+      "input": {
+        "reaction": {
+          "reactant_smiles": "C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1",
+          "product_smiles": "C=C[C@H](C)c1ccccc1.CN(C)O",
+          "charge": 0,
+          "multiplicity": 1,
+          "electronic_character": null,
+          "selected_candidate": null,
+          "reaction_center": []
+        },
+        "calculations": {
+          "g16": {
+            "engine": "gaussian",
+            "method": "B3LYP",
+            "basis_set": "def2SVP",
+            "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": ""
+          },
+          "g16_irc": {
+            "engine": "gaussian",
+            "method": "B3LYP",
+            "basis_set": "def2SVP",
+            "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+            "frequency_mode": "auto",
+            "orca_blocks": null,
+            "end_setting": "IRC=(CalcFC,StepSize=5,Recalc=5)"
+          }
+        },
+        "conformers": {
+          "reactant": {
+            "kind": "file",
+            "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/geoms/HI1_erythro_R_min.xyz",
+            "mol_path": null,
+            "evidence_refs": [
+              "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_erythro_R_optfreq.log"
+            ],
+            "optimization": null
+          },
+          "product": {
+            "kind": "generate",
+            "generation": "ETKDGv3",
+            "seed": 20261020,
+            "optimization": null
+          },
+          "guidance": {
+            "ring_order": [],
+            "distance_filters": []
+          }
+        },
+        "guess": {
+          "kind": "provided",
+          "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/geoms/HI1_erythro_TS_regio_guess.xyz",
+          "evidence_refs": [
+            "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_erythro_R_optfreq.log"
+          ]
+        },
+        "ts_optimization": {
+          "ref": "g16"
+        },
+        "verification": {
+          "frequency": {
+            "ref": "g16"
+          },
+          "irc": {
+            "ref": "g16_irc"
+          },
+          "irc_log": null,
+          "reactant_endpoint": {
+            "seed": null,
+            "optimization": {
+              "engine": "gaussian",
+              "method": "B3LYP",
+              "basis_set": "def2SVP",
+              "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+              "frequency_mode": "auto",
+              "orca_blocks": null,
+              "end_setting": ""
+            },
+            "frequency": {
+              "engine": "gaussian",
+              "method": "B3LYP",
+              "basis_set": "def2SVP",
+              "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+              "frequency_mode": "auto",
+              "orca_blocks": null,
+              "end_setting": ""
+            }
+          },
+          "product_endpoint": {
+            "seed": null,
+            "optimization": {
+              "engine": "gaussian",
+              "method": "B3LYP",
+              "basis_set": "def2SVP",
+              "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+              "frequency_mode": "auto",
+              "orca_blocks": null,
+              "end_setting": ""
+            },
+            "frequency": {
+              "engine": "gaussian",
+              "method": "B3LYP",
+              "basis_set": "def2SVP",
+              "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+              "frequency_mode": "auto",
+              "orca_blocks": null,
+              "end_setting": ""
+            }
+          }
+        },
+        "execution": {
+          "cpus": 4,
+          "memory_mb": 6144,
+          "limits": null
+        }
+      },
+      "structures": {
+        "reactant": "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",
+        "product": "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ZW50X2lkAAUAAABmcmFnMBoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEFAAAAAAMADwAAAGNsb3VkcmFfYXRvbV9pZAAEAAAAaW46NhQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBBgAAAAADAA8AAABjbG91ZHJhX2F0b21faWQABAAAAGluOjcUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQcAAAAAAwAPAAAAY2xvdWRyYV9hdG9tX2lkAAQAAABpbjo4FAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMBoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEIAAAAAAMADwAAAGNsb3VkcmFfYXRvbV9pZAAEAAAAaW46ORQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBCQAAAAADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAcAAABpbjowI0gxFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMAADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAcAAABpbjowI0gyFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMAADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAcAAABpbjoxI0gxFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMAACAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjIjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjMjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjMjSDIUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjMjSDMUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjUjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjYjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjcjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjgjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjkjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMADwAAAGNsb3VkcmFfYXRvbV9pZAAFAAAAaW46MTAUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQoAAAAAAwAPAAAAY2xvdWRyYV9hdG9tX2lkAAUAAABpbjoxMRQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzEaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBCwAAAAADAA8AAABjbG91ZHJhX2F0b21faWQABQAAAGluOjEyFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMRoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEMAAAAAAMADwAAAGNsb3VkcmFfYXRvbV9pZAAFAAAAaW46MTMUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQ0AAAAAAwAKAAAAaXNJbXBsaWNpdAEBAAAADwAAAGNsb3VkcmFfYXRvbV9pZAAIAAAAaW46MTAjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQACAAAAGluOjEwI0gyFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMQADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAgAAABpbjoxMCNIMxQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzEAAwAKAAAAaXNJbXBsaWNpdAEBAAAADwAAAGNsb3VkcmFfYXRvbV9pZAAIAAAAaW46MTIjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQACAAAAGluOjEyI0gyFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMQADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAgAAABpbjoxMiNIMxQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzEAAwAKAAAAaXNJbXBsaWNpdAEBAAAADwAAAGNsb3VkcmFfYXRvbV9pZAAIAAAAaW46MTMjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxABMW",
+        "product_to_reactant": null,
+        "candidate": null
+      },
+      "provided_guess_binding": null,
+      "terminal": null,
+      "blocked": {
+        "failure_class": "input_identity_unconfirmed",
+        "stage": "map",
+        "message": "reactant: The concrete structure has 4 symmetric heavy-atom bindings; without concrete atom-map labels the binding is not unique.; product: Explicit heavy-atom binding accepted against the concrete graph.",
+        "atom_details": [
+          "reactant built geometry: /home/ly/Cloudra-mechanism-agent/ts/ts_0040/structures/reactant_8ba8a2c42a1c0dbdfdc9.xyz",
+          "reactant atoms (1-based): 1=C, 2=C, 3=N, 4=C, 5=C, 6=O, 7=C, 8=C, 9=C, 10=C, 11=C, 12=C, 13=C, 14=C, 15=H, 16=H, 17=H, 18=H, 19=H, 20=H, 21=H, 22=H, 23=H, 24=H, 25=H, 26=H, 27=H, 28=H, 29=H, 30=H, 31=H, 32=H, 33=H",
+          "product built geometry: /home/ly/Cloudra-mechanism-agent/ts/ts_0040/structures/product_1c28e37f6f66b157f3e4.xyz",
+          "product atoms (1-based): 1=C, 2=C, 3=C, 4=C, 5=C, 6=C, 7=C, 8=C, 9=C, 10=C, 11=H, 12=H, 13=H, 14=H, 15=H, 16=H, 17=H, 18=H, 19=H, 20=H, 21=H, 22=H, 23=C, 24=N, 25=C, 26=O, 27=H, 28=H, 29=H, 30=H, 31=H, 32=H, 33=H"
+        ],
+        "needs": [
+          "reaction.selected_candidate"
+        ],
+        "issues": [
+          {
+            "candidates": [
+              {
+                "atom_map": [
+                  1,
+                  2,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  18,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30,
+                  31,
+                  32,
+                  33,
+                  4,
+                  3,
+                  5,
+                  6,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  17
+                ],
+                "bond_edit_count": 2,
+                "broken_bonds": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "charge_mismatch": 2,
+                "concrete_watch_pairs": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "formed_bonds": [],
+                "graph_watch_pairs": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "heavy_atom_bindings": {
+                  "product": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    23,
+                    24,
+                    25,
+                    26
+                  ],
+                  "reactant": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                  ]
+                },
+                "heavy_atom_map": [
+                  1,
+                  2,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  4,
+                  3,
+                  5,
+                  6
+                ],
+                "hydrogen_mismatch": 2,
+                "order_changes": [
+                  {
+                    "atoms": [
+                      1,
+                      2
+                    ],
+                    "product_order": 2.0,
+                    "reactant_order": 1.0
+                  }
+                ],
+                "radical_mismatch": 0,
+                "score": 29.0,
+                "source": "rdkit_graph_search",
+                "stereo_mismatch": 1
+              },
+              {
+                "atom_map": [
+                  1,
+                  2,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  15,
+                  16,
+                  18,
+                  25,
+                  26,
+                  27,
+                  28,
+                  29,
+                  30,
+                  31,
+                  32,
+                  33,
+                  5,
+                  3,
+                  4,
+                  6,
+                  22,
+                  23,
+                  24,
+                  19,
+                  20,
+                  21,
+                  17
+                ],
+                "bond_edit_count": 2,
+                "broken_bonds": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "charge_mismatch": 2,
+                "concrete_watch_pairs": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "formed_bonds": [],
+                "graph_watch_pairs": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "heavy_atom_bindings": {
+                  "product": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    23,
+                    24,
+                    25,
+                    26
+                  ],
+                  "reactant": [
+                    1,
+                    2,
+                    3,
+                    5,
+                    4,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    11,
+                    12,
+                    13,
+                    14
+                  ]
+                },
+                "heavy_atom_map": [
+                  1,
+                  2,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  4,
+                  3,
+                  5,
+                  6
+                ],
+                "hydrogen_mismatch": 2,
+                "order_changes": [
+                  {
+                    "atoms": [
+                      1,
+                      2
+                    ],
+                    "product_order": 2.0,
+                    "reactant_order": 1.0
+                  }
+                ],
+                "radical_mismatch": 0,
+                "score": 29.0,
+                "source": "rdkit_graph_search",
+                "stereo_mismatch": 1
+              },
+              {
+                "atom_map": [
+                  1,
+                  2,
+                  7,
+                  8,
+                  9,
+                  14,
+                  13,
+                  12,
+                  11,
+                  10,
+                  15,
+                  16,
+                  18,
+                  25,
+                  26,
+                  27,
+                  28,
+                  33,
+                  32,
+                  31,
+                  30,
+                  29,
+                  4,
+                  3,
+                  5,
+                  6,
+                  19,
+                  20,
+                  21,
+                  22,
+                  23,
+                  24,
+                  17
+                ],
+                "bond_edit_count": 2,
+                "broken_bonds": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "charge_mismatch": 2,
+                "concrete_watch_pairs": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "formed_bonds": [],
+                "graph_watch_pairs": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "heavy_atom_bindings": {
+                  "product": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    23,
+                    24,
+                    25,
+                    26
+                  ],
+                  "reactant": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10
+                  ]
+                },
+                "heavy_atom_map": [
+                  1,
+                  2,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  4,
+                  3,
+                  5,
+                  6
+                ],
+                "hydrogen_mismatch": 2,
+                "order_changes": [
+                  {
+                    "atoms": [
+                      1,
+                      2
+                    ],
+                    "product_order": 2.0,
+                    "reactant_order": 1.0
+                  }
+                ],
+                "radical_mismatch": 0,
+                "score": 29.0,
+                "source": "rdkit_graph_search",
+                "stereo_mismatch": 1
+              },
+              {
+                "atom_map": [
+                  1,
+                  2,
+                  7,
+                  8,
+                  9,
+                  14,
+                  13,
+                  12,
+                  11,
+                  10,
+                  15,
+                  16,
+                  18,
+                  25,
+                  26,
+                  27,
+                  28,
+                  33,
+                  32,
+                  31,
+                  30,
+                  29,
+                  5,
+                  3,
+                  4,
+                  6,
+                  22,
+                  23,
+                  24,
+                  19,
+                  20,
+                  21,
+                  17
+                ],
+                "bond_edit_count": 2,
+                "broken_bonds": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "charge_mismatch": 2,
+                "concrete_watch_pairs": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "formed_bonds": [],
+                "graph_watch_pairs": [
+                  [
+                    2,
+                    3
+                  ]
+                ],
+                "heavy_atom_bindings": {
+                  "product": [
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                    7,
+                    8,
+                    9,
+                    10,
+                    23,
+                    24,
+                    25,
+                    26
+                  ],
+                  "reactant": [
+                    1,
+                    2,
+                    3,
+                    5,
+                    4,
+                    6,
+                    7,
+                    8,
+                    9,
+                    14,
+                    13,
+                    12,
+                    11,
+                    10
+                  ]
+                },
+                "heavy_atom_map": [
+                  1,
+                  2,
+                  7,
+                  8,
+                  9,
+                  10,
+                  11,
+                  12,
+                  13,
+                  14,
+                  4,
+                  3,
+                  5,
+                  6
+                ],
+                "hydrogen_mismatch": 2,
+                "order_changes": [
+                  {
+                    "atoms": [
+                      1,
+                      2
+                    ],
+                    "product_order": 2.0,
+                    "reactant_order": 1.0
+                  }
+                ],
+                "radical_mismatch": 0,
+                "score": 29.0,
+                "source": "rdkit_graph_search",
+                "stereo_mismatch": 1
+              }
+            ],
+            "code": "concrete_mapping_ambiguous",
+            "field": "reaction.selected_candidate"
+          }
+        ]
+      },
+      "failed_attempt": null,
+      "stop_reason": null
+    }
+  ],
+  "catalog_id": null,
+  "partition_revision": null,
+  "candidate_attempts": [],
+  "cards_path": "",
+  "product_seed_candidate_id": null,
+  "selected_candidate_id": null,
+  "run_dir": "/home/ly/Cloudra-mechanism-agent/ts/ts_0040",
+  "workspace_dir": "/home/ly/Cloudra-mechanism-agent",
+  "owner_conversation_id": "prj_244c6a3512cb4e52",
+  "owner_session_id": "as_7264b93f80894982",
+  "input": {
+    "reaction": {
+      "reactant_smiles": "C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1",
+      "product_smiles": "C=C[C@H](C)c1ccccc1.CN(C)O",
+      "charge": 0,
+      "multiplicity": 1,
+      "electronic_character": null,
+      "selected_candidate": 0,
+      "reaction_center": []
+    },
+    "calculations": {
+      "g16": {
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "g16_irc": {
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": "IRC=(CalcFC,StepSize=5,Recalc=5)"
+      }
+    },
+    "conformers": {
+      "reactant": {
+        "kind": "file",
+        "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/geoms/HI1_erythro_R_min.xyz",
+        "mol_path": null,
+        "evidence_refs": [
+          "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_erythro_R_optfreq.log"
+        ],
+        "optimization": null
+      },
+      "product": {
+        "kind": "generate",
+        "generation": "ETKDGv3",
+        "seed": 20261020,
+        "optimization": null
+      },
+      "guidance": {
+        "ring_order": [],
+        "distance_filters": []
+      }
+    },
+    "guess": {
+      "kind": "provided",
+      "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/geoms/HI1_erythro_TS_regio_guess.xyz",
+      "evidence_refs": [
+        "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_erythro_R_optfreq.log"
+      ]
+    },
+    "ts_optimization": {
+      "ref": "g16"
+    },
+    "verification": {
+      "frequency": {
+        "ref": "g16"
+      },
+      "irc": {
+        "ref": "g16_irc"
+      },
+      "irc_log": null,
+      "reactant_endpoint": {
+        "seed": null,
+        "optimization": {
+          "engine": "gaussian",
+          "method": "B3LYP",
+          "basis_set": "def2SVP",
+          "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "frequency": {
+          "engine": "gaussian",
+          "method": "B3LYP",
+          "basis_set": "def2SVP",
+          "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        }
+      },
+      "product_endpoint": {
+        "seed": null,
+        "optimization": {
+          "engine": "gaussian",
+          "method": "B3LYP",
+          "basis_set": "def2SVP",
+          "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "frequency": {
+          "engine": "gaussian",
+          "method": "B3LYP",
+          "basis_set": "def2SVP",
+          "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+          "frequency_mode": "auto",
+          "orca_blocks": null,
+          "end_setting": ""
+        }
+      }
+    },
+    "execution": {
+      "cpus": 4,
+      "memory_mb": 6144,
+      "limits": null
+    }
+  },
+  "structures": {
+    "reactant": "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Q29kZQABAAAAUhoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAACAEAAgAXAAAAX05vbkV4cGxpY2l0M0RDaGlyYWxpdHkBAQAAABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAECAAAAAAIAFwAAAF9Ob25FeHBsaWNpdDNEQ2hpcmFsaXR5AQEAAAAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAwAAAAACABcAAABfTm9uRXhwbGljaXQzRENoaXJhbGl0eQEBAAAAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQQAAAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBBQAAAAADABcAAABfTm9uRXhwbGljaXQzRENoaXJhbGl0eQEBAAAACAAAAF9DSVBDb2RlAAEAAABSGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQYAAAAIAQACABcAAABfTm9uRXhwbGljaXQzRENoaXJhbGl0eQEBAAAAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQcAAAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBCAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEJAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQoAAAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBCwAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEMAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQ0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAExY=",
+    "product": "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ZW50X2lkAAUAAABmcmFnMBoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEFAAAAAAMADwAAAGNsb3VkcmFfYXRvbV9pZAAEAAAAaW46NhQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBBgAAAAADAA8AAABjbG91ZHJhX2F0b21faWQABAAAAGluOjcUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQcAAAAAAwAPAAAAY2xvdWRyYV9hdG9tX2lkAAQAAABpbjo4FAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMBoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEIAAAAAAMADwAAAGNsb3VkcmFfYXRvbV9pZAAEAAAAaW46ORQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBCQAAAAADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAcAAABpbjowI0gxFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMAADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAcAAABpbjowI0gyFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMAADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAcAAABpbjoxI0gxFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMAACAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjIjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjMjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjMjSDIUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjMjSDMUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjUjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjYjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjcjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjgjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQABwAAAGluOjkjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcwAAMADwAAAGNsb3VkcmFfYXRvbV9pZAAFAAAAaW46MTAUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQoAAAAAAwAPAAAAY2xvdWRyYV9hdG9tX2lkAAUAAABpbjoxMRQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzEaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBCwAAAAADAA8AAABjbG91ZHJhX2F0b21faWQABQAAAGluOjEyFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMRoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEMAAAAAAMADwAAAGNsb3VkcmFfYXRvbV9pZAAFAAAAaW46MTMUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQ0AAAAAAwAKAAAAaXNJbXBsaWNpdAEBAAAADwAAAGNsb3VkcmFfYXRvbV9pZAAIAAAAaW46MTAjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQACAAAAGluOjEwI0gyFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMQADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAgAAABpbjoxMCNIMxQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzEAAwAKAAAAaXNJbXBsaWNpdAEBAAAADwAAAGNsb3VkcmFfYXRvbV9pZAAIAAAAaW46MTIjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxAAMACgAAAGlzSW1wbGljaXQBAQAAAA8AAABjbG91ZHJhX2F0b21faWQACAAAAGluOjEyI0gyFAAAAGNsb3VkcmFfY29tcG9uZW50X2lkAAUAAABmcmFnMQADAAoAAABpc0ltcGxpY2l0AQEAAAAPAAAAY2xvdWRyYV9hdG9tX2lkAAgAAABpbjoxMiNIMxQAAABjbG91ZHJhX2NvbXBvbmVudF9pZAAFAAAAZnJhZzEAAwAKAAAAaXNJbXBsaWNpdAEBAAAADwAAAGNsb3VkcmFfYXRvbV9pZAAIAAAAaW46MTMjSDEUAAAAY2xvdWRyYV9jb21wb25lbnRfaWQABQAAAGZyYWcxABMW",
+    "product_to_reactant": [
+      0,
+      1,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      17,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      3,
+      2,
+      4,
+      5,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      16
+    ],
+    "candidate": "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Q29kZQABAAAAUhoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEBAAAACAEAAgAXAAAAX05vbkV4cGxpY2l0M0RDaGlyYWxpdHkBAQAAABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAECAAAAAAIAFwAAAF9Ob25FeHBsaWNpdDNEQ2hpcmFsaXR5AQEAAAAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBAwAAAAACABcAAABfTm9uRXhwbGljaXQzRENoaXJhbGl0eQEBAAAAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQQAAAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBBQAAAAADABcAAABfTm9uRXhwbGljaXQzRENoaXJhbGl0eQEBAAAACAAAAF9DSVBDb2RlAAEAAABSGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQYAAAAIAQACABcAAABfTm9uRXhwbGljaXQzRENoaXJhbGl0eQEBAAAAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQcAAAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBCAAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEJAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQoAAAAAAQAaAAAAY2xvdWRyYV9zbWlsZXNfaGVhdnlfaW5kZXgBCwAAAAABABoAAABjbG91ZHJhX3NtaWxlc19oZWF2eV9pbmRleAEMAAAAAAEAGgAAAGNsb3VkcmFfc21pbGVzX2hlYXZ5X2luZGV4AQ0AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAExY="
+  },
+  "provided_guess_binding": {
+    "xyz": {
+      "source_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/geoms/HI1_erythro_TS_regio_guess.xyz",
+      "snapshot_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/path/input_0002/provided.xyz",
+      "sha256": "b35630cee68bd7194648229aa4999eccb646b187b68afe947e79ab2fd3863493"
+    },
+    "evidence": [
+      {
+        "source_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_erythro_R_optfreq.log",
+        "snapshot_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/path/input_0002/provenance_0000.log",
+        "sha256": "9d6040a0e22afcae4c0d79a1b1185587477fa3e7233ba3f10302a345ada07372"
+      }
+    ]
+  },
+  "failed_attempt": {
+    "attempt_id": "2:ts_opt:1292",
+    "failure_class": "nonconvergence",
+    "purpose": "ts_opt",
+    "job_id": 1292,
+    "input_revision": 2,
+    "evidence_refs": [
+      "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.log"
+    ],
+    "input_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.gjf",
+    "log_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.log",
+    "input_sha256": "b62e6210d4233692b188f23d4d6543a5de80c19b60f1386b1856807028afdf3b",
+    "log_sha256": "42db89f5eadd9f97c116bb13ebd81b1e4326fcb00260e50794a552a8df45aa3d",
+    "diagnostics": [
+      "native log: /home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.log",
+      " RMSU=  4.00D-08    CP:  1.00D+00  1.01D+00  5.24D-01  4.84D-01  8.48D-01",
+      " E= -598.205224103853     Delta-E=       -0.000000000161 Rises=F Damp=F",
+      " DIIS: error= 6.05D-08 at cycle   6 NSaved=   6.",
+      " NSaved= 6 IEnMin= 6 EnMin= -598.205224103853     IErMin= 6 ErrMin= 6.05D-08",
+      " ErrMax= 6.05D-08  0.00D+00 EMaxC= 1.00D-01 BMatC= 4.24D-12 BMatP= 1.73D-10",
+      " IDIUse=1 WtCom= 1.00D+00 WtEn= 0.00D+00",
+      "                    CP:  9.44D-01",
+      " E= -598.205224103858     Delta-E=       -0.000000000005 Rises=F Damp=F",
+      " DIIS: error= 1.85D-08 at cycle   7 NSaved=   7.",
+      " NSaved= 7 IEnMin= 7 EnMin= -598.205224103858     IErMin= 7 ErrMin= 1.85D-08",
+      " ErrMax= 1.85D-08  0.00D+00 EMaxC= 1.00D-01 BMatC= 3.58D-13 BMatP= 4.24D-12",
+      " IDIUse=1 WtCom= 1.00D+00 WtEn= 0.00D+00",
+      " Predicted change in Energy=-1.682952D-02",
+      " Optimization stopped.",
+      "    -- Number of steps exceeded,  NStep= 169",
+      "    -- Flag reset to prevent archiving.",
+      "                           ----------------------------",
+      "                           ! Non-Optimized Parameters !",
+      " N-N= 8.889001763165D+02 E-N=-3.164572975101D+03  KE= 5.916385864281D+02",
+      " No NMR shielding tensors so no spin-rotation constants.",
+      " Leave Link  601 at Sun Oct 18 08:31:30 2026, MaxMem=   805306368 cpu:               0.3 elap:               0.1",
+      " (Enter /home/ly/g16/l9999.exe)",
+      "",
+      "",
+      " DEFINE YOUR TERMS, YOU WILL PERMIT ME AGAIN TO SAY, ",
+      " OR WE SHALL NEVER UNDERSTAND ONE ANOTHER.",
+      "",
+      "                                    -- VOLTAIRE",
+      " Error termination request processed by link 9999.",
+      " Error termination via Lnk1e in /home/ly/g16/l9999.exe at Sun Oct 18 08:31:30 2026.",
+      " Job cpu time:       0 days  9 hours 46 minutes 22.0 seconds.",
+      " Elapsed time:       0 days  2 hours 26 minutes 43.5 seconds.",
+      " File lengths (MBytes):  RWF=    312 Int=      0 D2E=      0 Chk=      9 Scr=      1"
+    ]
+  },
+  "method_checks": {
+    "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.gjf": {
+      "input_revision": 2,
+      "purpose": "ts_opt",
+      "actual": {
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source": "stage_declaration",
+      "differences": [],
+      "matched": true
+    }
+  },
+  "stage": "refine",
+  "stage_records": [
+    {
+      "stage": "declare",
+      "status": "done",
+      "detail": "reaction declared; each calculation requires its own method",
+      "artifacts": [],
+      "source_input_revision": 1
+    },
+    {
+      "stage": "build",
+      "status": "done",
+      "detail": "both endpoints built",
+      "artifacts": [
+        "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/generated_seed.xyz",
+        "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/generated_seed.mol",
+        "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/prepared_structure.json"
+      ],
+      "source_input_revision": 1
+    },
+    {
+      "stage": "map",
+      "status": "done",
+      "detail": "Concrete endpoint correspondence confirmed and owned by this reaction.",
+      "artifacts": [],
+      "source_input_revision": 2
+    },
+    {
+      "stage": "assemble",
+      "status": "done",
+      "detail": "single component: nothing to assemble (no inter-fragment orientation). The reaction coordinate is whatever the path guess explores",
+      "artifacts": [],
+      "source_input_revision": 2
+    },
+    {
+      "stage": "guess",
+      "status": "done",
+      "detail": "Provided candidate bound; formal optimization and verification remain required.",
+      "artifacts": [
+        "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/path/input_0002/provided.xyz",
+        "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/path/input_0002/provenance_0000.log"
+      ],
+      "source_input_revision": 2
+    },
+    {
+      "stage": "validate",
+      "status": "done",
+      "detail": "internal validation passed",
+      "artifacts": [],
+      "source_input_revision": 2
+    },
+    {
+      "stage": "submit",
+      "status": "done",
+      "detail": "refinement job 1292 submitted as 'ready' (gaussian, B3LYP); the scheduler daemon claims it and its terminal state arrives through the existing compute notification path",
+      "artifacts": [
+        "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.gjf"
+      ],
+      "source_input_revision": 2
+    },
+    {
+      "stage": "refine",
+      "status": "blocked",
+      "detail": "refinement job 1292 (ts_opt) ended as 'failed'; plain per-engine failure classes come from the log below — the run is stopped, not silently retried",
+      "artifacts": [],
+      "source_input_revision": 2
+    }
+  ],
+  "terminal": null,
+  "stop_reason": null,
+  "blocked": {
+    "failure_class": "job_failed",
+    "stage": "refine",
+    "message": "refinement job 1292 (ts_opt) ended as 'failed'; plain per-engine failure classes come from the log below — the run is stopped, not silently retried",
+    "atom_details": [
+      "native log: /home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.log",
+      " RMSU=  4.00D-08    CP:  1.00D+00  1.01D+00  5.24D-01  4.84D-01  8.48D-01",
+      " E= -598.205224103853     Delta-E=       -0.000000000161 Rises=F Damp=F",
+      " DIIS: error= 6.05D-08 at cycle   6 NSaved=   6.",
+      " NSaved= 6 IEnMin= 6 EnMin= -598.205224103853     IErMin= 6 ErrMin= 6.05D-08",
+      " ErrMax= 6.05D-08  0.00D+00 EMaxC= 1.00D-01 BMatC= 4.24D-12 BMatP= 1.73D-10",
+      " IDIUse=1 WtCom= 1.00D+00 WtEn= 0.00D+00",
+      "                    CP:  9.44D-01",
+      " E= -598.205224103858     Delta-E=       -0.000000000005 Rises=F Damp=F",
+      " DIIS: error= 1.85D-08 at cycle   7 NSaved=   7.",
+      " NSaved= 7 IEnMin= 7 EnMin= -598.205224103858     IErMin= 7 ErrMin= 1.85D-08",
+      " ErrMax= 1.85D-08  0.00D+00 EMaxC= 1.00D-01 BMatC= 3.58D-13 BMatP= 4.24D-12",
+      " IDIUse=1 WtCom= 1.00D+00 WtEn= 0.00D+00",
+      " Predicted change in Energy=-1.682952D-02",
+      " Optimization stopped.",
+      "    -- Number of steps exceeded,  NStep= 169",
+      "    -- Flag reset to prevent archiving.",
+      "                           ----------------------------",
+      "                           ! Non-Optimized Parameters !",
+      " N-N= 8.889001763165D+02 E-N=-3.164572975101D+03  KE= 5.916385864281D+02",
+      " No NMR shielding tensors so no spin-rotation constants.",
+      " Leave Link  601 at Sun Oct 18 08:31:30 2026, MaxMem=   805306368 cpu:               0.3 elap:               0.1",
+      " (Enter /home/ly/g16/l9999.exe)",
+      "",
+      "",
+      " DEFINE YOUR TERMS, YOU WILL PERMIT ME AGAIN TO SAY, ",
+      " OR WE SHALL NEVER UNDERSTAND ONE ANOTHER.",
+      "",
+      "                                    -- VOLTAIRE",
+      " Error termination request processed by link 9999.",
+      " Error termination via Lnk1e in /home/ly/g16/l9999.exe at Sun Oct 18 08:31:30 2026.",
+      " Job cpu time:       0 days  9 hours 46 minutes 22.0 seconds.",
+      " Elapsed time:       0 days  2 hours 26 minutes 43.5 seconds.",
+      " File lengths (MBytes):  RWF=    312 Int=      0 D2E=      0 Chk=      9 Scr=      1"
+    ],
+    "needs": [
+      "ts_optimization",
+      "execution",
+      "reaction.reaction_center"
+    ],
+    "issues": []
+  },
+  "intervention_count": 1,
+  "path_kind": "provided",
+  "guidance_attempt": 0,
+  "active_attempt_dir": "",
+  "guidance_manifest_path": "",
+  "job_id": 1292,
+  "job_input_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.gjf",
+  "waiting_for": "",
+  "scan_step": null,
+  "job_steps": [
+    {
+      "purpose": "ts_opt",
+      "job_id": 1292,
+      "input_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/jobs/declaration_0002/ts_opt/refine.gjf",
+      "state": "failed",
+      "actual_calculation": {
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source_input_revision": 2,
+      "method_contract": null,
+      "stage_key": null,
+      "external_source": null,
+      "endpoint_source": null,
+      "atom_binding": {
+        "process_id": "c822148a4e3db80c39145c36a0611054949ffad04ea6a7eb14539618ca88457b",
+        "declaration_revision": 2,
+        "atom_map": [
+          1,
+          2,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          18,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          4,
+          3,
+          5,
+          6,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          17
+        ],
+        "charge": 0,
+        "ts_log_sha256": null,
+        "reactant_mol": "\n     RDKit          3D\n\n 33 33  0  0  0  0  0  0  0  0999 V2000\n   -0.6831   -1.8372    0.0382 C   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.0096   -0.3782   -0.2836 C   0  0  1  0  0  0  0  0  0  0  0  0\n   -2.5122   -0.0453   -0.1341 N   0  0  0  0  0  0  0  0  0  0  0  0\n   -2.9352   -0.0177    1.3033 C   0  0  0  0  0  0  0  0  0  0  0  0\n   -3.3393   -1.0781   -0.8450 C   0  0  0  0  0  0  0  0  0  0  0  0\n   -2.7782    1.1474   -0.7127 O   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.0945    0.5833    0.5188 C   0  0  2  0  0  0  0  0  0  0  0  0\n   -0.3292    2.0876    0.3032 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.3626    0.2535    0.2206 C   0  0  0  0  0  0  0  0  0  0  0  0\n    2.2234   -0.1840    1.2358 C   0  0  0  0  0  0  0  0  0  0  0  0\n    3.5647   -0.4747    0.9694 C   0  0  0  0  0  0  0  0  0  0  0  0\n    4.0676   -0.3335   -0.3256 C   0  0  0  0  0  0  0  0  0  0  0  0\n    3.2201    0.1051   -1.3479 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.8827    0.3983   -1.0754 C   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8855   -2.0780    1.0943 H   0  0  0  0  0  0  0  0  0  0  0  0\n    0.3865   -2.0147   -0.1331 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.2349   -2.5442   -0.5939 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8705   -0.1802   -1.3554 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -4.0089    0.2000    1.3043 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -2.4090    0.8051    1.7944 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -2.7294   -0.9715    1.8121 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -4.3501   -0.6585   -0.8711 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -3.3283   -2.0585   -0.3481 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -2.9576   -1.1515   -1.8699 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.2469    0.3584    1.5884 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.3519    2.3824    0.5576 H   0  0  0  0  0  0  0  0  0  0  0  0\n    0.4038    2.6526    0.9015 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.1946    2.3541   -0.7546 H   0  0  0  0  0  0  0  0  0  0  0  0\n    1.8351   -0.3002    2.2515 H   0  0  0  0  0  0  0  0  0  0  0  0\n    4.2178   -0.8133    1.7777 H   0  0  0  0  0  0  0  0  0  0  0  0\n    5.1149   -0.5613   -0.5382 H   0  0  0  0  0  0  0  0  0  0  0  0\n    3.6045    0.2230   -2.3641 H   0  0  0  0  0  0  0  0  0  0  0  0\n    1.2350    0.7482   -1.8829 H   0  0  0  0  0  0  0  0  0  0  0  0\n  2  1  1  0\n  3  2  1  0\n  4  3  1  0\n  5  3  1  0\n  6  3  1  0\n  7  2  1  0\n  8  7  1  0\n  9  7  1  0\n 10  9  2  0\n 11 10  1  0\n 12 11  2  0\n 13 12  1  0\n 14 13  2  0\n 14  9  1  0\n 15  1  1  0\n 16  1  1  0\n 17  1  1  0\n  2 18  1  6\n 19  4  1  0\n 20  4  1  0\n 21  4  1  0\n 22  5  1  0\n 23  5  1  0\n 24  5  1  0\n  7 25  1  1\n 26  8  1  0\n 27  8  1  0\n 28  8  1  0\n 29 10  1  0\n 30 11  1  0\n 31 12  1  0\n 32 13  1  0\n 33 14  1  0\nM  CHG  2   3   1   6  -1\nM  END\n",
+        "product_mol": "\n     RDKit          3D\n\n 33 32  0  0  0  0  0  0  0  0999 V2000\n   -2.7313   -0.9258    0.3208 C   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.9705    0.0067    0.8855 C   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.0436    0.8123    0.0610 C   0  0  2  0  0  0  0  0  0  0  0  0\n   -1.4366    0.7221   -1.4118 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.3678    0.3230    0.1620 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.3856    1.1714    0.5458 C   0  0  0  0  0  0  0  0  0  0  0  0\n    2.7023    0.7739    0.6553 C   0  0  0  0  0  0  0  0  0  0  0  0\n    2.9784   -0.5606    0.3544 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.9707   -1.4349   -0.0345 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.6606   -0.9955   -0.1321 C   0  0  0  0  0  0  0  0  0  0  0  0\n   -2.6750   -1.1011   -0.7557 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -3.4160   -1.5270    0.9016 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -2.0469    0.1594    1.9564 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.0177    1.8929    0.3449 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -1.1157   -0.2566   -1.8179 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.8173    1.5205   -1.9080 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -2.5182    0.8666   -1.5777 H   0  0  0  0  0  0  0  0  0  0  0  0\n    1.1707    2.2229    0.7833 H   0  0  0  0  0  0  0  0  0  0  0  0\n    3.5015    1.4577    0.9612 H   0  0  0  0  0  0  0  0  0  0  0  0\n    3.9879   -0.9535    0.4155 H   0  0  0  0  0  0  0  0  0  0  0  0\n    2.1668   -2.4681   -0.2704 H   0  0  0  0  0  0  0  0  0  0  0  0\n   -0.1036   -1.7062   -0.4394 H   0  0  0  0  0  0  0  0  0  0  0  0\n    1.0242   -3.9432    1.2196 C   0  0  0  0  0  0  0  0  0  0  0  0\n    1.7072   -2.6814    1.1706 N   0  0  0  0  0  0  0  0  0  0  0  0\n    2.9987   -2.6778    1.7786 C   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9509   -1.6229    1.4277 O   0  0  0  0  0  0  0  0  0  0  0  0\n    1.6149   -4.6739    0.6117 H   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9139   -4.3623    2.2369 H   0  0  0  0  0  0  0  0  0  0  0  0\n    0.0203   -3.7816    0.7558 H   0  0  0  0  0  0  0  0  0  0  0  0\n    3.0072   -2.7317    2.8728 H   0  0  0  0  0  0  0  0  0  0  0  0\n    3.5484   -3.5663    1.3899 H   0  0  0  0  0  0  0  0  0  0  0  0\n    3.5742   -1.8009    1.4412 H   0  0  0  0  0  0  0  0  0  0  0  0\n    0.9583   -1.2950    2.3493 H   0  0  0  0  0  0  0  0  0  0  0  0\n  1  2  2  0\n  2  3  1  0\n  3  4  1  0\n  3  5  1  0\n  5  6  2  0\n  6  7  1  0\n  7  8  2  0\n  8  9  1  0\n  9 10  2  0\n 10  5  1  0\n  1 11  1  0\n  1 12  1  0\n  2 13  1  0\n  3 14  1  1\n  4 15  1  0\n  4 16  1  0\n  4 17  1  0\n  6 18  1  0\n  7 19  1  0\n  8 20  1  0\n  9 21  1  0\n 10 22  1  0\n 23 24  1  0\n 24 25  1  0\n 24 26  1  0\n 23 27  1  0\n 23 28  1  0\n 23 29  1  0\n 25 30  1  0\n 25 31  1  0\n 25 32  1  0\n 26 33  1  0\nM  END\n"
+      },
+      "frequency_analysis": null
+    }
+  ],
+  "evidence_candidates": [
+    "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/generated_seed.xyz",
+    "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/generated_seed.mol",
+    "/home/ly/Cloudra-mechanism-agent/ts/ts_0040/build/input_0001/product/prepared_structure.json"
+  ],
+  "revision": 17
+}

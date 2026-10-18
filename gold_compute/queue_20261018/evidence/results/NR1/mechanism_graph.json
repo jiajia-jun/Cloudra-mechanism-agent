@@ -1,0 +1,200 @@
+{
+  "nodes": [
+    {
+      "id": "R",
+      "role": "reactant",
+      "smiles": [
+        "NC=O"
+      ],
+      "properties": {
+        "evidence_log": "gold_compute/queue_20261018/results/NR1/jobs/R_formamide_optfreq.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0032/jobs/declaration_0011/frequency/frequency.log",
+        "imaginary_cm": -1897.6514
+      }
+    },
+    {
+      "id": "INT1a",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "evidence_log": "gold_compute/queue_20261018/results/NR1/jobs/imidic_dNH180_dOH0_optfreq.log"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0033/jobs/declaration_0001/frequency/frequency.log",
+        "imaginary_cm": -991.8673,
+        "note": "conformational edge"
+      }
+    },
+    {
+      "id": "INT1b",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "evidence_log": "gold_compute/queue_20261018/results/NR1/jobs/imidic_dNH0_dOH0_optfreq.log"
+      }
+    },
+    {
+      "id": "TS3",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0034/jobs/declaration_0001/frequency/frequency.log",
+        "imaginary_cm": -508.305,
+        "note": "conformational edge"
+      }
+    },
+    {
+      "id": "INT1c",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "evidence_log": "gold_compute/queue_20261018/results/NR1/jobs/imidic_dNH0_dOH180_optfreq.log"
+      }
+    },
+    {
+      "id": "TS4",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "note": "located at B3LYP-D3(BJ)/def2-SVP (gas). TS is a puckered structure with dih(H6-O3-C2-N1) = -105.8 deg; the flat cand_b frame's -435.71 cm-1 out-of-plane mode is relaxed away on the true PES, so the 2-imaginary candidate (job 1291) became a 1-imaginary saddle (job 1296). Reproduced identically under declaration_0004 (job 1299 E = -169.641371451 at L4366; job 1300 frequency -1923.6069 at L614). Workflow verdict = candidate_only, solely because the 10+10-step IRC outer frames do not reach the product minimum (C2-O3 1.82 vs 4.21 A), i.e. an IRC-interval bookkeeping gate, not a connection failure.",
+        "status": "located",
+        "evidence_log": "ts/ts_0042/jobs/declaration_0004/frequency/frequency.log",
+        "imaginary_cm": -1923.6069,
+        "energy_hartree": -169.641371451,
+        "delta_e_dagger_kcal_mol": 64.93
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C#N.O"
+      ],
+      "properties": {
+        "evidence_log": "gold_compute/queue_20261018/results/NR1/jobs/NR1_P_complex_optfreq.log",
+        "note": "HCN...H2O contact complex, E=-169.720742486 Ha, 0 imaginary modes"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "R",
+      "to": "INT1a",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            5
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 46.32,
+      "barrier_denominator": {"species": "R_formamide (formamide, the reactant of this step; job 1210, 12 modes, 0 imaginary)", "job": 1210, "energy_hartree": -169.772982663, "why": "step start; formamide has a single amide minimum at this level, so this is also its lowest verified minimum"},
+      "note": "barrier = E(TS1) - E(R_formamide) = -169.699169421 - (-169.772982663) = +0.073813242 Ha = 46.32 kcal/mol (pure electronic, k = 627.509474)",
+      "channel": "N->O proton transfer (1,3-H shift)"
+    },
+    {
+      "id": "e2",
+      "from": "INT1a",
+      "to": "INT1b",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 22.8,
+      "barrier_denominator": {"species": "INT1a (formimidic acid conformer A, the lowest conformer of this intermediate; job 1196, re-checked 1215, 12 modes, 0 imaginary)", "job": 1196, "energy_hartree": -169.751090026, "why": "this is already the stable intermediate of the species, so the 22.80 value complies with the stable-intermediate rule without change"},
+      "note": "barrier = E(TS2) - E(INT1a) = -169.714755466 - (-169.751090026) = +0.036334560 Ha = 22.80 kcal/mol",
+      "channel": "conformational"
+    },
+    {
+      "id": "e3",
+      "from": "INT1b",
+      "to": "INT1c",
+      "via": "TS3",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 7.25,
+      "barrier_denominator": {"species": "INT1b (formimidic acid conformer B, the starting node of this conformational edge; job 1187, re-checked 1200, 12 modes, 0 imaginary)", "job": 1187, "energy_hartree": -169.745424733, "why": "for a conformational edge both endpoints ARE minima of the same species, so the edge is quoted node-to-node from its own starting minimum INT1b; referencing it to INT1a instead would double-count the separate e2 barrier"},
+      "barrier_if_referenced_to_INT1a_kcal_mol": 10.8,
+      "note": "barrier = E(TS3) - E(INT1b) = -169.733877738 - (-169.745424733) = +0.011546995 Ha = 7.25 kcal/mol. If the same number were taken against INT1a (the lowest conformer of this species) it would be 10.80 kcal/mol; that variant is recorded in barrier_if_referenced_to_INT1a_kcal_mol and is NOT used, because the step starts at INT1b.",
+      "channel": "conformational"
+    },
+    {
+      "id": "e4",
+      "from": "INT1c",
+      "to": "P",
+      "via": "TS4",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 68.85,
+      "barrier_denominator": {"species": "INT1a (formimidic acid conformer A, the stable intermediate; job 1196, E = -169.751090026 Ha, 12 modes, 0 imaginary)", "job": 1196, "energy_hartree": -169.751090026, "why": "per the batch rule the denominator of a step is the lowest verified conformer of the intermediate, NOT the higher conformer the TS happened to be connected to. INT1c is 3.92 kcal/mol above INT1a, so the barrier referenced to the stable intermediate is 68.85 instead of 64.93"},
+      "barrier_conformer_specific_kcal_mol": 64.93,
+      "barrier_conformer_specific_denominator": "INT1c (job 1125 E = -169.744844814; endpoint re-opt job 1302 E = -169.744844755), the conformer whose IRC connects to TS4; kept as a conformer-specific value, not deleted",
+      "barrier_reference": "INT1c (job 1125, E = -169.744844814 Ha) = the conformer-specific denominator; the primary barrier uses INT1a (see barrier_denominator). Pure electronic energies, no ZPE",
+      "channel": "1,3-H transfer to O (N1-H4 breaks, O3-H4 forms) coupled with C2-O3 cleavage",
+      "provenance": {
+        "ts_opt": {"job": 1295, "log": "ts/ts_0042/jobs/declaration_0001/ts_opt/refine.log", "sha256": "e4cc52d2c4017d22df520476df64ccfef396d59d5ceb81d1e3aded538824bbbe", "scf_line": 4366},
+        "ts_frequency": {"job": 1296, "log": "ts/ts_0042/jobs/declaration_0001/frequency/frequency.log", "sha256": "a5e4129ee7dbc7042151ca9838436700651bfc29baba4f049722dcc98e382231", "scf_line": 419, "imaginary_line": 614},
+        "irc": {"job": 1297, "log": "ts/ts_0042/jobs/declaration_0002/irc/irc.log", "sha256": "7faf601835321885532d3288a6bbd428dbd9f6fda494fa1a8e0c406781d53918", "lines": 7952, "note": "10 FORWARD + 10 REVERSE, IRC=(CalcFC,MaxPoints=10,StepSize=10)"},
+        "endpoints": {
+          "dir": "ts/ts_0042/jobs/declaration_0004",
+          "reactant_opt": {"log": "reactant_opt/reactant_opt.log", "sha256": "b24868431ac38e1827f644cff480fad494e228f3b2724a4c88b58a23475ff89f", "scf_line": 445, "E_hartree": -169.744844755},
+          "reactant_frequency": {"log": "reactant_frequency/reactant_frequency.log", "sha256": "d77393a40b43e35fb43030b338bee327ffac5901430ff0c88a2ec7f8719c15dc", "scf_line": 417, "imaginary_count": 0},
+          "product_opt": {"log": "product_opt/product_opt.log", "sha256": "a802445a4bc13f048c64c8d36badd01127cdcb17023ae84c70cc0e2914edfb16", "scf_line": 1434, "E_hartree": -169.720742511},
+          "product_frequency": {"log": "product_frequency/product_frequency.log", "sha256": "0e37a8ae9c9c52888ac4c9f412aedd41c5bd2053181fccbe75af798bc7caeeec", "scf_line": 392, "imaginary_count": 0}
+        },
+        "reverse_barrier_kcal_mol": 49.81,
+        "product_relative_to_INT1c_kcal_mol": 15.12
+      }
+    }
+  ]
+}

@@ -1,0 +1,191 @@
+{
+  "task_id": "HA1",
+  "tier": "hard",
+  "family": "A",
+  "name": "3-methylcyclobutene ring opening: determine the stereochemical outcome",
+  "prompt": {
+    "query": "Determine the mechanism of the following reaction: 3-methylcyclobutene ring opening: determine the stereochemical outcome. Reactant SMILES: CC1CC=C1; product SMILES: C=CC=CC; total charge 0, multiplicity 1; conditions: gas phase or inert solvent, ~150-200 degC, thermal. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Report electronic barriers only; do not add thermal corrections for the stated temperature. Atom-mapped reactant SMILES: [CH3:1][CH:2]1[CH2:3][CH:4]=[CH:5]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum: for a bimolecular reaction that minimum is the reactant complex (e.g. the ion-dipole complex), and for a unimolecular process it is simply the reactant minimum. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. For each competing stereochemical channel, declare on that channel's edge a `channel` field (a short label identifying the channel) and `favored: true` on exactly the one channel your computed barriers favor (`favored: false` on the other channels); the favored-channel assignment is scored qualitatively (right or wrong). Also record the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol in your report; the numeric difference is recorded but not scored numerically. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "CC1CC=C1"
+    ],
+    "products": [
+      "C=CC=CC"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase or inert solvent, ~150-200 degC, thermal",
+    "elements": [
+      "C",
+      "H"
+    ],
+    "max_heavy_atoms": 5,
+    "closed_shell": true,
+    "single_step": false
+  },
+  "method_policy": {
+    "calculation_contracts": {},
+    "allowed_methods": [
+      "xtb",
+      "pm7",
+      "b3lyp/def2svp"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "HA1_R",
+          "role": "reactant",
+          "smiles": [
+            "CC1CC=C1"
+          ],
+          "accessible": true,
+          "label": "reactant",
+          "properties": {}
+        },
+        {
+          "id": "HA1_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS1",
+          "properties": {}
+        },
+        {
+          "id": "HA1_P",
+          "role": "product",
+          "smiles": [
+            "C=C/C=C/C"
+          ],
+          "accessible": true,
+          "label": "product",
+          "properties": {}
+        },
+        {
+          "id": "HA1_TSM1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS minor 1",
+          "properties": {}
+        },
+        {
+          "id": "HA1_M1",
+          "role": "product",
+          "smiles": [
+            "C=C/C=C\\C"
+          ],
+          "accessible": true,
+          "label": "minor product 1",
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "HA1_E1",
+          "from": "HA1_R",
+          "to": "HA1_P",
+          "via": "HA1_TS1",
+          "step_type": "4pi conrotatory electrocyclic ring opening, outward rotation of the methyl group (torquoselection) -> (E)-1,3-pentadiene",
+          "bond_changes": {
+            "break": [
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ]
+            ],
+            "form": [
+              [
+                2,
+                5
+              ],
+              [
+                3,
+                4
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 33.04,
+          "weight": 1.0,
+          "channel": "outward_rotation",
+          "favored": true
+        },
+        {
+          "id": "HA1_EM1",
+          "from": "HA1_R",
+          "to": "HA1_M1",
+          "via": "HA1_TSM1",
+          "step_type": "conrotatory opening with inward methyl rotation -> (Z)-1,3-pentadiene (minor channel of the torquoselection)",
+          "bond_changes": {
+            "break": [
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ]
+            ],
+            "form": [
+              [
+                2,
+                5
+              ],
+              [
+                3,
+                4
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 38.75,
+          "weight": 1.0,
+          "channel": "inward_rotation",
+          "favored": false
+        }
+      ]
+    },
+    "reference_properties": {},
+    "selectivity": {
+      "spread_kcal_mol": 5.71,
+      "minor_channel": "inward methyl rotation -> (Z)-1,3-pentadiene",
+      "favored_channel": "outward_rotation"
+    }
+  },
+  "rubric": {
+    "integrity": {
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true
+    },
+    "graph_similarity": {
+      "stereo_tier_rule": "hard_stereo_costly"
+    },
+    "accuracy": {
+      "enabled": true,
+      "sigma_kcal_mol": 2.0,
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
+    }
+  }
+}

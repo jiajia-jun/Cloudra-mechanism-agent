@@ -45,6 +45,7 @@ from cloudra.benchmark.gen_normal_tasks import (
 )
 from cloudra.benchmark.impossible_registry import REGISTRY
 from cloudra.benchmark.query_builder import (
+    BARRIER_DECLARATION_CLAUSE,
     GRAPH_JSON_EXAMPLE,
     conditions_modeling_guidance,
     format_allowed_methods_clause,
@@ -311,10 +312,8 @@ def _deliverable_clause(entry: dict) -> str:
     dk = entry["deliverable_kind"]
     if dk == "mechanism":
         clause = (
-            f"Declare {entry['deliverable_en']} on the rate-determining step's edge as "
-            "`barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy "
-            "differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each "
-            "relative to that step's own starting minimum. "
+            BARRIER_DECLARATION_CLAUSE
+            + f"Report {entry['deliverable_en']} on the rate-determining step's edge. "
         )
         extra = entry.get("product_property_keys") or []
         if extra:

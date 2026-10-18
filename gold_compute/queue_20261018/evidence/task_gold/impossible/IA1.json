@@ -1,0 +1,133 @@
+{
+  "task_id": "IA1",
+  "tier": "impossible",
+  "family": "A",
+  "name": "cyclobutadiene D4h automerization",
+  "prompt": {
+    "query": "Determine the mechanism and activation barrier of the thermal automerization of cyclobutadiene (rectangular ground state interconverting through the square transition structure). Reactant SMILES: C1=CC=C1; product SMILES: C1=CC=C1; total charge 0, multiplicity 1; conditions: gas phase, low temperature (matrix isolation regime). Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH:1]1=[CH:2][CH:3]=[CH:4]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Declare the automerization barrier in kcal/mol (transition state relative to the rectangular ground-state minimum) on the rate-determining step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections, each relative to that step's own starting minimum. If a particular species or transition state cannot be computed to a trustworthy accuracy with the allowed methods, mark the corresponding node or edge \"accessible\": false in mechanism_graph.json and deliver the rest of the graph as usual; the graph still starts at the reactant complex. The scorer reads that structured flag, not prose; do not declare a number you cannot stand behind. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and pm7; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "C1=CC=C1"
+    ],
+    "products": [
+      "C1=CC=C1"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase, low temperature (matrix isolation regime)",
+    "elements": [
+      "C"
+    ],
+    "max_heavy_atoms": 4,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "calculation_contracts": {},
+    "allowed_methods": [
+      "xtb",
+      "pm7"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "IA1_R",
+          "role": "reactant",
+          "smiles": [
+            "C1=CC=C1"
+          ],
+          "accessible": true,
+          "label": "reactant",
+          "properties": {}
+        },
+        {
+          "id": "IA1_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": false,
+          "label": "TS1",
+          "properties": {}
+        },
+        {
+          "id": "IA1_P",
+          "role": "product",
+          "smiles": [
+            "C1=CC=C1"
+          ],
+          "accessible": true,
+          "label": "product",
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "IA1_E1",
+          "from": "IA1_R",
+          "to": "IA1_P",
+          "via": "IA1_TS1",
+          "step_type": "thermal automerization through the D4h square transition state (double-bond pattern interchange)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                3
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": null,
+          "favored": null
+        }
+      ]
+    },
+    "reference_properties": {},
+    "selectivity": null
+  },
+  "rubric": {
+    "integrity": {
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true
+    },
+    "graph_similarity": {
+      "stereo_tier_rule": "easy_normal_stereo_free"
+    },
+    "accuracy": {
+      "enabled": true,
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
+    }
+  }
+}

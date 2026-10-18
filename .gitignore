@@ -99,6 +99,12 @@ cloudra/runtime_v2/js_host/node_modules
 # 运行时状态泄漏文件（如 Gaussian 作业 state json）
 state_*.json
 
+# 固定归档的 Gold 原始证据；运行目录及 Python 缓存仍按上面的规则忽略。
+!/gold_compute/queue_20261018/evidence/**/
+!/gold_compute/queue_20261018/evidence/**
+/gold_compute/queue_20261018/evidence/**/__pycache__/
+/gold_compute/queue_20261018/evidence/**/*.py[cod]
+
 # 申报材料：本地留存，不上传公开仓库
 互联网加申报材料/
 

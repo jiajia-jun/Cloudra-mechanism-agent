@@ -1,0 +1,16 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/guess_prep/P_rotp_optfreq.chk
+%nproc=4
+%mem=6144MB
+#p opt=(calcfc,maxcycle=200) freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+
+NY3 P complex (NH3...CO2) mode-followed from -20.6233 cm-1 torsion, sign p | smiles: N.O=C=O
+
+0 1
+C        0.00000000     0.87215100     0.00000000
+O        1.16247200     0.93390500    -0.02000000
+N        0.00408300    -1.88225200     0.00000000
+H        0.93782300    -2.29608400     0.28500000
+O       -1.16356100     0.91226000     0.02000000
+H       -0.72884800    -2.26019200     0.66972600
+H       -0.22884800    -2.27019200    -0.95972600
+

@@ -1,0 +1,16 @@
+%chk=/home/ly/Cloudra-mechanism-agent/ts/ts_0027/jobs/declaration_0006/product_opt/product_opt.chk
+%nproc=4
+%mem=6144MB
+#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+
+Endpoint product opt from explicit species seed; identity unverified | declared_species: [C:1](=[O:2])([N:3]([H:4])[H:6])[O:5][H:7]
+
+0 1
+C       -0.04033500     0.12317000     0.00010300
+O       -0.46766000     1.25516600     0.00001000
+N        1.27130800    -0.23115000    -0.00031500
+H        1.96539400     0.50219000     0.00068400
+O       -0.83623200    -0.97760300    -0.00000200
+H       -1.74601200    -0.64288900    -0.00005900
+H        1.55460800    -1.20077600     0.00090200
+

@@ -1,0 +1,16 @@
+%chk=/home/ly/Cloudra-mechanism-agent/ts/ts_0029/jobs/declaration_0010/ts_opt/refine.chk
+%nproc=4
+%mem=6144MB
+#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+
+TS refinement: NC(=O)O -> O=C=O.N | smiles: NC(=O)O
+
+0 1
+C        0.46702600     0.02798000    -0.00001500
+O        1.24112400    -0.85380700     0.00000800
+N       -1.43914100    -0.38314800    -0.00011700
+H       -1.85224900    -0.79466900    -0.83806500
+O        0.26888300     1.24458800    -0.00007600
+H       -1.85077800    -0.79385500     0.83897000
+H       -1.10519700     0.97644000     0.00055200
+

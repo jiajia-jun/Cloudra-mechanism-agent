@@ -34,16 +34,20 @@ GRAPH_JSON_EXAMPLE = (
 )
 
 # 能垒交付契约（easy/normal/hard 共用；impossible 的机理类交付句同样引用其中的
-# 能量类型声明）：能量类型必须是电子能差 ΔE‡——不含 ZPE 与热校正，各自相对该步
-# 起点最小值（双分子：预反应络合物）。
+# 能量类型声明）：能量类型必须是电子能差 ΔE‡——不含 ZPE 与热校正。
+# 反应垒相对对应物种的稳定中间体；构象转换垒仍相对该转换的起始构象。
 BARRIER_DECLARATION_CLAUSE = (
     "Declare every barrier you actually compute in kcal/mol on that elementary "
     "step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are "
     "electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal "
-    "corrections, each relative to that step's own starting minimum: for a "
-    "bimolecular reaction that minimum is the reactant complex (e.g. the "
-    "ion-dipole complex), and for a unimolecular process it is simply the "
-    "reactant minimum. The scorer derives every declared step barrier from "
+    "corrections. For a bond-changing step, use the lowest-energy verified "
+    "minimum of the corresponding reactant or intermediate state found in your "
+    "evidence, including its connected conformers; this reference need not be "
+    "the conformer directly reached by IRC. Preserve the actual IRC connection "
+    "in the mechanism graph. A conformational-transition barrier uses its own "
+    "initial conformer. Keep separate stereochemical substrates and disconnected "
+    "channel-specific reactant complexes as separate references; do not replace "
+    "a complex by separated-monomer energies. The scorer derives every declared step barrier from "
     "your log files and takes the highest as the rate-determining step; a "
     "barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees "
     "with those logs is not scorable. "
@@ -56,8 +60,8 @@ TS_EVIDENCE_CLAUSE = (
     "must be written before computation and expresses intent rather than proven identity. "
 )
 
-# 节点能量声明（能垒评分题必填）：评分器用声明值指认"交付的是哪一份日志"
-# （同物种多份合法日志/多构象时），因此每个节点都要把能量与日志路径写清楚。
+# 节点能量声明（能垒评分题必填）：指认交付日志；反应垒的稳定参考由合法极小值选取，
+# 不用节点声明把较高能构象强行选成参考。
 _NODE_ENERGY_CLAUSE = (
     "Every species node and transition-state node must declare "
     "`properties.energy_hartree` (the electronic energy of the geometry you "

@@ -1,0 +1,502 @@
+
+==================== PAGE 1 ====================
+SUPPORTING INFORMATION 
+A Theoretical Study of Formamide Decomposition Pathways 
+ 
+ Vinh Son Nguyen,1 Heather L. Abbott,2,* M. Michele Dawley,2 Thomas M. 
+Orlando,2 Jerzy Leszczynski3 and Minh Tho Nguyen1,* 
+1Department of Chemistry, and LMCC-Mathematical Modeling and Computational Science 
+Center, Katholieke Universiteit Leuven, B-3001 Leuven, Belgium  
+2School of Chemistry and Biochemistry, Georgia Institute of Technology, Atlanta, GA 30332-
+0400. 
+3Interdisciplinary Center for Nanotoxicity, Department of Chemistry, Jackson State University, 
+Jackson, MS 39217-0510 
+ 
+ 
+Supporting Information Available  
+The Supporting Information for this document includes tables with structures, rotational 
+constants, vibrational frequencies and total energies for all optimized geometries. In 
+addition, the entropy, zero point correction and thermal correction for formamide, 
+reactive intermediates and transition states are available. Additional plots illustrating the 
+pressure dependence of RRKM rate constants, 
+, are also provided. This information is 
+available free of charge via the Internet at http://pubs.acs.org. 
+ 
+                                                 
+* Emails: heather.abbott-lyon@gatech.edu, minh.nguyen@chem.kuleuven.be 
+
+==================== PAGE 2 ====================
+Supporting Information 
+Table S1 
+Vibrational frequencies (at 298 K), rotational constants (in GHZ) of Formamide, 
+intermediates and the transition states involved in the decomposition of Formamide. 
+N—C—O  PES’s  
+Species 
+Structures  a 
+Rotational Constants, GHZ 
+Vibrational frequencies, cm-1  b 
+NH2CHO 
+ 
+72.03840 
+11.17477 
+9.67410 
+174, 557, 635, 1031, 1048, 1274, 1405, 
+1618, 1764, 3036, 3605, 3764 
+INT-1a 
+ 
+69.30074   11.30740   9.72124 
+580, 618, 829, 1031, 1065, 1185, 1367, 
+1379, 1692, 3179, 3533, 3725 
+INT-1b 
+ 
+66.27432   11.05377   9.47368 
+516, 577, 835, 1062, 1069, 1119, 1341, 
+1402, 1689, 3232, 3458, 3764  
+INT-1c 
+ 
+69.25678   11.05905   9.53628 
+401, 589, 849, 1051, 1054, 1167, 1298, 
+1409, 1715, 3182, 3469, 3808 
+INT-2a 
+ 
+69.17476   11.56671   9.90971 
+555, 556, 630, 772, 1022, 1180, 1277, 
+1426, 1647, 3497, 3735, 3840 
+INT-2b 
+ 
+65.33272   11.58440   9.83969 
+512, 584, 592, 751, 1042, 1156, 1310, 
+1392, 1650, 3424, 3530, 3711 
+INT-3a 
+ 
+65.96869   11.76537   9.98463 
+419, 527, 793, 898, 961, 1166, 1338, 
+1444, 1659, 3148, 3298, 3805 
+INT-3b 
+ 
+63.72115   11.83265   9.97952 
+438, 555, 770, 919, 931, 1154, 1370, 
+1449, 1654, 3099, 3285, 3627 
+INT-4 
+ 
+74.55671   11.59181   10.03206 
+567, 653, 744, 966, 1078, 1297, 1473, 
+1492, 1657, 3215, 3336, 3370 
+INT-5 
+ 
+59.38191   11.38263 
+10.16508 
+156, 574, 893, 975, 1155, 1366, 1447, 
+1451, 1528, 3056 , 3166, 3187 
+INT-6 
+ 
+25.98172   14.25198 
+23.74782   715, 897, 970, 1076, 1210, 1230, 1249, 
+1347, 1530, 3134, 3247, 3423  
+
+==================== PAGE 3 ====================
+Supporting Information 
+INT-7a 
+ 
+68.50779   11.52273   9.86370 
+455, 560, 676, 899, 1008, 1177, 1362, 
+1455, 1584, 3076, 3497, 3655 
+INT-7b 
+ 
+63.85893   11.05539   9.42390 
+259, 487, 679, 750, 1055, 1120, 1287, 
+1470, 1581, 3033, 3597, 3724 
+INT-8a 
+ 
+78.64970   10.16618 
+11.67532   299, 533, 602, 787, 1050, 1166, 1442, 
+1515, 1858, 3199, 3388, 3413 
+INT-8b 
+ 
+72.58361   11.73494   10.10175 
+263, 532, 550, 804, 1015, 1165, 1445, 
+1507, 1638, 3175, 3217, 3375 
+INT-8c 
+ 
+78.72175   11.66984   10.16323 
+299, 532, 603, 787, 1049, 1166, 1442, 
+1516, 1587, 3198, 3388, 3411 
+INT-9a 
+ 
+64.18492   11.69109   10.17484 
+257, 559, 770, 836, 1221, 1308, 1368, 
+1408, 1585, 2963, 3379, 3522 
+INT-9b 
+ 
+58.74426   11.11359   9.82654 
+122, 459, 612, 820, 1157, 1234, 1272, 
+1417, 1578, 2932, 3410, 3520  
+INT-9c 
+ 
+64.18481   11.69110   10.17484 
+257, 559, 770, 836, 1221, 1308, 1368, 
+1408, 1585, 2963, 3379, 3522 
+INT-10 
+ 
+59.75664   11.33057   10.15786 
+127, 556, 754, 1059, 1150, 1344, 1447, 
+1464, 1468, 3090, 3228, 3241 
+INT-11 
+ 
+25.78450   23.28981   13.97716 
+597, 811, 850, 1009, 1110, 1152, 1209, 
+1338, 1623, 2953, 3479, 3622 
+INT-12 
+ 
+25.77651   23.29039   13.97500 
+596, 811, 850, 1009, 1110, 1152, 1209, 
+1338, 1623, 2953, 3479, 3623 
+NH3-ts 
+ 
+72.46230   7.82978     7.25908 
+-1704, 208, 251, 397, 579, 735, 1184, 
+1440, 1796, 2356, 3421, 3589 
+H2-ts1 
+ 
+78.60184   10.56600   9.31398 
+-1951, 319, 612, 693, 821, 1208, 1180, 
+1300, 1694, 2016, 2206, 3455 
+
+==================== PAGE 4 ====================
+Supporting Information 
+H2-ts2 
+ 
+50.92250   13.01883   10.50487 
+-1109, 268, 456, 480, 652, 684, 963, 
+1190, 1455, 1594, 3155, 3840  
+tsH-1,2 
+ 
+75.44539   10.99961   9.59998 
+-1910, 398, 456, 523, 675, 1038, 1312, 
+1385, 1612, 2613, 3501, 3736 
+tsH-1,3 
+ 
+57.48115   13.38523   10.85703 
+-1883, 446, 848, 1012, 1088, 1137, 
+1221, 1422, 1609, 2108, 3227, 3598 
+tsR-1a1b 
+ 
+72.20877   10.85920   9.43961 
+-1057, 351, 599, 623, 993, 1039, 1256, 
+1415, 1799, 3110, 3737, 3917 
+tsR-1b1c 
+ 
+64.35402   10.86992   9.56747 
+-473, 574, 805, 1014, 1076, 1179, 
+1239, 1395, 1672, 3198, 3462, 3811 
+tsR-2a2b 
+ 
+61.69276   11.41007   9.91435 
+-666, 557, 687, 761, 947, 1087, 1205, 
+1371, 1637, 3454, 3692, 3785 
+tsH-1b2b 
+ 
+65.40582   11.25408   9.80052 
+-1866, 498, 601, 648, 947, 1102, 1171, 
+1344, 1470, 2407, 3170, 3528 
+tsH-1c2a 
+ 
+68.80235   11.17561   9.82796 
+-1887, 487, 600, 627, 1000, 1086, 
+1175, 1312, 1498, 2410, 3254, 3797 
+INT-1b-tsH2O 
+ 
+64.91814   7.59934     6.95469 
+-1464, 247, 294, 607, 640, 735, 769, 
+1085, 1811, 2876, 3582, 3721 
+INT-1c-tsH2O 
+ 
+45.85582   10.97155   9.08258 
+-1978, 490, 554, 624, 767, 871, 1070, 
+1271, 1762, 1839, 3295, 3715 
+
+==================== PAGE 5 ====================
+Supporting Information 
+INT-2a-tsH2O 
+ 
+49.53216   12.20604   10.03990 
+-1662, 515, 576, 701, 822, 973, 1141, 
+1289, 1542, 1929, 3587, 3733 
+INT-1a-tsH2 
+ 
+73.54123   10.50084   9.18879 
+-2003, 360, 512, 566, 789, 974, 1046, 
+1275, 1560, 2014, 2524, 3669 
+INT-1c-tsH2 
+ 
+81.37734   10.57713   9.36048 
+-2011, 518, 583, 685, 869, 966, 1062, 
+1332, 1808, 2099, 2301, 3490 
+INT-2b-tsH2 
+ 
+67.19267   12.54452   10.57097 
+-1712, 263, 689, 780, 937, 1115, 1149, 
+1387, 1447, 1776, 1899, 3669 
+INT-2b-tsNH3 
+ 
+50.31962   12.24370   10.41182 
+-1659, 331, 655, 850, 921, 1003, 1349, 
+1432, 1540, 1917, 3448, 3569 
+aGeometry optimization is performed at MP2/aug-cc-pVTZ level. 
+bVibrational frequencies (non scaled) are obtained from a vibrational analysis of the geometry optimized 
+structures for these species obtained from Moller Plesset perturbation calculations performed at the 
+MP2/aug-cc-pVDZ level.  Frequencies indicated in boldface correspond to imaginary frequencies of 
+transition states. 
+
+==================== PAGE 6 ====================
+Supporting Information 
+Table S1 (continued) 
+ 
+C—N—O  PES’s  
+ 
+tsR-11 
+ 
+29.86850   19.22350   13.08759 
+-1375, 655, 789, 987, 1070, 1105, 
+1238, 1268, 1574, 2956, 3359, 3588  
+tsC-119a 
+ 
+36.96485   15.02841   11.82341 
+-730, 387, 771, 796, 1043, 1128, 1248, 
+1404, 1590, 2875, 3483, 3627 
+tsH-116 
+ 
+27.70778   19.98831   13.02938 
+-971, 550, 761, 963, 1075, 1115, 1230, 
+1347, 1383, 2587, 3089, 3445 
+HtsH-111a 
+ 
+24.72930   21.98616   13.12411 
+-1579, 558, 771, 936, 957, 1086, 1099, 
+1323, 1354, 2443, 2969, 3420 
+tsH-111b 
+ 
+ 
+ 
+ 
+ 
+ 
+aGeometry optimization is performed at MP2/aug-cc-pVTZ level. 
+bVibrational frequencies (non scaled) are obtained from a vibrational analysis of the geometry optimized 
+structures for these species obtained from Moller Plesset perturbation calculations performed at the 
+MP2/aug-cc-pVDZ level.  Frequencies indicated in boldface correspond to imaginary frequencies of 
+transition states. 
+ 
+ 
+
+==================== PAGE 7 ====================
+Supporting Information 
+Table S2  
+Processes and Energies in N—C—O PES’s. Energy values (kcal/mol) were obtained at 
+CCSD(T)/CBS level  
+ 
+One-Step Decomposition 
+ 
+Lowest energy pathway to H2 + HNCO (k1) 
+Formamide (0.0) →  H2-ts1 (78.8)  →  H2 + HNCO (15.7)  
+ 
+Alternative pathway to H2 + HNCO 
+Formamide (0.0) →  H2-ts2 (112.5)  →  H2 + HNCO (15.7)  
+ 
+Pathway to give NH3 + CO (k2) 
+Formamide (0.0) →  NH3-ts (80.5)  →  CO + NH3 (6.2)  
+ 
+Multi-Step Decomposition 
+ 
+Alternative pathway to NH3 + CO (k3) 
+Formamide (0.0)  →  tsH-1,2 (72.2)  →  INT-2a (36.8)  → tsR-2a2b (51.4) → INT-2b 
+(42.4) → INT-2b-tsNH3  (77.2)  →  NH3 + CO (6.2)  
+ 
+Lowest energy pathway to H2O + HNC (k4) 
+Formamide (0.0)  →  tsH-1,3 (43.9)  →  INT-1a (11.0)  → tsR-1a1b (34.0) → INT-1b 
+(14.3) →  INT-1b-tsH2O  (82.7)  →  H2O + HNC (31.2)  
+ 
+Lowest energy pathway to H2O + HCN (k5) 
+Formamide (0.0)  →  tsH-1,3 (43.9)  →  INT-1a (11.0)  → tsR-1a1b (34.0) → INT-1b 
+(14.3) →  tsR-1b1c (19.7) →  INT-1c (14.5) → INT-1c-tsH2O  (73.6)  →  H2O + HCN 
+(16.9)  
+ 
+Alternative pathway to H2O + HNC  
+Formamide (0.0)  →  tsH-1,2 (72.2)  →  INT-2a (36.8)  → INT-2a-tsH2O  (83.7)  →  
+H2O + HNC (31.2) 
+ 
+Pathway to H2 + HOCN  
+Formamide (0.0)  →  tsH-1,3 (43.9)  →  INT-1a (11.0)  →  INT-1a-tsH2  (112.5)  →  H2 
++ HOCN (40.3) 
+ 
+Alternative pathways to H2 + HNCO  
+Formamide (0.0)  →  tsH-1,3 (43.9)  →  INT-1a (11.0)  → tsR-1a1b (34.0) → INT-1b 
+(14.3) →  tsR-1b1c (19.7) →  INT-1c (14.5) → INT-1c-tsH2  (91.5)  →  H2 + HNCO 
+(15.7)  
+ 
+Formamide (0.0)  →  tsH-1,2 (72.2)  →  INT-2a (36.8)  → tsR-2a2b (51.4) → INT-2b 
+(42.4) → INT-2b-tsH2  (81.3)  →  H2 + HNCO (15.7) 
+
+==================== PAGE 8 ====================
+Supporting Information 
+Table S3. Zero-point energies (ZPE in kcal/mol, MP2/aug-cc-pVDZ), thermal 
+corrections (H298-H0 in kcal/mol), and entropies (S, cal/K.mol) of formamide, 
+intermediates and the transition states involved in the decomposition of formamide. 
+ 
+Species 
+Structures  a 
+S 
+ZPE 
+H298-H0 
+NH2CHO 
+ 
+62.1 
+28.5 
+3.0 
+INT-1a 
+ 
+59.9 
+28.9 
+2.7 
+INT-1b 
+ 
+60.2 
+28.7 
+2.7 
+INT-1c 
+ 
+60.6 
+28.5 
+2.8 
+INT-2a 
+ 
+60.5 
+28.8 
+2.8 
+INT-2b 
+ 
+60.6 
+28.1 
+2.8 
+NH3-ts 
+ 
+64.8 
+22.8 
+3.4 
+H2-ts1 
+ 
+61.0 
+21.9 
+2.9 
+H2-ts2 
+ 
+61.4 
+21.9 
+2.9 
+tsH-1,2 
+ 
+61.4 
+24.7 
+3.0 
+tsH-1,3 
+ 
+59.8 
+25.3 
+2.6 
+tsR-1a1b 
+ 
+61.1 
+26.9 
+2.9 
+
+==================== PAGE 9 ====================
+Supporting Information 
+tsR-1b1c 
+ 
+59.7 
+27.8 
+2.6 
+tsR-2a2b 
+ 
+60.0 
+27.4 
+2.7 
+tsH-1b2b 
+ 
+60.4 
+24.1 
+2.8 
+tsH-1c2a 
+ 
+60.4 
+24.7 
+2.8 
+INT-1b-tsH2O 
+ 
+64.0 
+23.1 
+3.3 
+INT-1c-tsH2O 
+ 
+61.2 
+23.2 
+2.8 
+INT-2a-tsH2O 
+ 
+60.6 
+24.0 
+2.8 
+INT-1a-tsH2 
+ 
+62.7 
+21.1 
+3.2 
+INT-1c-tsH2 
+ 
+60.3 
+22.5 
+2.8 
+INT-2b-tsH2 
+ 
+60.9 
+21.6 
+2.9 
+INT-2b-tsNH3 
+ 
+60.8 
+24.3 
+2.8 
+aGeometry optimization is performed at MP2/aug-cc-pVTZ level. 
+ 
+
+==================== PAGE 10 ====================
+Supporting Information 
+ 
+Figure S1. Variations of apparent rates with pressure and temperature. 
+ 
+ 
+
+==================== PAGE 11 ====================
+Supporting Information 
+ 
+Figure S2. Variations of apparent rates with pressure in the lower temperature region (i.e., 
+T = 200-800 K). The ratio of rate constants does not vary with pressure (i.e., k5 > k3 > k1 
+> k2 > k4); however, the absolute value of the rate constants does vary with pressure. 
+ 
+
+==================== PAGE 12 ====================
+Supporting Information 
+ 
+
+==================== PAGE 13 ====================
+Supporting Information 
+ 
+Figure S3. Variations of apparent rates with pressure in the upper temperature region (i.e., 
+T = 800-2000 K). The ratio of rate constants is consistent for all but the lowest pressure 
+region (i.e., k5 > k2 > k4 > k3 > k1 except for 0.01 atm when k5 > k2 > k3 > k4 > k1). 
+ 
+ 
+
+==================== PAGE 14 ====================
+ 
+ 

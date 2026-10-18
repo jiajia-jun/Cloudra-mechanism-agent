@@ -1,0 +1,13 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/NY3_NH3_optfreq.chk
+%nproc=4
+%mem=6144MB
+#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+
+NY3 ammonia product component | expected_smiles: N (unverified expectation)
+
+0 1
+N       -0.00065504     0.00138387     0.29559029
+H        0.91791549    -0.20257174    -0.09555055
+H       -0.63367255    -0.69415065    -0.09668737
+H       -0.28358789     0.89533852    -0.10335237
+

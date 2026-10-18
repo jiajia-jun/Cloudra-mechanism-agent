@@ -1815,7 +1815,7 @@ def test_replacement_tasks_reach_the_actual_runner_loader():
         "HL1": ("norbornene", ["C#[N+][O-]", "C1=CC2CCC1C2"], 10),
     }
     computed_barriers = {
-        "NR1": [46.32, 22.80, 7.25, 64.93],
+        "NR1": [46.32, 22.80, 7.25, 68.85],
         "NY3": [36.79, 11.06, 43.13],
         "HI1": [16.62, 15.85],
         "HL1": [16.18, 10.77],
@@ -1951,8 +1951,7 @@ def test_impossible_tasks_regenerate_identically():
 
 
 def test_query_declares_electronic_barrier_type():
-    """四档题面统一声明能垒为电子能差 ΔE‡（不含 ZPE/热校正），各自相对该步
-    起点最小值（双分子：预反应络合物）。"""
+    """四档统一电子能差；反应垒相对稳定中间体，构象转换保留局部起点。"""
     pytest.importorskip("rdkit")
     from cloudra.benchmark import gen_hard_tasks, gen_impossible_tasks, gen_normal_tasks
 
@@ -1963,7 +1962,8 @@ def test_query_declares_electronic_barrier_type():
     impossible = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
     for t in (*easy, *normal, *hard):
         assert clause in t.prompt.query, t.task_id
-        assert "that step's own starting minimum" in t.prompt.query, t.task_id
+        assert "lowest-energy verified minimum" in t.prompt.query, t.task_id
+        assert "A conformational-transition barrier uses its own initial conformer" in t.prompt.query, t.task_id
     # impossible 机理类同样声明；性质/态序类走 properties 交付（见下）
     assert clause in next(t for t in impossible if t.task_id == "IA1").prompt.query
 
@@ -3556,8 +3556,7 @@ def test_declared_barrier_must_match_logs(tmp_path):
 
 
 def test_declared_node_energy_identifies_the_delivered_minimum(tmp_path):
-    """同物种多份合法极小值日志：节点声明的 energy_hartree 指认交付的是哪一份，
-    即使它与"鞍点下方能量最高者"启发式相反。"""
+    """构象转换保留本地起点，energy_hartree 指认该节点交付的极小值。"""
     from cloudra.benchmark.barrier_evidence import collect_barrier_evidence
 
     sandbox = tmp_path / "sb"
@@ -3572,7 +3571,7 @@ def test_declared_node_energy_identifies_the_delivered_minimum(tmp_path):
         "nodes": [
             {
                 "id": "R", "role": "reactant", "smiles": ["C1CO[PH3]1"], "accessible": True,
-                # 声明交的是折叠构象（min_folded）；启发式会选鞍点下方较浅的 min_open
+                # 构象转换的声明起点为折叠构象，不改用另一个构象节点。
                 "properties": {"energy_hartree": float(folded)},
             },
             {"id": "TS", "role": "transition_state", "smiles": [], "accessible": True, "properties": {"evidence_log": "ts_freq.out"}},

@@ -1,0 +1,5 @@
+{
+    "is_success": false,
+    "log_file": "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0008/reactant_opt/reactant_opt.log",
+    "error": "calculator 退出码 1；Error termination via Lnk1e in /home/ly/g16/l1.exe at Sun Oct 18 06:26:35 2026. | Last state= \"GCL\" | TCursr=      3880 LCursr=        72"
+}

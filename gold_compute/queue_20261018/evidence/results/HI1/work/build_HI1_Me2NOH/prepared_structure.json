@@ -1,0 +1,152 @@
+{
+  "status": "ok",
+  "mol": "776t3gAAAAAQAAAAAwAAAAAAAAALAAAACgAAAIABBgAgAAAABAcAIAAAAAMGACAAAAAECAAgAAAAAgEAKAAAAAABAQAoAAAAAAEBACgAAAAAAQEAKAAAAAABAQAoAAAAAAEBACgAAAAAAQEAKAAAAAABCwABAAECAAEDAAAEAAAFAAAGAAIHAAIIAAIJAAMKAEIAAAAAQBkBAAABAAAAAQAAAAALwXyGJhAi87+xL2lqznbYv0JmAzQfwbo/6jtkLoQ7lj/is1Jhf3y5P5n6SL9xieG/0F/F0txE8z/cnTszjEbTv+k01Dvjbss/1CyRG+XooL+yn1NX/sj4PzburAwDANu/G41hN6CcAMBv4E2ULO6mvxE4i9li9ty/v2Zj4dST9L/1E9KL7g2avwXkDkMPMfI/UJYgSfWB87+ktfdo7aL3v7XTf7Q0Yrw/pSKnJ9vQ9D8yCmmONUb2v7t89hoT5Mw/hfZistzbAEBFalb+/9G4P1CuhYMtsdC/Pd0/5B/P8j9NV5KX1FGtP2DHVHcH//M/D4f/8aMURz8z5pDLrR/9P+tCsQkNvvW/PwIAAAAAABICAAAAAAATOqYAAAAAAAAAAAAAAAAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAExY=",
+  "message": "Single component built and optimized; coordinates are ready for downstream use.",
+  "has_coordinates": true,
+  "components": [
+    {
+      "component_id": "frag0",
+      "mol": "776t3gAAAAAQAAAAAwAAAAAAAAALAAAACgAAAIABBgAgAAAABAcAIAAAAAMGACAAAAAECAAgAAAAAgEAKAAAAAABAQAoAAAAAAEBACgAAAAAAQEAKAAAAAABAQAoAAAAAAEBACgAAAAAAQEAKAAAAAABCwABAAECAAEDAAAEAAAFAAAGAAIHAAIIAAIJAAMKAEIAAAAAQBkBAAABAAAAAQAAAAALwXyGJhAi87+xL2lqznbYv0JmAzQfwbo/6jtkLoQ7lj/is1Jhf3y5P5n6SL9xieG/0F/F0txE8z/cnTszjEbTv+k01Dvjbss/1CyRG+XooL+yn1NX/sj4PzburAwDANu/G41hN6CcAMBv4E2ULO6mvxE4i9li9ty/v2Zj4dST9L/1E9KL7g2avwXkDkMPMfI/UJYgSfWB87+ktfdo7aL3v7XTf7Q0Yrw/pSKnJ9vQ9D8yCmmONUb2v7t89hoT5Mw/hfZistzbAEBFalb+/9G4P1CuhYMtsdC/Pd0/5B/P8j9NV5KX1FGtP2DHVHcH//M/D4f/8aMURz8z5pDLrR/9P+tCsQkNvvW/PwIAAAAAABICAAAAAAATOqYAAAAAAAAAAAAAAAAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAAQAKAAAAaXNJbXBsaWNpdAEBAAAAAAEACgAAAGlzSW1wbGljaXQBAQAAAAABAAoAAABpc0ltcGxpY2l0AQEAAAAAExY=",
+      "source_atom_indices": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "embed_status": "embedded",
+      "optimization_status": "converged",
+      "engine": "MMFF94",
+      "trajectory_id": "frag0-mmff94-attempt1",
+      "final_energy": 22.44558606753523,
+      "mol_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/work/build_HI1_Me2NOH/component_frag0.mol",
+      "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/work/build_HI1_Me2NOH/component_frag0.xyz",
+      "diagnostics": []
+    }
+  ],
+  "atom_identities": [
+    {
+      "index": 0,
+      "symbol": "C",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 0,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 1,
+      "symbol": "N",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 1,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 2,
+      "symbol": "C",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 2,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 3,
+      "symbol": "O",
+      "component_id": "frag0",
+      "origin": "input_atom",
+      "input_atom_index": 3,
+      "parent_input_atom_index": null,
+      "hydrogen_ordinal": null
+    },
+    {
+      "index": 4,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 0,
+      "hydrogen_ordinal": 1
+    },
+    {
+      "index": 5,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 0,
+      "hydrogen_ordinal": 2
+    },
+    {
+      "index": 6,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 0,
+      "hydrogen_ordinal": 3
+    },
+    {
+      "index": 7,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 2,
+      "hydrogen_ordinal": 1
+    },
+    {
+      "index": 8,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 2,
+      "hydrogen_ordinal": 2
+    },
+    {
+      "index": 9,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 2,
+      "hydrogen_ordinal": 3
+    },
+    {
+      "index": 10,
+      "symbol": "H",
+      "component_id": "frag0",
+      "origin": "added_hydrogen",
+      "input_atom_index": null,
+      "parent_input_atom_index": 3,
+      "hydrogen_ordinal": 1
+    }
+  ],
+  "candidate_paths": [
+    "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/work/build_HI1_Me2NOH/prepared.xyz",
+    "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/work/build_HI1_Me2NOH/prepared.mol"
+  ],
+  "component_paths": [
+    "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/work/build_HI1_Me2NOH/component_frag0.mol"
+  ],
+  "assembly": null,
+  "trajectory_ids": [
+    "frag0-mmff94-attempt1"
+  ],
+  "trajectory_manifest_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/work/build_HI1_Me2NOH/trajectories.json",
+  "artifact_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/work/build_HI1_Me2NOH/prepared_structure.json",
+  "electronic_state": {
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": null,
+    "electron_count": 34,
+    "localized_radical_electrons": 0,
+    "n_alpha": 17,
+    "n_beta": 17,
+    "is_open_shell": false,
+    "requires_spin_aware_geometry": false
+  },
+  "diagnostics": []
+}

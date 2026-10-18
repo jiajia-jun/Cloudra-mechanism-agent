@@ -1,0 +1,16 @@
+{
+  "count": 1,
+  "trajectories": [
+    {
+      "trajectory_id": "frag0-mmff94-attempt1",
+      "component_id": "frag0",
+      "status": "converged",
+      "engine": "MMFF94",
+      "iterations": 29,
+      "frame_count": 30,
+      "json_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/structure_build/NY3_CO2_optfreq/trajectories/frag0-mmff94-attempt1/trajectory.json",
+      "frames_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/structure_build/NY3_CO2_optfreq/trajectories/frag0-mmff94-attempt1/frames.xyz",
+      "frames_jsonl_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/structure_build/NY3_CO2_optfreq/trajectories/frag0-mmff94-attempt1/frames.jsonl"
+    }
+  ]
+}

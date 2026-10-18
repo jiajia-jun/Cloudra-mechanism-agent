@@ -1,0 +1,16 @@
+%chk=/home/ly/Cloudra-mechanism-agent/ts/ts_0028/jobs/declaration_0003/reactant_frequency/reactant_frequency.chk
+%nproc=4
+%mem=6144MB
+#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+
+Endpoint reactant frequency from IRC side B; identity unverified | declared_species: [C:1](=[O:2])([N:3]([H:4])[H:6])[O:5][H:7]
+
+0 1
+C       -0.04037800     0.12309800    -0.00000100
+O       -0.46831200     1.25509400     0.00000600
+N        1.27143600    -0.23060500    -0.00003500
+H        1.96537600     0.50282300     0.00007200
+O       -0.83575400    -0.97800100    -0.00000000
+H        1.55495300    -1.20025300     0.00012600
+H       -1.74558800    -0.64366600     0.00000500
+

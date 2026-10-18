@@ -40,7 +40,7 @@ def test_hi1_uses_two_independent_stereochemical_substrates():
         assert edge.bond_changes.form == [[2, 7], [6, 15]]
 
 
-def test_hl1_barriers_use_each_irc_connected_contact_minimum():
+def test_hl1_barriers_use_each_channel_stable_contact_minimum():
     task = _tasks()["HL1"]
     graph = task.gold.mechanism_graph
     nodes = {node.id: node for node in graph.nodes}
@@ -52,7 +52,9 @@ def test_hl1_barriers_use_each_irc_connected_contact_minimum():
     assert nodes[edges["exo"].from_node].properties["energy_hartree"] == -441.020095712
     assert nodes[edges["endo"].from_node].properties["energy_hartree"] == -441.019350272
     assert task.gold.selectivity is None and task.rubric.accuracy.enabled
-    assert "own IRC-connected contact minimum" in task.prompt.query
+    assert "own stable contact minimum" in task.prompt.query
+    repo = Path(__file__).resolve().parents[1]
+    assert all((repo / node.properties["evidence_log"]).is_file() for node in graph.nodes)
     for edge in edges.values():
         start = nodes[edge.from_node].properties["energy_hartree"]
         ts = nodes[edge.via].properties["energy_hartree"]

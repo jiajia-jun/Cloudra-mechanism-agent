@@ -1,0 +1,100 @@
+{
+  "reaction": {
+    "reactant_smiles": "NC(=O)O",
+    "product_smiles": "NC(=O)O",
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": "closed_shell",
+    "selected_candidate": null,
+    "reaction_center": []
+  },
+  "calculations": {
+    "m": {
+      "engine": "gaussian",
+      "method": "B3LYP",
+      "basis_set": "def2SVP",
+      "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    }
+  },
+  "conformers": {
+    "reactant": {
+      "kind": "file",
+      "xyz_path": "gold_fill_20261018/N_HNCO/geom/I1.xyz",
+      "mol_path": null,
+      "evidence_refs": [],
+      "optimization": null
+    },
+    "product": {
+      "kind": "file",
+      "xyz_path": "gold_fill_20261018/N_HNCO/geom/I2.xyz",
+      "mol_path": null,
+      "evidence_refs": [],
+      "optimization": null
+    },
+    "guidance": {
+      "ring_order": [],
+      "distance_filters": []
+    }
+  },
+  "guess": {
+    "kind": "provided",
+    "xyz_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0028/path/input_0001/provided.xyz",
+    "evidence_refs": [
+      "/home/ly/Cloudra-mechanism-agent/ts/ts_0028/path/input_0001/provenance_0000.xyz",
+      "/home/ly/Cloudra-mechanism-agent/ts/ts_0028/path/input_0001/provenance_0001.xyz"
+    ]
+  },
+  "ts_optimization": {
+    "ref": "m"
+  },
+  "verification": {
+    "frequency": {
+      "ref": "m"
+    },
+    "irc": {
+      "ref": "m"
+    },
+    "irc_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0028/jobs/declaration_0002/irc/irc.log",
+    "reactant_endpoint": {
+      "seed": {
+        "kind": "file",
+        "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/geoms/NY3_I1_syn_min.xyz",
+        "mol_path": null,
+        "evidence_refs": [
+          "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/NY3_I1_syn_optfreq.log"
+        ]
+      },
+      "optimization": {
+        "ref": "m"
+      },
+      "frequency": {
+        "ref": "m"
+      }
+    },
+    "product_endpoint": {
+      "seed": {
+        "kind": "file",
+        "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/geoms/NY3_I2b_anti_min.xyz",
+        "mol_path": null,
+        "evidence_refs": [
+          "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/NY3_I2b_p_optfreq.log",
+          "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/NY3_I2b_m_optfreq.log"
+        ]
+      },
+      "optimization": {
+        "ref": "m"
+      },
+      "frequency": {
+        "ref": "m"
+      }
+    }
+  },
+  "execution": {
+    "cpus": 4,
+    "memory_mb": 6144,
+    "limits": null
+  }
+}

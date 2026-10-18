@@ -1,0 +1,15 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NR1/jobs/R_formamide_optfreq.chk
+%nproc=4
+%mem=6144MB
+#p opt freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+
+NR1 R = formamide NH2CHO | gas phase | from SMILES NC=O (RDKit) | opt+freq B3LYP-D3BJ/def2SVP
+
+0 1
+N       -0.68771984    -0.03584181     0.07516731
+C        0.66019727     0.05063940    -0.07269070
+O        1.39165881    -0.92508993    -0.12836169
+H       -1.28459941     0.77734353     0.12049691
+H       -1.10149616    -0.95657426     0.14214735
+H        1.02195933     1.08952307    -0.13675919
+

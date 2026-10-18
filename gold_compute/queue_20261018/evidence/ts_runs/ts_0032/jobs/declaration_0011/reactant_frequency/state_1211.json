@@ -1,0 +1,60 @@
+{
+    "atommasses": [
+        14.003074,
+        12.0,
+        15.9949146,
+        1.007825,
+        1.007825,
+        1.007825
+    ],
+    "atomnos": [
+        7,
+        6,
+        8,
+        1,
+        1,
+        1
+    ],
+    "charge": 0,
+    "coreelectrons": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+    ],
+    "dispersionenergies": [
+        -0.116889505898046
+    ],
+    "mult": 1,
+    "natom": 6,
+    "nbasis": 57,
+    "nmo": 57,
+    "rotconsts": [
+        [
+            73.5749463,
+            11.308304,
+            9.8017909
+        ]
+    ],
+    "scftargets": [
+        [
+            1e-08,
+            1e-06,
+            1e-06
+        ]
+    ],
+    "scfvalues": [
+        [
+            [
+                0.0212,
+                0.415,
+                null
+            ]
+        ]
+    ],
+    "is_success": false,
+    "log_file": "/home/ly/Cloudra-mechanism-agent/ts/ts_0032/jobs/declaration_0011/reactant_frequency/reactant_frequency.log",
+    "error": "Damping current iteration by 5.00D-01 | RMSDP=2.12D-02 MaxDP=4.15D-01              OVMax= 3.05D-01 | Cycle   2  Pass 0  IDiag  1:"
+}

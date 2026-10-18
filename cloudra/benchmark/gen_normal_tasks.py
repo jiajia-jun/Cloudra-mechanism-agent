@@ -222,8 +222,7 @@ def _validate_task(pid: str, entry: dict, pool_reactants: list[str], pool_produc
             errors.append("mapped_reactants 映射号重复")
         steps = entry["steps"]
         for k, step in enumerate(steps, 1):
-            origin = step.get("from_step", k - 1)
-            prev = entry["mapped_reactants"] if origin == 0 else steps[origin - 1]["out"]
+            prev = entry["mapped_reactants"] if k == 1 else steps[k - 2]["out"]
             out = step["out"]
             if sorted(_map_numbers(prev)) != sorted(_map_numbers(out)):
                 errors.append(f"第 {k} 步原子不守恒（映射号集合变化）")
@@ -266,9 +265,8 @@ def _build_graph(pid: str, entry: dict) -> GoldMechanismGraph:
     steps = entry["steps"]
     n = len(steps)
     for k, step in enumerate(steps, 1):
-        origin = step.get("from_step", k - 1)
-        prev_mapped = entry["mapped_reactants"] if origin == 0 else steps[origin - 1]["out"]
-        prev_id = nodes[0].id if origin == 0 else f"{tid}_I{origin}"
+        prev_mapped = entry["mapped_reactants"] if k == 1 else steps[k - 2]["out"]
+        prev_id = nodes[0].id if k == 1 else f"{tid}_I{k - 1}"
         last = k == n
         node = MechanismNode(
             id=f"{tid}_P" if last else f"{tid}_I{k}",

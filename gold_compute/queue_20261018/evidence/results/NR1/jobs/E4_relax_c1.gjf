@@ -1,0 +1,18 @@
+%chk=E4_relax_c1.chk
+%nprocshared=4
+%mem=6144MB
+#p opt=(modredundant,maxcycle=200) B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+
+NR1 E4 step1b: constrained re-relaxation of the ring frame (freeze O3-H4=1.450, N1-H4=1.350, C2-O3=1.850; no angle constraints); smiles: N=C(O)H
+
+0 1
+N  0.00000000  1.26000000  0.00000000
+C  0.00000000  0.00000000  0.00000000
+O  1.84296019  -0.16123812  0.00000000
+H  1.35000000  1.26000000  0.00000000
+H  -0.95609205  -0.55200000  0.00000000
+H  2.09323821  -1.09528840  0.00000000
+
+B 2 3 F
+B 1 4 F
+B 3 4 S 1 -0.0540

@@ -1,0 +1,17 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/guess_prep/E1_rot2RC_scan.chk
+%nproc=4
+%mem=6144MB
+#p opt=(modredundant,maxcycle=200) B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+
+NY3 E1 e0 conformer link: relaxed scan R(H4...O5) 3.871 -> 1.79, rotamer min (job 1294) -> RC H-bond | smiles: N=C=O.O
+
+0 1
+C       0.94171000    0.04334500   -0.00183000
+O       1.25257700   -1.07797900   -0.00830500
+N       0.49914600    1.18097800    0.03196200
+H       1.06452300    2.01715300   -0.05604400
+O      -2.06575100   -0.26062300   -0.09881500
+H      -1.55955600    0.56406300   -0.15438500
+H      -2.14386200   -0.39930900    0.85464500
+
+B 4 5 S 8 -0.2600

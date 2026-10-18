@@ -1,8 +1,8 @@
 task_id,tier,task_file,status,result_file,reference_note
-NR1,normal,ideapool/tasks/normal/NR1.json,正式参考已回填,gold_compute/queue_20261018/results/NR1/mechanism_graph.json,4步正式回填；构象边无键级变化，原IRC限制保留
-NY3,normal,ideapool/tasks/normal/NY3.json,正式参考已回填,gold_compute/queue_20261018/results/NY3/mechanism_graph.json,3步正式回填；E3从I_syn分叉，非I_anti
-HI1,hard,ideapool/tasks/hard/HI1.json,正式参考已回填,gold_compute/queue_20261018/results/HI1/mechanism_graph.json,两syn边16.62/15.85正式回填；缺测区域异构支路移出，原产物端缺口保留
-HL1,hard,ideapool/tasks/hard/HL1.json,正式参考已回填,gold_compute/queue_20261018/results/HL1/mechanism_graph.json,exo16.18/endo10.77，各自IRC稳定接触体参照；原分离值11.89/6.95留在报告
+NR1,normal,ideapool/tasks/normal/NR1.json,正式参考已回填,gold_compute/queue_20261018/results/NR1/mechanism_graph.json,4步46.32/22.80/7.25/68.85；末步相对稳定INT-1a；成功ts_0042原件待补归档
+NY3,normal,ideapool/tasks/normal/NY3.json,正式参考已回填,gold_compute/queue_20261018/results/NY3/mechanism_graph.json,3步36.79/11.06/43.13；E3实际anti到产物；43.13相对稳定syn；原始证据已归档
+HI1,hard,ideapool/tasks/hard/HI1.json,正式参考及两端证据已核,gold_compute/queue_20261018/results/HI1/mechanism_graph.json,两syn边16.62/15.85；真实IRC两端Opt/Freq零虚频和Z/E已闭环；区域支路退出正式Gold
+HL1,hard,ideapool/tasks/hard/HL1.json,正式参考已回填,gold_compute/queue_20261018/results/HL1/mechanism_graph.json,exo16.18/endo10.77各通道稳定接触体；原件已到；endo真实IRC反应物端来源保留项
 IA1,impossible,ideapool/tasks/impossible/IA1.json,负例参考已标注,gold_compute/queue_20261018/results/IA1/REPORT.md,负例：最终必须否定目标的可信可达性；错误接受扣分，尝试后正确否定不扣。缺可信目标参考；方形电子态适用性与异常虚频问题保留
 IA5,impossible,ideapool/tasks/impossible/IA5.json,负例参考已标注,gold_compute/queue_20261018/results/IA5/REPORT.md,负例：最终必须否定目标的可信可达性；错误接受扣分，尝试后正确否定不扣。缺指定反旋通道参考；已定位候选属于顺旋竞争通道
 IA7,impossible,ideapool/tasks/impossible/IA7.json,负例参考已标注,gold_compute/queue_20261018/results/IA7/REPORT.md,负例：最终必须否定目标的可信可达性；错误接受扣分，尝试后正确否定不扣。目标开壳单重态未确证；普通GFN2适用性/电子态支持不足

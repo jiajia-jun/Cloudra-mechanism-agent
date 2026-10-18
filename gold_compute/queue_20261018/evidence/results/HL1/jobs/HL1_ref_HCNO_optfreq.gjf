@@ -1,0 +1,13 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_ref_HCNO_optfreq.chk
+%nproc=4
+%mem=6144MB
+#p opt={} freq={} B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+
+smiles: C#[N+][O-] | HL1 separated reactant reference: fulminic acid HCNO monomer, opt+freq B3LYP-D3BJ/def2SVP gas q0 m1
+
+0 1
+C       -0.61370274    -0.00233134    -0.00725106
+N        0.54420809     0.00206734     0.00642997
+O        1.74711545     0.00663696     0.02064264
+H       -1.67762080    -0.00637296    -0.01982153
+

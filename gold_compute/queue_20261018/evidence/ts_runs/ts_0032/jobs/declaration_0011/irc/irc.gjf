@@ -1,0 +1,17 @@
+%chk=/home/ly/Cloudra-mechanism-agent/ts/ts_0032/jobs/declaration_0011/irc/irc.chk
+%nproc=4
+%mem=6144MB
+#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+
+IRC both directions from the refined saddle: NC=O | smiles: NC=O
+
+0 1
+N       -1.01370200    -0.26302800     0.00001700
+C        0.03839100     0.50532400    -0.00018400
+O        1.08856100    -0.22231300     0.00003000
+H       -1.98082300     0.05168800     0.00007400
+H        0.06199100    -1.06943700     0.00016800
+H        0.07591100     1.60550600     0.00051000
+
+IRC=(Calcfc,MaxPoints=30,StepSize=10)
+

@@ -1,7 +1,8 @@
 """RDS 能垒的交付物推导：只读 log 文件与交付 JSON，不解析任何 LLM 散文。
 
 能垒口径（题库 query 协议一致）：**决速步（RDS）基元反应的能垒**，相对该步
-起点最小值（单步题即"相对反应物络合物"）。推导链完全确定性：
+稳定起点最小值（单步题即"相对反应物络合物"）。化学反应步可沿图中已声明的
+同物种构象连接选稳定中间体；构象步本身仍相对其局部起点。推导链完全确定性：
 
 1. 交付 ``mechanism_graph.json`` 声明每条边的 ``barrier_kcal_mol``；
 2. harness 从绑定到该步的日志算出 ``E(TS) − E(起点最小值)``（Hartree →
@@ -57,7 +58,7 @@ class StepBarrier:
 class BarrierEvidence:
     """交付物的能垒证据集合（steps 为空即无法从交付物推出能垒）。
 
-    ``steps`` 是策略选中的组合（声明能量指认优先、否则启发式）；
+    ``steps`` 是策略选中的组合（TS 声明能量指认，反应步取稳定中间体）；
     ``alternatives[edge_id]`` 保留该边**全部合法组合**（TS 日志 × 起点极小值
     日志）——当交付声明的是一个构象、而参考答案对应另一个已算好的构象时，
     评分侧需要看到这些组合才能区分"指认/定义差异"与"无据声明"。"""
@@ -245,6 +246,38 @@ def _identify_by_declared_energy(
     return matches[0][1]
 
 
+def _reference_node_ids(graph: GoldMechanismGraph, edge) -> list[str]:
+    """反应步沿同物种构象边找稳定参考；不合并独立通道或立体异构底物。"""
+    selected = {edge.from_node}
+    if not edge.bond_changes.pairs():
+        return [edge.from_node]
+    from cloudra.benchmark.graph_similarity import GedConfig, species_substitution_cost
+
+    nodes = {node.id: node for node in graph.nodes}
+    source = nodes[edge.from_node]
+    cfg = GedConfig(stereo_free=False)
+    pending = [edge.from_node]
+    while pending:
+        current = pending.pop()
+        for link in graph.edges:
+            if link.bond_changes.pairs() or not graph.edge_effectively_accessible(link):
+                continue
+            if link.from_node == current:
+                candidate = link.to_node
+            elif link.to_node == current:
+                candidate = link.from_node
+            else:
+                continue
+            node = nodes[candidate]
+            if (
+                candidate not in selected and node.accessible and node.smiles
+                and species_substitution_cost(source.smiles, node.smiles, cfg) == 0.0
+            ):
+                selected.add(candidate)
+                pending.append(candidate)
+    return [edge.from_node, *sorted(selected - {edge.from_node})]
+
+
 def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
     """从交付图 + 绑定日志推出逐步能垒（不做任何散文解析）。"""
     sandbox = Path(sandbox)
@@ -282,8 +315,13 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
                 "component energies are not substituted for it"
             )
             continue
-        base_binding = bindings.get(edge.from_node)
-        base_candidates = list(base_binding.bound_files) if base_binding else []
+        reference_nodes = _reference_node_ids(graph, edge)
+        base_owners = {}
+        for node_id in reference_nodes:
+            binding = bindings.get(node_id)
+            for path in binding.bound_files if binding else []:
+                base_owners.setdefault(path, node_id)
+        base_candidates = sorted(base_owners)
         if not base_candidates:
             report.notes.append(
                 f"edge {edge.id}: base node {edge.from_node} has no bound evidence"
@@ -350,10 +388,8 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
             report.notes.append(f"edge {edge.id}: {ts_reason}")
             continue
 
-        # 起点最小值的选择：节点声明的 energy_hartree 优先指认交付的是哪份
-        # 极小值日志（同一中间体的不同构象都是合法极小值）；无声明或未命中时
-        # 退回启发式——鞍点连通的是它正下方**最浅**的那个阱（拿更深的远端极小值
-        # 当起点会把别的阱的稳定化能错算进能垒）。
+        # 反应步按用户确认的稳定中间体作分母，不用声明能量强制选较浅构象。
+        # 构象步只在自己的起点节点内指认局部参考，不把另一端稳定化重复计入。
         minima = [
             p for p in base_candidates if _frequency_supported(sandbox, p, log_paths, 0)
         ]
@@ -378,7 +414,7 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
                 edge_id=edge.id,
                 ts_path=ts_candidate,
                 base_path=base_candidate,
-                base_node_id=edge.from_node,
+                base_node_id=base_owners[base_candidate],
                 barrier_kcal_mol=ts_e - base_e,
                 declared_kcal_mol=edge.barrier_kcal_mol,
             )
@@ -386,7 +422,9 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
             for base_candidate, base_e in sorted(minima_energies.items())
             if base_e < ts_e
         ]
-        declared_base_energy = _declared_node_energy_hartree(base_node)
+        declared_base_energy = (
+            _declared_node_energy_hartree(base_node) if not edge.bond_changes.pairs() else None
+        )
         matched_base = None
         if declared_base_energy is not None:
             matched_base = _identify_by_declared_energy(sandbox, [path for _, path in below], declared_base_energy)
@@ -408,13 +446,13 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
                     "barrier not derivable from the declared evidence"
                 )
                 continue
-            below.sort(key=lambda item: (-item[0], item[1]))
+            below.sort(key=lambda item: (item[0], item[1]))
             base_energy, base_path = below[0]
             if len(below) > 1:
                 report.notes.append(
                     f"edge {edge.id}: several minima of {edge.from_node} below the "
-                    f"saddle; using {base_path} (highest-energy minimum below the "
-                    "saddle — the basin the saddle connects to)"
+                    f"saddle; using {base_path} (lowest-energy stable intermediate "
+                    "in the declared source conformational state)"
                 )
 
         report.steps.append(
@@ -422,7 +460,7 @@ def collect_barrier_evidence(sandbox: Path | str) -> BarrierEvidence:
                 edge_id=edge.id,
                 ts_path=ts_path,
                 base_path=base_path,
-                base_node_id=edge.from_node,
+                base_node_id=base_owners[base_path],
                 barrier_kcal_mol=ts_energy - base_energy,
                 declared_kcal_mol=edge.barrier_kcal_mol,
             )

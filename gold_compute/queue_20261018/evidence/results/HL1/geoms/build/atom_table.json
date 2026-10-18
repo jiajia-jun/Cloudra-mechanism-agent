@@ -1,0 +1,121 @@
+{
+ "table": [
+  [
+   1,
+   "C",
+   "norbornene atom 1"
+  ],
+  [
+   2,
+   "C",
+   "norbornene atom 2"
+  ],
+  [
+   3,
+   "C",
+   "norbornene atom 3"
+  ],
+  [
+   4,
+   "C",
+   "norbornene atom 4"
+  ],
+  [
+   5,
+   "C",
+   "norbornene atom 5"
+  ],
+  [
+   6,
+   "C",
+   "norbornene atom 6"
+  ],
+  [
+   7,
+   "C",
+   "norbornene atom 7"
+  ],
+  [
+   8,
+   "H",
+   "norbornene atom 8"
+  ],
+  [
+   9,
+   "H",
+   "norbornene atom 9"
+  ],
+  [
+   10,
+   "H",
+   "norbornene atom 10"
+  ],
+  [
+   11,
+   "H",
+   "norbornene atom 11"
+  ],
+  [
+   12,
+   "H",
+   "norbornene atom 12"
+  ],
+  [
+   13,
+   "H",
+   "norbornene atom 13"
+  ],
+  [
+   14,
+   "H",
+   "norbornene atom 14"
+  ],
+  [
+   15,
+   "H",
+   "norbornene atom 15"
+  ],
+  [
+   16,
+   "H",
+   "norbornene atom 16"
+  ],
+  [
+   17,
+   "H",
+   "norbornene atom 17"
+  ],
+  [
+   18,
+   "C",
+   "dipole"
+  ],
+  [
+   19,
+   "N",
+   "dipole"
+  ],
+  [
+   20,
+   "O",
+   "dipole"
+  ],
+  [
+   21,
+   "H",
+   "dipole"
+  ]
+ ],
+ "map": {
+  "1": 4,
+  "2": 5,
+  "3": 6,
+  "4": 7,
+  "5": 8,
+  "6": 9,
+  "7": 10,
+  "18": 1,
+  "19": 2,
+  "20": 3
+ }
+}

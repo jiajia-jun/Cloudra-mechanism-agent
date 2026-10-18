@@ -1,0 +1,15 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NR1/jobs/I1_gen_optfreq.chk
+%nproc=4
+%mem=6144MB
+#p opt freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+
+NR1 iminol conformer A seed = HN=CH-OH (SMILES N=CO, RDKit FF min) | gas phase | opt+freq
+
+0 1
+N       -0.60773115    -0.53333914    -0.84021618
+C       -0.02052546     0.31528949    -0.09164709
+O        1.14411813    -0.03652938     0.44034145
+H       -1.48926997    -0.13094029    -1.17919731
+H       -0.35955091     1.32463974     0.17807450
+H        1.33295935    -0.93912042     0.13070545
+

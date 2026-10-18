@@ -1,0 +1,16 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/guess_prep/E1_TS1_mode_plus_optfreq.chk
+%nproc=4
+%mem=6144MB
+#p opt=(calcfc,maxcycle=200) freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+
+NY3 E1 TS1 eigvec-followed endpoint (plus 0.30 A along imag mode -1579.3842) | smiles: N=C=O.O
+
+0 1
+C        0.35625700     0.02649700    -0.00700900
+O        1.33533500    -0.63250100    -0.00071000
+N       -0.16949200     1.22991800     0.02699900
+H        0.39311700     2.07512400     0.00504000
+O       -1.18162000    -0.66295800    -0.10684900
+H       -1.15892400     0.81920800    -0.00753700
+H       -1.35666400    -1.17009200     0.70374400
+

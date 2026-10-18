@@ -35,8 +35,8 @@ TASKS = {
         ],
     },
     # 两种非对映底物分别构建、分别计算；无立体骨架不表示二者的混合络合物。
-    # 两条 syn 能垒各减本底物 IRC 连通极小值；原始报告/结果图保留不改。
-    # 产物侧 IRC 端点在原报告仍缺测，不把数值回填说成证据链完整验收。
+    # 两条 syn 能垒各减本底物稳定极小值；两条真实 IRC 端点均已优化并验证零虚频。
+    # 原始证据已归档；产物三维指派分别为 Z/E，旧报告的 pending 状态已过期。
     "I1": {
         "name_en": "Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide: determine "
         "the stereochemical mapping",
@@ -62,7 +62,7 @@ TASKS = {
                     "smiles": ["C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1"],
                     "properties": {
                         "energy_hartree": -598.235079186,
-                        "evidence_log": "ts/ts_0038/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0038/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
                         "reference_note": "IRC-connected minimum of this substrate; "
                         "replaces the higher initial conformer in "
                         "the source graph",
@@ -74,7 +74,7 @@ TASKS = {
                     "smiles": ["C[C@@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1"],
                     "properties": {
                         "energy_hartree": -598.233321696,
-                        "evidence_log": "ts/ts_0039/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0039/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
                         "reference_note": "IRC-connected minimum of this substrate; "
                         "replaces the higher initial conformer in "
                         "the source graph",
@@ -86,7 +86,7 @@ TASKS = {
                     "smiles": [],
                     "properties": {
                         "energy_hartree": -598.208585697,
-                        "evidence_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0038/jobs/declaration_0002/frequency/frequency.log",
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0038/jobs/declaration_0002/frequency/frequency.log",
                     },
                 },
                 {
@@ -95,7 +95,7 @@ TASKS = {
                     "smiles": [],
                     "properties": {
                         "energy_hartree": -598.208059052,
-                        "evidence_log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0039/jobs/declaration_0002/frequency/frequency.log",
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0039/jobs/declaration_0002/frequency/frequency.log",
                     },
                 },
                 {
@@ -103,20 +103,20 @@ TASKS = {
                     "role": "product",
                     "smiles": ["C/C=C(/C)c1ccccc1.CN(C)O"],
                     "properties": {
-                        "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_Z_2phenyl2butene_optfreq.log"
+                        "energy_hartree": -598.246098329,
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0038/jobs/declaration_0002/product_frequency/product_frequency.log",
                     },
-                    "label": "isolated Z alkene + dimethylhydroxylamine; product-side IRC "
-                    "endpoint pending in source report",
+                    "label": "verified Z alkene + dimethylhydroxylamine IRC endpoint; 93 real modes",
                 },
                 {
                     "id": "HI1_THREO_P",
                     "role": "product",
                     "smiles": ["C/C=C(\\C)c1ccccc1.CN(C)O"],
                     "properties": {
-                        "evidence_log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_E_2phenyl2butene_optfreq.log"
+                        "energy_hartree": -598.245557178,
+                        "evidence_log": "gold_compute/queue_20261018/evidence/ts_runs/ts_0039/jobs/declaration_0002/product_frequency/product_frequency.log",
                     },
-                    "label": "isolated E alkene + dimethylhydroxylamine; product-side IRC "
-                    "endpoint pending in source report",
+                    "label": "verified E alkene + dimethylhydroxylamine IRC endpoint; 93 real modes",
                 },
             ],
             "edges": [

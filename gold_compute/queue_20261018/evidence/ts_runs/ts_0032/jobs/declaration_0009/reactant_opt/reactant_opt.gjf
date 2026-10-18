@@ -1,0 +1,15 @@
+%chk=/home/ly/Cloudra-mechanism-agent/ts/ts_0032/jobs/declaration_0009/reactant_opt/reactant_opt.chk
+%nproc=4
+%mem=6144MB
+#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+
+Endpoint reactant opt from IRC side A; identity unverified | declared_species: NC=O
+
+0 1
+N       -1.06919300    -0.23734500     0.00001200
+C       -0.03764200     0.51564700    -0.00008000
+O        1.05359500    -0.22425600     0.00003400
+H       -2.00194300     0.16976800     0.00005400
+H        0.52053900    -1.06384000     0.00011500
+H        0.06449300     1.61130900     0.00008000
+

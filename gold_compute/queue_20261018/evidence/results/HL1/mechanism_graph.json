@@ -1,0 +1,366 @@
+{
+ "project_note": "编号约定：文字中的 C10 = 工作序号 7 = 题面 map10；工作序号 = Gaussian 坐标块序号（1-based）。21 原子全表见 gold_compute/queue_20261018/results/HL1/geoms/BUILD_PROVENANCE.md §2。面定义：烯烃平面(原子1,2,3,6)最小二乘，n 取使 sdist(原子7=C10)>0；exo = C10 反侧(凸面)，endo = C10 同侧(凹面)。",
+ "reference": {
+  "E_ref_hartree": -441.013264959,
+  "definition": "分离参考 = E(norbornene, job 1251) + E(HCNO, job 1252)，两者均 0 虚频（45 模 / 7 模=3N-5 线性）",
+  "evidence": [
+   "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_ref_norbornene_optfreq_b.log",
+   "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_ref_HCNO_optfreq_b.log"
+  ]
+ },
+ "selectivity": {
+  "value_kcal_mol": 5.4,
+  "favored": "C10 同侧（endo）",
+  "definition": "ΔΔE‡ = ΔE‡(exo) − ΔE‡(endo) = 16.18 − 10.77，两面各自相对本通道稳定中间体（预络合物）作分母（2026-10-18 用户裁决：分母统一按稳定中间体）",
+  "value_kcal_mol_separated_reference": 4.94,
+  "separated_reference_note": "若两面都用同一分离参考 E_ref = -441.013264959，则 ΔE‡ = 6.95 / 11.89、ΔΔE‡ = 4.94；该口径保留为对照，不与上面 5.40 混用",
+  "caveat": "两个口径给出同一方向（endo 较低），数值差 0.46 kcal/mol 来自两通道预络合物本身相差 0.68 kcal/mol；两 RC 的 BSSE/CP 均未做，故不据 ΔΔ 讨论更细的差别",
+  "value_statement": "约 5 kcal/mol 量级（16.18 − 10.77 = 5.40；分离参考口径 4.94），不作有效数字声明；B3LYP-D3BJ/def2-SVP 单点能本征不确定度 ±1–2 kcal/mol"
+ },
+ "nodes": [
+  {
+   "id": "HL1_RC_endo",
+   "role": "reactant",
+   "smiles": [
+    "C#[N+][O-].C1=CC2CCC1C2"
+   ],
+   "properties": {
+    "channel": "C10 同侧（endo）",
+    "status": "verified minimum (0 imaginary, 57 modes)",
+    "E_hartree": -441.019015104,
+    "binding_kcal_mol": -3.61,
+    "binding_caveat": "未做 BSSE/CP 校正",
+    "geometry": "sdist(18)=+3.342, d(工作1,工作18)=3.663, d(工作2,工作20)=3.169（很松 vdW 络合物，最低实模 6.33 cm-1）",
+    "evidence_log": [
+     "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_RC_exo_optfreq_v2.log"
+    ],
+    "note": "文件名的 exo 是重启前旧标签；真实通道 = C10 同侧 = endo。仅作本通道络合物对照，不作选择性分母"
+   }
+  },
+  {
+   "id": "HL1_RC_exo",
+   "role": "reactant",
+   "smiles": [
+    "C#[N+][O-].C1=CC2CCC1C2"
+   ],
+   "properties": {
+    "channel": "C10 反侧（exo）",
+    "status": "verified minimum (0 imaginary, 57 modes), taken from the ts_0037 IRC reactant-side outer frame",
+    "E_hartree": -441.020095712,
+    "binding_kcal_mol": -4.29,
+    "binding_caveat": "未做 BSSE/CP 校正",
+    "geometry": "sdist(18)=-3.2989, d(工作7,工作18)=5.4898, d(工作1,工作18)=3.6011, d(工作2,工作20)=3.2622",
+    "evidence_log": [
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/reactant_opt/reactant_opt.log",
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/reactant_frequency/reactant_frequency.log"
+    ],
+    "note": "文件 HL1_RC_exoface_optfreq_v4 (#1253) 的独立搜索因内坐标退化/漂移未收敛，本节点以 IRC 外框 Opt+Freq 为准"
+   }
+  },
+  {
+   "id": "HL1_TS_endo",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "channel": "C10 同侧（endo）",
+    "run": "ts_0036",
+    "job": 1230,
+    "status": "TS verified (1 imaginary, bonding mode); endpoints pending",
+    "E_hartree": -441.002183678,
+    "imaginary_cm": -375.5525,
+    "mode_projections_angstrom": {
+     "18-1": 0.2807,
+     "20-2": 0.1438,
+     "1-2": -0.0389,
+     "18-19": -0.0332,
+     "19-20": -0.0198
+    },
+    "max_single_atom_fraction": 0.3494,
+    "mode_alignment": "aligned",
+    "barrier_to_own_complex_kcal_mol": 10.77,
+    "barrier_to_E_ref_kcal_mol": 6.95,
+    "evidence_log": [
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0006/ts_opt/refine.log",
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0006/frequency/frequency.log",
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0006/irc/irc.log"
+    ],
+    "declared_reaction": "[CH:1]#[N+:2][O-:3].[CH:4]1=[CH:5][C@@H:6]2[CH2:7][CH2:8][C@H:9]1[CH2:10]2 -> [CH:1]1=[N:2][O:3][C@@H:5]2[C@H:4]1[C@H:9]1[CH2:8][CH2:7][C@@H:6]2[CH2:10]1"
+   }
+  },
+  {
+   "id": "HL1_TS_exo",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "channel": "C10 反侧（exo）",
+    "run": "ts_0037",
+    "job": 1231,
+    "status": "verified in substance (1 imaginary, bonding mode, both endpoints 0 imaginary); durable verdict = candidate_only because of a tool-side identity-binding flag whose claim is contradicted by the tool's own perceived SMILES",
+    "E_hartree": -440.9943166,
+    "imaginary_cm": -426.7474,
+    "mode_projections_angstrom": {
+     "18-1": 0.2618,
+     "20-2": 0.1301,
+     "1-2": -0.0409,
+     "18-19": -0.0322,
+     "19-20": -0.0198
+    },
+    "max_single_atom_fraction": 0.2742,
+    "mode_alignment": "aligned",
+    "barrier_to_E_ref_kcal_mol": 11.89,
+    "barrier_to_own_complex_kcal_mol": 16.18,
+    "barrier_caveat": "16.18 即现行主口径（分母 = 本通道稳定中间体/预络合物）；分离参考对照值 11.89 保留在 barrier_to_E_ref_kcal_mol",
+    "evidence_log": [
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/ts_opt/refine.log",
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/frequency/frequency.log",
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/irc/irc.log",
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/product_opt/product_opt.log",
+     "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/product_frequency/product_frequency.log"
+    ],
+    "extra_evidence": "产物侧臂外框自由 opt 收敛到同一极小值：job 1319 E=-441.095689377, vs #1229 RMSD 0.0007 A; log /home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_armend_relax_ts0037.log (sha 358be3287d8de54e)",
+    "declared_reaction": "[CH:1]#[N+:2][O-:3].[CH:4]1=[CH:5][C@@H:6]2[CH2:7][CH2:8][C@H:9]1[CH2:10]2 -> [CH:1]1=[N:2][O:3][C@H:5]2[C@@H:4]1[C@H:9]1[CH2:8][CH2:7][C@@H:6]2[CH2:10]1"
+   }
+  },
+  {
+   "id": "HL1_P_endo",
+   "role": "product",
+   "smiles": [
+    "C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12"
+   ],
+   "properties": {
+    "channel": "C10 同侧（endo）：sdist(18)=+1.2771, d(工作7,工作18)=3.0459 A, dih(18,1,3,7)=+71.43 deg",
+    "E_hartree": -441.09827366,
+    "imaginary_frequencies": 0,
+    "frequencies": 57,
+    "cip": "work-atom 1 S, 2 S, 3 R, 6 S",
+    "evidence_log": [
+     "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_P_exo_optfreq.log"
+    ],
+    "note": "文件名的 exo 是旧标签"
+   }
+  },
+  {
+   "id": "HL1_P_exo",
+   "role": "product",
+   "smiles": [
+    "C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12"
+   ],
+   "properties": {
+    "channel": "C10 反侧（exo）：sdist(18)=-1.2691 (IRC endpoint) / -1.2688 (#1229), d(工作7,工作18)=3.7068 / 3.7066, dih(18,1,3,7)=-148.81 deg",
+    "E_hartree": -441.095689093,
+    "imaginary_frequencies": 0,
+    "frequencies": 57,
+    "cip": "work-atom 1 R, 2 R, 3 R, 6 S",
+    "evidence_log": [
+     "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_P_endo_optfreq.log"
+    ],
+    "note": "文件名的 endo 是旧标签"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e_exo",
+   "from": "HL1_RC_exo",
+   "to": "HL1_P_exo",
+   "via": "HL1_TS_exo",
+   "bond_changes": {
+    "break": [
+     [
+      4,
+      5
+     ]
+    ],
+    "form": [
+     [
+      1,
+      4
+     ],
+     [
+      3,
+      5
+     ]
+    ]
+   },
+   "channel": "C10 反侧（exo）：产物 sdist -1.2691、d(工作7,工作18) 3.7068",
+   "barrier_kcal_mol": 16.18,
+   "barrier_separated_reference_kcal_mol": 11.89,
+   "properties": {
+    "barrier_definition": "纯电子能 ΔE‡ = E(TS) - E(本通道预络合物) = -440.994316600 - (-441.020095712) = +0.025779112 Ha = 16.18 kcal/mol。对分离参考 E_ref = -441.013264959 的对照值为 11.89（barrier_separated_reference_kcal_mol）",
+    "ts": {
+     "E": -440.9943166,
+     "job": 1231,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/ts_opt/refine.log",
+     "line": "L19448 SCF, L19688 Stationary, L20211 Normal termination",
+     "sha256_prefix": "8af1d15947df3b95"
+    },
+    "ts_frequency": {
+     "imaginary_cm": -426.7474,
+     "modes": 57,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/frequency/frequency.log",
+     "line": "L936",
+     "sha256_prefix": "18bfe94b6463bf4e"
+    },
+    "irc": {
+     "job": 1283,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/irc/irc.log",
+     "sha256_prefix": "e6205c623eecd396",
+     "summary": "10 FORWARD（回反应物侧，r(18,1) 2.255→2.669）+ 10 REVERSE（去产物侧，2.159→1.725）；两臂均未闭合：反应物侧臂末点距端点 8.0 kcal/mol、产物侧臂末点距产物端 44.6 kcal/mol",
+     "convention": "替代口径：短 IRC 方向区间 + 两端 Opt/Freq 0 虚频 + 区间证明，不写『到达端点』（平台 IRC 上限 10 点/臂）"
+    },
+    "reactant_endpoint": {
+     "E": -441.020095712,
+     "imaginary": 0,
+     "modes": 57,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/reactant_frequency/reactant_frequency.log",
+     "sha256_prefix": "c0f0a2544852f992"
+    },
+    "product_endpoint": {
+     "E": -441.095689377,
+     "imaginary": 0,
+     "modes": 57,
+     "rmsd_vs_1229": 0.0007,
+     "rmsd_vs_1228": 1.2507,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0037/jobs/declaration_0001/product_frequency/product_frequency.log",
+     "sha256_prefix": "7a1b441be5ba3348"
+    },
+    "arm_end_relax": {
+     "purpose": "ts_0037 IRC 产物侧臂末点（r(18,1)=1.725）外框自由 opt+freq，作为该臂通向 exo 产物的独立第二证据",
+     "job": 1319,
+     "log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_armend_relax_ts0037.log",
+     "sha256_prefix": "e478ab283cde92ef",
+     "E": -441.095689377,
+     "line": "L10709 SCF",
+     "imaginary": 0,
+     "modes": 57,
+     "rmsd_vs_1229": 0.0007,
+     "rmsd_vs_1228": 1.2507,
+     "sdist_18": -1.2691,
+     "d_working7_18": 3.7068
+    }
+   }
+  },
+  {
+   "id": "e_endo",
+   "from": "HL1_RC_endo",
+   "to": "HL1_P_endo",
+   "via": "HL1_TS_endo",
+   "bond_changes": {
+    "break": [
+     [
+      4,
+      5
+     ]
+    ],
+    "form": [
+     [
+      1,
+      4
+     ],
+     [
+      3,
+      5
+     ]
+    ]
+   },
+   "channel": "C10 同侧（endo）",
+   "properties": {
+    "status": "TS 已验（唯一虚频 -375.5525 + 成键对投影 (18,1)+0.2807/(20,2)+0.1438 + 最大单原子份额 0.3494 非转子）；反应物端 0 虚频（-441.019350272，57 模，declaration_0009/job 1322）；产物端 0 虚频（-441.098273730，57 模，job 1324 独立外框弛豫，与 #1228 同一极小值）",
+    "barrier_definition": "纯电子能 ΔE‡ = E(TS) - E(本通道预络合物) = -441.002183678 - (-441.019350272) = +0.017166594 Ha = 10.77 kcal/mol；对分离参考 E_ref = -441.013264959 的对照值为 6.95（barrier_to_E_ref_kcal_mol）",
+    "ts": {
+     "E": -441.002183678,
+     "job": 1230,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0006/ts_opt/refine.log",
+     "line": "L18090 SCF, L18331 Stationary, L18853 Normal termination",
+     "sha256_prefix": "2362634af64ec786"
+    },
+    "ts_frequency": {
+     "imaginary_cm": -375.5525,
+     "modes": 57,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0006/frequency/frequency.log",
+     "line": "L936",
+     "sha256_prefix": "02ae57546cc327cc",
+     "projections_A": {
+      "1-18": 0.2807,
+      "2-20": 0.1438,
+      "4-5": -0.0389,
+      "C-N": -0.0332,
+      "N-O": -0.0198
+     },
+     "max_single_atom_fraction": {
+      "atom": 18,
+      "element": "C",
+      "fraction": 0.3494
+     }
+    },
+    "irc": {
+     "job": 1280,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0006/irc/irc.log",
+     "sha256_prefix": "43833bc9e35317db",
+     "summary": "10 FORWARD（去产物侧，r(18,1) 2.211→1.741）+ 10 REVERSE（回反应物侧，2.314→2.752）；两臂均未闭合",
+     "convention": "替代口径同上"
+    },
+    "reactant_opt": {
+     "job": 1316,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0009/reactant_opt/reactant_opt.log",
+     "line": "L39497 SCF, L39756 Stationary, L40276 Normal termination",
+     "sha256_prefix": "26c7f9ce233f7429"
+    },
+    "reactant_frequency": {
+     "E": -441.019350272,
+     "modes": 57,
+     "imaginary": 0,
+     "lowest_real_cm": 21.9369,
+     "log": "/home/ly/Cloudra-mechanism-agent/ts/ts_0036/jobs/declaration_0009/reactant_frequency/reactant_frequency.log",
+     "line": "L552 SCF, L922 first Frequencies (21.9369), L1729 Stationary, L2206 Normal termination",
+     "sha256_prefix": "1ad6fc2a7f0108b2",
+     "note": "durable verdict 把该 attempt 标为 endpoint_unconfirmed（几何/频率源/频率日志三者被判不一致，实测 E 与关键距离完全相同，属工具侧绑定标志问题）；本行数值取自原生日志本身"
+    },
+    "product_opt": {
+     "status": "done",
+     "job": 1324,
+     "log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_armend_relax_ts0036.log",
+     "mode": "独立外框自由 opt+freq（durable 流该 run 已 ended，未自动排 product_opt）",
+     "E": -441.09827373,
+     "line": "L9642 SCF / L9889 Stationary / L10414 Normal termination",
+     "sha256_prefix": "83aaf62bf84d455b",
+     "smiles_in_input": "C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12（gjf 第 6 行 smiles: 注释）"
+    },
+    "product_frequency": {
+     "status": "done",
+     "job": 1324,
+     "log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_armend_relax_ts0036.log",
+     "modes": 57,
+     "imaginary": 0,
+     "lowest_real_cm": 130.0548,
+     "line": "L10852 freq 单点 SCF / L11222 首条 Frequencies 130.0548 / L12093 Stationary / L12719 Normal termination",
+     "sha256_prefix": "83aaf62bf84d455b",
+     "note": "L11212 \"Low frequencies --- -6.5091 0.0008 0.0011 0.0014 8.7287 13.1609\" 为平动/转动投影残差，不计入 3N-6"
+    },
+    "arm_end_relax": {
+     "status": "done",
+     "job": 1324,
+     "log": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HL1/jobs/HL1_armend_relax_ts0036.log",
+     "sha256_prefix": "83aaf62bf84d455b",
+     "start": "ts_0036 IRC 产物侧臂末点（r(18,1)=1.741）",
+     "E": -441.09827373,
+     "imaginary": 0,
+     "modes": 57,
+     "rmsd_vs_1228_endo": 0.0005,
+     "max_atom_dev": {
+      "atom": 20,
+      "element": "O",
+      "dev_A": 0.0012
+     },
+     "rmsd_vs_1229_exo": 1.2506,
+     "sdist_18": 1.2768,
+     "d_working7_18": 3.0466,
+     "conclusion": "该臂收敛到 C10 同侧（endo）产物极小值 #1228，身份由 RMSD 0.0005 Å 与 sdist/d 双重确认"
+    }
+   },
+   "barrier_kcal_mol": 10.77,
+   "barrier_separated_reference_kcal_mol": 6.95,
+   "barrier_denominator": {"species": "HL1_RC_endo (本通道预络合物/IRC 反应物侧外框, 0 虚频, 57 模)", "energy_hartree": -441.019350272, "why": "用户裁决：分母 = 该步稳定中间体（本通道预络合物）；该 RC 节点另一独立优化值 -441.019015104 给出同一 10.77（差 0.2 cm-1 量级）"}
+  }
+ ]
+}

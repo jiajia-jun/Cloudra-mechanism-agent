@@ -10,7 +10,7 @@ TASKS = {
     # gold_compute/queue_20261018/results/NY3/{REPORT.txt,mechanism_graph.json}。
     # 映射：1=N、2=C、3=羰基 O、4=水 O；H5 原在 N，H6/H7 原在水。
     # E1 将 H6 迁到 N；E3 迁的是余下的 O-H7，不照抄远端图残留的 H6 编号。
-    # E2 是 syn->anti 构象支路；E3 从 syn 起步，43.13 不属于 anti->产物。
+    # E2 是 syn->anti 构象步；E3 的真实 IRC 起点是 anti，能垒仍相对稳定 syn。
     # E1 的 36.79 相对报告 RC(-244.935406907)，直接连接的水旋转体高 5.78；
     # IRC/构象连接的局限保留原报告，不声称该 durable run 已 strict pass。
     "Y3": {
@@ -30,9 +30,8 @@ TASKS = {
                 "barrier": 11.06,
             },
             {
-                "from_step": 1,
                 "out": "[N:1]([H:5])([H:6])[H:7].[O:3]=[C:2]=[O:4]",
-                "type": "syn carbamic acid decomposition by C-N cleavage and O-H7 to N proton transfer with C-O double-bond formation -> ammonia and carbon dioxide",
+                "type": "anti carbamic acid decomposition by C-N cleavage and O-H7 to N proton transfer with C-O double-bond formation -> ammonia and carbon dioxide; barrier referenced to stable syn carbamic acid",
                 "barrier": 43.13,
             },
         ],

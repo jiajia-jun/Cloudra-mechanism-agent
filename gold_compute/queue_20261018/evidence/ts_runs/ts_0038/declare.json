@@ -1,0 +1,118 @@
+{
+  "reaction": {
+    "reactant_smiles": "C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1",
+    "product_smiles": "C/C=C(/C)c1ccccc1.CN(C)O",
+    "charge": 0,
+    "multiplicity": 1,
+    "electronic_character": null,
+    "selected_candidate": 0,
+    "reaction_center": []
+  },
+  "calculations": {
+    "g16": {
+      "engine": "gaussian",
+      "method": "B3LYP",
+      "basis_set": "def2SVP",
+      "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": ""
+    },
+    "g16_irc": {
+      "engine": "gaussian",
+      "method": "B3LYP",
+      "basis_set": "def2SVP",
+      "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+      "frequency_mode": "auto",
+      "orca_blocks": null,
+      "end_setting": "IRC=(CalcFC,StepSize=5,Recalc=5)"
+    }
+  },
+  "conformers": {
+    "reactant": {
+      "kind": "file",
+      "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/geoms/HI1_erythro_R_min.xyz",
+      "mol_path": null,
+      "evidence_refs": [
+        "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_erythro_R_optfreq.log"
+      ],
+      "optimization": null
+    },
+    "product": {
+      "kind": "generate",
+      "generation": "ETKDGv3",
+      "seed": 20261018,
+      "optimization": null
+    },
+    "guidance": {
+      "ring_order": [],
+      "distance_filters": []
+    }
+  },
+  "guess": {
+    "kind": "provided",
+    "xyz_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/geoms/HI1_erythro_TS_syn_guess.xyz",
+    "evidence_refs": [
+      "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/HI1/jobs/HI1_erythro_R_optfreq.log"
+    ]
+  },
+  "ts_optimization": {
+    "ref": "g16"
+  },
+  "verification": {
+    "frequency": {
+      "ref": "g16"
+    },
+    "irc": {
+      "ref": "g16_irc"
+    },
+    "irc_log": null,
+    "reactant_endpoint": {
+      "seed": null,
+      "optimization": {
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "frequency": {
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      }
+    },
+    "product_endpoint": {
+      "seed": null,
+      "optimization": {
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "frequency": {
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      }
+    }
+  },
+  "execution": {
+    "cpus": 4,
+    "memory_mb": 6144,
+    "limits": null
+  }
+}

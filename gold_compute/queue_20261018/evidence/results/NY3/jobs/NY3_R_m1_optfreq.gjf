@@ -1,0 +1,16 @@
+%chk=/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NY3/jobs/NY3_R_m1_optfreq.chk
+%nproc=4
+%mem=6144MB
+#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+
+NY3 HNCO.H2O displaced along -212 cm-1 mode (minimum search)
+
+0 1
+C        1.22985800     0.07118900    -0.00002400
+O        2.31730500    -0.37342000     0.00002300
+N        0.17093200     0.64743000     0.00697100
+H       -0.80330700     0.32620400     0.00712800
+O       -2.51829800    -0.19905600    -0.03849200
+H       -3.28459800     0.38894900     0.22409700
+H       -2.87983000    -1.09449500     0.26587000
+

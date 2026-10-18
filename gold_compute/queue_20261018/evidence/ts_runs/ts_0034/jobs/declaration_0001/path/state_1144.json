@@ -1,0 +1,940 @@
+{
+    "manifest_digest": "c7a80ea55849c0ad3b65c128abe55c12827951ad0dab8daa94eb803e89b40a89",
+    "process_exit_code": 0,
+    "artifact_root": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path",
+    "result": {
+        "run_dir": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001",
+        "command": [
+            "xtb",
+            "reactant.xyz",
+            "--path",
+            "product.xyz",
+            "--input",
+            "path.inp",
+            "--chrg",
+            "0",
+            "--uhf",
+            "0",
+            "--gfn",
+            "2",
+            "--parallel",
+            "4"
+        ],
+        "returncode": 0,
+        "path_kind": "xtb_path",
+        "termination_reason": "completed",
+        "refinement_runs": 100,
+        "refinement_termination": "converged",
+        "usable_as_guess": true,
+        "symbols": [
+            "N",
+            "C",
+            "O",
+            "H",
+            "H",
+            "H"
+        ],
+        "frames": [
+            {
+                "frame_index": 0,
+                "rel_energy_kcal": 0.0,
+                "positions": [
+                    [
+                        -1.22207177323953,
+                        -0.13342097524318,
+                        0.0
+                    ],
+                    [
+                        -0.09001998329642,
+                        0.42917592036463,
+                        0.0
+                    ],
+                    [
+                        1.14724178712455,
+                        -0.1155409785609,
+                        0.0
+                    ],
+                    [
+                        -1.14968778667067,
+                        -1.15930978488527,
+                        0.0
+                    ],
+                    [
+                        -0.01015399811588,
+                        1.52606871683164,
+                        0.0
+                    ],
+                    [
+                        1.07652780024581,
+                        -1.08353879894489,
+                        0.0
+                    ]
+                ]
+            },
+            {
+                "frame_index": 1,
+                "rel_energy_kcal": -0.612864410485,
+                "positions": [
+                    [
+                        -1.19837905213259,
+                        -0.1323217322008,
+                        4.680804e-08
+                    ],
+                    [
+                        -0.07996153543414,
+                        0.41901273406284,
+                        1.842953e-08
+                    ],
+                    [
+                        1.15434706127545,
+                        -0.10757709538113,
+                        1.958174e-08
+                    ],
+                    [
+                        -1.19857565751031,
+                        -1.15108244359312,
+                        -5.238786e-08
+                    ],
+                    [
+                        -0.02907411359646,
+                        1.50219199044234,
+                        1.979192e-08
+                    ],
+                    [
+                        1.14639186060488,
+                        -1.07541520675776,
+                        7.800063e-08
+                    ]
+                ]
+            },
+            {
+                "frame_index": 2,
+                "rel_energy_kcal": -0.25534640194,
+                "positions": [
+                    [
+                        -1.21389543662178,
+                        -0.13593761863485,
+                        -2.9840077e-07
+                    ],
+                    [
+                        -0.08456552296085,
+                        0.39324574477824,
+                        -5.5583061e-07
+                    ],
+                    [
+                        1.14963282457846,
+                        -0.13019564888454,
+                        -1.721951e-07
+                    ],
+                    [
+                        -1.24529069441221,
+                        -1.15320217952661,
+                        4.260119e-07
+                    ],
+                    [
+                        -0.01997246469246,
+                        1.47560371949079,
+                        5.3818616e-07
+                    ],
+                    [
+                        1.19982860112638,
+                        -1.09764369072591,
+                        1.1983778e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 3,
+                "rel_energy_kcal": 0.583819924545,
+                "positions": [
+                    [
+                        -1.23200268742216,
+                        -0.13901604345406,
+                        -5.2546628e-07
+                    ],
+                    [
+                        -0.0925364918849,
+                        0.36779518038981,
+                        -6.5206759e-07
+                    ],
+                    [
+                        1.1413822539385,
+                        -0.15294404258126,
+                        8.759966e-08
+                    ],
+                    [
+                        -1.29364216503739,
+                        -1.15401800591804,
+                        4.9765107e-07
+                    ],
+                    [
+                        -0.01124934963532,
+                        1.44864909342602,
+                        5.7782453e-07
+                    ],
+                    [
+                        1.25899741351899,
+                        -1.12165896920453,
+                        1.652043e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 4,
+                "rel_energy_kcal": 2.126951917376,
+                "positions": [
+                    [
+                        -1.25065238777182,
+                        -0.14089602991905,
+                        9.592231e-08
+                    ],
+                    [
+                        -0.10178234327453,
+                        0.34227556346863,
+                        4.1983438e-07
+                    ],
+                    [
+                        1.13256218172974,
+                        -0.17763596811966,
+                        6.4138157e-07
+                    ],
+                    [
+                        -1.3434693872697,
+                        -1.1527787011522,
+                        -2.6894121e-07
+                    ],
+                    [
+                        -0.00207375763807,
+                        1.42110881579318,
+                        -2.8321138e-07
+                    ],
+                    [
+                        1.32902581156385,
+                        -1.14266892904261,
+                        -8.101939e-08
+                    ]
+                ]
+            },
+            {
+                "frame_index": 5,
+                "rel_energy_kcal": 4.758540512393,
+                "positions": [
+                    [
+                        -1.270937468394,
+                        -0.14111863681691,
+                        -1.3976789e-07
+                    ],
+                    [
+                        -0.11361714972045,
+                        0.31654340631413,
+                        2.2284813e-07
+                    ],
+                    [
+                        1.11827735382667,
+                        -0.20641189902873,
+                        1.07110109e-06
+                    ],
+                    [
+                        -1.39414922461254,
+                        -1.14989598720637,
+                        5.718292e-08
+                    ],
+                    [
+                        0.00546786004933,
+                        1.39381029888854,
+                        -1.6933825e-07
+                    ],
+                    [
+                        1.41203175695118,
+                        -1.15755907718773,
+                        -3.3532845e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 6,
+                "rel_energy_kcal": 8.925865550577,
+                "positions": [
+                    [
+                        -1.29188500038824,
+                        -0.14010124888839,
+                        -8.9016578e-07
+                    ],
+                    [
+                        -0.12781108490777,
+                        0.29186863823119,
+                        1.08175431e-06
+                    ],
+                    [
+                        1.09435254528296,
+                        -0.23957118962139,
+                        3.90532515e-06
+                    ],
+                    [
+                        -1.44502844571542,
+                        -1.14700638722064,
+                        5.817902e-08
+                    ],
+                    [
+                        0.01061891717761,
+                        1.36740396502115,
+                        -1.2379391e-06
+                    ],
+                    [
+                        1.50594386667807,
+                        -1.15707814164319,
+                        -2.5491212e-06
+                    ]
+                ]
+            },
+            {
+                "frame_index": 7,
+                "rel_energy_kcal": 14.789588261082,
+                "positions": [
+                    [
+                        -1.31020641047361,
+                        -0.13818742667679,
+                        -3.5366837e-07
+                    ],
+                    [
+                        -0.1445624757494,
+                        0.2790591485009,
+                        2.56346771e-06
+                    ],
+                    [
+                        1.05443010516484,
+                        -0.27457006919493,
+                        9.397948e-08
+                    ],
+                    [
+                        -1.4714407888559,
+                        -1.13941470656959,
+                        -5.321668e-07
+                    ],
+                    [
+                        0.01843148165576,
+                        1.3489478280954,
+                        -1.19018513e-06
+                    ],
+                    [
+                        1.58699312743594,
+                        -1.15105658727873,
+                        -5.307897e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 8,
+                "rel_energy_kcal": 27.567214855728,
+                "positions": [
+                    [
+                        -1.33439539894098,
+                        -0.10466465347914,
+                        -1.118484759e-05
+                    ],
+                    [
+                        -0.14139785232781,
+                        0.24837779113839,
+                        -3.15738602e-06
+                    ],
+                    [
+                        0.96546958996155,
+                        -0.48039962447266,
+                        5.47821604e-05
+                    ],
+                    [
+                        -1.56305685816417,
+                        -1.09349022058563,
+                        2.23776154e-06
+                    ],
+                    [
+                        0.04452619035067,
+                        1.32477351817669,
+                        -5.58571931e-06
+                    ],
+                    [
+                        1.76535547530013,
+                        -0.98032583978002,
+                        -3.702636932e-05
+                    ]
+                ]
+            },
+            {
+                "frame_index": 9,
+                "rel_energy_kcal": 9.675638426385,
+                "positions": [
+                    [
+                        -1.34331786063266,
+                        -0.06731047555719,
+                        3.9553977e-07
+                    ],
+                    [
+                        -0.13231902287958,
+                        0.22305480513651,
+                        -1.01902809e-06
+                    ],
+                    [
+                        0.83789611008756,
+                        -0.7018520541889,
+                        2.5613214e-07
+                    ],
+                    [
+                        -1.52717632550173,
+                        -1.05889515908225,
+                        1.8393826e-07
+                    ],
+                    [
+                        0.13997713311035,
+                        1.29220338879821,
+                        2.6124057e-07
+                    ],
+                    [
+                        1.80181862234556,
+                        -0.74495486171833,
+                        -2.946228e-08
+                    ]
+                ]
+            },
+            {
+                "frame_index": 10,
+                "rel_energy_kcal": 5.877549958609,
+                "positions": [
+                    [
+                        -1.32671996610169,
+                        -0.05566205898668,
+                        5.8077033e-07
+                    ],
+                    [
+                        -0.11037451982198,
+                        0.19379169787412,
+                        2.09419558e-06
+                    ],
+                    [
+                        0.85462686925404,
+                        -0.75121507533333,
+                        6.784296e-08
+                    ],
+                    [
+                        -1.61169264218972,
+                        -1.03647802146114,
+                        -8.1298804e-07
+                    ],
+                    [
+                        0.16021581185075,
+                        1.25822561404177,
+                        -1.37103212e-06
+                    ],
+                    [
+                        1.82441874930429,
+                        -0.65172297219529,
+                        -5.3939312e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 11,
+                "rel_energy_kcal": 4.104670184007,
+                "positions": [
+                    [
+                        -1.3265850165988,
+                        -0.05326817189652,
+                        7.201989e-07
+                    ],
+                    [
+                        -0.10337096243698,
+                        0.17946642152247,
+                        2.54220243e-06
+                    ],
+                    [
+                        0.85622480671922,
+                        -0.77227424390205,
+                        1.05289282e-06
+                    ],
+                    [
+                        -1.65631704220314,
+                        -1.01763182464939,
+                        -1.37259323e-06
+                    ],
+                    [
+                        0.17815818139968,
+                        1.23583507316009,
+                        -1.62655846e-06
+                    ],
+                    [
+                        1.80698745608862,
+                        -0.58414016074067,
+                        -1.27173023e-06
+                    ]
+                ]
+            },
+            {
+                "frame_index": 12,
+                "rel_energy_kcal": 3.479932816201,
+                "positions": [
+                    [
+                        -1.32751780756656,
+                        -0.05500579705052,
+                        3.6222797e-07
+                    ],
+                    [
+                        -0.10203449923562,
+                        0.1633607336501,
+                        1.48907811e-06
+                    ],
+                    [
+                        0.86747003380266,
+                        -0.78265733383711,
+                        5.8409086e-07
+                    ],
+                    [
+                        -1.70151740667705,
+                        -0.99928426599566,
+                        -8.5573835e-07
+                    ],
+                    [
+                        0.18723256659978,
+                        1.21509919158709,
+                        -8.6845719e-07
+                    ],
+                    [
+                        1.80098755480717,
+                        -0.52230610687966,
+                        -7.0638755e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 13,
+                "rel_energy_kcal": 3.443327359485,
+                "positions": [
+                    [
+                        -1.32497851841037,
+                        -0.05624187887138,
+                        7.509053e-08
+                    ],
+                    [
+                        -0.09837222257412,
+                        0.15246671585618,
+                        5.56604e-07
+                    ],
+                    [
+                        0.88707395811559,
+                        -0.78261034437345,
+                        2.7104059e-07
+                    ],
+                    [
+                        -1.7378546307683,
+                        -0.98182378722594,
+                        -3.1512443e-07
+                    ],
+                    [
+                        0.19637052186275,
+                        1.20084965139823,
+                        -2.8429707e-07
+                    ],
+                    [
+                        1.80096187495994,
+                        -0.46371168216748,
+                        -2.9461064e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 14,
+                "rel_energy_kcal": 3.713145894128,
+                "positions": [
+                    [
+                        -1.32141713549044,
+                        -0.04761400462185,
+                        -1.977884e-08
+                    ],
+                    [
+                        -0.09275550677481,
+                        0.14197834083055,
+                        1.918768e-07
+                    ],
+                    [
+                        0.91109182051039,
+                        -0.77578885528581,
+                        8.59985e-08
+                    ],
+                    [
+                        -1.769165273915,
+                        -0.95665799431546,
+                        -2.7104239e-07
+                    ],
+                    [
+                        0.20561085934004,
+                        1.1885481609341,
+                        -1.5770286e-07
+                    ],
+                    [
+                        1.80621331395993,
+                        -0.40604184352283,
+                        -9.414267e-08
+                    ]
+                ]
+            },
+            {
+                "frame_index": 15,
+                "rel_energy_kcal": 3.670787590262,
+                "positions": [
+                    [
+                        -1.309585165571,
+                        -0.05205974087203,
+                        -9.0946705e-07
+                    ],
+                    [
+                        -0.08142819679342,
+                        0.14065308482037,
+                        -2.3660914e-06
+                    ],
+                    [
+                        0.94436000050359,
+                        -0.75288520120754,
+                        -3.9881749e-07
+                    ],
+                    [
+                        -1.74541875658785,
+                        -0.96799517074276,
+                        1.45404015e-06
+                    ],
+                    [
+                        0.20947403807583,
+                        1.19025655117094,
+                        1.31435604e-06
+                    ],
+                    [
+                        1.82232484193777,
+                        -0.34260062765511,
+                        8.7178253e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 16,
+                "rel_energy_kcal": 3.454542178945,
+                "positions": [
+                    [
+                        -1.30154212744745,
+                        -0.05694993846969,
+                        9.6955741e-07
+                    ],
+                    [
+                        -0.0764438238352,
+                        0.16444585097138,
+                        2.19420305e-06
+                    ],
+                    [
+                        0.97320382315472,
+                        -0.70010579188601,
+                        4.169617e-07
+                    ],
+                    [
+                        -1.69849359172806,
+                        -0.99161251685472,
+                        -1.35756486e-06
+                    ],
+                    [
+                        0.19532913191674,
+                        1.21966090631698,
+                        -1.43452773e-06
+                    ],
+                    [
+                        1.83747980826862,
+                        -0.26199217282035,
+                        -8.3440531e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 17,
+                "rel_energy_kcal": 3.078043058774,
+                "positions": [
+                    [
+                        -1.31151778932674,
+                        -0.06433254200643,
+                        1.42408171e-06
+                    ],
+                    [
+                        -0.09001112207123,
+                        0.17650496182277,
+                        2.7524499e-06
+                    ],
+                    [
+                        0.97289808015447,
+                        -0.66956455335794,
+                        4.2598888e-07
+                    ],
+                    [
+                        -1.66609902008942,
+                        -1.01642515014414,
+                        -1.7410819e-06
+                    ],
+                    [
+                        0.17900488455067,
+                        1.23172837104975,
+                        -1.76325535e-06
+                    ],
+                    [
+                        1.81983017892203,
+                        -0.19848134867573,
+                        -6.6038203e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 18,
+                "rel_energy_kcal": 2.670238860085,
+                "positions": [
+                    [
+                        -1.33330740903443,
+                        -0.0628440430649,
+                        1.45832365e-06
+                    ],
+                    [
+                        -0.11193293688356,
+                        0.17073649372665,
+                        2.86216051e-06
+                    ],
+                    [
+                        0.93127710093628,
+                        -0.69700346656413,
+                        2.2753246e-07
+                    ],
+                    [
+                        -1.67077877907973,
+                        -1.01973202617248,
+                        -1.99220065e-06
+                    ],
+                    [
+                        0.17718899748024,
+                        1.2195483227391,
+                        -1.85427119e-06
+                    ],
+                    [
+                        1.7722707563543,
+                        -0.22191920128912,
+                        -6.3008996e-07
+                    ]
+                ]
+            },
+            {
+                "frame_index": 19,
+                "rel_energy_kcal": 2.549657796769,
+                "positions": [
+                    [
+                        -1.33188270489953,
+                        -0.07962847397787,
+                        5.67038581e-06
+                    ],
+                    [
+                        -0.11512126186054,
+                        0.18022020009729,
+                        1.311961605e-05
+                    ],
+                    [
+                        0.94516719688884,
+                        -0.66657651954679,
+                        1.74947866e-06
+                    ],
+                    [
+                        -1.62705526952566,
+                        -1.05079068197941,
+                        -1.013282764e-05
+                    ],
+                    [
+                        0.16169252953802,
+                        1.23103111958094,
+                        -3.85812268e-06
+                    ],
+                    [
+                        1.77092729384766,
+                        -0.16536767724634,
+                        -3.18488199e-06
+                    ]
+                ]
+            },
+            {
+                "frame_index": 20,
+                "rel_energy_kcal": 6.113374927411,
+                "positions": [
+                    [
+                        -1.3554974760579,
+                        -0.06907055874745,
+                        -3.088590417e-05
+                    ],
+                    [
+                        -0.12737529253687,
+                        0.13884977371768,
+                        -4.61887536e-05
+                    ],
+                    [
+                        0.96187569093422,
+                        -0.68829604658808,
+                        -2.96097529e-06
+                    ],
+                    [
+                        -1.70222266242583,
+                        -1.02529825759532,
+                        3.638896186e-05
+                    ],
+                    [
+                        0.20186666118792,
+                        1.17590030546245,
+                        4.017427908e-05
+                    ],
+                    [
+                        1.77318912494631,
+                        -0.06865111668728,
+                        3.47239212e-06
+                    ]
+                ]
+            }
+        ],
+        "ts_candidate_energy_eh": -10.584417045189,
+        "ts_candidate_positions": [
+            [
+                -1.33439539894098,
+                -0.10466465347914,
+                -1.118484759e-05
+            ],
+            [
+                -0.14139785232781,
+                0.24837779113839,
+                -3.15738602e-06
+            ],
+            [
+                0.96546958996155,
+                -0.48039962447266,
+                5.47821604e-05
+            ],
+            [
+                -1.56305685816417,
+                -1.09349022058563,
+                2.23776154e-06
+            ],
+            [
+                0.04452619035067,
+                1.32477351817669,
+                -5.58571931e-06
+            ],
+            [
+                1.76535547530013,
+                -0.98032583978002,
+                -3.702636932e-05
+            ]
+        ],
+        "reactant_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/reactant.xyz",
+        "product_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/product.xyz",
+        "command_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/command.txt",
+        "path_input_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/path.inp",
+        "versions_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/versions.txt",
+        "stdout_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/stdout.log",
+        "stderr_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/stderr.log",
+        "path_xyz_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbpath.xyz",
+        "ts_xyz_path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbpath_ts.xyz",
+        "artifacts": [
+            {
+                "name": "charges",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/charges",
+                "size_bytes": 90
+            },
+            {
+                "name": "command.txt",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/command.txt",
+                "size_bytes": 91
+            },
+            {
+                "name": "path.inp",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/path.inp",
+                "size_bytes": 23
+            },
+            {
+                "name": "product.xyz",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/product.xyz",
+                "size_bytes": 375
+            },
+            {
+                "name": "reactant.xyz",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/reactant.xyz",
+                "size_bytes": 363
+            },
+            {
+                "name": "stderr.log",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/stderr.log",
+                "size_bytes": 26
+            },
+            {
+                "name": "stdout.log",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/stdout.log",
+                "size_bytes": 17616
+            },
+            {
+                "name": "versions.txt",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/versions.txt",
+                "size_bytes": 108
+            },
+            {
+                "name": "wbo",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/wbo",
+                "size_bytes": 294
+            },
+            {
+                "name": "xtbopt.log",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbopt.log",
+                "size_bytes": 61446
+            },
+            {
+                "name": "xtbpath.xyz",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbpath.xyz",
+                "size_bytes": 10819
+            },
+            {
+                "name": "xtbpath_0.xyz",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbpath_0.xyz",
+                "size_bytes": 10824
+            },
+            {
+                "name": "xtbpath_1.xyz",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbpath_1.xyz",
+                "size_bytes": 10824
+            },
+            {
+                "name": "xtbpath_2.xyz",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbpath_2.xyz",
+                "size_bytes": 10310
+            },
+            {
+                "name": "xtbpath_ts.xyz",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbpath_ts.xyz",
+                "size_bytes": 517
+            },
+            {
+                "name": "xtbrestart",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbrestart",
+                "size_bytes": 584
+            },
+            {
+                "name": "xtbtopo.mol",
+                "path": "/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001/xtbtopo.mol",
+                "size_bytes": 513
+            }
+        ],
+        "partial_frames": [],
+        "evidence": [
+            "terminated because grad at TS <threshold",
+            "* finished run on 2026/10/18 at 05:08:34.717",
+            "path finder:",
+            "normal termination of xtb",
+            "forward  barrier (kcal)  :    27.567",
+            "backward barrier (kcal)  :    21.454"
+        ],
+        "diagnostics": [
+            "path-frame comment energies are RELATIVE kcal/mol; the TS candidate's comment energy is ABSOLUTE Eh — the two are reported in separate fields on purpose (verified against single points on this machine)",
+            "the TS candidate is a guess sampled by metadynamics, NOT a saddle point and NOT verified; frequency/IRC judgement still has to run",
+            "the engine declared the path refinement converged ('terminated because grad at TS <threshold') within the 100-run cap"
+        ],
+        "message": "xtb path search completed: 21 path frames and a TS candidate (-10.584417 Eh). Run directory: /home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0001/path/xtb_path_runs/queued_path_0001"
+    }
+}

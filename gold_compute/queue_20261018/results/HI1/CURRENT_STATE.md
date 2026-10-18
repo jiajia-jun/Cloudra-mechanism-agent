@@ -1,6 +1,6 @@
 # HI1 · threo/erythro 胺氧化物 Cope 消除
 
-> 最新正式状态：2条已算参考边已进入正式TaskSpec，准确度评分启用；详见[当前状态](../../REFERENCE_STATUS.md)。下方原交付快照和验证限制保留，不伪造strict pass。
+> 当前正式状态：两条正式syn边的真实IRC末帧优化/频率已核实，零虚频及Z/E均闭环；16.62/15.85不变。 详见[当前状态](../../REFERENCE_STATUS.md)。下方为历史过程快照，旧待算/未验措辞不覆盖此处。
 
 
 ## 题面要素（以 `ideapool/tasks/hard/HI1.json` 为准）

@@ -1,0 +1,240 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N=C=O.O"
+      ],
+      "properties": {
+        "energy_hartree": -244.935406907,
+        "n_imag": 0,
+        "n_modes": 15,
+        "job_id": 1152,
+        "evidence_log": "gold_compute/queue_20261018/results/NY3/jobs/NY3_R_m1_optfreq.log",
+        "geometry": "gold_compute/queue_20261018/results/NY3/geoms/NY3_R_complex_min.xyz",
+        "note": "HNCO.H2O H-bond precomplex, N3-H4...O5 = 1.802 A, B3LYP-D3BJ/def2SVP gas phase, 0 imaginary"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.876786249,
+        "n_imag": 1,
+        "imag_cm": -1579.3842,
+        "job_id": 1260,
+        "freq_job_id": 1266,
+        "irc_job_id": 1268,
+        "ts_run": "ts_0027",
+        "verified": false,
+        "verdict": "candidate_only",
+        "verification_basis": "shape criterion on the declared pairs + bidirectional short IRC + eigenvector-followed endpoints (jobs 1293/1294) + both endpoints Opt+Freq with 0 imaginary modes; the durable tool verdict is candidate_only because the 10-point IRC cap cannot satisfy the interval-proof alignment gate",
+        "intervening_conformer": {
+          "energy_hartree": -244.926200303,
+          "job_id": 1294,
+          "geometry": "gold_compute/queue_20261018/results/NY3/guess_prep/E1_rotamer_min_1294.xyz",
+          "delta_vs_RC_kcal_mol": 5.78,
+          "note": "TS1 is directly connected on the reactant side to the H-free water-rotamer minimum of HNCO.H2O (N3-H4...O5 = 3.870 A, 0 imaginary modes, +0.009206604 Ha = +5.78 kcal/mol above RC), NOT to the hydrogen-bonded RC conformer (job 1152, N3-H4...O5 = 1.802 A). The short IRC forward arm agrees (H4...O5 = 3.232 A already at F10).",
+          "link_to_RC": {
+            "method": "relaxed 1D scan of R(H4...O5) 3.8715 -> 1.7915 A, 8 steps x 0.26 A, opt=(modredundant,maxcycle=200)",
+            "job_id": 1298,
+            "log": "gold_compute/queue_20261018/results/NY3/guess_prep/E1_rot2RC_scan.log",
+            "barrier_kcal_mol": 0.27,
+            "barrier_ha": 0.00043,
+            "endpoint_rmsd_vs_RC": {"heavy_1235": 0.0038, "max": 0.0065, "all7": 0.0039},
+            "conclusion": "barrier < 2 kcal/mol, so at 298 K RC(1152) and the rotamer are the same reactant state and using RC as the e1 barrier denominator is justified. This e0 conformer step is NOT added to the e1 barrier (36.79)."
+          }
+        },
+        "eigvec_endpoints": {
+          "method": "unit Cartesian eigenvector of the -1579.3842 cm-1 mode (unweighted normalised), scaled to a maximum atomic displacement of 0.30 A, then free optimisation (opt=(calcfc,maxcycle=200) + freq), no constraints",
+          "source_hessian": "ts/ts_0027/jobs/declaration_0009/frequency/frequency.log",
+          "plus": {
+            "job_id": 1293,
+            "log": "gold_compute/queue_20261018/results/NY3/guess_prep/E1_TS1_mode_plus_optfreq.log",
+            "energy_hartree": -244.966495489,
+            "n_imag": 0,
+            "identity": "carbamic acid minimum, identical to I1_syn (job 1133)",
+            "rmsd_vs_I1_syn": {"heavy_1235": 0.0002, "max": 0.0003, "worst_atom": 1, "all7": 0.0043}
+          },
+          "minus": {
+            "job_id": 1294,
+            "log": "gold_compute/queue_20261018/results/NY3/guess_prep/E1_TS1_mode_minus_optfreq.log",
+            "energy_hartree": -244.926200303,
+            "n_imag": 0,
+            "identity": "HNCO + H2O complex minimum (N3 carries H4 only, O5 carries H6 and H7, C1-O5 = 3.024 A) - same species as RC but a DIFFERENT water-rotamer conformer",
+            "rmsd_vs_RC_1152": {"heavy_1235": 0.6972, "max": 0.8800, "worst_atom": 2, "all7": 1.1804},
+            "note": "N3-H4...O5 = 3.870 A versus 1.802 A in RC(1152); +0.009206604 Ha = +5.78 kcal/mol above RC. The eigvec step therefore connects the TS to the HNCO+H2O species at the rotamer minimum, not to the RC conformer itself; the remaining link is a water rotation (a conformational edge of the E2 type, outside this bond-forming-step mandate)."
+          }
+        },
+        "evidence_log": "ts/ts_0027/jobs/declaration_0009/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0027/jobs/declaration_0009/frequency/frequency.log",
+        "irc_log": "ts/ts_0027/jobs/declaration_0009/irc/irc.log",
+        "note": "E1 concerted four-centre water addition. Exactly one imaginary mode (-1579.3842 cm-1); unweighted squared-displacement shares: H6 0.9570, H4 0.0250, H7 0.0089, C1 0.0074; per-bond projections (5,6)=0.880, (3,6)=0.819 >> 0.001 A so this is NOT a rotor; mode_alignment = aligned. IRC both ways connects HNCO+H2O (forward, O5-H6 re-forms 0.991 A, C1-O5 1.835 A) and carbamic acid (reverse, N3-H6 1.031 A). Endpoint Opt+Freq: RC -244.935406911 (0 imag, job 1285), carbamic acid -244.966495971 (0 imag, job 1288). ts_0027 verdict stays candidate_only ONLY because the durable IRC interval-proof alignment gate cannot be satisfied with the 10-point Gaussian IRC cap: the forward outer frame (C1-O5 1.835 A) is 1.347 A distance-matrix RMSD away from the RC minimum (C1-O5 3.77 A), while the accepted E3 endpoints are ~0.335 A. MaxPoints/StepSize cannot be passed (keywords -> admission mismatch; end_setting lands after the coordinate block, not in the route)."
+      }
+    },
+    {
+      "id": "I_syn",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.966495972,
+        "n_imag": 0,
+        "n_modes": 15,
+        "job_id": 1133,
+        "evidence_log": "gold_compute/queue_20261018/results/NY3/jobs/NY3_I1_syn_optfreq.log",
+        "replica_log": "ts/ts_0028/jobs/declaration_0006/reactant_frequency/reactant_frequency.log",
+        "geometry": "gold_compute/queue_20261018/results/NY3/geoms/NY3_I1_syn_min.xyz",
+        "note": "carbamic acid, O5-H7 syn to C=O with intramolecular H7...O2 = 2.288 A; global minimum of the 7-atom system found here"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.948872987,
+        "n_imag": 1,
+        "imag_cm": -465.6897,
+        "job_id": 1176,
+        "ts_run": "ts_0028",
+        "verified": true,
+        "evidence_log": "ts/ts_0028/jobs/declaration_0006/frequency/frequency.log",
+        "irc_log": "ts/ts_0028/jobs/declaration_0002/irc/irc.log",
+        "note": "O-H rotamerization TS (syn -> anti). ts_0028 verdict: verified (1 imaginary mode, bidirectional IRC, endpoints between TS and declared minima, endpoint identities matched). Imaginary-mode unweighted squared-displacement shares: atom7(H) 0.9704, heavy-atom share 0.0076739, largest single atom 0.9704."
+      }
+    },
+    {
+      "id": "I_anti",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.953791465,
+        "n_imag": 0,
+        "n_modes": 15,
+        "job_id": 1163,
+        "replica_job_id": 1169,
+        "evidence_log": "gold_compute/queue_20261018/results/NY3/jobs/NY3_I2b_p_optfreq.log",
+        "replica_log": "gold_compute/queue_20261018/results/NY3/jobs/NY3_I2b_m_optfreq.log",
+        "endpoint_freq_log": "ts/ts_0028/jobs/declaration_0006/product_frequency/product_frequency.log",
+        "geometry": "gold_compute/queue_20261018/results/NY3/geoms/NY3_I2b_anti_min.xyz",
+        "note": "carbamic acid anti O-H rotamer (H7...O2 = 3.016 A). The supplied I2.xyz geometry was a first-order saddle (-272.97 cm-1); this minimum was reached by following that mode (job 1163 and, in the opposite direction, job 1169 converge to the same structure, dE = 1e-9 Ha)."
+      }
+    },
+    {
+      "id": "TS3",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.897758392,
+        "n_imag": 1,
+        "imag_cm": -1656.9651,
+        "job_id": 1265,
+        "freq_job_id": 1269,
+        "irc_job_id": 1270,
+        "ts_run": "ts_0029",
+        "verified": true,
+        "verdict": "verified",
+        "evidence_log": "ts/ts_0029/jobs/declaration_0010/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0029/jobs/declaration_0011/frequency/frequency.log",
+        "irc_log": "ts/ts_0029/jobs/declaration_0011/irc/irc.log",
+        "note": "E3 C1-N3 cleavage coupled to H7 transfer O5->N3 giving NH3 + CO2. Exactly one imaginary mode (-1656.9651 cm-1); shares H7 0.9769, H4 0.0075, H6 0.0075, C1 0.0065; projections (5,7)=0.892, (3,7)=0.811 (not a rotor); aligned. ts_0029 verdict = verified (verified=true): one imaginary mode, usable IRC from both directions, each outer frame between the TS and its declared minimum, endpoint identities match. Endpoints: carbamic acid -244.966495971 (0 imag, job 1276) and NH3...CO2 -244.964075631 (0 imag, job 1279)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "N.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -244.9553745385,
+        "n_imag": 0,
+        "job_id": [
+          1179,
+          1180
+        ],
+        "evidence_log": [
+          "gold_compute/queue_20261018/results/NY3/jobs/NY3_NH3_optfreq.log",
+          "gold_compute/queue_20261018/results/NY3/jobs/NY3_CO2_optfreq.log"
+        ],
+        "note": "declared separated products; each component is an Opt+Freq minimum with 0 imaginary modes (NH3 6/6 real, CO2 4/4 real). The NH3...CO2 contact complex is NOT a clean minimum in the attempted searches at this level (jobs 1164 l9999, 1168 l103 torsion/FormBX failure, 1181 Cartesian l9999 - all three failed), so the product node is annotated per component; failure to converge does not prove that no minimum exists. UPDATE (2026-10-18 06:00): the NH3...CO2 contact minimum DOES exist at this level - the -20.6233 cm-1 mode of job 1136 is the NH3 torsion about the N...C axis; following it by +/-0.5 displacement and re-optimising (jobs 1261/1262) converges both ways to E = -244.964075631 with 15 real frequencies (lowest 7.01 cm-1), geometry geoms/NY3_P_min_1261.xyz, log guess_prep/P_rotp_optfreq.log. The earlier three failures were guesses whose orientation had not been mode-followed. This minimum is what let ts_0029 pass its product-endpoint check."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "I_syn",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            4
+          ],
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 36.79,
+      "channel": "concerted",
+      "provenance": "connectivity established by BOTH the short (10-point) IRC and the eigenvector-followed endpoints (job 1293 = product-side carbamic-acid minimum, identical to I1_syn; job 1294 = reactant-side HNCO+H2O water-rotamer minimum), not by the IRC outer frames alone; see TS1.properties.eigvec_endpoints",
+      "note": "BARRIER DENOMINATOR: RC (job 1152, -244.935406907) = this step's own starting minimum. Note that the reactant minimum DIRECTLY connected to TS1 is the HNCO.H2O water-rotamer minimum (-244.926200303, +5.78 kcal/mol above RC, job 1294); the rotamer -> RC link is a 0.27 kcal/mol e0 conformational step (job 1298) and is NOT added to this barrier, so RC and the rotamer are the same reactant state at 298 K. Using the rotamer as denominator would give +31.00 kcal/mol, which is not the reported value. E1, water O4 attacks C2 while H6 migrates from O4 to N1 (4-centre, concerted). Barrier = E(TS1) - E(this step's own starting minimum RC) = -244.876786249 - (-244.935406907) = +0.058620658 Ha = +36.79 kcal/mol (pure electronic, same program/method). TS has exactly one imaginary mode on the declared pairs; IRC both directions connects RC and carbamic acid; both endpoints Opt+Freq with 0 imaginary modes (RC -244.935406911 job 1285, carbamic acid -244.966495971 job 1288). The durable run verdict is candidate_only because the 10-point IRC cap cannot bring the outer frame within the interval-proof alignment gate of the RC minimum (dmat RMSD 1.347 A vs ~0.335 A for the accepted E3 endpoints) - a platform limitation, not a missing saddle. Index convention = 1-based map numbers of the task reactant SMILES [NH:1]=[C:2]=[O:3].[OH2:4] (the two water H are equivalent; H6 denotes the migrating one)."
+    },
+    {
+      "id": "e2",
+      "from": "I_syn",
+      "to": "I_anti",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 11.06,
+      "channel": "conformer",
+      "note": "O-H rotamerization of carbamic acid (conformational edge, no bonds made or broken, so bond_changes is intentionally empty). Barrier = E(TS2) - E(this step's own starting minimum I_syn) = -244.948872987 - (-244.966495972) = +0.017622985 Ha = +11.06 kcal/mol (pure electronic, same program/method). Reverse = +3.09 kcal/mol vs I_anti (-244.953791465). Both endpoints Opt+Freq with 0 imaginary modes; verified by ts_0028."
+    },
+    {
+      "id": "e3",
+      "from": "I_syn",
+      "to": "P",
+      "via": "TS3",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 43.13,
+      "channel": "concerted",
+      "note": "E3, C2-N1 bond cleavage with H6 transfer O4 -> N1 giving NH3 + CO2. Barrier = E(TS3) - E(this step's own starting minimum I_syn) = -244.897758392 - (-244.966495972) = +0.068737580 Ha = +43.13 kcal/mol (pure electronic). ts_0029 verdict = verified: exactly one imaginary mode (-1656.9651 cm-1) on the declared pairs, usable bidirectional IRC, each outer frame between the TS and its declared minimum, endpoints 0 imaginary (carbamic acid -244.966495971 job 1276; NH3...CO2 -244.964075631 job 1279)."
+    }
+  ]
+}

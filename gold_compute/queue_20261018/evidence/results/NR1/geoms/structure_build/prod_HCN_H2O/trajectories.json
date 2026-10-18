@@ -1,0 +1,27 @@
+{
+  "count": 2,
+  "trajectories": [
+    {
+      "trajectory_id": "frag0-mmff94-attempt1",
+      "component_id": "frag0",
+      "status": "converged",
+      "engine": "MMFF94",
+      "iterations": 51,
+      "frame_count": 52,
+      "json_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NR1/geoms/structure_build/prod_HCN_H2O/trajectories/frag0-mmff94-attempt1/trajectory.json",
+      "frames_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NR1/geoms/structure_build/prod_HCN_H2O/trajectories/frag0-mmff94-attempt1/frames.xyz",
+      "frames_jsonl_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NR1/geoms/structure_build/prod_HCN_H2O/trajectories/frag0-mmff94-attempt1/frames.jsonl"
+    },
+    {
+      "trajectory_id": "frag1-mmff94-attempt1",
+      "component_id": "frag1",
+      "status": "converged",
+      "engine": "MMFF94",
+      "iterations": 32,
+      "frame_count": 33,
+      "json_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NR1/geoms/structure_build/prod_HCN_H2O/trajectories/frag1-mmff94-attempt1/trajectory.json",
+      "frames_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NR1/geoms/structure_build/prod_HCN_H2O/trajectories/frag1-mmff94-attempt1/frames.xyz",
+      "frames_jsonl_path": "/home/ly/Cloudra-mechanism-agent/gold_compute/queue_20261018/results/NR1/geoms/structure_build/prod_HCN_H2O/trajectories/frag1-mmff94-attempt1/frames.jsonl"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+%chk=/home/ly/Cloudra-mechanism-agent/ts/ts_0034/jobs/declaration_0005/product_frequency/product_frequency.chk
+%nproc=4
+%mem=6144MB
+#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+
+Endpoint product frequency from IRC side A; identity unverified | declared_species: N=CO
+
+0 1
+N        1.24282800    -0.09893700     0.00011200
+C        0.08874000     0.40575900    -0.00024100
+O       -1.06923300    -0.30244500    -0.00003500
+H        1.18600200    -1.12527900     0.00002600
+H       -0.03929100     1.50216400     0.00027800
+H       -1.82508800     0.30068500     0.00063700
+
