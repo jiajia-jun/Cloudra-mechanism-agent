@@ -10,10 +10,11 @@ v3（2026-09-09）收窄为四条多步/中间体网络；R2/R3/U1/U7 剔出定�
 
 TASKS = {
     # 2026-10-18：NR1 槽正式换为甲酰胺脱水，旧频哪醇 Gold 不再用于此题。
-    # 文献路线含甲亚胺酸构象转换；结构/路径未自算验收前不预造 Gold 节点。
+    # 结果已交付到 gold_compute/queue_20261018/results/NR1；当前正式 Gold 参考缺测。
+    # 状态见 queue 交接，不自动安排重算；不据局部结果预造 Gold 节点。
     "R1": {
         "name_en": "formamide dehydration: formamide -> hydrogen cyanide + water",
-        "conditions_en": "gas phase, isolated neutral formamide, closed-shell thermal dehydration; no added water, acid or catalyst; investigate formimidic-acid intermediates and conformational transitions; source DOI 10.1021/jp109143j; Gold construction pending remote calculations",
+        "conditions_en": "gas phase, isolated neutral formamide, closed-shell thermal dehydration; no added water, acid or catalyst; investigate formimidic-acid intermediates and conformational transitions; source DOI 10.1021/jp109143j",
         "mapped_reactants": "[NH2:1][CH:2]=[O:3]",
         "steps": [],
     },

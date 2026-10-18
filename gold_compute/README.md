@@ -1,6 +1,6 @@
 # gold_compute/ — gold 参考答案战役（权威文档）
 
-> 2026-10-18 用户指定换题已落实：当前 NR1=甲酰胺脱水，NY3=异氰酸单水水解，HI1=Cope 消除立体映射，HL1=HCNO/降冰片烯两面环加成。正式题面在 `ideapool/tasks/`，新 Gold 待远端计算；当前空参考不能作为验收分数。四题与全部十二题 impossible 的计算索引见 `queue_20261018/README.txt` 和 `QUEUE.csv`。
+> 2026-10-18 最新成果已同步：NR1/NY3/HI1/HL1 的本轮计算报告和结果图已从 `gold-finish-artifacts` 收回；不再标为待远端计算。正式参考未纳入的部分及IMP缺口统一标为“本轮缺测”，不追加排算。IB9_E1=5.65已人工回填。当前状态见 [REFERENCE_STATUS.md](queue_20261018/REFERENCE_STATUS.md) 与 [QUEUE.csv](queue_20261018/QUEUE.csv)。
 
 > **2026-09-21 用户决议（现行）**：本轮主线是 **边选反应边填 gold**。
 > 候选反应 **不来自** 仓库里任何既有文档或题池

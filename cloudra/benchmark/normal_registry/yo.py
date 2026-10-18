@@ -6,10 +6,11 @@ v3（2026-09-09）收窄为两条酰基转移/氧转移网络；Y2/O2/O4/O5 剔�
 
 TASKS = {
     # 2026-10-18：NY3 槽正式换为 HNCO + 单水中性气相水解。
-    # 单水路径的完整 TS/构象清单待计算，不把拟议两段路径预填为 Gold。
+    # 结果已交付到 gold_compute/queue_20261018/results/NY3；当前正式 Gold 参考缺测。
+    # 状态见 queue 交接，不自动安排重算；不把拟议两段路径预填为 Gold。
     "Y3": {
         "name_en": "isocyanic acid hydrolysis: HNCO + one water -> ammonia + carbon dioxide",
-        "conditions_en": "gas phase, neutral closed-shell system with exactly one water molecule in total; no extra solvent, acid, counterion or catalyst; investigate carbamic-acid intermediates and connecting conformers without assuming a fixed number of elementary steps; source DOI 10.1007/s00894-010-0917-z; Gold construction pending remote calculations",
+        "conditions_en": "gas phase, neutral closed-shell system with exactly one water molecule in total; no extra solvent, acid, counterion or catalyst; investigate carbamic-acid intermediates and connecting conformers without assuming a fixed number of elementary steps; source DOI 10.1007/s00894-010-0917-z",
         "mapped_reactants": "[NH:1]=[C:2]=[O:3].[OH2:4]",
         "steps": [],
     },

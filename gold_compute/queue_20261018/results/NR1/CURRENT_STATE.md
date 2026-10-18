@@ -1,5 +1,7 @@
 # NR1 · 甲酰胺气相热脱水
 
+> 2026-10-18已同步master：本文件保留原机交付时的计算快照。当前标记为“成果已交付；正式参考缺测”，不再列为待算；缺失或未验证完整的项按本轮缺测保留，不由本交接安排新计算。最新统一状态见[REFERENCE_STATUS.md](../../REFERENCE_STATUS.md)。
+
 ## 题面要素（以 `ideapool/tasks/normal/NR1.json` 为准）
 
 - 反应：NH2CHO → HCN + H2O

@@ -1,5 +1,9 @@
 # IMP 难题：PM7 与 xTB 方法内参考值探索
 
+## 最新交付与缺测标记（2026-10-18，覆盖下方旧快照）
+
+另一机gold-finish-artifacts的c6b5f71c/f24f9d3d四题成果已同步master，NR1/NY3/HI1/HL1不再称未计算。正式Gold未纳入的部分及IMP剩余缺口按用户要求标“本轮缺测”，不再列待算；IB9_E1已人工回填5.65，仍保留12题IMP。当前入口见[参考状态](gold_compute/queue_20261018/REFERENCE_STATUS.md)。下文0回填、等待/排除计划是此前历史，不覆盖该最新状态。本次无新QM、取消或验收状态改写。
+
 ## IA8/IB9排除执行：未移出、后端权限闸阻塞、已回滚
 用户已明确允许排除、协调选择移出两题，但registry edit被后端declined（change735fc4b5b5844c8a8cf3e8443b763d4a），不能把该拒绝解释为缺用户意图。先行允许的生成器/loader变更已逐项回滚、恢复原SHA；实际load_tasks与生成器仍12题，--check退出0（env tc_1161f20fdebd47b3）；协调随后独立复核三文件SHA恢复，精确12-ID集合、原IA8/IB9 JSON存在及只读--check均通过（tc_876f7f99bd474bfa，exit0）。原定义/TaskSpec/日志/计算值/accessible/tier未改，没有Gold回填。详见[实际执行与回滚审计](gold_compute/queue_20261018/IMP_RECLASSIFICATION.md)。本轮不是完成12→10；需维护者接入授权后才能实质排除，不绕闸另放配置或删题。历史12题工作量与下文科学记录均保留。
 
