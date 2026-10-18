@@ -112,6 +112,10 @@ def test_wrapper_records_early_term_and_covers_spawn_window(tmp_path, monkeypatc
     handlers = {}
     launches = []
     signals = []
+    lock = tmp_path / "early.lock"
+
+    class WrapperKilled(BaseException):
+        """SIGKILL ends the wrapper instead of returning from killpg."""
 
     def install(sig, handler):
         previous = handlers.get(sig, signal.SIG_DFL)
@@ -121,7 +125,7 @@ def test_wrapper_records_early_term_and_covers_spawn_window(tmp_path, monkeypatc
         return previous
 
     class Calculator:
-        def wait(self):
+        def wait(self, timeout=None):
             return 0
 
     def spawn(*args, **kwargs):
@@ -130,7 +134,11 @@ def test_wrapper_records_early_term_and_covers_spawn_window(tmp_path, monkeypatc
         return Calculator()
 
     def forward(group, sig):
+        assert group == os.getpid()
+        assert is_lock_held(str(lock)), "wrapper must retain its lock through group cancellation"
         signals.append((group, sig))
+        if sig == signal.SIGKILL:
+            raise WrapperKilled
         handlers[signal.SIGTERM](signal.SIGTERM, None)
 
     monkeypatch.setattr(signal, "signal", install)
@@ -138,16 +146,21 @@ def test_wrapper_records_early_term_and_covers_spawn_window(tmp_path, monkeypatc
     monkeypatch.setattr(wrapper.os, "getpgrp", os.getpid)
     monkeypatch.setattr(wrapper.os, "killpg", forward)
     monkeypatch.setattr(subprocess, "Popen", spawn)
-    monkeypatch.setattr(wrapper.os, "execvp", lambda *_args: launches.append("exec"))
-    rc = wrapper.main([str(tmp_path / "early.lock"), "--", "synthetic"])
+    monkeypatch.setattr(wrapper, "_CANCEL_GRACE_SECONDS", 0)
     if during_spawn:
+        with pytest.raises(WrapperKilled):
+            wrapper.main([str(lock), "--", "synthetic"])
         assert launches == ["popen"]
-        assert signals == [(os.getpid(), signal.SIGTERM)]
+        assert signals == [
+            (os.getpid(), signal.SIGTERM),
+            (os.getpid(), signal.SIGKILL),
+        ]
     else:
+        rc = wrapper.main([str(lock), "--", "synthetic"])
         assert launches == [], "accepted pre-spawn cancellation must not start an engine"
         assert rc != 0
         assert signals == []
-    assert not is_lock_held(str(tmp_path / "early.lock"))
+    assert not is_lock_held(str(lock))
 
 
 def test_wrapper_cannot_launch_or_signal_when_session_isolation_fails(tmp_path, monkeypatch):

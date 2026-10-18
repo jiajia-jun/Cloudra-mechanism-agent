@@ -208,6 +208,45 @@ async def test_cancel_ignored_by_engine_link_keeps_request_pending_and_scratch(s
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("close_fds", [True, False], ids=["closed_lock", "inherited_lock"])
+async def test_cancel_waits_for_term_ignoring_link_to_stop(synthetic_job, close_fds):
+    job = synthetic_job
+    job.script.write_text(job.script.read_text().replace(
+        "close_fds=False", f"close_fds={close_fds}",
+    ).replace(
+        "signal.signal(signal.SIGTERM, stop)",
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN if role == 'link' else stop)",
+    ).replace(
+        "while True: time.sleep(0.05)",
+        "while True:\n"
+        "    if role == 'link': (root / 'link.heartbeat').write_text(str(time.monotonic_ns()))\n"
+        "    time.sleep(0.01)",
+    ))
+    heartbeat = job.root / "link.heartbeat"
+    guard = job.run()
+    try:
+        await _until(heartbeat.exists)
+        await asyncio.to_thread(_set_state, job.db, job.id, "cancel_requested")
+        done, _ = await asyncio.wait({guard}, timeout=3)
+        assert guard in done, "explicit cancellation must terminate remaining engine links"
+        await guard
+        assert (job.root / "calculator.terminated").is_file()
+        assert (await asyncio.to_thread(get_compute_job, job.db, job.id))["state"] == "cancelled"
+        previous_heartbeat = heartbeat.read_text()
+        await asyncio.sleep(0.1)
+        assert heartbeat.read_text() == previous_heartbeat, (
+            "cancellation acknowledgement must wait until engine links stop executing"
+        )
+        assert not await asyncio.to_thread(is_lock_held, calc_lock_path(str(job.root), job.id))
+        assert not job.scratch()
+    finally:
+        guard.cancel()
+        await asyncio.gather(guard, return_exceptions=True)
+        for proc in job.created:
+            await _stop_test_process(proc)
+
+
+@pytest.mark.asyncio
 async def test_cancel_after_calculator_exit_stops_remaining_owned_link(synthetic_job):
     job = synthetic_job
     job.script.write_text(job.script.read_text().replace(
