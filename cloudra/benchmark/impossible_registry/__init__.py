@@ -23,7 +23,8 @@ impossible 正选题的全部机器契约：
   性质/态序类必须给 `property_keys`（list[str]，单位在键名里）；可选
   `property_node`（"reactant" 默认 / "product"，后者要求有步骤）。
 - `gold_properties`: 可选 dict[str, float|str]——gold 侧性质参考答案，填入
-  GoldSpec.reference_properties（缺值留空待文献回填，不编造）。
+  GoldSpec.reference_properties（无可靠数值时留空，不编造；负目标由
+  accessible 标注和最终负判定评分，不因数值为空默认给分）。
 - `conditions_en` / `charge` / `multiplicity` / `closed_shell`: 系统规格。
 - `reactants` / `products`: 无映射 canonical SMILES 列表（节点身份；property
   单节点题 products == reactants）。
@@ -36,7 +37,10 @@ impossible 正选题的全部机器契约：
       适用于态变化/解离极限这类无一阶鞍点的过程）；
     - "ts_accessible" / "node_accessible": 该步 TS 节点/输出节点的可达性
       （缺省 True；False = 该节点对应的请求量在单参考/白名单方法下不可信，
-      gold 图对应节点标 accessible=false）；
+      gold 图对应节点标 accessible=false）。生成器同时将这两个标志的与值
+      写入该步边的 accessible；无 TS 的态变化/解离边也由输出节点传递负例。
+      这是允许方法下不作为可信物理结果的目标标注，不声称现实反应一定不发生，
+      也不将稳定反应物连带改成不可达；
     - "conformational": True（无键级变化的态变化，bond_changes 双空）；
     - "no_mapping": True（笼状价异构等键重组无法从 SMILES 级映射差集推导
       键变化——显式声明，bond_changes 留双空，不冒充构象步）。

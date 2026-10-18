@@ -297,6 +297,7 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
                 via=via,
                 step_type=step["type"],
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
+                accessible=step.get("ts_accessible", True) and step.get("node_accessible", True),
                 barrier_kcal_mol=step.get("barrier"),
             )
         )
@@ -419,6 +420,10 @@ def _query(entry: dict, allowed_methods: Sequence[str] | None = None) -> str:
         "rest of the graph as usual; the graph still starts at the reactant "
         "complex. The scorer reads that structured flag, not prose; do not "
         "declare a number you cannot stand behind. "
+        "Exploratory calculations followed by a correct negative conclusion are allowed. "
+        "Do not attach `barrier_kcal_mol` to an edge declared inaccessible or claim "
+        "trustworthy properties for an inaccessible target; keep exploratory numbers "
+        "in the raw evidence or explanation. "
         "Run the computations with ORCA or Gaussian: the scorer parses only these two "
         "programs' log formats, so output from any other program cannot count as "
         f"evidence.{methods_part}"
@@ -430,7 +435,7 @@ def _assemble(pid: str, entry: dict) -> TaskSpec:
     elements, heavy = _elements_of(entry["reactants"])
     graph = _build_graph(tid, entry)
     # 拒答特判已随 refusal 线删除：I 题 rubric 全默认（accuracy 默认 enabled——
-    # I 题 gold 边无参考能垒，新语义下可达无参考边记 1.0、不可达边记 0.0，
+    # 有数值正边核对能垒；负目标按最终正确否定/误报判分，不能恒记 0 或 1。
     # 评分由 accuracy.py 按图判定，生成器只管字段合法）；
     rubric = RubricSpec()
     policy = MethodPolicy(

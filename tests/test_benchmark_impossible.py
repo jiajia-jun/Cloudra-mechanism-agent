@@ -3,9 +3,8 @@
 
 拒答路线（refusal.py/impossible.py、expected_outcome/pair_id/impossible_case
 特判）已删除：I 题走标准 composite——正确交付 = 同构图
-+ 不可达元素标 accessible=false（图分满分、自洽豁免、accuracy 不可达边记 0.0，
-final = 0.1·图 + 0.3·自洽）；硬算（不可达元素标 accessible=true）被图分的
-标志一致性闸门按代价 1.0 倒扣。
++ 不可达元素标 accessible=false（图分满分、自洽豁免、accuracy 判负正确记 1）；
+错误宣称可达、可信结果的目标在图分与准确度扣分；尝试后正确否定不扣。
 
 无 LLM、无网络；评分路径是纯结构化 JSON/文件取证，不需要可选依赖。
 测试替身（backend 等）签名带 **_kwargs，防接口加参后变红。
@@ -84,10 +83,9 @@ def test_accuracy_accessible_edge_without_reference_scores_one():
     assert any("carries no reference barrier" in n for n in rep.notes)
 
 
-def test_accuracy_edge_via_inaccessible_ts_scores_zero():
-    """有效可达性传导：gold 把不可达标在 TS 节点上（边从不标）→ 经由它的边
-    有效不可达，无参考边规则记 0.0；结构 0 分不被 max_penalty_fraction 封顶
-    救回（I 题满分 = 图 + 自洽 = 0.4 的 accuracy 侧来源）。"""
+def test_accuracy_missing_negative_target_scores_zero():
+    """有效可达性传导：gold 仅把不可达标在 TS 节点上时，经由它的边
+    有效不可达；没有交付负判定时记 0，不能仅凭Gold标签给满。"""
     gold = GoldSpec(
         mechanism_graph=GoldMechanismGraph(
             nodes=[
@@ -112,8 +110,8 @@ def test_accuracy_edge_via_inaccessible_ts_scores_zero():
 
 
 def test_accuracy_edge_without_via_ignores_endpoint_flags():
-    """via 为空的边不做端点检查：端点物种标 accessible=false 不影响边的有效
-    可达性（IE2 形制——不可达的是产物态本身，边只是状态间连线）。"""
+    """via 为空的边不做端点检查：端点物种标 accessible=false 不隐式覆盖边。
+    正式IMP的负目标已由生成器显式写入edge.accessible。"""
     gold = GoldSpec(
         mechanism_graph=GoldMechanismGraph(
             nodes=[
@@ -324,20 +322,20 @@ def _write_delivery(sandbox: Path, graph: GoldMechanismGraph, **node_overrides) 
 def test_runner_i_task_correct_delivery_flags_inaccessible(tmp_path):
     """I 题正确交付：同构图 + 不可达 TS 标 accessible=false -> 图分满分
     （标志一致）、自洽豁免（边有效不可达——豁免元素不判、也不触发自洽回捞）、
-    accuracy 不可达边记 0.0，final = 0.1·1 + 0.3·1 + 0.6·0 = 0.4。"""
+    accuracy 判负正确记 1，final = 0.1·1 + 0.3·1 + 0.6·1 = 1。"""
     task = _i_task()
     _write_delivery(tmp_path, task.gold.mechanism_graph)
     res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
     assert res.graph_score == pytest.approx(1.0), res.notes
     assert res.selfconsistency_passed, res.notes
-    assert res.accuracy_score == 0.0, res.notes
-    assert res.final_score == pytest.approx(0.4)
+    assert res.accuracy_score == 1.0, res.notes
+    assert res.final_score == pytest.approx(1.0)
 
 
 def test_runner_i_task_wrongly_solve_flagged_accessible(tmp_path):
     """I 题硬算（把不可达 TS 标 accessible=true）：标志不一致 -> 边按代价 1.0
     倒扣进图分（2/3，该边本就赢不到覆盖，自洽回捞不改变它）；该边不再是有效
-    不可达豁免，无一阶鞍点 + IRC 证据 -> 自洽判负；accuracy 不可达边仍 0.0。
+    不可达豁免，无一阶鞍点 + IRC 证据 -> 自洽判负；accuracy 错判目标记0。
     final = 0.1·(2/3) ≈ 0.0667。"""
     task = _i_task()
     _write_delivery(tmp_path, task.gold.mechanism_graph, TS={"accessible": True})
@@ -461,3 +459,36 @@ def test_pyrazoline_denitrogenation_moved_to_impossible():
     assert graph.nodes[0].accessible
     assert next(n for n in graph.nodes if n.id == "IB9_TS1").accessible
     assert not next(n for n in graph.nodes if n.id == "IB9_TS2").accessible
+
+
+def test_active_impossible_negative_targets_are_explicit_on_edges():
+    """负目标必须落到正式边上，无 TS 的性质/态变化不能漏成正例。"""
+    pytest.importorskip("rdkit")
+    from cloudra.benchmark import gen_impossible_tasks
+    from cloudra.benchmark.impossible_registry import REGISTRY
+
+    tasks = gen_impossible_tasks.parse_impossible_md(gen_impossible_tasks.DEFAULT_SRC)
+    assert len(tasks) == 10
+    by_id = {task.task_id: task for task in tasks}
+    negative_edges = {
+        edge.id: edge
+        for task in tasks
+        for edge in task.gold.mechanism_graph.edges
+        if edge.barrier_kcal_mol is None
+    }
+    assert set(negative_edges) == {
+        "IA1_E1", "IA5_E1", "IA7_E1", "IA9_E1", "IB9_E2",
+        "IC3_E1", "IE2_E1", "IF3_E1", "IG8_E1",
+    }
+    assert all(not edge.accessible for edge in negative_edges.values())
+    for edge_id in ("IC3_E1", "IE2_E1", "IF3_E1", "IG8_E1"):
+        assert negative_edges[edge_id].via is None
+    positive = by_id["IB9"].gold.mechanism_graph.edges[0]
+    assert positive.accessible and positive.barrier_kcal_mol == 5.65
+    for task in tasks:
+        assert task.gold.mechanism_graph.nodes[0].accessible == REGISTRY[task.task_id[1:]].get(
+            "reactant_accessible", True
+        )
+    foof = by_id["ID2"].gold.mechanism_graph
+    assert len(foof.nodes) == 1 and not foof.nodes[0].accessible
+    assert not foof.edges

@@ -10,9 +10,10 @@
 - 不带参考值且有效可达（``accessible`` 且经由的 TS 节点也可达，见
   ``GoldMechanismGraph.edge_effectively_accessible``）→ 该边记 1.0（可算但
   标答未给参考值，记满分）；
-- 标答规定不可达（边自身或经由的 TS 节点 ``accessible=false``）→ 该边记 0.0
-  （无 accuracy 分；此结构记账按面值计，不被 ``max_penalty_fraction``
-  封顶救回——封顶只作用于带参考值边的高斯偏离/定义差异罚分）。
+- 标答规定不可达（边自身或经由的 TS 节点 ``accessible=false``）→ 匹配最终
+  交付：正确否定记 1.0，误报可达、声明可信能垒或漏交记 0.0；标答中的负
+  端点物种也必须否定；负性质题不能同时交付可信的能量差或键长数值。
+  此分类罚分不被 ``max_penalty_fraction`` 封顶救回。
 
 带参考值的边缺日志推算或缺声明 → 该边 0 分，仍占总权重，不清掉其他边贡献，
 缺失罚分不受数值扣分封顶保护。声明在**任何合法组合**下都得不到支撑且证据
@@ -27,8 +28,9 @@ runner 据此短路 composite（final 只保留图分；绝不用最终消息里
 带参考值边的罚分汇总后按 ``max_penalty_fraction`` 封顶；无参考边的
 1.0/0.0 结构记账不封顶（见上）。
 
-若 gold 机理图没有任何边 → accuracy 不评分（final_score=1.0），沿用旧 null
-行为。
+若 gold 机理图没有任何边但含负物种 → 按同物种、同角色的最终不可达声明
+评分；没有负目标时沿用旧 null 行为（final_score=1.0）。探索日志不构成最终
+可达声明。
 
 性质锚点（``GoldSpec.reference_properties``，键带单位）：读交付图物种节点的
 ``properties`` 按键比对——数值型走高斯容差（σ 查模块级显式常量表
@@ -52,6 +54,7 @@ from cloudra.benchmark.schema import (
     AccuracyRubric,
     GoldMechanismGraph,
     GoldSpec,
+    NodeRole,
     SelectivityReference,
 )
 
@@ -222,10 +225,42 @@ def score_qualitative_selectivity(
     )
 
 
+def _has_trusted_property_number(graph: GoldMechanismGraph | None) -> bool:
+    """当前负性质题的能量差/键长数值声明；诊断字段及文字说明不算。"""
+    return bool(graph) and any(
+        isinstance(value, (int, float))
+        and any(
+            token in key for token, _ in _PROPERTY_SIGMAS
+            if token in ("kcal_mol", "bond_length_angstrom")
+        )
+        for node in graph.nodes
+        for key, value in node.properties.items()
+    )
+
+
+def _negative_edge_claim_correct(gold_edge, gold_nodes, delivered_edge, delivered_graph) -> bool:
+    if delivered_edge is None or delivered_graph is None:
+        return False
+    if (
+        delivered_graph.edge_effectively_accessible(delivered_edge)
+        or delivered_edge.barrier_kcal_mol is not None
+        or (gold_edge.via is None and _has_trusted_property_number(delivered_graph))
+    ):
+        return False
+    delivered_nodes = {node.id: node for node in delivered_graph.nodes}
+    return all(
+        gold_nodes[gold_id].accessible or not delivered_nodes[delivered_id].accessible
+        for gold_id, delivered_id in (
+            (gold_edge.from_node, delivered_edge.from_node),
+            (gold_edge.to_node, delivered_edge.to_node),
+        )
+    )
+
+
 def _find_matching_step(
     gold_edge,
     gold_nodes: dict,
-    steps: list,
+    steps: list | None,
     delivered_graph: Optional[GoldMechanismGraph],
     cfg,
     match_threshold: float,
@@ -235,7 +270,8 @@ def _find_matching_step(
     绝不参与匹配）：交付边的 from/to 端点物种与 gold 边**同向**端点分别匹配
     （species_substitution_cost ≤ 阈值，与 Layer 1/graph GED 同口径；反向步
     能垒口径不同不匹配）。多候选按 bond_changes 对称差最小、端点代价最小、
-    edge id 字典序取（确定性）。"""
+    edge id 字典序取（确定性）。steps=None 时直接匹配交付边，不要求能垒
+    证据；最佳键变化候选中若有正断言，优先返回它，不能用重复负声明掩盖。"""
     from cloudra.benchmark.graph_similarity import species_substitution_cost
 
     if delivered_graph is None:
@@ -248,8 +284,8 @@ def _find_matching_step(
         return None
     gold_pairs = gold_edge.bond_changes.pairs()
     candidates: list[tuple[int, float, str, object]] = []
-    for step in steps:
-        d_edge = delivered_edges.get(step.edge_id)
+    for step in steps if steps is not None else delivered_graph.edges:
+        d_edge = delivered_edges.get(step.edge_id) if steps is not None else step
         if d_edge is None:
             continue
         if require_channel and d_edge.channel != gold_edge.channel:
@@ -263,10 +299,17 @@ def _find_matching_step(
         if cost_from > match_threshold or cost_to > match_threshold:
             continue
         symdiff = len(gold_pairs ^ d_edge.bond_changes.pairs())
-        candidates.append((symdiff, cost_from + cost_to, step.edge_id, step))
+        candidates.append((symdiff, cost_from + cost_to, d_edge.id, step))
     if not candidates:
         return None
     candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+    if steps is None:
+        best_bond_cost = candidates[0][0]
+        for bond_cost, _, _, candidate in candidates:
+            if bond_cost == best_bond_cost and not _negative_edge_claim_correct(
+                gold_edge, gold_nodes, candidate, delivered_graph
+            ):
+                return candidate
     return candidates[0][3]
 
 
@@ -280,9 +323,9 @@ def score_accuracy(
     match_threshold: float = 0.2,
 ) -> AccuracyReport:
     """评分边集合 = 全部 gold 边：带参考值的边逐边核对（"声明得到日志支撑"），
-    再对 gold 比、按 gold 边 weight 加权平均；不带参考值的 accessible 边记 1.0、
-    不可达边记 0.0。gold.reference_properties 非空时走性质锚点模式（与能垒模式
-    互斥）。"""
+    再对 gold 比、按 gold 边 weight 加权平均；不带参考值的 accessible 边记 1.0，
+    不可达目标按最终交付的正确负声明记 1.0，误报或漏交记 0.0。
+    gold.reference_properties 非空时走性质锚点模式（与能垒模式互斥）。"""
     rubric = rubric or AccuracyRubric()
     rds = evidence.rds()
     rep = AccuracyReport(
@@ -300,17 +343,43 @@ def score_accuracy(
         return rep
     if gold.reference_properties:
         return _score_properties(delivered_graph, gold.reference_properties, rep)
+    from cloudra.benchmark.graph_similarity import GedConfig, species_substitution_cost
+
+    cfg = cfg or GedConfig()
     scored_edges = list(gold.mechanism_graph.edges)
     if not scored_edges:
+        negative_nodes = [
+            node for node in gold.mechanism_graph.nodes
+            if not node.accessible and node.role is not NodeRole.TRANSITION_STATE
+        ]
+        if negative_nodes:
+            trusted_number = _has_trusted_property_number(delivered_graph)
+            scores = []
+            for node in negative_nodes:
+                matches = [
+                    candidate for candidate in (delivered_graph.nodes if delivered_graph else [])
+                    if candidate.role == node.role
+                    and species_substitution_cost(node.smiles, candidate.smiles, cfg) <= match_threshold
+                ]
+                correct = (
+                    bool(matches) and not trusted_number
+                    and all(not candidate.accessible for candidate in matches)
+                )
+                scores.append(float(correct))
+                rep.notes.append(
+                    f"negative species {node.id}: "
+                    f"{'correct negative final claim' if correct else 'positive or missing final claim'}; "
+                    f"scored {int(correct)}"
+                )
+            rep.gaussian_score = rep.final_score = sum(scores) / len(scores)
+            rep.capped_penalty = 1.0 - rep.final_score
+            return rep
         rep.gaussian_score = 1.0
         rep.final_score = 1.0
         rep.notes.append("gold mechanism graph carries no edges; accuracy not scored")
         return rep
 
     # 逐边核对：缺失计该边零分，声明/日志冲突才触发 fail-loud。
-    from cloudra.benchmark.graph_similarity import GedConfig
-
-    cfg = cfg or GedConfig()
     gold_nodes = {n.id: n for n in gold.mechanism_graph.nodes}
     # 全零权重无法归一：退回逐边等权（避免除零；正常题库不出现）
     equal_fallback = sum(e.weight for e in scored_edges) <= 0
@@ -329,7 +398,7 @@ def score_accuracy(
     weighted_sum = 0.0
     graded_weight = 0.0        # 已交付双来源参考边的权重和（高斯/定义差异罚分）
     graded_score_sum = 0.0     # Σ w·g（带参考值边）
-    uncapped_penalty = 0.0     # 缺证据、缺声明或标答不可达边的零分记账
+    uncapped_penalty = 0.0     # 缺证据、缺声明或负目标误报/漏交的零分记账
     for edge, signature in zip(scored_edges, edge_signatures):
         if edge.barrier_kcal_mol is None:
             if gold.mechanism_graph.edge_effectively_accessible(edge):
@@ -340,12 +409,18 @@ def score_accuracy(
                     "reference barrier; scored 1.0"
                 )
             else:
-                rep.edge_scores[edge.id] = 0.0
-                uncapped_penalty += weights[edge.id]
+                delivered_edge = _find_matching_step(
+                    edge, gold_nodes, None, delivered_graph, cfg, match_threshold,
+                    require_channel=edge.channel is not None and edge_signatures.count(signature) > 1,
+                )
+                correct = _negative_edge_claim_correct(edge, gold_nodes, delivered_edge, delivered_graph)
+                rep.edge_scores[edge.id] = float(correct)
+                weighted_sum += weights[edge.id] * float(correct)
+                uncapped_penalty += weights[edge.id] * float(not correct)
                 rep.notes.append(
-                    f"edge {edge.id}: effectively inaccessible in the gold "
-                    "reference (the edge itself or its via transition state is "
-                    "declared accessible=false); no accuracy score (0.0)"
+                    f"edge {edge.id}: effectively inaccessible in the gold reference; "
+                    f"{'correct negative final claim' if correct else 'positive or missing final claim'}; "
+                    f"scored {int(correct)}"
                 )
             continue
         step = _find_matching_step(
@@ -468,8 +543,8 @@ def score_accuracy(
 
     rep.gaussian_score = weighted_sum / weight_total
     # max_penalty_fraction 只封顶带参考值边的罚分（高斯偏离/定义差异——兜合法的
-    # 方法学差异）；缺失和标答不可达边按零分直接记账、不参与封顶，避免未完成
-    # 或不可达边被数值容差保底抬分。
+    # 方法学差异）；缺失和负目标误报直接记账、不参与封顶，避免漏交或错误
+    # 可达声明被数值容差保底抬分。
     graded_penalty = (graded_weight - graded_score_sum) / weight_total
     capped_graded = min(graded_penalty, rubric.max_penalty_fraction)
     rep.capped_penalty = capped_graded + uncapped_penalty / weight_total

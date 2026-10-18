@@ -167,8 +167,8 @@ class GoldMechanismGraph(BaseModel):
     def edge_effectively_accessible(self, edge: MechanismEdge) -> bool:
         """边的有效可达性：``edge.accessible`` 且经由的 TS 节点（``via``）也可达。
 
-        gold 只在节点上标 ``accessible=false``（边从不标），交付侧按协议句可以把
-        不可达标在节点或边上——两侧同口径折叠成「有效可达性」再判定：经由不可达
+        gold 和交付均可把不可达标在节点或边上；正式 IMP 负边显式标为 false。
+        两侧同口径折叠成「有效可达性」再判定：经由不可达
         TS 的步在允许方法下同样算不了，视同不可达边；``via`` 为空的边不做端点
         检查。图分的标志一致性闸门、accuracy 的无参考边 1.0/0.0 规则、自洽的边
         豁免三处统一走这个口径，不得各抄一份。"""
