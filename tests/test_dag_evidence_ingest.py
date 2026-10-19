@@ -1,5 +1,6 @@
 """Unit tests for evidence file ingest, workspace sandboxing, and TS vibration validation."""
 
+import json
 from pathlib import Path
 
 import pytest
@@ -26,6 +27,25 @@ def test_snapshot_evidence_file_success(tmp_path):
     assert snap.sha256
     assert Path(snap.snapshot_path).exists()
     assert snap.is_qm_log is False
+
+
+def test_dag_irc_snapshot_keeps_missing_side_instead_of_archiving_neighbor(tmp_path):
+    from tests.test_orca_frames import _IRC_ENDPOINT_XYZ, _write_synthetic_irc_log
+
+    log = _write_synthetic_irc_log(tmp_path, 'current')
+    log.write_text('ORCA VERSION 6\n! IRC\n' + log.read_text())
+    forward = tmp_path / 'current_IRC_F.xyz'
+    forward.write_text(_IRC_ENDPOINT_XYZ)
+    neighbor = tmp_path / 'another_IRC_B.xyz'
+    neighbor.write_text(_IRC_ENDPOINT_XYZ.replace('endpoint frame', 'foreign job'))
+
+    snapshot = snapshot_evidence_file(log, workspace_root=tmp_path)
+
+    manifest = json.loads(Path(snapshot.metadata['irc_manifest']['snapshot_path']).read_text())
+    assert manifest['endpoints']['forward']['filename'] == forward.name
+    assert manifest['endpoints']['backward']['filename'] is None
+    archived = snapshot.metadata['irc_sidecars']
+    assert [Path(item['snapshot_path']).name for item in archived] == [forward.name]
 
 
 def test_snapshot_evidence_file_traversal_blocked(tmp_path):

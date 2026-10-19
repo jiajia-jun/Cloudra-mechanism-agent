@@ -2,6 +2,7 @@
 
 import asyncio
 import hashlib
+import io
 import json
 import os
 import re
@@ -371,42 +372,103 @@ def _execution_receipt(input_file: str, task_id: int) -> Path:
     return Path(input_file).parent / '.cloudra' / f'execution-{task_id}'
 
 
+class _OrcaTokenSource(io.StringIO):
+    comment_start: int | None = None
+
+    def readline(self, size: int = -1) -> str:
+        # shlex consumes the rest of a comment through readline().
+        self.comment_start = self.tell() - 1
+        return super().readline(size)
+
+
+def _orca_file_tokens(text: str) -> list[tuple[int, int, str | None]]:
+    """Use native shlex rules while retaining each token's original span."""
+    tokens = []
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        stream = _OrcaTokenSource(line)
+        lexer = shlex.shlex(stream, posix=True, punctuation_chars='=')
+        lexer.whitespace_split = True
+        lexer.commenters = '#'
+        while True:
+            # shlex buffers punctuation lookahead outside its input stream.
+            start = stream.tell() - len(lexer._pushback_chars)
+            while start < len(line) and line[start].isspace():
+                start += 1
+            stream.comment_start = None
+            try:
+                value = lexer.get_token()
+            except ValueError:
+                # Unrelated malformed options remain the engine's input. A
+                # file directive consuming this token is diagnosed below.
+                tokens.append((offset + start, offset + len(line.rstrip('\r\n')), None))
+                break
+            if value is None:
+                break
+            end = (stream.comment_start if stream.comment_start is not None
+                   else stream.tell() - len(lexer._pushback_chars))
+            if (stream.comment_start is None and lexer.state == ' '
+                    and end > start and line[end - 1].isspace()):
+                end -= 1
+            tokens.append((offset + start, offset + end, value))
+        offset += len(line)
+    return tokens
+
+
+def _orca_file_references(text: str) -> list[tuple[str, str, int, int]]:
+    """Return native file directives and their decoded paths/original spans."""
+    tokens = _orca_file_tokens(text)
+    references = []
+    consumed = set()
+    block = ''
+    for index, (token_start, token_end, value) in enumerate(tokens):
+        if index in consumed or value is None or text[token_start:token_end].startswith(('"', "'")):
+            continue
+        keyword = value.casefold()
+        line_start = text.rfind('\n', 0, token_start) + 1
+        starts_line = not text[line_start:token_start].strip()
+        starts_statement = starts_line or (
+            index > 0 and (tokens[index - 1][2] or '').casefold() == 'end'
+            and not text[tokens[index - 1][0]:tokens[index - 1][1]].startswith(('"', "'")))
+        if keyword.startswith('%') and starts_statement:
+            block = keyword[1:]
+        elif keyword == 'end' or (starts_line and keyword.startswith(('!', '*'))):
+            block = ''
+        target_index = None
+        if keyword in {'%base', '%moinp', '%pointcharges'} and starts_statement:
+            target_index = index + 1
+        elif keyword in {'hess_filename', 'inhessname'} and block in {'irc', 'geom'}:
+            target_index = index + 1
+        elif keyword in ORCA_NEB_GEOMETRY_INPUTS and block == 'neb':
+            target_index = index + 1
+        elif (keyword == '*xyzfile' and starts_line) or (
+                keyword == 'xyzfile' and index > 0 and tokens[index - 1][2] == '*'):
+            keyword, target_index = 'xyzfile', index + 3
+        if target_index is None:
+            continue
+        if target_index < len(tokens) and tokens[target_index][2] == '=':
+            target_index += 1
+        if target_index >= len(tokens):
+            raise ValueError(f'native {value} file path is missing')
+        start, end, path = tokens[target_index]
+        if path is None:
+            raise ValueError(f'unterminated native file path for {value}')
+        consumed.add(target_index)
+        references.append((keyword, path, start, end))
+    return references
+
+
 def _orca_geometry_output_paths(input_file: str, *, protect_dependencies: bool = True) -> set[Path]:
     """Known native IRC outputs for the input stem and explicit %base prefixes."""
     source = Path(input_file)
     prefixes = {source.with_suffix('')}
     dependencies = set()
-    in_neb = False
     text = source.read_text(encoding='utf-8', errors='replace') if source.is_file() else ''
-    for line in text.splitlines():
-        stripped = line.strip()
-        first = stripped.split(maxsplit=1)[0].casefold() if stripped else ''
-        if first == '%neb':
-            in_neb = True
-        if not (first in {'%base', '%neb', '*', '*xyzfile'} or in_neb):
-            continue
-        lexer = shlex.shlex(stripped, posix=True, punctuation_chars='=')
-        lexer.whitespace_split = True
-        lexer.commenters = '#'
-        try:
-            tokens = list(lexer)
-        except ValueError:
-            continue  # Native syntax is advisory; never fix a malformed solver string.
-        neb_tokens = tokens[1:] if tokens and tokens[0].casefold() == '%neb' else tokens
-        if in_neb and len(neb_tokens) >= 2 and neb_tokens[0].casefold() in ORCA_NEB_GEOMETRY_INPUTS:
-            values = [token for token in neb_tokens[1:] if token != '=']
-            if values:
-                dependencies.add((source.parent / values[0]).resolve())
-        if any(token.casefold() == 'end' for token in tokens):
-            in_neb = False
-        if tokens and tokens[0].casefold() == '%base':
-            values = [token for token in tokens[1:] if token != '=']
-            if values:
-                prefixes.add((source.parent / values[0]).resolve())
-        elif tokens and tokens[0].casefold() in {'*', '*xyzfile'}:
-            geometry = tokens[1:] if tokens[0] == '*' else ['xyzfile', *tokens[1:]]
-            if geometry and geometry[0].casefold() == 'xyzfile' and len(geometry) >= 4:
-                dependencies.add((source.parent / geometry[3]).resolve())
+    for keyword, value, _start, _end in _orca_file_references(text):
+        if keyword == '%base':
+            prefixes.add((source.parent / value).resolve())
+        elif keyword in ORCA_NEB_GEOMETRY_INPUTS or keyword == 'xyzfile':
+            dependencies.add((source.parent / value).resolve())
     outputs = {prefix.with_name(prefix.name + suffix)
                for prefix in prefixes for suffix in ('_IRC_F.xyz', '_IRC_B.xyz', '_IRC_F_trj.xyz', '_IRC_B_trj.xyz', '_NEB-TS_converged.xyz')}
     for prefix in prefixes:

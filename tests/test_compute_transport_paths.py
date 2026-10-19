@@ -3,6 +3,7 @@
 import fnmatch
 import json
 import os
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -153,6 +154,98 @@ def test_orca_staging_copies_explicit_hessian_and_xyzfile_paths(tmp_path):
     manifest = json.loads((local / '.cloudra/remote-8/path-map.json').read_text())
     for item in manifest['files']:
         assert (remote / item['staged_path']).read_bytes() == Path(item['local_path']).read_bytes()
+
+
+@pytest.mark.parametrize('separator', [' ', ' = ', '='])
+@pytest.mark.parametrize('block,directive', [
+    ('neb', 'NEB_End_XYZFile'), ('neb', 'NEB_TS_XYZFile'),
+    ('irc', 'Hess_Filename'), ('geom', 'InHessName'),
+    ('', '%moinp'), ('', '%pointcharges'),
+])
+def test_orca_file_references_stage_same_dependency_with_optional_equals(tmp_path, separator, block, directive):
+    local = tmp_path / 'local'
+    local.mkdir()
+    dependency = tmp_path / 'previous results' / 'seed #1=data.xyz'
+    dependency.parent.mkdir()
+    dependency.write_bytes(b'original dependency')
+    statement = f'{directive}{separator}"{dependency}"# keep native comment\n'
+    if block:
+        statement = f'%{block}\n  {statement}end\n'
+    original = f'! HF STO-3G\n{statement}* xyz 0 1\nHe 0 0 0\n*\n'
+    source = local / 'run.inp'
+    source.write_text(original)
+    remote = tmp_path / 'remote'
+
+    _stage_and_submit(DirectoryTransport(remote), 'ssh_local', 7, source, local, '/remote/job', 'orca', {}, {})
+
+    manifest = json.loads((local / '.cloudra/remote-7/path-map.json').read_text())
+    assert len(manifest['files']) == 1
+    reference = manifest['files'][0]
+    assert reference['local_path'] == str(dependency)
+    assert reference['role'] == 'dependency'
+    assert (remote / reference['staged_path']).read_bytes() == b'original dependency'
+    staged = (remote / source.name).read_text()
+    assert staged.replace(reference['staged_path'], str(dependency)) == original
+    assert source.read_text() == original
+
+
+@pytest.mark.parametrize('separator', [' ', ' = ', '='])
+def test_orca_base_reference_matches_local_outputs_and_remote_mapping(tmp_path, separator):
+    from cloudra.infra.compute_utils import _orca_geometry_output_paths
+
+    local = tmp_path / 'local'
+    local.mkdir()
+    prefix = tmp_path / 'results' / 'custom #1=run'
+    source = local / 'run.inp'
+    original = f'! IRC\n%base{separator}"{prefix}"# keep native comment\n'
+    source.write_text(original)
+    assert prefix.with_name(prefix.name + '_IRC_F.xyz') in _orca_geometry_output_paths(str(source))
+    remote = tmp_path / 'remote'
+
+    _stage_and_submit(DirectoryTransport(remote), 'ssh_local', 7, source, local, '/remote/job', 'orca', {}, {})
+
+    manifest = json.loads((local / '.cloudra/remote-7/path-map.json').read_text())
+    assert len(manifest['files']) == 1
+    reference = manifest['files'][0]
+    assert reference['local_path'] == str(prefix)
+    assert reference['role'] == 'output'
+    assert reference['prefix'] is True
+    assert (remote / source.name).read_text().replace(reference['staged_path'], str(prefix)) == original
+    assert source.read_text() == original
+
+
+@pytest.mark.parametrize('separator', [' ', ' = ', '='])
+def test_orca_neb_input_is_protected_from_local_output_cleanup(tmp_path, separator):
+    from cloudra.infra.compute_utils import _orca_geometry_output_paths
+
+    source = tmp_path / 'run.inp'
+    endpoint = tmp_path / 'run_IRC_F.xyz'
+    endpoint.write_text('1\n\nHe 0 0 0\n')
+    source.write_text(f'! NEB\n%neb\n  NEB_End_XYZFile{separator}"{endpoint}"\nend\n')
+
+    with pytest.raises(ValueError, match='overlaps.*input dependency'):
+        _orca_geometry_output_paths(str(source))
+    assert endpoint.read_text() == '1\n\nHe 0 0 0\n'
+
+
+@pytest.mark.parametrize('filename,native_path', [
+    ('seed#1.gbw', r'seed\#1.gbw'),
+    ('seed"1.gbw', r'"seed\"1.gbw"'),
+])
+def test_orca_staged_path_preserves_escaped_filename(tmp_path, filename, native_path):
+    local = tmp_path / 'local'
+    local.mkdir()
+    (local / filename).write_bytes(b'previous orbitals')
+    source = local / 'run.inp'
+    original = f'%moinp {native_path} # keep native comment\n'
+    source.write_text(original)
+    remote = tmp_path / 'remote'
+
+    _stage_and_submit(DirectoryTransport(remote), 'ssh_local', 7, source, local, '/remote/job', 'orca', {}, {})
+
+    assert shlex.split((remote / source.name).read_text(), comments=True) == ['%moinp', filename]
+    assert (remote / filename).read_bytes() == b'previous orbitals'
+    assert source.read_text() == original
 
 
 def test_orca_space_basename_stages_existing_same_stem_restart_sidecar(tmp_path, monkeypatch):

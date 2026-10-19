@@ -15,13 +15,12 @@ from cloudra.dag.evidence_ingest import FileEvidenceSnapshot, _extract_qm_log
 from cloudra.dag.store import InvalidGraphReference
 from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
 from cloudra.tools.core.irc_evidence import (
-    frames_for,
     irc_endpoint_recovery_hint,
-    last_geometry,
     normal_log,
     verify_short_irc_direction,
     verify_short_irc_pair,
 )
+from cloudra.tools.core.qm_log_facts import read_qm_log
 from cloudra.tools.core.species_identity import chemical_smiles, species_smiles
 
 
@@ -174,7 +173,7 @@ def _final_geometry(path):
 
     if detect_qm_engine(str(path)) == 'xtb':
         return parse_xyz(xtb_frames.final_xyz_from_text(Path(path).read_text(errors='replace')))
-    return last_geometry(path, frames_for(path)[0])
+    return read_qm_log(path).geometry
 
 
 def validate_frequency_geometry(opt_snap, freq_snap):
@@ -282,8 +281,6 @@ def _species_minimum_check(smiles, logs, problems, *, parsed=None):
 
 def _optimization_converged(path: str, engine: str | None) -> bool | None:
     if engine in {'orca', 'gaussian'}:
-        from cloudra.tools.core.qm_log_facts import read_qm_log
-
         return read_qm_log(path).opt_converged
     if engine == 'xtb':
         return xtb_frames.opt_converged(Path(path).read_text(errors='replace'))

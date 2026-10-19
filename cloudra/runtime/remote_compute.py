@@ -37,9 +37,9 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from cloudra.infra.compute_utils import (
-    ORCA_NEB_GEOMETRY_INPUTS,
     XtbParams,
     _default_calculator_path,
+    _orca_file_references,
     _orca_geometry_output_paths,
     get_log_path,
 )
@@ -323,39 +323,6 @@ def _stage_chem_runtime(workdir: Path) -> str:
     return name
 
 
-def _native_file_tokens(text: str) -> list[tuple[int, int, str]]:
-    """Read whitespace/quoted native tokens, retaining spans for path-only edits."""
-    tokens = []
-    position = 0
-    while position < len(text):
-        if text[position].isspace():
-            position += 1
-            continue
-        if text[position] == '#':
-            newline = text.find('\n', position)
-            position = len(text) if newline < 0 else newline + 1
-            continue
-        start = position
-        if text[position] in {'"', "'"}:
-            quote = text[position]
-            newline = text.find('\n', position)
-            line_end = len(text) if newline < 0 else newline
-            end = text.find(quote, position + 1, line_end)
-            if end < 0:
-                # Unrelated malformed solver options remain the engine's input.
-                # A file directive consuming this token is diagnosed below.
-                position, value = line_end, text[start:line_end]
-            else:
-                position = end + 1
-                value = text[start + 1:position - 1]
-        else:
-            while position < len(text) and not text[position].isspace() and text[position] != '#':
-                position += 1
-            value = text[start:position]
-        tokens.append((start, position, value))
-    return tokens
-
-
 def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type: str) -> Path | None:
     """Build an execution-only input overlay and a durable native path map.
 
@@ -482,45 +449,18 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
             lines.append(line)
         text = ''.join(lines)
     else:
-        tokens = _native_file_tokens(text)
         replacements = []
-        consumed = set()
-        block = ''
-        for index, (token_start, token_end, value) in enumerate(tokens):
-            if index in consumed or text[token_start:token_end].startswith(('"', "'")):
-                continue
-            lowered = value.casefold()
-            line_start = text.rfind('\n', 0, token_start) + 1
-            starts_line = not text[line_start:token_start].strip()
-            starts_statement = starts_line or (index > 0 and tokens[index - 1][2].casefold() == 'end')
-            if lowered.startswith('%') and starts_statement:
-                block = lowered[1:]
-            elif lowered == 'end' or (starts_line and lowered.startswith(('!', '*'))):
-                block = ''
-            target_index = None
-            role = 'dependency'
-            if lowered in {'%moinp', '%pointcharges'} and starts_statement:
-                target_index = index + 1
-            elif lowered in {'hess_filename', 'inhessname'} and block in {'irc', 'geom'}:
-                target_index = index + 1
-            elif lowered in ORCA_NEB_GEOMETRY_INPUTS and block == 'neb':
-                target_index = index + 1
-            elif (lowered == '*xyzfile' and starts_line) or (
-                    lowered == 'xyzfile' and index > 0 and tokens[index - 1][2] == '*'):
-                target_index = index + 3
-            elif lowered == '%base' and starts_statement:
-                target_index, role = index + 1, 'output'
-            if target_index is None:
-                continue
-            if target_index >= len(tokens):
-                raise ValueError(f'native {value} file path is missing')
-            start, end, path = tokens[target_index]
+        for keyword, path, start, end in _orca_file_references(text):
             raw = text[start:end]
-            if raw[0] in {'"', "'"} and (len(raw) < 2 or raw[-1] != raw[0]):
-                raise ValueError(f'unterminated quoted native file path for {value}')
-            mapped = relocate(path, role, prefix=lowered == '%base')
-            consumed.add(target_index)
-            quote = raw[0] if raw[0] in {'"', "'"} else ('"' if any(c.isspace() for c in mapped) else '')
+            prefix = keyword == '%base'
+            mapped = relocate(path, 'output' if prefix else 'dependency', prefix=prefix)
+            quote = raw[0] if raw[0] in {'"', "'"} else ''
+            if not quote and any(c.isspace() or c in {'#', '=', '\\', '"', "'"} for c in mapped):
+                quote = '"'
+            if quote == "'" and "'" in mapped:
+                quote = '"'
+            if quote == '"':
+                mapped = mapped.replace('\\', '\\\\').replace('"', '\\"')
             replacements.append((start, end, quote + mapped + quote))
         for start, end, mapped in sorted(replacements, reverse=True):
             text = text[:start] + mapped + text[end:]

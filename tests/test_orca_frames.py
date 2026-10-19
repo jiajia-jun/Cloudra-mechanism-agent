@@ -372,6 +372,34 @@ def test_sidecar_roots_find_parent_dir_of_cloudra_capture(tmp_path):
     assert xyz is not None and "endpoint frame" in xyz
 
 
+@pytest.mark.parametrize('neighbor_in_parent', [False, True])
+def test_irc_reader_never_uses_another_jobs_only_backward_endpoint(tmp_path, neighbor_in_parent):
+    jobdir = tmp_path / 'current'
+    jobdir.mkdir()
+    log = _write_synthetic_irc_log(jobdir, 'current')
+    forward = jobdir / 'current_IRC_F.xyz'
+    forward.write_text(_IRC_ENDPOINT_XYZ)
+    neighbor_dir = tmp_path if neighbor_in_parent else jobdir
+    (neighbor_dir / 'another_IRC_B.xyz').write_text(_IRC_ENDPOINT_XYZ.replace('endpoint frame', 'foreign job'))
+
+    result = orca_frames.extract_irc_endpoints(str(log))
+
+    assert result['forward']['geometry_ref'] == str(forward)
+    assert result['backward']['geometry_ref'] is None
+    assert result['backward']['availability'] == 'unavailable'
+
+
+def test_irc_log_without_native_name_never_adopts_unique_neighbor_pair(tmp_path):
+    log = _write_synthetic_irc_log(tmp_path)
+    log.write_text('\n'.join(log.read_text().splitlines()[1:]) + '\n')
+    for direction in ('F', 'B'):
+        (tmp_path / f'another_IRC_{direction}.xyz').write_text(_IRC_ENDPOINT_XYZ)
+
+    result = orca_frames.extract_irc_endpoints(str(log))
+
+    assert all(endpoint['geometry_ref'] is None for endpoint in result.values())
+
+
 # ---------------------------------------------------------------------------
 # 末帧几何文本回退（cclib 对 ORCA 6.1 日志整体崩溃时的权威通道）
 # ---------------------------------------------------------------------------

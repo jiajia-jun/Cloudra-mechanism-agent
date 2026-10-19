@@ -47,45 +47,8 @@ def irc_start_geometry(path):
     return None
 
 
-def frames_for(path):
-    """Parse frames and IRC metadata independently from one native text read."""
-    try:
-        text = Path(path).read_text(errors='replace')
-    except OSError:
-        return [], None
-    engine = qm_engine.detect_qm_engine_from_text(text)
-    mod = orca_frames if engine == 'orca' else gaussian_frames
-    try:
-        frames = (mod.extract_frames_from_text(text, log_path=str(path))
-                  if engine == 'orca' else mod.extract_frames_from_text(text))
-    except Exception:
-        frames = []
-    try:
-        raw_irc = mod.extract_irc_from_text(text)
-    except Exception:
-        raw_irc = None
-    irc_meta = raw_irc[1] if isinstance(raw_irc, tuple) and len(raw_irc) == 2 else raw_irc
-    return frames, irc_meta
-
-
-def freqs_for(path, frames) -> list[float]:
-    """Signed native frequencies; no frequency calculation is never zero modes."""
-    from cloudra.tools.core.qm_log_facts import read_qm_log
-
-    del frames
-    return read_qm_log(path).frequencies_cm or []
-
-
 def imag_freqs(freqs: list[float]) -> list[float]:
     return [f for f in freqs if f < 0]
-
-
-def last_geometry(path, frames) -> Optional[tuple]:
-    """The final native geometry shared with tools and file evidence."""
-    from cloudra.tools.core.qm_log_facts import read_qm_log
-
-    del frames
-    return read_qm_log(path).geometry
 
 
 def irc_frames_for(path):

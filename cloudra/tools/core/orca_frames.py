@@ -22,7 +22,6 @@ cclib / numpy 在函数内惰性导入。
 
 from __future__ import annotations
 
-import glob
 import hashlib
 import json
 import os
@@ -881,25 +880,10 @@ def _orca_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
     return roots
 
 
-def _sidecar_search_dirs(roots: list[tuple[str, str]]) -> list[str]:
-    """兜底扫描目录：所有候选根目录 + 它们的父目录（去重、保序）。"""
-    dirs: list[str] = []
-    for directory, _stem in roots:
-        for candidate in (directory, os.path.dirname(directory)):
-            if candidate and candidate not in dirs:
-                dirs.append(candidate)
-    return dirs
-
-
-def _basename_matches_any_job(path: str, roots: list[tuple[str, str]]) -> bool:
-    name = os.path.basename(path)
-    return any(name.startswith(stem) for _directory, stem in roots if stem)
-
-
 def _irc_endpoint_sidecar(
     roots: list[tuple[str, str]], suffix: str
 ) -> tuple[str | None, str | None]:
-    """定位一个方向的端点来源：final endpoint 文件优先，trajectory 末帧其次。
+    """只按当前作业的精确文件名取端点：final 优先，trajectory 末帧其次。
 
     返回 (geometry_ref, origin)；都找不到返回 (None, None)。
     """
@@ -911,24 +895,6 @@ def _irc_endpoint_sidecar(
         trajectory = os.path.join(directory, f"{stem}{suffix}_trj.xyz")
         if os.path.isfile(trajectory):
             return trajectory, "trajectory_last_frame"
-    # 兜底：stdout 日志被 harness 重命名为 calc-<id>.out.log（且日志被截断、
-    # 输入回显里没有 NAME 行）时，NAME/stem 都推不出 ORCA 作业名。此时在该
-    # 日志目录及其父目录按 *_<suffix>.xyz / *_<suffix>_trj.xyz 匹配——只接受
-    # 唯一命中；多命中时优先命中候选作业名前缀者，仍不唯一则拒绝猜测。
-    for directory in _sidecar_search_dirs(roots):
-        if not os.path.isdir(directory):
-            continue
-        for pattern, origin in (
-            (f"*{suffix}.xyz", "final_endpoint_file_glob"),
-            (f"*{suffix}_trj.xyz", "trajectory_last_frame_glob"),
-        ):
-            hits = sorted(glob.glob(os.path.join(directory, pattern)))
-            if len(hits) == 1:
-                return hits[0], origin
-            if len(hits) > 1:
-                named = [h for h in hits if _basename_matches_any_job(h, roots)]
-                if len(named) == 1:
-                    return named[0], origin
     return None, None
 
 
@@ -983,12 +949,11 @@ def extract_irc_endpoints(log_path: str) -> dict:
     返回 {"forward": {...}, "backward": {...}}，每方向含：
     - geometry_ref：端点几何来源路径（final endpoint 文件或 F/B trajectory），
       无来源时 None；
-    - origin：final_endpoint_file / trajectory_last_frame，或兜底匹配得到的
-      final_endpoint_file_glob / trajectory_last_frame_glob / None；
+    - origin：final_endpoint_file / trajectory_last_frame / None；
     - availability：available / unavailable；
     - converged：主输出 IRC 块的收敛标记（无 IRC 段时 None）。仅作记录、
       不是闸门——未收敛方向的轨迹末帧同样是合法的部分端点，方向是否成立
-      由调用方的几何区间证明判定。
+      由调用方核对真实端点优化证据。
     """
     archived = _archived_irc_endpoints(log_path)
     if archived is not None:
@@ -1030,17 +995,10 @@ def snapshot_irc_endpoints(log_path: str, directory: Path) -> None:
     except ValueError:
         return
     endpoints = extract_irc_endpoints(log_path)
-    roots = _orca_sidecar_roots(log_path, _read_text(log_path))
-    # The general reader has a unique-neighbor convenience fallback. A durable
-    # execution archive must only bind this job's actual named sidecars.
-    allowed = {str(Path(directory) / (stem + suffix)) for directory, stem in roots
-               for suffix in ('_IRC_F.xyz', '_IRC_B.xyz', '_IRC_F_trj.xyz', '_IRC_B_trj.xyz')}
-    if _archived_irc_endpoints(log_path) is not None:
-        allowed.update(endpoint['geometry_ref'] for endpoint in endpoints.values() if endpoint.get('geometry_ref'))
     records = {}
     for direction, endpoint in endpoints.items():
         filename = digest = None
-        if endpoint.get('geometry_ref') and endpoint['geometry_ref'] in allowed:
+        if endpoint.get('geometry_ref'):
             source = Path(endpoint['geometry_ref'])
             with source.open('rb') as stream:
                 digest = hashlib.file_digest(stream, 'sha256').hexdigest()

@@ -29,6 +29,7 @@ from cloudra.benchmark.integrity import (
 )
 from cloudra.benchmark.schema import GoldMechanismGraph
 from cloudra.tools.core.irc_evidence import normal_log
+from cloudra.tools.core.qm_log_facts import read_qm_log
 
 # CODATA Hartree → kcal/mol
 HARTREE_TO_KCAL_MOL = 627.5094740631
@@ -133,8 +134,6 @@ def _imaginary_frequency_count(sandbox: Path, rel_path: str) -> Optional[int]:
     path = _resolve_in_sandbox(sandbox, rel_path)
     if path is None or not normal_log(path):
         return None
-    from cloudra.tools.core.qm_log_facts import read_qm_log
-
     facts = read_qm_log(path)
     if facts.engine not in _SCORING_ENGINES:
         return None
@@ -146,16 +145,15 @@ def _imaginary_frequency_count(sandbox: Path, rel_path: str) -> Optional[int]:
 
 def _frequency_supported(sandbox, path, candidates, expected):
     """A separate Freq can support an energy log only at the same geometry."""
-    from cloudra.tools.core.irc_evidence import frames_for, last_geometry
     from cloudra.tools.core.irc_path import same_geometry
     resolved = _resolve_in_sandbox(sandbox, path)
     if resolved is None or not normal_log(resolved):
         return False
     if _imaginary_frequency_count(sandbox, path) == expected:
         return True
-    source = last_geometry(resolved, frames_for(resolved)[0])
+    source = read_qm_log(resolved).geometry
     return any(_imaginary_frequency_count(sandbox, other) == expected and
-               same_geometry(source, last_geometry(sandbox / other, frames_for(sandbox / other)[0]))
+               same_geometry(source, read_qm_log(sandbox / other).geometry)
                for other in candidates)
 
 
@@ -184,7 +182,6 @@ def _identify_by_declared_energy(
     """候选日志里最终能量与声明值最接近（容差内）的那份；无声明/无命中 None。"""
     if declared is None:
         return None
-    from cloudra.tools.core.irc_evidence import frames_for, last_geometry
     from cloudra.tools.core.irc_path import same_geometry
 
     matches = []
@@ -198,8 +195,8 @@ def _identify_by_declared_energy(
     if not matches:
         return None
     matches.sort()
-    anchor = last_geometry(sandbox / matches[0][1], frames_for(sandbox / matches[0][1])[0])
-    if any(not same_geometry(anchor, last_geometry(sandbox / path, frames_for(sandbox / path)[0]))
+    anchor = read_qm_log(sandbox / matches[0][1]).geometry
+    if any(not same_geometry(anchor, read_qm_log(sandbox / path).geometry)
            for _, path in matches[1:]):
         return None  # An energy alone cannot select between different structures.
     return matches[0][1]
