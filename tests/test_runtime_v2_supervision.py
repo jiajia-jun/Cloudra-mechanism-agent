@@ -292,9 +292,9 @@ async def test_cancelled_supervisor_is_not_resurrected_by_release_or_new_reviews
             e for e in core.event_log.query_session(supervisor.id) if e.type == "run.started"
         ]
         assert len(runs) == 1
-        # 取消收尾扫描和随后新增待办各驻留一条通知，不复活 Supervisor。
+        # 取消收尾扫描复用原版本；只有新增待办另驻留通知，不复活 Supervisor。
         inbox = core.mailbox.inbox(supervisor.id)
-        assert inbox is not None and inbox.qsize() == 2
+        assert inbox is not None and inbox.qsize() == 1
     finally:
         llm.release.set()
         await _teardown(core, supervisor)
@@ -358,9 +358,9 @@ async def test_failed_supervisor_is_not_resurrected_by_notification():
             e for e in core.event_log.query_session(supervisor.id) if e.type == "run.started"
         ]
         assert len(runs) == 1
-        # parked：失败时的 reconcile 与后续通知各驻留一条，不唤醒、不新开 run。
+        # parked：失败时复用已消费的版本；新增待办只驻留一条，不唤醒。
         inbox = core.mailbox.inbox(supervisor.id)
-        assert inbox is not None and inbox.qsize() == 2
+        assert inbox is not None and inbox.qsize() == 1
         # 待办保留：两条送审 review 都还在信箱里等显式恢复。
         assert len(await _pending_review_ids(project.id)) == 2
     finally:
@@ -388,13 +388,17 @@ async def test_supervisor_failure_alerts_only_for_pending_scientific_work(tmp_pa
         else:
             await asyncio.to_thread((tmp_path / "PROCESS.md").write_text, "Provisional hypothesis\n")
 
-        await notify_supervisor(harness.core, harness.project.id, reason="single project update")
+        await notify_supervisor(
+            harness.core, harness.project.id, reason="single project update",
+            changed_note=None if scientific_pending else ("PROCESS.md", "fixture-note-version"),
+        )
         supervisor = find_project_supervisor(harness.core, harness.project.id)
         assert supervisor is not None
         await harness.wait_for(lambda: supervisor.state is AgentState.FAILED, "Supervisor LLM failure")
         if scientific_pending:
             await harness.wait_for(
-                lambda: len(_injections(harness.core, coordinator.id, "[Supervision] ALERT")) == 1,
+                lambda: len(_injections(harness.core, coordinator.id, "[Supervision] ALERT")) == 1
+                and coordinator.state is AgentState.RUNNING,
                 "failure itself delivers the scientific backlog alert", timeout=2,
             )
             assert len(_pin_events(harness.core, coordinator.id, TERMINAL_SUPERVISOR_PIN_KEY)) == 1
@@ -2287,8 +2291,7 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     ]
     assert reports == []
 
-    # reconcile 不自动复活 failed：park-don't-wake——新事件只有一条补投；
-    # restore 已按未消费 message_injected 重建原通知，信箱里是重建 + 补投。
+    # reconcile 不自动复活 failed：restore 重建原通知，同版本不再重复补投。
     # 装载路径 auto_wake=False：D2 告警仍 pin + mailbox，但不把 Coordinator 打进 LLM。
     events_before = len(core2.event_log)
     await reconcile_supervision(core2, project.id, auto_wake=False)
@@ -2296,10 +2299,10 @@ async def test_interrupted_supervisor_explicit_recovery_reads_full_backlog(tmp_p
     supervisor_events = [
         e for e in new_events if e.session_id == supervisor2.id
     ]
-    assert [e.type for e in supervisor_events] == ["agent.message_injected"]
+    assert supervisor_events == []
     assert supervisor2.state is AgentState.FAILED
     inbox = core2.mailbox.inbox(supervisor2.id)
-    assert inbox is not None and inbox.qsize() == 2
+    assert inbox is not None and inbox.qsize() == 1
     # D2 告警：Coordinator 收到 pin + 投递（点名终态/不复活/恢复入口）。
     assert any(
         e.type == "context.pin_set"
@@ -2370,8 +2373,8 @@ async def test_duplicate_notification_after_decision_does_not_rerun_review(tmp_p
     """恢复矩阵·裁决后重复通知幂等。
 
     已裁决的请求（resolved + 通知闭环）之后：reconcile 因无可消费待办而
-    no-op；即便再来一次裸 notify 唤醒 supervisor，它重读信箱发现为空也只
-    stop——裁决工具调用数不增长（dag_review_evidence 只被请求一次，
+    no-op；即便再来一次裸 notify，也不重开空 run；
+    裁决工具调用数不增长（dag_review_evidence 只被请求一次，
     resolve_review 的 duplicate_decision 守卫兜底）。"""
     llm = _MailboxAdjudicatorLLM("")
     core, bus, _stages = _full_wiring(llm)
@@ -2407,10 +2410,10 @@ async def test_duplicate_notification_after_decision_does_not_rerun_review(tmp_p
             == runs_before
         )
 
-        # 裸 notify（迟到重复通知）：唤醒但信箱已空 → 立即 stop，不重跑裁决。
+        # 裸 notify（迟到重复通知）：同一已完成版本不重开空 run。
         await notify_supervisor(core, project.id, reason="stale duplicate nudge")
         await _wait_state(supervisor, "succeeded")
-        await _wait_run_count(core, supervisor, runs_before + 1)
+        assert len(await _wait_run_count(core, supervisor, runs_before)) == runs_before
         assert len(_supervisor_tool_calls(core, supervisor.id, "dag_review_evidence")) == 1
         # 决定仍只有一份；请求保持 resolved。
         later = await asyncio.to_thread(_decision_for, project.id, request_id)

@@ -30,6 +30,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -165,8 +166,8 @@ async def reconcile_legacy_backlog_notice(core: RuntimeCore, project_id: str) ->
     return legacy
 
 
-# 并发首次通知的易失互斥（计划 §2）：只防同进程竞态，不是身份源——身份
-# 唯一事实来源始终是 core.agents 的 项目+角色 投影（find_project_supervisor）。
+# 并发通知的易失互斥：串行首次创建与同版本通知判重，不是身份或工作源；
+# 身份来自 core.agents，工作版本来自 DAG 与持久化通知。
 _SPAWN_LOCKS: dict[str, asyncio.Lock] = {}
 
 
@@ -232,12 +233,14 @@ async def _spawn_supervisor(core: RuntimeCore, project_id: str) -> AgentSession 
 async def notify_supervisor(
     core: RuntimeCore, project_id: str, *, reason: str = "", auto_wake: bool = True,
     observation: str | None = None,
+    changed_note: tuple[str, str] | None = None,
 ) -> None:
     """确保项目唯一 Supervisor agent 身份并按状态表通知；不等待裁决。
 
     调用方先完成科学待办持久化、PROCESS.md 写入或记录终态 TS 观察。
     科学待办不在通知中复制；文档维护仅保留一条当前有界观察 pin，
     Supervisor 苏醒后读取科学信箱、当前观察和文档。
+    changed_note 由写入回执的路径/内容哈希绑定，模型不填写通知版本。
     模式门禁在调用方（只有 dag_guided 的生产路径会
     走到这里）；本函数自身不读模式，以便恢复/诊断路径直接复用。
 
@@ -268,62 +271,81 @@ async def notify_supervisor(
     if project_id not in core.projects:
         logger.debug("[supervision] notify for unknown project %s ignored", project_id)
         return
-    agent = find_project_supervisor(core, project_id)
-    if agent is None:
-        if not auto_wake:
-            logger.info(
-                "[supervision] project %s has backlog but no supervisor; "
-                "load path will not spawn",
-                project_id,
-            )
-            return
-        lock = _SPAWN_LOCKS.setdefault(project_id, asyncio.Lock())
-        async with lock:
-            agent = find_project_supervisor(core, project_id)
-            if agent is None:
-                agent = await _spawn_supervisor(core, project_id)
-        if agent is None:
-            return  # spawn 被拒：待办已持久化，reconcile 会补（已记 warning）
-
     from cloudra.runtime_v2.schemas import AgentState
 
-    state = agent.state
-    if observation is not None:
-        previous = core.notices.pin_content(agent.id, RESEARCH_OBSERVATION_PIN_KEY)
-        if previous == observation:
+    # The durable work version, not a reason string or the previous stop text,
+    # controls another wake. Serialize the check with first-spawn and delivery.
+    lock = _SPAWN_LOCKS.setdefault(project_id, asyncio.Lock())
+    async with lock:
+        summary = await pending_supervision_summary(project_id)
+        consumable = any(summary[kind] for kind in ("call_reviews", "open_drafts", "review_requests"))
+        if not consumable and observation is None and changed_note is None:
             return
-        was_consumed = core.notices.pin_is_consumed(agent.id, RESEARCH_OBSERVATION_PIN_KEY)
-        core.notices.pin(agent.id, RESEARCH_OBSERVATION_PIN_KEY, observation)
-        if previous is not None and not was_consumed and state not in {AgentState.QUEUED, AgentState.SUCCEEDED}:
-            # Unread updates share one mailbox notice; a consumed observation needs a new next turn.
+        agent = find_project_supervisor(core, project_id)
+        if agent is None:
+            if not auto_wake:
+                return
+            agent = await _spawn_supervisor(core, project_id)
+            if agent is None:
+                return
+
+        previous = await asyncio.to_thread(_latest_work_notice, core, agent.id)
+        previous_work = previous.data.get("manifest", {}) if previous is not None else {}
+        notes = {**previous_work.get("notes", {})}
+        if changed_note is not None:
+            notes[changed_note[0]] = changed_note[1]
+        observed = (hashlib.sha256(observation.encode()).hexdigest() if observation is not None
+                    else previous_work.get("observation"))
+        work = {"state": await asyncio.to_thread(_supervision_state, project_id),
+                "notes": notes, "observation": observed}
+        fingerprint = hashlib.sha256(json.dumps(work, sort_keys=True).encode()).hexdigest()
+        if observation is not None and previous_work.get("observation") != observed:
+            core.notices.pin(agent.id, RESEARCH_OBSERVATION_PIN_KEY, observation)
+        state = agent.state
+        if state in {AgentState.FAILED, AgentState.CANCELLED}:
+            await _sync_terminal_supervisor_alert(core, project_id, agent, summary, auto_wake=auto_wake)
+        if previous_work.get("fingerprint") == fingerprint:
+            # A load may have parked this exact durable message without a wake.
+            # Reuse it only while unread; a stop after consuming it is final for
+            # this work version, including across process restarts.
+            unread = previous is not None and any(
+                event.session_id == agent.id
+                and event.data.get("message_id") == previous.data.get("message_id")
+                for event in core.mailbox.unread()
+            )
+            if auto_wake and unread and state in {AgentState.QUEUED, AgentState.SUCCEEDED}:
+                async with core.dispatcher.target_lock(agent.id):
+                    inbox = core.mailbox.inbox(agent.id)
+                    if inbox is not None and not inbox.empty():
+                        await core.agent_host.wake(agent, runner=core.runner)
             await core.event_writer.flush()
             return
-    # 统一不复活纪律（park-don't-wake）：所有状态都投递（通知是 durable 的
-    # agent.message_injected + 内存队列）；failed/cancelled 只驻留不唤醒——
-    # 用户显式复活后首轮 drain 即可读到。
-    # 督导通知的唤醒纪律：只有 QUEUED/SUCCEEDED 才唤醒（不打断运行态与
-    # 等待态）；auto_wake=False（装载）时任何状态都只驻留。
-    await core.dispatcher.commit_and_deliver(
-        to_session_id=agent.id,
-        project_id=project_id,
-        content=_notification_text(reason),
-        sender="system",
-        wake=WakePolicy.IDLE_ONLY if auto_wake else WakePolicy.NEVER,
-    )
-    if state in {AgentState.FAILED, AgentState.CANCELLED}:
-        logger.debug(
-            "[supervision] supervisor %s is %s; notification parked, no auto-revive",
-            agent.id,
-            state.value,
+        await core.dispatcher.commit_and_deliver(
+            to_session_id=agent.id,
+            project_id=project_id,
+            content=_notification_text(reason),
+            sender="system",
+            manifest={"kind": "supervision_work", "fingerprint": fingerprint,
+                      "notes": notes, "observation": observed},
+            wake=WakePolicy.IDLE_ONLY if auto_wake else WakePolicy.NEVER,
         )
-        # D2：终态督导 + 可消费待办不再是隐形 wedge——给 Coordinator 发
-        # 一次性告警（指纹去重），点名不自动复活与真实恢复入口。
-        await _sync_terminal_supervisor_alert(
-            core, project_id, agent, auto_wake=auto_wake
-        )
-    # RUNNING：下一轮 drain 收件箱；WAITING_*：消息保留，不绕过等待语义。
-    # auto_wake=False：任何状态都只驻留，由显式 resume 开跑。
-    await core.event_writer.flush()
+        await core.event_writer.flush()
+
+
+def _supervision_state(project_id: str) -> str | None:
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    db = ConversationDB(project_id)
+    return DagStore(db).delivery_state_fingerprint() if os.path.isfile(db.path) else None
+
+
+def _latest_work_notice(core: RuntimeCore, session_id: str):
+    if core.store is not None:
+        return core.store.latest_supervision_notice(session_id)
+    return next((event for event in reversed(core.event_log.query_session(
+        session_id, types={"agent.message_injected"}, limit=None,
+    )) if (event.data.get("manifest") or {}).get("kind") == "supervision_work"), None)
 
 
 async def reconcile_supervision(

@@ -171,7 +171,7 @@ class SupervisorToolExecutor:
         try:
             arguments = Read_input_schema.model_validate(arguments).model_dump()
         except ValidationError as exc:
-            return _error(validation_feedback(exc))
+            return _error(validation_feedback(exc, schema=Read_input_schema))
         raw_path = str(arguments.get("path") or "")
         try:
             resolved = self._resolve_evidence_path(raw_path)
@@ -256,7 +256,7 @@ class SupervisorToolExecutor:
         try:
             input_obj = entry.input_schema(**arguments)
         except ValidationError as exc:
-            return _error(validation_feedback(exc))
+            return _error(validation_feedback(exc, schema=entry.input_schema))
         session = self._session or SimpleNamespace(id=session_id or "supervisor")
         # Several tool classes narrow the `subagent` field to the legacy Agent
         # type (dag_* verdict tools among them), so pydantic construction with

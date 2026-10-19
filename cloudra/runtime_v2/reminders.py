@@ -17,6 +17,7 @@ scheduling slept forever.  This broker is intercepted by
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from copy import deepcopy
@@ -61,15 +62,20 @@ def _iso(ts: float) -> str:
 
 
 def _ok(summary: str, **data: Any) -> ToolResult:
-    payload = {"is_success": True, "message": summary, **data}
-    return ToolResult(is_success=True, summary=summary, data=payload)
+    from cloudra.tools.Managetool.schedule import ScheduleOutput
+
+    payload = ScheduleOutput(is_success=True, message=summary, **data).model_dump(mode="json")
+    return ToolResult(is_success=True, summary=json.dumps(payload, ensure_ascii=False, allow_nan=False), data=payload)
 
 
 def _err(message: str) -> ToolResult:
+    from cloudra.tools.Managetool.schedule import ScheduleOutput
+
+    payload = ScheduleOutput(is_success=False, message=message).model_dump(mode="json")
     return ToolResult(
         is_success=False,
-        summary=message,
-        data={"is_success": False, "message": message},
+        summary=json.dumps(payload, ensure_ascii=False, allow_nan=False),
+        data=payload,
     )
 
 
@@ -383,13 +389,54 @@ class ReminderBroker:
 
     # ------------------------------------------------------------------ tool
 
+    def _terminal_status(self, agent: AgentSession, schedule_id: int) -> str | None:
+        """Verify ownership from durable history, including after snapshot restore."""
+        owned = False
+        status = None
+        for event in self.core.event_log.iter_events(
+            project_id=agent.project_id, session_id=agent.id, types=_REMINDER_TYPES,
+            after_seq=max(0, schedule_id - 1),
+        ):
+            if event.type == "reminder.scheduled" and event.seq == schedule_id:
+                owned = True
+            elif owned and event.data.get("schedule_id") == schedule_id:
+                if event.type == "reminder.fired":
+                    return "fired"
+                status = event.type.removeprefix("reminder.")
+        return status if owned else None
+
+    async def _cancel(self, agent: AgentSession, schedule_id: int) -> ToolResult:
+        # The pending check and terminal write share the timeout/check fire
+        # lock. A cancellation must never claim it withdrew a fired message.
+        async with self._fire_lock:
+            row = next(
+                (item for item in await asyncio.to_thread(self.pending, agent.id) if item["schedule_id"] == schedule_id),
+                None,
+            )
+            if row is None:
+                status = await asyncio.to_thread(self._terminal_status, agent, schedule_id)
+                if status == "cancelled":
+                    return _ok("Reminder already cancelled; no action was needed.", schedule_id=schedule_id)
+                if status == "fired":
+                    return _ok(
+                        "Reminder already fired; this is a no-op. Any queued or delivered reminder message is not withdrawn.",
+                        schedule_id=schedule_id,
+                    )
+                return _err(f"No reminder owned by this Agent was found for schedule_id={schedule_id}.")
+            self._cancel_timer(agent.project_id, schedule_id)
+            await self._emit(
+                "reminder.cancelled", project_id=agent.project_id,
+                session_id=agent.id, data={"schedule_id": schedule_id},
+            )
+            return _ok("Reminder cancelled.", schedule_id=schedule_id)
+
     async def handle(self, agent: AgentSession, call: ToolCall) -> ToolResult:
         from cloudra.tools.Managetool.schedule import ScheduleInput
 
         try:
             args = ScheduleInput.model_validate(call.arguments).model_dump()
         except ValidationError as exc:
-            return _err(validation_feedback(exc))
+            return _err(validation_feedback(exc, schema=ScheduleInput))
         action = str(args.get("action") or "create")
         if action == "list":
             schedules = [
@@ -412,21 +459,7 @@ class ReminderBroker:
             raw_id = args.get("schedule_id")
             if raw_id is None:
                 return _err("cancel requires schedule_id.")
-            schedule_id = int(raw_id)
-            row = next(
-                (item for item in await asyncio.to_thread(self.pending, agent.id) if item["schedule_id"] == schedule_id),
-                None,
-            )
-            if row is None:
-                return _err("No pending reminder found to cancel.")
-            self._cancel_timer(agent.project_id, schedule_id)
-            await self._emit(
-                "reminder.cancelled",
-                project_id=agent.project_id,
-                session_id=agent.id,
-                data={"schedule_id": schedule_id},
-            )
-            return _ok("Reminder cancelled.", schedule_id=schedule_id, schedules=[])
+            return await self._cancel(agent, int(raw_id))
         if action != "create":
             return _err(f"Unknown action: {action}")
         return await self._create(agent, args)

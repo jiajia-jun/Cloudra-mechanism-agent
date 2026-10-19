@@ -463,7 +463,7 @@ async def test_subagent_receives_results_while_other_owned_jobs_run(state):
     assert child.state.value == "running"
     assert wakes == [child.id]
     assert all(_notified_at(job_id) is not None for job_id in finished)
-    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 2
+    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 1
 
     _inbox_texts(core, child.id)
     await core.agent_host.finish_run(child, outcome="succeeded")
@@ -476,7 +476,7 @@ async def test_subagent_receives_results_while_other_owned_jobs_run(state):
     assert wakes == [child.id, child.id]
     assert child.state.value == "running"
     assert _notified_at(pending) is not None
-    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 3
+    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 2
 
 
 @pytest.mark.asyncio
@@ -510,7 +510,9 @@ async def test_same_poll_batch_wakes_subagent_once():
 
     assert wakes == [child.id]
     assert all(_notified_at(job_id) is not None for job_id in job_ids)
-    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 2
+    notices = core.event_log.query_session(child.id, types={"agent.message_injected"})
+    assert len(notices) == 1
+    assert all(f"Job {job_id}," in notices[0].data["content"] for job_id in job_ids)
 
 
 @pytest.mark.asyncio
@@ -552,7 +554,7 @@ async def test_subagent_processes_results_before_terminal_backlog_is_drained():
 
     assert wakes == [child.id]
     assert _notified_at(job_ids[-1]) is not None
-    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 51
+    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 2
 
 
 @pytest.mark.asyncio
@@ -596,14 +598,14 @@ async def test_project_scan_and_periodic_scan_deliver_each_job_once(monkeypatch)
     broker = ComputeNotifyBroker(core)
     entered = asyncio.Event()
     release = asyncio.Event()
-    original_deliver = broker._deliver
+    original_deliver = broker._prepare_notice
 
     async def delayed_deliver(*args, **kwargs):
         entered.set()
         await release.wait()
         return await original_deliver(*args, **kwargs)
 
-    monkeypatch.setattr(broker, "_deliver", delayed_deliver)
+    monkeypatch.setattr(broker, "_prepare_notice", delayed_deliver)
     project_scan = asyncio.create_task(broker._poll_project(project.id))
     try:
         await asyncio.wait_for(entered.wait(), timeout=2)
@@ -701,7 +703,7 @@ async def test_notified_mark_failure_holds_later_notice_and_wake(monkeypatch):
     assert wakes == [child.id]
     assert all(_notified_at(job_id) is not None for job_id in job_ids)
     # Retrying the DB ack reuses the already durable message.
-    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 2
+    assert len(core.event_log.query_session(child.id, types={"agent.message_injected"})) == 1
 
 
 @pytest.mark.asyncio
@@ -844,7 +846,7 @@ async def test_unacked_terminal_notice_is_not_duplicated_after_restore(tmp_path,
     )
     assert len(events) == 1
     assert events[0].data["manifest"] == {
-        "kind": "compute_completion", "task_id": job_id,
+        "kind": "compute_completion", "task_ids": [job_id],
     }
     assert sum(f"Job {job_id}," in text for text in _inbox_texts(
         restored, coordinator.id
@@ -1030,7 +1032,7 @@ async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, o
     assert await asyncio.to_thread(_notified_at, job) is not None
     assert await asyncio.to_thread(broker._pending_terminal_jobs, project.id) == []
     notices = core.event_log.query_session(child.id, types={"agent.message_injected"})
-    assert [event.data["manifest"]["task_id"] for event in notices] == [job]
+    assert [task_id for event in notices for task_id in event.data["manifest"]["task_ids"]] == [job]
     persisted = await asyncio.to_thread(store.events_after, {})
     assert any(row["event_id"] == notices[0].event_id for row in persisted)
     await broker._poll_project(project.id)

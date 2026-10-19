@@ -6,8 +6,8 @@
 （不按结束时间截断，宕机窗口不丢），再扫一小批未加载行只为把已删除
 项目的死信落 ``notified_at``。只投递 ``conversation_id in core.projects``
 的行（未加载项目跳过、不落 notified_at；**已硬删除的项目**——事件日志里有 project.deleted tombstone——
-永不加载，记 warning 并落 notified_at 终结）。每批逐作业持久化通知并落
-``notified_at``；普通作业逐个通知，同轮已投递通知合并唤醒，不等待其他作业。
+永不加载，记 warning 并落 notified_at 终结）。同批按收件人合并持久化通知，
+消息保留各作业编号，逐作业落 ``notified_at``；每位收件人只唤醒一次，不等待其他作业。
 TS 流水线中间作业由系统自动推进；受阻、终态或 ts_guess 报告可疑虚频方向时
 通知并唤醒所属 Agent。方向建议不阻止 IRC，也不自动取消计算。
 投递失败不落 notified_at，下一 tick 自然重试。
@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -43,6 +44,15 @@ logger = logging.getLogger(__name__)
 _BACKFILL_WINDOW_SECONDS = 0
 # 每 tick 全局扫描的投递上限（小 SELECT 粒度上限）
 _POLL_BATCH = 50
+
+
+@dataclass
+class _ComputeNotice:
+    project_id: str
+    task_id: int
+    target_id: str
+    content: str | None
+    observation: str | None = None
 
 
 class ComputeNotifyBroker:
@@ -139,22 +149,22 @@ class ComputeNotifyBroker:
         """Wake once per recipient with an acknowledged notice in this poll.
 
         Other active jobs or a terminal backlog cannot delay result handling.
-        _deliver suppresses system-owned TS intermediate results and returns
-        a recipient only after a visible notice has been delivered and acked.
+        System-owned TS intermediate results stay silent. Persist one body per
+        recipient, then acknowledge each job before waking that recipient.
         """
-        recipients: dict[str, None] = {}
+        notices: dict[str, list[_ComputeNotice]] = {}
         delivery_failed: set[tuple[str, str]] = set()
         for project_id, task_id, state, session_id in rows:
             key = (project_id, session_id) if session_id else None
             if key is not None and key in delivery_failed:
                 continue
             try:
-                target_id = await self._deliver(
+                notice = await self._prepare_notice(
                     project_id, task_id=task_id, state=state,
-                    session_id=session_id, wake=False,
+                    session_id=session_id,
                 )
-                if target_id is not None:
-                    recipients[target_id] = None
+                if notice is not None:
+                    notices.setdefault(notice.target_id, []).append(notice)
             except Exception:
                 if key is not None:
                     # Retry the failed notice and later rows in order; any
@@ -163,8 +173,33 @@ class ComputeNotifyBroker:
                 logger.exception(
                     "compute notify delivery failed for %s job %s", project_id, task_id
                 )
-        for target_id in recipients:
-            await self._wake_notified_child(target_id)
+        for target_id, group in notices.items():
+            try:
+                fresh = [notice for notice in group if notice.content is not None]
+                if fresh:
+                    await self._send_message(
+                        target_id, "\n\n".join(notice.content for notice in fresh), wake=False,
+                        job_ids=[notice.task_id for notice in fresh],
+                    )
+                    for notice in fresh:
+                        if notice.observation is not None:
+                            from cloudra.runtime_v2.supervision import notify_supervisor
+
+                            try:
+                                await notify_supervisor(
+                                    self.core, notice.project_id,
+                                    reason="Terminal TS observation recorded", observation=notice.observation,
+                                )
+                            except Exception:
+                                logger.warning("Could not notify Supervisor about TS job %s",
+                                               notice.task_id, exc_info=True)
+                # One durable body identifies every job. If one ack fails, later
+                # jobs remain pending and reuse this same receipt on retry.
+                for notice in group:
+                    await asyncio.to_thread(self._mark_notified, notice.task_id)
+                await self._wake_notified_child(target_id)
+            except Exception:
+                logger.exception("compute batch delivery failed for %s", target_id)
         # A coordinator can already have consumed the child's first final
         # report and be parked waiting for later compute. Once all notices in
         # this batch are durable, let the runner test project quiescence.
@@ -190,15 +225,14 @@ class ComputeNotifyBroker:
         except Exception:
             return []
 
-    async def _deliver(
+    async def _prepare_notice(
         self,
         project_id: str,
         *,
         task_id: int,
         state: str,
         session_id: str | None,
-        wake: bool = True,
-    ) -> str | None:
+    ) -> _ComputeNotice | None:
         if project_id not in self.core.projects:
             return
         from cloudra.services.ts_pipeline_context import use_runtime_authority
@@ -215,6 +249,8 @@ class ComputeNotifyBroker:
                 and target_id is None and alignment.get('status') not in {'misaligned', 'undecidable'}):
             await asyncio.to_thread(self._mark_notified, task_id)
             return
+        observation = None
+        content = None
         if target_id is None:
             view = None
             record = None
@@ -245,29 +281,14 @@ class ComputeNotifyBroker:
                 from cloudra.runtime_v2.policies.guidance import guide_ts_process
 
                 guide_ts_process(self.core.notices, target_id, view)
-            # Persist and enqueue first, but do not wake the child until the
-            # DB ack succeeds. A failed final ack must not start an LLM run.
-            await self._send_message(target_id, content, wake=False, job_id=task_id)
             owner = self.core.agents.get(target_id)
             from cloudra.runtime_v2.schemas import OrchestrationMode
 
             if (view is not None and owner is not None
                     and owner.settings.orchestration_mode is OrchestrationMode.DAG_GUIDED
                     and view.get('status') in {'ended', 'blocked'}):
-                from cloudra.runtime_v2.supervision import notify_supervisor
-
-                try:
-                    await notify_supervisor(self.core, project_id,
-                        reason="Terminal TS observation recorded",
-                        observation=self._research_observation(view, content))
-                except Exception:
-                    # Document upkeep must not prevent the owner consuming a finished calculation.
-                    logger.warning("Could not notify Supervisor about TS job %s", task_id, exc_info=True)
-
-        await asyncio.to_thread(self._mark_notified, task_id)
-        if wake:
-            await self._wake_notified_child(target_id)
-        return target_id
+                observation = self._research_observation(view, content)
+        return _ComputeNotice(project_id, task_id, target_id, content, observation)
 
     @staticmethod
     def _research_observation(view: dict, content: str) -> str:
@@ -298,7 +319,8 @@ class ComputeNotifyBroker:
             manifest = event.data.get("manifest")
             if (event.session_id and isinstance(manifest, dict)
                     and manifest.get("kind") == "compute_completion"
-                    and manifest.get("task_id") == task_id):
+                    and (manifest.get("task_id") == task_id
+                         or task_id in manifest.get("task_ids", []))):
                 target = event.session_id
         return target
 
@@ -595,13 +617,13 @@ class ComputeNotifyBroker:
 
     async def _send_message(
         self, session_id: str, content: str, *, wake: bool = True,
-        job_id: int | None = None,
+        job_ids: list[int] | None = None,
     ) -> None:
         body = content if content.startswith("[Compute job]") else f"[Compute job]\n{content}"
         agent = self.core.agents.get(session_id)
         manifest = (
-            {"kind": "compute_completion", "task_id": job_id}
-            if job_id is not None else None
+            {"kind": "compute_completion", "task_ids": job_ids}
+            if job_ids is not None else None
         )
         if agent is not None and agent.role_id == "coordinator":
             # Coordinator 绝不被计算任务唤醒（只由 AgentHub / Supervisor 裁决唤醒）：

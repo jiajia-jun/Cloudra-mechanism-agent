@@ -667,7 +667,7 @@ async def _dispatch_hub_tool(core, author: AgentSession, call: ToolCall) -> Tool
     try:
         args = AgentHub_input_schema.model_validate(call.arguments).model_dump()
     except ValidationError as exc:
-        return _err(validation_feedback(exc))
+        return _err(validation_feedback(exc, schema=AgentHub_input_schema))
     action = args["action"]
     if action == "post":
         return await _post(core, author, args)

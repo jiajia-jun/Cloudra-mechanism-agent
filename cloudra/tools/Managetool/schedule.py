@@ -87,6 +87,7 @@ class Schedule(Tool):
         "message is a memo to yourself: on wake only it, the wake reason (check_succeeded or check_timeout), and the then-current runtime state are available, "
         "so spell out what to check, the done criteria, and the next action. "
         "Use list to see all unfired reminders, and cancel with schedule_id to drop stale or superseded ones. "
+        "Cancelling your already cancelled or fired reminder is a no-op; queued or delivered messages are not withdrawn. "
         "Multiple create reminders all fire independently; they do not overwrite each other."
     )
     input_schema: Any = ScheduleInput

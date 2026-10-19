@@ -219,11 +219,16 @@ class DagPolicyStage:
         if (self._core is not None and ctx.settings.orchestration_mode.value == 'dag_guided'
                 and call.name in {'write', 'edit'} and result.is_success
                 and result.data.get('is_written') and changed.parent == Path('.')
-                and changed.suffix.lower() == '.md'):
+                and changed.suffix.lower() == '.md'
+                and result.data.get('after_sha256')
+                and result.data.get('after_sha256') != result.data.get('before_sha256')):
             from cloudra.runtime_v2.supervision import notify_supervisor
 
             try:
-                await notify_supervisor(self._core, ctx.agent.project_id, reason=f'Research notes updated: {changed.name}')
+                await notify_supervisor(
+                    self._core, ctx.agent.project_id, reason=f'Research notes updated: {changed.name}',
+                    changed_note=(changed.name, result.data['after_sha256']),
+                )
             except Exception:
                 # Notebook maintenance must not turn a completed research action into a failure.
                 logger.warning('Could not notify Supervisor about %s', changed.name, exc_info=True)

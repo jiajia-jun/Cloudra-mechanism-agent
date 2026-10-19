@@ -10,13 +10,55 @@ import stat
 import tempfile
 import threading
 from collections import OrderedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Sequence
 from uuid import uuid4
 
 MAX_TEXT_FILE_BYTES = 2 * 1024 * 1024
 MAX_DIFF_CHARS = 200_000
+_SNAPSHOT_CACHE_BYTES = 8 * MAX_TEXT_FILE_BYTES
+_snapshot_versions: OrderedDict[tuple[str, str, str], TextSnapshot] = OrderedDict()
+_snapshot_versions_lock = threading.Lock()
+
+
+def _remember_snapshot(snapshot: TextSnapshot, root: Path) -> None:
+    key = (str(root), snapshot.relative_path, snapshot.sha256)
+    with _snapshot_versions_lock:
+        _snapshot_versions[key] = snapshot
+        _snapshot_versions.move_to_end(key)
+        retained = sum(len(item.content.encode('utf-8')) for item in _snapshot_versions.values())
+        while retained > _SNAPSHOT_CACHE_BYTES or len(_snapshot_versions) > 128:
+            _, removed = _snapshot_versions.popitem(last=False)
+            retained -= len(removed.content.encode('utf-8'))
+
+
+def _merge_disjoint_text(base: str, current: str, proposed: str) -> str:
+    """Three-way line merge; shared changed lines remain an explicit conflict."""
+    original = base.splitlines(keepends=True)
+
+    def changes(text):
+        lines = text.splitlines(keepends=True)
+        return [(start, end, lines[other_start:other_end])
+                for tag, start, end, other_start, other_end in
+                difflib.SequenceMatcher(a=original, b=lines).get_opcodes()
+                if tag != 'equal']
+
+    ours, theirs = changes(proposed), changes(current)
+    for start, end, _ in ours:
+        for other_start, other_end, _ in theirs:
+            if start == end:
+                overlap = other_start <= start <= other_end
+            elif other_start == other_end:
+                overlap = start <= other_start <= end
+            else:
+                overlap = max(start, other_start) < min(end, other_end)
+            if overlap:
+                raise WorkspaceConflictError('The edited text changed concurrently; re-read the target file')
+    merged = list(original)
+    for start, end, replacement in sorted([*ours, *theirs], key=lambda item: item[0], reverse=True):
+        merged[start:end] = replacement
+    return ''.join(merged)
 
 
 def resolve_working_directory(value: str | None = None) -> str:
@@ -147,6 +189,7 @@ class PreparedFileChange:
     diff: str
     additions: int
     deletions: int
+    exact_edits: tuple[TextEdit, ...] | None = None
 
     def event_data(self, status: str, message: str = "") -> dict:
         return {
@@ -289,7 +332,7 @@ class WorkspaceService:
         except UnicodeDecodeError as exc:
             raise WorkspaceError(f"File is not valid UTF-8 text: {relative_path}") from exc
 
-        return TextSnapshot(
+        result = TextSnapshot(
             relative_path=self._relative_label(absolute_path),
             absolute_path=absolute_path,
             content=content,
@@ -298,6 +341,8 @@ class WorkspaceService:
             newline=_newline_style(content),
             has_utf8_bom=has_utf8_bom,
         )
+        _remember_snapshot(result, self.root)
+        return result
 
     def read_text(
         self,
@@ -314,6 +359,30 @@ class WorkspaceService:
             raise WorkspaceError(f"Invalid slice range: [{actual_start}:{actual_end}]")
         return snapshot, "".join(lines[actual_start:actual_end]), total_lines, actual_start, actual_end
 
+    @staticmethod
+    def _edited_text(snapshot: TextSnapshot, edits: Sequence[TextEdit], reference: str | None = None) -> str:
+        content = snapshot.content
+        had_final_newline = _has_final_newline(content)
+        for edit in edits:
+            old_text = _normalize_newlines(edit.old_text, snapshot.newline)
+            new_text = _normalize_newlines(edit.new_text, snapshot.newline)
+            if not old_text:
+                raise WorkspaceError("old_text must not be empty")
+            matches = content.count(old_text)
+            if reference is not None and matches != reference.count(old_text):
+                raise WorkspaceConflictError('Exact edit matches changed concurrently; re-read the target file')
+            if matches == 0:
+                raise WorkspaceConflictError("old_text did not match; re-read the target file")
+            if not edit.replace_all and matches != 1:
+                raise WorkspaceConflictError(
+                    f"old_text matched {matches} times; provide more precise context or set replace_all"
+                )
+            content = content.replace(old_text, new_text, -1 if edit.replace_all else 1)
+            if reference is not None:
+                reference = reference.replace(old_text, new_text, -1 if edit.replace_all else 1)
+
+        return _preserve_final_newline(content, had_final_newline, snapshot.newline)
+
     def prepare_edit(
         self,
         relative_path: str,
@@ -323,29 +392,34 @@ class WorkspaceService:
         if not edits:
             raise WorkspaceError("At least one text edit is required")
         snapshot = self.snapshot(relative_path)
+        base = snapshot
         if expected_sha256 != snapshot.sha256:
-            raise WorkspaceConflictError(
-                f"File has changed; re-read before editing. Current sha256={snapshot.sha256}"
-            )
+            with _snapshot_versions_lock:
+                base = _snapshot_versions.get((str(self.root), snapshot.relative_path, expected_sha256))
+            if base is None:
+                raise WorkspaceConflictError('The read version is no longer available; re-read before editing')
+            if base.newline != snapshot.newline or base.has_utf8_bom != snapshot.has_utf8_bom:
+                raise WorkspaceConflictError('File encoding or line endings changed; re-read before editing')
+        content = self._edited_text(base, edits)
+        if base.sha256 != snapshot.sha256:
+            replayed = self._edited_text(snapshot, edits, reference=base.content)
+            content = _merge_disjoint_text(base.content, snapshot.content, content)
+            if content != replayed:
+                raise WorkspaceConflictError('Concurrent text alignment is ambiguous; re-read the target file')
+        return replace(self._prepare_change(snapshot, content), exact_edits=tuple(edits))
 
-        content = snapshot.content
-        had_final_newline = _has_final_newline(content)
-        for edit in edits:
-            old_text = _normalize_newlines(edit.old_text, snapshot.newline)
-            new_text = _normalize_newlines(edit.new_text, snapshot.newline)
-            if not old_text:
-                raise WorkspaceError("old_text must not be empty")
-            matches = content.count(old_text)
-            if matches == 0:
-                raise WorkspaceConflictError("old_text did not match; re-read the target file")
-            if not edit.replace_all and matches != 1:
-                raise WorkspaceConflictError(
-                    f"old_text matched {matches} times; provide more precise context or set replace_all"
-                )
-            content = content.replace(old_text, new_text, -1 if edit.replace_all else 1)
-
-        content = _preserve_final_newline(content, had_final_newline, snapshot.newline)
-        return self._prepare_change(snapshot, content)
+    def rebase_change(self, change: PreparedFileChange) -> PreparedFileChange:
+        """Refresh only an exact-edit candidate; its new diff requires approval."""
+        if change.kind != 'update' or change.before_content is None or change.exact_edits is None:
+            raise WorkspaceConflictError('The file changed; re-read before modifying it')
+        current = self.snapshot(change.relative_path)
+        if current.newline != change.newline or current.has_utf8_bom != change.has_utf8_bom:
+            raise WorkspaceConflictError('File encoding or line endings changed; re-read before modifying it')
+        replayed = self._edited_text(current, change.exact_edits, reference=change.before_content)
+        merged = _merge_disjoint_text(change.before_content, current.content, change.after_content)
+        if merged != replayed:
+            raise WorkspaceConflictError('Concurrent text alignment is ambiguous; re-read the target file')
+        return replace(self._prepare_change(current, merged), exact_edits=change.exact_edits)
 
     def prepare_write(
         self,
@@ -447,6 +521,16 @@ class WorkspaceService:
             )
 
     def apply(self, change: PreparedFileChange) -> None:
+        from cloudra.infra.flocks import locked
+        from cloudra.persistence.paths import workspace_file_lock_path
+
+        lock_path = workspace_file_lock_path(self.root, change.relative_path)
+        lock_path = self.resolve_path(str(lock_path.relative_to(self.root)))
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with locked(str(lock_path)):
+            self._apply_locked(change)
+
+    def _apply_locked(self, change: PreparedFileChange) -> None:
         if change.root != self.root:
             raise WorkspaceError("Change does not belong to the current working directory")
         absolute_path = self.resolve_path(change.relative_path)

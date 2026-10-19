@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Literal
 
-from pydantic import ValidationError
+from pydantic import TypeAdapter, ValidationError
 
 from cloudra.dag.models import (
     ELEMENTARY_STEP_STAGE_KINDS,
@@ -142,7 +142,7 @@ class DraftsMixin:
             try:
                 op = parse_graph_operation(raw)
             except ValidationError as exc:
-                raise RuntimeError(validation_feedback(exc, prefix=f"operations.{index}")) from exc
+                raise RuntimeError(validation_feedback(exc, schema=TypeAdapter(GraphOperation), prefix=f"operations.{index}")) from exc
             except ValueError as exc:
                 raise RuntimeError(f"operations.{index}: invalid operation; use the documented delivery operation shape") from exc
             if (

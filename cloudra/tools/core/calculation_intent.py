@@ -71,10 +71,62 @@ def _entry(code: str, field: str, message: str) -> dict:
 # ----------------------------------------------------------------------
 
 
+def _gaussian_keyword(token: str) -> tuple[str, str]:
+    head, opening, options = token.partition('(')
+    if opening and head.removesuffix('=') in {'opt', 'freq', 'irc', 'scan'}:
+        return head.removesuffix('='), options.removesuffix(')')
+    key, _, value = token.partition('=')
+    return key, value
+
+
+def _gaussian_tasks(tokens: list[str]) -> set[str]:
+    tasks = set()
+    for token in tokens:
+        key, value = _gaussian_keyword(token)
+        if key == 'opt':
+            options = set(value.strip('()').replace(' ', '').split(','))
+            tasks.add('ts_opt' if options & {'ts', 'qst2', 'qst3'} else 'minimum_opt')
+        elif key == 'freq':
+            tasks.add('frequency')
+        elif key in {'irc', 'scan', 'sp'}:
+            tasks.add({'irc': 'irc', 'scan': 'relaxed_scan', 'sp': 'single_point'}[key])
+    return tasks
+
+
+def _gaussian_modredundant(tokens: list[str]) -> bool:
+    return any(key == 'opt' and 'modredundant' in value.strip('()').replace(' ', '').split(',')
+               for key, value in map(_gaussian_keyword, tokens))
+
+
+def _gaussian_scan_cards(tokens: list[str]) -> bool:
+    """Recognize typed ModRedundant S cards, not letters in a title or basis."""
+    for index, token in enumerate(tokens):
+        count = {'b': 2, 'a': 3, 'd': 4}.get(token)
+        if count is None or index + count + 3 >= len(tokens):
+            continue
+        try:
+            for atom in tokens[index + 1:index + count + 1]:
+                if atom != '*':
+                    int(atom)
+            action = index + count + 1
+            if tokens[action] != 's':
+                float(tokens[action])  # An optional explicit coordinate value.
+                action += 1
+            if tokens[action] == 's' and action + 2 < len(tokens):
+                int(tokens[action + 1])
+                float(tokens[action + 2])
+                return True
+        except (ValueError, IndexError):
+            continue
+    return False
+
+
 def _writer_tasks(arguments: dict[str, Any]) -> tuple[set[str], list[str]]:
-    """Map writer task_type onto intent tasks plus the raw unknown keys."""
+    """Normalize declared tasks and native keywords independently of rendering."""
     tasks: set[str] = set()
     unknown: list[str] = []
+    engine = str(arguments.get('engine') or 'gaussian').lower()
+    opt_tokens = []
     for task in arguments.get("task_type") or []:
         if not isinstance(task, dict):
             unknown.append(repr(task))
@@ -86,7 +138,9 @@ def _writer_tasks(arguments: dict[str, Any]) -> tuple[set[str], list[str]]:
                 unknown.append(key_l)
                 continue
             if key_l == "opt":
-                if "ts" in {p.strip() for p in params.split(",") if p.strip()}:
+                opt_tokens.append('opt=' + params)
+                ts_options = {'ts', 'qst2', 'qst3'} if engine == 'gaussian' else {'ts'}
+                if ts_options & {p.strip(' ()') for p in params.split(",") if p.strip()}:
                     tasks.add("ts_opt")
                 else:
                     tasks.add("minimum_opt")
@@ -98,20 +152,57 @@ def _writer_tasks(arguments: dict[str, Any]) -> tuple[set[str], list[str]]:
                 tasks.add("relaxed_scan")
             elif key_l in ("sp", "single_point"):
                 tasks.add("single_point")
+    try:
+        tokens = native_tokens(str(arguments.get('keywords') or ''))
+        if engine == 'gaussian':
+            tasks.update(_gaussian_tasks(tokens))
+            if ('minimum_opt' in tasks and _gaussian_modredundant(opt_tokens + tokens)
+                    and _gaussian_scan_cards(native_tokens(str(arguments.get('end_setting') or '')))):
+                tasks.remove('minimum_opt')
+                tasks.add('relaxed_scan')
+        elif engine == 'orca':
+            tasks.update(_ORCA_SIMPLE_TASK_TOKENS[token] for token in tokens if token in _ORCA_SIMPLE_TASK_TOKENS)
+            if 'sp' in tokens:
+                tasks.add('single_point')
+    except ValueError as exc:
+        unknown.append(str(exc))
     return tasks, unknown
+
+
+def _frequency_declarations(arguments: dict[str, Any]) -> list[tuple[str, str]]:
+    declarations = []
+    mode = str(arguments.get('frequency_mode') or 'auto').lower()
+    if mode in {'numeric', 'analytic'}:
+        declarations.append(('frequency_mode', mode))
+    for task in arguments.get('task_type') or []:
+        if isinstance(task, dict):
+            for key, value in task.items():
+                if str(key).lower() == 'freq' and value is not None:
+                    option = str(value).strip(' ()').lower().split(',')[0]
+                    if option in _FREQ_NUMERIC_ALIASES or option == 'analytic':
+                        declarations.append(('task_type', 'numeric' if option in _FREQ_NUMERIC_ALIASES else 'analytic'))
+    tokens = native_tokens(str(arguments.get('keywords') or ''))
+    if str(arguments.get('engine') or 'gaussian').lower() == 'gaussian':
+        for key, value in map(_gaussian_keyword, tokens):
+            if key == 'freq':
+                option = value.strip('()').split(',')[0]
+                declarations.append(('keywords', 'numeric' if option in _FREQ_NUMERIC_ALIASES else 'analytic'))
+    else:
+        declarations.extend(('keywords', 'numeric' if token == 'numfreq' else 'analytic')
+                            for token in tokens if token in {'numfreq', 'freq'})
+    return declarations
 
 
 def _writer_frequency_mode(arguments: dict[str, Any], tasks: set[str]) -> str:
     mode = str(arguments.get("frequency_mode") or "auto").lower()
     if mode != "auto":
         return mode
-    # Explicit numeric aliases on the freq task count as a numeric request.
-    for task in arguments.get("task_type") or []:
-        if isinstance(task, dict):
-            for key, value in task.items():
-                if str(key).lower() == "freq" and value is not None:
-                    if str(value).lower().strip() in _FREQ_NUMERIC_ALIASES:
-                        return "numeric"
+    try:
+        declarations = _frequency_declarations(arguments)
+    except ValueError:
+        return 'auto'  # validate_writer_request reports the malformed native field.
+    if declarations:
+        return declarations[0][1]
     return "auto"
 
 
@@ -192,6 +283,28 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
             seen[canonical] = value
 
     tasks, _ = _writer_tasks(arguments)
+    try:
+        tokens = native_tokens(str(arguments.get('keywords') or ''))
+        declarations = _frequency_declarations(arguments)
+    except ValueError as exc:
+        entries.append(_entry('malformed_native_keywords', 'keywords', str(exc)))
+        tokens, declarations = [], []
+    if len({mode for _, mode in declarations}) > 1:
+        entries.append(_entry('conflicting_frequency_mode', 'keywords' if any(field == 'keywords' for field, _ in declarations) else 'frequency_mode',
+            'Conflicting frequency evaluation settings: ' + ', '.join(f'{field}={mode}' for field, mode in declarations)
+            + '; declare one consistent analytic/numeric evaluation.'))
+    if engine == 'gaussian':
+        opt_tasks = _gaussian_tasks(tokens) & {'minimum_opt', 'ts_opt'}
+        if 'opt' in seen:
+            opt_tasks.update(_gaussian_tasks(['opt=' + str(seen['opt'] or '').lower()]))
+    else:
+        opt_tasks = {_ORCA_SIMPLE_TASK_TOKENS[token] for token in tokens
+                     if token in _ORCA_SIMPLE_TASK_TOKENS} & {'minimum_opt', 'ts_opt'}
+        if 'opt' in seen:
+            opt_tasks.add('ts_opt' if 'ts' in str(seen['opt']).lower().split(',') else 'minimum_opt')
+    if len(opt_tasks) > 1:
+        entries.append(_entry('conflicting_task', 'keywords',
+            'task_type and keywords declare conflicting minimum and TS optimizations; keep one consistent opt declaration.'))
     mode = str(arguments.get("frequency_mode") or "auto").lower()
     if mode not in ("auto", "analytic", "numeric"):
         entries.append(_entry(
@@ -443,23 +556,19 @@ def _inspect_orca(text: str) -> CalculationIntent:
 def _inspect_gaussian(text: str) -> CalculationIntent:
     routes = gaussian_routes(text)
     tasks, provider, mode = set(), None, "auto"
-    for route in routes:
+    trailing = _gaussian_trailing_cards(text)
+    for index, route in enumerate(routes):
+        route_tasks = _gaussian_tasks(route)
+        if ('minimum_opt' in route_tasks and _gaussian_modredundant(route)
+                and index < len(trailing) and _gaussian_scan_cards(trailing[index])):
+            route_tasks.remove('minimum_opt')
+            route_tasks.add('relaxed_scan')
+        tasks.update(route_tasks)
         for token in route:
-            head, opening, options = token.partition("(")
-            if opening and head.removesuffix("=") in {"opt", "freq", "irc", "scan"}:
-                key = head.removesuffix("=")
-                value = options.removesuffix(")")
-            else:
-                key, _, value = token.partition("=")
-            if key == "opt":
-                options = set(value.strip("()").replace(" ", "").split(","))
-                tasks.add("ts_opt" if options & {"ts", "qst2", "qst3"} else "minimum_opt")
-            elif key == "freq":
-                tasks.add("frequency")
+            key, value = _gaussian_keyword(token)
+            if key == "freq":
                 if value.strip("()").split(",")[0] in _FREQ_NUMERIC_ALIASES:
                     mode = "numeric"
-            elif key in {"irc", "scan"}:
-                tasks.add("irc" if key == "irc" else "relaxed_scan")
             elif key == "external" and value:
                 provider = Path(value.strip("\"'")).name.lower()
     if not tasks and routes:
@@ -467,10 +576,6 @@ def _inspect_gaussian(text: str) -> CalculationIntent:
     constraints = []
     for line in text.splitlines():
         tokens = line.upper().split()
-        if tokens and tokens[0] in {'B','A','D'} and 'S' in tokens:
-            if 'minimum_opt' in tasks:
-                tasks.remove('minimum_opt')
-                tasks.add('relaxed_scan')
         if tokens and tokens[0] in {'B','A','D'} and tokens[-1] == 'F':
             constraints.append(dict(type=tokens[0], atoms=tokens[1:-1]))
     charges = _native_charges(text, "gaussian")
@@ -605,7 +710,9 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
         want_keywords = sorted(t.replace(" ", "") for t in native_tokens(str(expected.get("keywords") or "")))
         if engine == "orca":
             tokens, blocks = orca_directives(content)
+            native_cards = [tokens]
             cards = [[t for t in tokens if t not in _ORCA_SIMPLE_TASK_TOKENS and t not in {"sp"}]]
+            declared_tasks = [t for t in want_keywords if t in _ORCA_SIMPLE_TASK_TOKENS or t == 'sp']
             expected_blocks = orca_directives(str(expected.get("orca_blocks") or ""))[1]
             # These blocks are generated by the writer for the requested task;
             # other blocks must exactly match the explicit native declaration.
@@ -643,10 +750,20 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
                         diff('end_setting', 'only explicit settings and generated scan coordinates', tail)
                 else:
                     diff('end_setting', expected_tail, tail)
-            cards = [[t for t in card if t.partition("=")[0] not in {"opt", "freq", "irc", "scan", "sp"}] for card in gaussian_routes(content)]
+            native_cards = gaussian_routes(content)
+            cards = [[t for t in card if _gaussian_keyword(t)[0] not in {"opt", "freq", "irc", "scan", "sp"}] for card in native_cards]
+            declared_tasks = [t for t in want_keywords if _gaussian_keyword(t)[0] in {'opt', 'freq', 'irc', 'scan', 'sp'}]
         else:
             diff("engine", "native ORCA or Gaussian input", engine)
             return differences
+        # Writer-owned task controls may be added independently, but a task
+        # explicitly present in keywords must survive with its exact options.
+        for native_card, card in zip(native_cards, cards, strict=True):
+            available = [token.replace(' ', '') for token in native_card]
+            for token in declared_tasks:
+                if token in available:
+                    card.append(token)
+                    available.remove(token)
         for card in cards:
             remaining = list(card)
             if engine == "gaussian":

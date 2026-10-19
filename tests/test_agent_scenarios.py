@@ -218,7 +218,7 @@ async def test_compute_result_wakes_agent_during_high_throughput_batch(tmp_path)
         assert gates[-1].data["action"] == "wait_background"
         notices = [e for e in harness.events(agent)
                    if e.type == "agent.message_injected" and (e.data.get("manifest") or {}).get("kind") == "compute_completion"]
-        assert [e.data["manifest"]["task_id"] for e in notices] == [finished]
+        assert [task_id for e in notices for task_id in e.data["manifest"]["task_ids"]] == [finished]
         async with ComputeDB().aconnect() as con:
             row = await (await con.execute("SELECT state FROM compute_jobs WHERE id=?", (running,))).fetchone()
         assert row[0] == "running"
@@ -482,34 +482,34 @@ async def test_guided_complete_waits_for_selected_step_review_and_evidence(tmp_p
         await harness.aclose()
 
 
-def _seed_native_step_science(project_id: str) -> None:
-    """Captured native Opt/Freq/IRC chain; no quantum engine is executed."""
+def _seed_synthetic_step_science(project_id: str) -> None:
+    """Explicit parser/runtime fixtures, not captured quantum-calculation evidence."""
     from cloudra.dag.engine import DagEngine
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
     from cloudra.dag.models import AttachRef, GraphActor, MutationBatch, UpdateNode
     from cloudra.dag.store import DagStore
     from cloudra.persistence.database import ConversationDB
+    from tests.test_irc_endpoint_optimization import write_lineage_bundle
 
     workspace = _workspace(project_id)
-    native = Path(__file__).parent / "fixtures/benchmark_nu3"
-    for original, name in [("ts2_frequency.out", "ts.out"), ("ts2_optimization.out", "ts_opt.out"),
-                           ("op_minimum.out", "r.out"), ("product_minimum.out", "p.out")]:
-        shutil.copyfile(native/original, workspace/name)
-    for path in (native/"ts2_irc").iterdir():
-        shutil.copyfile(path, workspace/path.name)
+    # Reuse the strict-lineage tests' synthetic IRC -> Opt -> Freq geometry
+    # chain. The captured NU3 archive has no endpoint Opt logs and cannot
+    # establish this scenario's complete-evidence branch.
+    bundle = write_lineage_bundle(workspace)
     store = DagStore(ConversationDB(project_id).init())
     operations = []
-    for name, smiles in [("r", "C1CO[PH3]1"), ("p", "C=C.O=[PH3]")]:
-        snapshot = snapshot_evidence_file(workspace/f"{name}.out", workspace)
-        ref = store.register_evidence("scenario-endpoints", name, snapshot.model_dump(mode="json"), source_type="file")
-        operations.extend([
-            UpdateNode(op="update_node", graph="delivery", node_id=name, changes={"smiles": smiles}),
-            AttachRef(op="attach_ref", graph="delivery", target_type="node", target_id=name, ref=ref),
-        ])
+    for name, role in [('r', 'reactant'), ('p', 'product')]:
+        operations.append(UpdateNode(op="update_node", graph="delivery", node_id=name,
+            changes={"smiles": bundle[f'{role}_smiles']}))
+        for stage in ('opt', 'freq'):
+            snapshot = snapshot_evidence_file(bundle[f'{role}_{stage}'], workspace)
+            ref = store.register_evidence("scenario-endpoints", f'{role}_{stage}',
+                snapshot.model_dump(mode="json"), source_type="file")
+            operations.append(AttachRef(op="attach_ref", graph="delivery", target_type="node", target_id=name, ref=ref))
     result = DagEngine(store).apply_batch(MutationBatch(
         session_id="scenario-endpoints", actor=GraphActor.HARNESS, actor_id="scenario-endpoints",
         base_revisions=store.load_bundle().revisions,
-        rationale="bind captured native reference minima", operations=operations,
+        rationale="bind synthetic parser-fixture endpoint Opt/Freq chains", operations=operations,
     ))
     assert result.accepted
 
@@ -529,7 +529,9 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
     review_final = asyncio.Event()
     final_verdict = Step(wait_for=review_final)
     ts = Path(__file__).parent / "fixtures" / "benchmark_synthetic" / "ts_freq.out"
-    files = {"ts_file": "ts.out", "opt_file": "ts_opt.out", "irc_file": "irc.out"} if complete_evidence else {"ts_file": ts.name}
+    # The synthetic TS log contains both converged Opt and one-imaginary Freq
+    # blocks; the real validators must still prove their geometry association.
+    files = {"ts_file": "ts.out", "opt_file": "ts.out", "irc_file": "irc.out"} if complete_evidence else {"ts_file": ts.name}
     provider = ScriptedProvider(by_role={
         "coordinator": [
             _propose_selected_ab(),
@@ -567,7 +569,7 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
         workspace.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ts, workspace / ts.name)
         if complete_evidence:
-            await asyncio.to_thread(_seed_native_step_science, harness.project.id)
+            await asyncio.to_thread(_seed_synthetic_step_science, harness.project.id)
         coordinator = await harness.spawn(
             "coordinator", protocol="traditional", orchestration_mode="dag_guided"
         )
@@ -1965,7 +1967,7 @@ async def test_budgeted_ts_terminal_notice_resumes_background_wait_and_persists(
         assert calls[0]["result_data"]["blocked"]["failure_class"] == "wrong_mode"
         notices = [event for event in harness.events(agent) if event.type == "agent.message_injected"
             and (event.data.get("manifest") or {}).get("kind") == "compute_completion"]
-        assert [event.data["manifest"]["task_id"] for event in notices] == [step.job_id]
+        assert [task_id for event in notices for task_id in event.data["manifest"]["task_ids"]] == [step.job_id]
         saved = await asyncio.to_thread(harness.store.events_after, {})
         assert any(row["event_id"] == notices[0].event_id for row in saved)
         resumed = [event for event in harness.events(agent) if event.type == "run.started"][-1]

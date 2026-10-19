@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
-from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.persistence.workspace import resolve_existing_tool_path, resolve_tool_path
 from cloudra.tools.core.geometry import rotate_about_axis, rotation_matrix_between
 from cloudra.tools.core.irc_path import (
     COVALENT_RADII as _COVALENT_RADII,
@@ -26,6 +26,7 @@ from cloudra.tools.core.irc_path import (
     DISTANCE_CONNECTIVITY_FACTOR as DISTANCE_CONNECTIVITY_FACTOR,
 )
 from cloudra.tools.core.molecule import read_molecule, to_ase, to_xyz, with_positions
+from cloudra.tools.core.molecule import total_charge as molecule_charge
 
 try:
     import chemcoord as cc
@@ -141,7 +142,7 @@ class InternalCoordinates_input_schema(input_schema):
     )
     input_path: Optional[str] = Field(
         default=None,
-        description="Input file path (xyz/mol/pdb/sdf/cif). MOL/SDF retain their bonds and formal charges. Used when mode=analyze or transform."
+        description="Input file path (xyz/mol/pdb/sdf/cif or one Gaussian Cartesian input in Angstrom/Bohr). MOL/SDF retain their bonds and formal charges. Used when mode=analyze or transform."
     )
     input_text: Optional[str] = Field(
         default=None,
@@ -150,11 +151,11 @@ class InternalCoordinates_input_schema(input_schema):
     input_format: Literal["auto", "xyz", "mol", "pdb", "sdf", "cif"] = Field(
         default="auto",
         description="Input format. auto uses the file extension, or recognizes MOL/SDF text; "
-                    "other coordinate text is read as XYZ."
+                    "Gaussian Cartesian input is recognized from content for files or text; other coordinate text must be valid XYZ."
     )
     charge: int = Field(
         default=0,
-        description="Total charge for bond perception of coordinate-only inputs. MOL/SDF use their stored formal charges. Default 0."
+        description="Total charge for coordinate-only input. Omit to inherit a Gaussian declaration, otherwise default 0. An explicit value must match Gaussian charge. MOL/SDF use their stored formal charges."
     )
     reactive_atoms: Optional[list[int]] = Field(
         default=None,
@@ -377,6 +378,10 @@ class InternalCoordinates(Tool):
             return mol, "input", []
 
         atoms = to_ase(mol)
+        native_charge = molecule_charge(mol)
+        if mol.HasProp('cloudra_multiplicity') and charge is not None and charge != native_charge:
+            raise ValueError(f"Gaussian charge mismatch: declared charge {charge} differs from native charge {native_charge}")
+        charge = native_charge if charge is None else charge
         mol.SetIntProp("cloudra_total_charge", charge)
         if mol.GetNumAtoms() == 1:
             mol.GetAtomWithIdx(0).SetFormalCharge(charge)
@@ -1052,11 +1057,11 @@ class InternalCoordinates(Tool):
 
     def _analyze(self, user_input: InternalCoordinates_input_schema) -> InternalCoordinates_output_schema:
         import numpy as np
-        from rdkit import Chem
 
         try:
             mol, bond_source, notes = self._load_molecule(
-                user_input.input_path, user_input.input_text, user_input.input_format, user_input.charge,
+                user_input.input_path, user_input.input_text, user_input.input_format,
+                user_input.charge if 'charge' in user_input.model_fields_set else None,
             )
         except Exception as e:
             return InternalCoordinates_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
@@ -1119,7 +1124,7 @@ class InternalCoordinates(Tool):
         formula = "".join(f"{k}{hill[k] if hill[k] > 1 else ''}" for k in formula_keys if k in hill)
 
         report: list[str] = ["== Summary =="]
-        total_charge = Chem.GetFormalCharge(mol) if bond_source == "input" else user_input.charge
+        total_charge = molecule_charge(mol)
         report.append(f"  Formula: {formula}  Atoms: {n}  Bonds: {len(bond_orders)}  "
                       f"Fragments: {n_frag}  Total charge: {total_charge}")
         report.append(f"  Bond orders: {bond_source}")
@@ -1621,7 +1626,8 @@ class InternalCoordinates(Tool):
             )
         try:
             mol, _, notes = self._load_molecule(
-                user_input.input_path, user_input.input_text, user_input.input_format, user_input.charge,
+                user_input.input_path, user_input.input_text, user_input.input_format,
+                user_input.charge if 'charge' in user_input.model_fields_set else None,
             )
         except Exception as e:
             return InternalCoordinates_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
@@ -2069,6 +2075,12 @@ class InternalCoordinates(Tool):
     async def tool_call(self, user_input: InternalCoordinates_input_schema, session: Session) -> InternalCoordinates_output_schema:
         # 路径语义收口：文件路径字段的相对路径统一解析到 agent 工作目录（沙箱）；
         # 绝对路径保持既有权限语义。zmatrix_text/input_text 是文本，不做路径解析。
+        if user_input.input_path and user_input.mode in {'analyze', 'transform'}:
+            try:
+                path = await asyncio.to_thread(resolve_existing_tool_path, self, user_input.input_path)
+            except OSError as exc:
+                return InternalCoordinates_output_schema(is_success=False, message=f"Failed to read input structure: {exc}")
+            user_input = user_input.model_copy(update={'input_path': path})
         user_input = user_input.model_copy(
             update={
                 field: resolve_tool_path(self, value)

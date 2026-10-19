@@ -131,6 +131,7 @@ class Edit(Tool):
             action="精确编辑文本文件",
             tool_args=user_input.model_dump(mode="json"),
             output_class=Edit_output_schema,
+            allow_rebase=True,
         )
         if guard_warning and out.is_written:
             out.message = f"{guard_warning}\n\n{out.message}"

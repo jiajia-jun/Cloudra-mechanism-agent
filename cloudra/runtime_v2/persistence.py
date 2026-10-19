@@ -320,13 +320,26 @@ class RuntimeStore:
         with self._connect() as con:
             row = con.execute(
                 "SELECT session_id FROM events WHERE project_id = ? "
-                "AND json_extract(data, '$.manifest.task_id') = ? "
+                "AND (json_extract(data, '$.manifest.task_id') = ? "
+                "OR EXISTS (SELECT 1 FROM json_each(data, '$.manifest.task_ids') "
+                "WHERE type = 'integer' AND value = ?)) "
                 "AND type = 'agent.message_injected' "
                 "AND json_extract(data, '$.manifest.kind') = 'compute_completion' "
                 "AND session_id IS NOT NULL ORDER BY seq DESC LIMIT 1",
-                (project_id, task_id),
+                (project_id, task_id, task_id),
             ).fetchone()
         return row[0] if row is not None else None
+
+    def latest_supervision_notice(self, session_id: str) -> EventEnvelope | None:
+        """Read the durable work version even after its mailbox message was consumed."""
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT event_id, stream, project_id, session_id, run_id, seq, session_seq, type, data, created_at "
+                "FROM events WHERE session_id = ? AND type = 'agent.message_injected' "
+                "AND json_extract(data, '$.manifest.kind') = 'supervision_work' "
+                "ORDER BY session_seq DESC LIMIT 1", (session_id,),
+            ).fetchone()
+        return self._envelope(row) if row is not None else None
 
     def event_metadata(self) -> tuple[int, dict[str, int], dict[str, int]]:
         snapshot, _ = self.load_snapshot()

@@ -140,17 +140,18 @@ class QmInputWriter_input_schema(QmCalculation, QmInputSettings, input_schema):
     chk_name: Optional[str] = Field(
         default=None,
         description="Gaussian checkpoint path. Omit to generate an absolute '<output stem>.chk' "
-                    "next to output_path. An explicit path is preserved; prefer the input directory "
-                    "because per-task Gaussian scratch is deleted after the run."
+                    "next to output_path. Explicit paths are absolute as-is or relative to the Agent "
+                    "working directory, like output_path; their parent directories are created before writing."
     )
     rwf_name: Optional[str] = Field(
         default=None,
-        description="rwf filename; Gaussian scratch file, often large."
+        description="Gaussian scratch file path, often large. Absolute as-is or relative to the Agent "
+                    "working directory; its parent directory is created before writing the input."
     )
     fchk_name: Optional[str] = Field(
         default=None,
-        description="fchk filename. Same placement convention as chk_name: same directory as "
-                    "output_path, absolute path preferred."
+        description="Gaussian formatted-checkpoint path. Absolute as-is or relative to the Agent "
+                    "working directory; its parent directory is created before writing the input."
     )
 
     @model_validator(mode='after')
@@ -175,7 +176,7 @@ class QmInputWriter_output_schema(output_schema):
     )
     unapplied_options: list[str] = Field(
         default_factory=list,
-        description="Requested options that could NOT be realized in the file. Empty on success; "
+        description="Options missing from, or unexpectedly added to, the generated file. Empty on success; "
                     "a successful write never silently drops an option.",
     )
     generation_path: str = Field(
@@ -585,6 +586,31 @@ class QmInputWriter(Tool):
             })
         return QmInputWriter._build_gjf(user_input, mol)
 
+    @staticmethod
+    def _prepare_gaussian_file_parents(user_input: QmInputWriter_input_schema) -> None:
+        """Prepare file destinations without opening or replacing existing QM artifacts."""
+        paths = {
+            'chk_name': user_input.chk_name if user_input.chk_name is not None else str(Path(user_input.output_path).with_suffix('.chk')),
+            'rwf_name': user_input.rwf_name,
+            'fchk_name': user_input.fchk_name,
+        }
+        for field, value in paths.items():
+            if value is None:
+                continue
+            if not value.strip():
+                raise ValueError(f'{field} must be a non-empty file path, or omitted')
+            path = Path(value)
+            try:
+                if path.exists() and not path.is_file():
+                    raise ValueError(f'{field} {path} is not a regular file destination')
+                path.parent.mkdir(parents=True, exist_ok=True)
+                if not os.access(path.parent, os.W_OK | os.X_OK):
+                    raise ValueError(f'{field} {path}: parent directory {path.parent} is not writable')
+                if path.exists() and not os.access(path, os.W_OK):
+                    raise ValueError(f'{field} {path} is not writable')
+            except OSError as exc:
+                raise ValueError(f'{field} {path}: cannot prepare its parent directory: {exc}') from exc
+
     async def tool_call(self, user_input: QmInputWriter_input_schema, session: Session) -> QmInputWriter_output_schema:
         if not _RDKIT_AVAILABLE:
             return QmInputWriter_output_schema(
@@ -647,7 +673,7 @@ class QmInputWriter(Tool):
                 is_success=False,
                 input_path="",
                 message="qm_input_writer refused: " + " | ".join(
-                    f"[{c['code']}] {c['message']}" for c in conflicts
+                    f"[{c['code']}] {c['field']}: {c['message']}" for c in conflicts
                 ),
                 unapplied_options=[c["message"] for c in conflicts],
             )
@@ -662,6 +688,11 @@ class QmInputWriter(Tool):
         if user_input.source_type in ("xyz_file", "mol_file"):
             user_input.source_value = await asyncio.to_thread(resolve_tool_path, self, user_input.source_value)
         user_input.output_path = await asyncio.to_thread(resolve_tool_path, self, user_input.output_path)
+        if user_input.engine == 'gaussian':
+            for field in ('chk_name', 'rwf_name', 'fchk_name'):
+                value = getattr(user_input, field)
+                if value is not None:
+                    setattr(user_input, field, await asyncio.to_thread(resolve_tool_path, self, value))
         if user_input.artifact_dir:
             user_input.artifact_dir = await asyncio.to_thread(resolve_tool_path, self, user_input.artifact_dir)
         else:
@@ -698,7 +729,7 @@ class QmInputWriter(Tool):
                         "were requested; no file was written."
                     ),
                     interpreted_intent=interpreted,
-                    unapplied_options=sorted(requested.tasks - inspected.tasks),
+                    unapplied_options=sorted(requested.tasks ^ inspected.tasks),
                 )
 
             limitation = seed_note
@@ -726,6 +757,8 @@ class QmInputWriter(Tool):
                         ),
                     )
             input_path = user_input.output_path
+            if user_input.engine == 'gaussian':
+                await asyncio.to_thread(self._prepare_gaussian_file_parents, user_input)
 
             # 同路径重复生成：内容逐字节相同 → 幂等复用；不同 → fail-loud 给指引，
             # 绝不静默覆盖一份来源不明的既有文件。
@@ -798,7 +831,7 @@ class QmInputWriter(Tool):
                 is_success=False,
                 input_path="",
                 message=f"Invalid input for qm_input_writer: {str(e)}. "
-                        "Check that the SMILES is valid or that the source file matches source_type, then retry."
+                        "Correct the reported field or coordinate source, then retry."
             )
         except Exception as e:
             return QmInputWriter_output_schema(

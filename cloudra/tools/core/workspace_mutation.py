@@ -99,74 +99,52 @@ async def execute_prepared_change(
     action: str,
     tool_args: dict,
     output_class: type[_OutputT],
+    allow_rebase: bool = False,
 ) -> _OutputT:
-    await tool.record_session_event(
-        session,
-        "file_change_proposed",
-        change.event_data("proposed"),
-    )
-    approved, denial_reason = await tool.ensure_safety(
-        session,
-        details=_approval_details(action, change),
-        tool_args=tool_args,
-    )
-    if not approved:
-        message = denial_reason or (
-            "User declined the file change. "
-            "Next: explain to the user why the change was needed, adjust the content, "
-            "or choose a different approach."
-        )
+    for attempt in range(3):
         await tool.record_session_event(
             session,
-            "file_change_declined",
-            change.event_data("declined", message),
+            "file_change_proposed",
+            change.event_data("proposed"),
         )
-        return output_class(
-            is_written=False,
-            filepath=change.relative_path,
-            status="declined",
-            change_id=change.change_id,
-            before_sha256=change.before_sha256,
-            after_sha256=change.after_sha256,
-            diff=change.diff,
-            message=message,
-        )
-
-    try:
-        await asyncio.to_thread(service.apply, change)
-    except WorkspaceConflictError as exc:
-        message = str(exc)
-        await tool.record_session_event(
+        approved, denial_reason = await tool.ensure_safety(
             session,
-            "file_change_failed",
-            change.event_data("conflict", message),
+            details=_approval_details(action, change),
+            tool_args=tool_args,
         )
+        if not approved:
+            message = denial_reason or (
+                "User declined the file change. "
+                "Next: explain to the user why the change was needed, adjust the content, "
+                "or choose a different approach."
+            )
+            await tool.record_session_event(session, "file_change_declined", change.event_data("declined", message))
+            return output_class(
+                is_written=False, filepath=change.relative_path, status="declined", change_id=change.change_id,
+                before_sha256=change.before_sha256, after_sha256=change.after_sha256, diff=change.diff, message=message,
+            )
+        try:
+            await asyncio.to_thread(service.apply, change)
+        except WorkspaceConflictError as exc:
+            message = str(exc)
+            if allow_rebase and attempt < 2:
+                try:
+                    change = await asyncio.to_thread(service.rebase_change, change)
+                except (OSError, WorkspaceError) as rebase_error:
+                    message = str(rebase_error)
+                else:
+                    # The preview and approval belong to a concrete candidate.
+                    # A changed base must be previewed and approved again.
+                    continue
+            status = "conflict"
+        except (OSError, WorkspaceError) as exc:
+            message, status = str(exc), "failed"
+        else:
+            break
+        await tool.record_session_event(session, "file_change_failed", change.event_data(status, message))
         return output_class(
-            is_written=False,
-            filepath=change.relative_path,
-            status="conflict",
-            change_id=change.change_id,
-            before_sha256=change.before_sha256,
-            after_sha256=change.after_sha256,
-            diff=change.diff,
-            message=message,
-        )
-    except (OSError, WorkspaceError) as exc:
-        message = str(exc)
-        await tool.record_session_event(
-            session,
-            "file_change_failed",
-            change.event_data("failed", message),
-        )
-        return output_class(
-            is_written=False,
-            filepath=change.relative_path,
-            status="failed",
-            change_id=change.change_id,
-            before_sha256=change.before_sha256,
-            after_sha256=change.after_sha256,
-            diff=change.diff,
-            message=message,
+            is_written=False, filepath=change.relative_path, status=status, change_id=change.change_id,
+            before_sha256=change.before_sha256, after_sha256=change.after_sha256, diff=change.diff, message=message,
         )
 
     await tool.record_session_event(

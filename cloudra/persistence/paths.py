@@ -57,6 +57,15 @@ def mechanism_graph_path(workspace_root: PathLike) -> Path:
     return Path(workspace_root) / "mechanism_graph.json"
 
 
+def workspace_file_lock_path(workspace_root: PathLike, relative_path: str) -> Path:
+    """Stable inode for a text file's cross-process check-and-replace lock."""
+    import hashlib
+
+    target = (Path(workspace_root) / relative_path).resolve()
+    key = hashlib.sha256(str(target).encode('utf-8')).hexdigest()
+    return target.parent / '.cloudra' / 'locks' / f'workspace-{key}.lock'
+
+
 def runtime_api_lock_path(store_path: PathLike) -> Path:
     """One API state owner per canonical runtime database, independent of port."""
     database = Path(store_path).resolve()

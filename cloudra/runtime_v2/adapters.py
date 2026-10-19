@@ -1135,7 +1135,7 @@ class LegacyToolExecutor:
         try:
             parsed = schema_cls.model_validate(call.arguments)
         except ValidationError as exc:
-            return ToolResult(is_success=False, summary=validation_feedback(exc))
+            return ToolResult(is_success=False, summary=validation_feedback(exc, schema=schema_cls))
         from cloudra.runtime_v2.invocation_context import report_tool_progress
         from cloudra.runtime_v2.schemas import ToolProgress
 

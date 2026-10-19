@@ -515,18 +515,21 @@ async def handle_native_tool(core, parent: AgentSession, call: ToolCall) -> Tool
         if call.name == _LAUNCHER:
             from cloudra.tools.Managetool.subagent_launcher import SubAgentLauncher_input_schema
 
-            args = SubAgentLauncher_input_schema.model_validate(call.arguments)
+            schema = SubAgentLauncher_input_schema
+            args = schema.model_validate(call.arguments)
             return await _handle_launcher(core, parent, args.model_dump())
         if call.name == _SWARM:
             from cloudra.tools.Managetool.subagent_swarm import SubAgentSwarm_input_schema
 
-            args = SubAgentSwarm_input_schema.model_validate(call.arguments)
+            schema = SubAgentSwarm_input_schema
+            args = schema.model_validate(call.arguments)
             return await _handle_swarm(core, parent, args.model_dump())
         from cloudra.tools.Managetool.get_subagent_report import GetSubAgentReport_input_schema
 
-        args = GetSubAgentReport_input_schema.model_validate(call.arguments)
+        schema = GetSubAgentReport_input_schema
+        args = schema.model_validate(call.arguments)
         return await _handle_report(core, args.model_dump())
     except ValidationError as exc:
-        return ToolResult(is_success=False, summary=validation_feedback(exc))
+        return ToolResult(is_success=False, summary=validation_feedback(exc, schema=schema))
     except CommandRejected as exc:
         return ToolResult(is_success=False, summary=f"[dispatch rejected] {exc.message}")

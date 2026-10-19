@@ -23,9 +23,11 @@ import asyncio
 import logging
 import os
 import threading
+from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
+from cloudra.benchmark.runner import BenchmarkStopped
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.benchmark.watch import RunWatcher
 
@@ -47,12 +49,14 @@ class RuntimeV2Backend:
         tools: Any = None,
         start_scheduler: bool = True,
         store_path: Any = None,
+        stop_event: threading.Event | None = None,
     ) -> None:
         self.stuck_grace_s = stuck_grace_s
         self.poll_interval_s = poll_interval_s
         self.llm = llm
         self.tools = tools
         self.start_scheduler = start_scheduler
+        self.stop_event = stop_event
         # 事件级持久化（可选但 CLI 默认开）：全战役共享一个 runtime-v2.db，
         # 只 append 不 restore——benchmark core 是一次性的，恢复语义无意义；
         # 崩溃后事件历史与 token 遥测（cloudra stats tokens）仍可查。
@@ -61,6 +65,7 @@ class RuntimeV2Backend:
         # 并行跑题时多线程并发写，用锁保护。
         self._cores: dict[str, Any] = {}
         self._cores_lock = threading.Lock()
+        self._store_lock = threading.Lock()
 
     @property
     def last_core(self) -> Any:
@@ -90,6 +95,8 @@ class RuntimeV2Backend:
         from cloudra.runtime_v2.schemas import Command
         from cloudra.runtime_v2.turn_pipeline import TurnPipeline
 
+        if self.stop_event is not None and self.stop_event.is_set():
+            raise BenchmarkStopped("benchmark batch stopped")
         sandbox.mkdir(parents=True, exist_ok=True)
         sandbox = sandbox.resolve()
 
@@ -101,7 +108,13 @@ class RuntimeV2Backend:
 
             # 与 services/api_v2/app.py 同款接法；多题共享一个库文件，append
             # 经 to_thread 卸载，WAL + busy_timeout 由 RuntimeStore 自带。
-            core.store = RuntimeStore(self.store_path)
+            def open_store():
+                # Parallel workers may both observe a new rollback journal.
+                # Serialize first-open/WAL setup off-loop, before any writes.
+                with self._store_lock:
+                    return RuntimeStore(self.store_path)
+
+            core.store = await asyncio.to_thread(open_store)
 
             async def persist_event(envelope) -> None:
                 # llm.chunk deltas 是瞬时 hub 事件：无回放价值，落库会灌爆事件表。
@@ -134,9 +147,20 @@ class RuntimeV2Backend:
         # compute notices and wake parked child runs.
         broker = ComputeNotifyBroker(core, poll_interval=self.poll_interval_s)
         scheduler = None
-        agent = None
         bus = CommandBus(core)
-        try:
+
+        async def close_scheduler():
+            if scheduler is not None:
+                await scheduler.close()
+
+        async with AsyncExitStack() as cleanup:
+            # Every cleanup runs even if an earlier close/persistence step
+            # fails. Only runtime handles stop; compute processes are untouched.
+            cleanup.push_async_callback(close_scheduler)
+            cleanup.push_async_callback(bus.flush_snapshot)
+            cleanup.push_async_callback(core.runner.cancel_all)
+            cleanup.push_async_callback(self._cancel_live_agents, bus)
+            cleanup.push_async_callback(broker.close)
             await broker.start()
             if self.start_scheduler:
                 from cloudra.scheduler.daemon import SchedulerDaemon
@@ -158,6 +182,8 @@ class RuntimeV2Backend:
                     )
                 )
             ).data
+            if self.stop_event is not None and self.stop_event.is_set():
+                raise BenchmarkStopped("benchmark batch stopped")
             agent = (
                 await bus.execute(
                     Command(
@@ -184,14 +210,24 @@ class RuntimeV2Backend:
             await self._wait_terminal(bus, agent)
             # 评分只读交付物（图 + 日志）：后端不回传任何
             # 供评分使用的文本/数字，杜绝"拿模型自述给自己打分"。
-        finally:
-            await broker.close()
-            if agent is not None and core.runner is not None:
-                await core.runner.cancel(agent.id)
-            # 契约性关机补快照：core 接了 store 时把会话上下文投影落盘。
-            await bus.flush_snapshot()
-            if scheduler is not None:
-                await scheduler.close()
+
+    async def _cancel_live_agents(self, bus) -> None:
+        """Persist cancellation of every unfinished session in this private core."""
+        from cloudra.runtime_v2.agent_host import is_background_parked
+        from cloudra.runtime_v2.schemas import AgentState, Command
+
+        core = bus.core
+        for agent in list(core.agents.values()):
+            if agent.state in {AgentState.FAILED, AgentState.CANCELLED}:
+                continue
+            if agent.state is AgentState.SUCCEEDED and not await asyncio.to_thread(
+                is_background_parked, core, agent.model_copy(deep=True),
+            ):
+                continue
+            await bus.execute(Command(
+                type="agent.cancel", target={"session_id": agent.id},
+                payload={"message": "[benchmark] backend closed"}, actor="system",
+            ))
 
     async def _wait_terminal(self, bus, agent) -> None:
         """等题目真正结束（watch.RunWatcher 的 wait_background/wait_review
@@ -227,11 +263,20 @@ class RuntimeV2Backend:
             if agent.state is AgentState.SUCCEEDED and core.runner is not None:
                 await core.agent_host.wake(agent, runner=core.runner)
 
+        stop_event = asyncio.Event() if self.stop_event is not None else None
+
+        async def relay_stop():
+            while not self.stop_event.is_set():
+                await asyncio.sleep(min(self.poll_interval_s, 0.1))
+            stop_event.set()
+
+        stop_task = asyncio.create_task(relay_stop()) if stop_event is not None else None
         watcher = RunWatcher(
             stuck_grace_s=self.stuck_grace_s,
             poll_interval_s=self.poll_interval_s,
             pending_background=background_pending,
             resume_background=resume_background,
+            stop_event=stop_event,
         )
 
         async def cancel(reason: str) -> None:
@@ -244,8 +289,15 @@ class RuntimeV2Backend:
                 )
             )
 
-        wait_error = await watcher.wait(core, agent, cancel)
+        try:
+            wait_error = await watcher.wait(core, agent, cancel)
+        finally:
+            if stop_task is not None:
+                stop_task.cancel()
+                await asyncio.gather(stop_task, return_exceptions=True)
         if wait_error is not None:
+            if self.stop_event is not None and self.stop_event.is_set():
+                raise BenchmarkStopped(wait_error)
             raise TimeoutError(wait_error)
 
     def _final_message(self, core, session_id: str) -> str:

@@ -1,5 +1,6 @@
 """dag_propose_mechanism / dag_accept_mechanism（Phase 3：草稿 → 接受 → 解锁计算）。"""
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
@@ -484,6 +485,8 @@ async def test_propose_in_guided_notifies_supervisor(tmp_path):
     accepted=False。通知判定必须认 draft_id，而不是只看 accepted。
     """
     from cloudra.dag.controller import DagController
+    from cloudra.dag.models import MechanismDraft
+    from cloudra.dag.store import DagStore
     from cloudra.runtime_v2.commands import CommandBus
     from cloudra.runtime_v2.core import RuntimeCore
     from cloudra.runtime_v2.schemas import Command
@@ -496,10 +499,18 @@ async def test_propose_in_guided_notifies_supervisor(tmp_path):
             Command(type="project.create", payload={"name": "propose-notify"})
         )
     ).data
-    db = ConversationDB(project.id).init()
+    db = await asyncio.to_thread(ConversationDB(project.id).init)
     controller = DagController(
         db, "s1", "dag_guided", conversation_id=project.id, core=core
     )
+    def persist_draft():
+        store = DagStore(db)
+        store.ensure_bundle("s1")
+        return store.save_draft(
+            MechanismDraft(rationale="Claisen chair hypothesis", operations=[]), actor_id="s1",
+        )
+
+    draft_id = await asyncio.to_thread(persist_draft)
 
     await controller.on_tool_finished(
         "tc-propose",
@@ -508,7 +519,7 @@ async def test_propose_in_guided_notifies_supervisor(tmp_path):
         {
             "is_success": True,
             "accepted": False,
-            "result": {"draft_id": "draft_1", "state": "open", "accepted": False},
+            "result": {"draft_id": draft_id, "state": "open", "accepted": False},
         },
     )
 

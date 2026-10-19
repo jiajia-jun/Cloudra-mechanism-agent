@@ -51,7 +51,7 @@ async def test_failed_ts_notice_is_independent_of_atom_tables_and_history(tmp_pa
     rich["failed_attempt"]["diagnostics"] = ["native-log-history-sentinel"] * 1000
     monkeypatch.setattr("cloudra.tools.core.ts_state_view.recorded_notification_view", lambda *_: rich)
     # Replay the same delivery after an ack retry; no extra notice is created.
-    await broker._deliver(project.id, task_id=job, state="failed", session_id=coordinator.id)
+    await broker._deliver_batch([(project.id, job, "failed", coordinator.id)])
     assert len(core.event_log.query_session(coordinator.id, types={"agent.message_injected"})) == old_count
     # A second job with the same input/current facts cannot dump the extra state.
     job2 = await asyncio.to_thread(_insert_terminal_job, project.id,

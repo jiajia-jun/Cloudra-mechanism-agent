@@ -3,6 +3,7 @@
 import asyncio
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
@@ -72,7 +73,7 @@ async def test_qm_input_writer_from_xyz_file_produces_valid_gjf(tmp_path):
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
     out = tmp_path / "jobs" / "water_opt.gjf"
 
-    result = await QmInputWriter().tool_call(
+    result = await QmInputWriter(subagent=SimpleNamespace(working_directory=str(tmp_path))).tool_call(
         QmInputWriter_input_schema(engine='gaussian',
             source_type="xyz_file",
             source_value=str(xyz),
@@ -92,7 +93,7 @@ async def test_qm_input_writer_from_xyz_file_produces_valid_gjf(tmp_path):
     assert result.is_success is True, result.message
     assert result.input_path == str(out)
     content = out.read_text(encoding="utf-8")
-    assert "%chk=water.chk" in content
+    assert f"%chk={tmp_path / 'water.chk'}" in content
     assert "%nproc=8" in content
     assert "%mem=8GB" in content
     assert "#p opt freq b3lyp/6-31g(d)" in content

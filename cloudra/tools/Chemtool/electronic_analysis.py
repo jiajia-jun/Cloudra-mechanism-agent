@@ -19,6 +19,7 @@ from cloudra.tools.Chemtool.internal_coordinates import (
     _COVALENT_RADII,
     DISTANCE_CONNECTIVITY_FACTOR,
 )
+from cloudra.tools.core.molecule import read_molecule, to_ase, to_xyz, total_charge
 
 try:
     from pyscf import gto, lo, scf
@@ -50,13 +51,13 @@ description = (
 
 class ElectronicAnalysis_input_schema(input_schema):
     input_path: Optional[str] = Field(
-        default=None, description="Input structure file path (xyz). Mutually exclusive with input_text; file is preferred."
+        default=None, description="Input structure file (XYZ, MOL/SDF, or one Gaussian Cartesian input in Angstrom/Bohr). File is preferred over input_text."
     )
     input_text: Optional[str] = Field(
-        default=None, description="xyz coordinate text. If input_path is set, the file is read instead."
+        default=None, description="XYZ coordinates or a single Gaussian Cartesian input in Angstrom/Bohr. If input_path is set, the file is read instead."
     )
-    charge: int = Field(default=0, description="Total molecular charge.")
-    spin: int = Field(default=1, description="Spin multiplicity (2S+1). Closed-shell is 1.")
+    charge: int = Field(default=0, description="Total molecular charge. Omit to inherit native Gaussian/MOL/SDF charge, otherwise default 0; an explicit value must match the native declaration.")
+    spin: int = Field(default=1, ge=1, description="Spin multiplicity (2S+1). Omit to inherit Gaussian multiplicity, otherwise default 1; an explicit value must match the native declaration.")
     backend: Literal["pyscf", "xtb"] = Field(
         default="pyscf",
         description="Compute backend. pyscf: full HF/DFT analysis; xtb: external xTB (GFN2-xTB semi-empirical; energy/gap/charges/dipole only)."
@@ -95,40 +96,14 @@ class ElectronicAnalysis_output_schema(output_schema):
     message: str = Field(default="", description="Status or error message")
 
 
-def _load_xyz_text(tool, user_input: ElectronicAnalysis_input_schema) -> str:
-    if user_input.input_path:
-        input_path = resolve_existing_tool_path(tool, user_input.input_path)
-        with open(input_path, encoding="utf-8", errors="replace") as f:
-            return f.read()
-    if user_input.input_text:
-        return user_input.input_text
-    raise ValueError("Must provide one of input_path or input_text")
-
-
-def _parse_xyz(xyz_text: str) -> tuple[list[str], list[list[float]]]:
-    """解析 xyz 文本，返回 (元素符号, 坐标)。容忍多余空行与注释行。"""
-    lines = [ln for ln in xyz_text.splitlines() if ln.strip()]
-    if not lines:
-        raise ValueError("xyz text is empty")
-    try:
-        natoms = int(lines[0].split()[0])
-        start = 2
-    except ValueError:
-        # 没有原子数头，直接按 "符号 x y z" 逐行解析
-        natoms = None
-        start = 0
-    symbols, coords = [], []
-    for ln in lines[start:]:
-        parts = ln.split()
-        if len(parts) < 4:
-            continue
-        symbols.append(parts[0])
-        coords.append([float(parts[1]), float(parts[2]), float(parts[3])])
-    if natoms is not None and len(symbols) != natoms:
-        raise ValueError(f"xyz declares {natoms} atoms, but {len(symbols)} were parsed")
-    if not symbols:
-        raise ValueError("No atoms were parsed from the xyz text")
-    return symbols, coords
+def _load_structure(tool, user_input: ElectronicAnalysis_input_schema):
+    input_path = resolve_existing_tool_path(tool, user_input.input_path) if user_input.input_path else None
+    mol = read_molecule(input_path=input_path, input_text=user_input.input_text,
+        charge=user_input.charge if 'charge' in user_input.model_fields_set else None)
+    spin = mol.GetIntProp('cloudra_multiplicity') if mol.HasProp('cloudra_multiplicity') else user_input.spin
+    if 'spin' in user_input.model_fields_set and user_input.spin != spin:
+        raise ValueError(f"Gaussian spin mismatch: declared spin {user_input.spin} differs from native multiplicity {spin}")
+    return mol, user_input.model_copy(update={'charge': total_charge(mol), 'spin': spin})
 
 
 class ElectronicAnalysis(Tool):
@@ -297,10 +272,11 @@ class ElectronicAnalysis(Tool):
         return results
 
     def _run_pyscf(self, user_input: ElectronicAnalysis_input_schema,
-                   xyz_text: str) -> ElectronicAnalysis_output_schema:
+                   molecule) -> ElectronicAnalysis_output_schema:
         import numpy as np
 
-        symbols, coords = _parse_xyz(xyz_text)
+        atoms = to_ase(molecule)
+        symbols, coords = atoms.get_chemical_symbols(), atoms.get_positions()
         natoms = len(symbols)
         bonds = self._bond_pairs(symbols, coords)
         focus = self._focus_set(user_input, bonds, natoms)
@@ -628,7 +604,7 @@ class ElectronicAnalysis(Tool):
         return data
 
     def _run_xtb(self, user_input: ElectronicAnalysis_input_schema,
-                 xyz_text: str) -> ElectronicAnalysis_output_schema:
+                 molecule) -> ElectronicAnalysis_output_schema:
         if shutil.which("xtb") is None:
             return ElectronicAnalysis_output_schema(
                 is_success=False,
@@ -636,12 +612,12 @@ class ElectronicAnalysis(Tool):
                         "and ensure it is on PATH, or use backend='pyscf'."
             )
 
-        symbols, _ = _parse_xyz(xyz_text)
+        symbols = [atom.GetSymbol() for atom in molecule.GetAtoms()]
         natoms = len(symbols)
 
         with tempfile.TemporaryDirectory(prefix="xtb_") as workdir:
             input_xyz = os.path.join(workdir, "input.xyz")
-            atomic_write_text(input_xyz, xyz_text)
+            atomic_write_text(input_xyz, to_xyz(molecule))
             try:
                 proc = subprocess.run(
                     ["xtb", "input.xyz", "--sp",
@@ -727,14 +703,14 @@ class ElectronicAnalysis(Tool):
         import asyncio
 
         try:
-            xyz_text = _load_xyz_text(self, user_input)
+            molecule, user_input = await asyncio.to_thread(_load_structure, self, user_input)
         except Exception as e:
             return ElectronicAnalysis_output_schema(is_success=False, message=f"Failed to read input structure: {e}")
 
         # xTB / PySCF 为同步子进程或重 CPU；移出事件循环，避免 TUI 与 Coordinator 同 loop 假死。
         if user_input.backend == "xtb":
             try:
-                return await asyncio.to_thread(self._run_xtb, user_input, xyz_text)
+                return await asyncio.to_thread(self._run_xtb, user_input, molecule)
             except Exception as e:
                 return ElectronicAnalysis_output_schema(is_success=False, message=f"xTB backend failed: {e}")
 
@@ -744,6 +720,6 @@ class ElectronicAnalysis(Tool):
                 message="PySCF is not installed. Install it with: pip install pyscf or pip install 'cloudra[chem]'"
             )
         try:
-            return await asyncio.to_thread(self._run_pyscf, user_input, xyz_text)
+            return await asyncio.to_thread(self._run_pyscf, user_input, molecule)
         except Exception as e:
             return ElectronicAnalysis_output_schema(is_success=False, message=f"PySCF backend failed: {e}")

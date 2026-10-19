@@ -197,7 +197,7 @@ def ordinary_method_input_steps(source: Path, output: Path) -> list[Step]:
     """普通项目生成不在旧白名单里的方法/基组；无需启动 QM。"""
     return [Step(tools=[("qm_input_writer", {
         "engine": "orca", "source_type": "xyz_file", "source_value": str(source),
-        "method": "PBE0", "basis_set": "def2-TZVP", "output_path": str(output),
+        "method": "PBE0", "basis_set": "def2-TZVP", "charge": 0, "output_path": str(output),
     })]), Step(stop=True)]
 
 

@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import sys
+import threading
 from pathlib import Path
 
 
@@ -45,6 +47,7 @@ def main(argv: list[str] | None = None) -> int:
         print("no tasks matched", file=sys.stderr)
         return 2
 
+    stop_event = threading.Event()
     backend = None
     if args.backend == "runtime_v2":
         # 运行时数据隔离必须在首次读取全局配置前完成；config_file 独立于
@@ -65,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         backend = RuntimeV2Backend(
             llm=llm,
             store_path=args.data_dir / "runtime" / "runtime-v2.db",
+            stop_event=stop_event,
         )
 
     # CLI 每次调用也是一个批次：batches 行 + 溯源快照（模型/模式/插件）+
@@ -73,27 +77,44 @@ def main(argv: list[str] | None = None) -> int:
     from cloudra.runtime_v2.schemas import new_id
 
     batch_id = new_id("batch")
-    runner = BenchmarkRunner(args.data_dir, backend=backend, batch_id=batch_id)
+    runner = BenchmarkRunner(
+        args.data_dir, backend=backend, batch_id=batch_id, stop_event=stop_event,
+    )
     runner.db.record_batch(batch_id, "running", {
         **provenance_config("cli", tasks),
         "tasks_dirs": [str(d) for d in (args.tasks_dir or [Path("ideapool/tasks/easy")])],
         "task_ids": [t.task_id for t in tasks],
         "concurrency": max(1, args.concurrency),
     })
-    status = "done"
+    received_signal = None
+
+    def request_stop(signum, _frame):
+        nonlocal received_signal
+        if received_signal is None:
+            received_signal = signum
+        # Signals run on the main thread. Never enter a worker's event loop or
+        # perform persistence here; each worker owns its shutdown sequence.
+        stop_event.set()
+
+    previous_handlers = {
+        sig: signal.signal(sig, request_stop) for sig in (signal.SIGINT, signal.SIGTERM)
+    }
+    status = "error"
     try:
         results = runner.run_all(tasks, concurrency=max(1, args.concurrency))
-    except BaseException:
-        status = "error"
-        raise
+        status = "stopped" if stop_event.is_set() else "done"
     finally:
-        runner.db.finish_batch(batch_id, status)
+        try:
+            runner.db.finish_batch(batch_id, status)
+        finally:
+            for sig, handler in previous_handlers.items():
+                signal.signal(sig, handler)
     for r in results:
         print(
             f"{r.task_id:>6}  final={r.final_score:.3f}  graph={r.graph_score:.3f} "
             f"selfcons={int(r.selfconsistency_passed)} accuracy={r.accuracy_score:.3f}"
         )
-    return 0
+    return 128 + received_signal if received_signal is not None else 0
 
 
 if __name__ == "__main__":

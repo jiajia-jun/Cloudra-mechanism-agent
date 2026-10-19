@@ -127,6 +127,7 @@ async def test_writer_relative_output_uses_project_workspace(core, server_cwd, t
             "source_type": "xyz_file",
             "source_value": str(workspace / "water.xyz"),
             "engine": "gaussian",
+            "method": "HF", "basis_set": "STO-3G", "charge": 0,
             "output_path": "calc/input.gjf",
         },
     )
@@ -161,6 +162,7 @@ async def test_writer_relative_source_reads_workspace_not_cwd(core, server_cwd, 
             "source_type": "xyz_file",
             "source_value": "xyz/water.xyz",
             "engine": "gaussian",
+            "method": "HF", "basis_set": "STO-3G", "charge": 0,
             "output_path": "calc/input.gjf",
         },
     )
@@ -197,6 +199,7 @@ async def test_writer_relative_output_parametrized_dirs(core, server_cwd, tmp_pa
             "source_type": "xyz_file",
             "source_value": str(ws / "water.xyz"),
             "engine": "gaussian",
+            "method": "HF", "basis_set": "STO-3G", "charge": 0,
             "output_path": "nested/calc/input.gjf",
         },
     )
@@ -232,6 +235,7 @@ async def test_relative_source_and_submit_use_same_workspace(core, server_cwd, t
             "source_type": "xyz_file",
             "source_value": "xyz/water.xyz",
             "engine": "gaussian", "nproc": _TEST_CPUS,
+            "method": "HF", "basis_set": "STO-3G", "charge": 0,
             "mem": f"{_TEST_MEMORY_MB}MB",
             "output_path": "calc/input.gjf",
         },
@@ -308,6 +312,7 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
                 "source_type": "xyz_file",
                 "source_value": str(workspace / "src.xyz"),
                 "engine": "gaussian", "nproc": job_cpus,
+                "method": "HF", "basis_set": "STO-3G", "charge": 0,
                 "mem": f"{_TEST_MEMORY_MB}MB",
                 "output_path": "calc/input.gjf",
             },
@@ -371,7 +376,6 @@ async def test_concurrent_projects_do_not_cross_write(core, server_cwd, tmp_path
 #   workspace_dir    相对路径解析到 agent 工作目录（目录）
 #   workspace_relative_only 只接受相对路径（WorkspaceService 契约）
 #   conditional_path 仅文件来源模式是路径（SMILES 是分子串，绝不是路径）
-#   verbatim         透传串（Gaussian link0 在作业 cwd 内自行解析）
 #   cwd_input/cwd_output/cwd_dir/cwd_input_map  现状记录：相对路径仍按进程
 #                   cwd（本次不扩展契约，属已记录的待验证风险）
 
@@ -380,9 +384,9 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
         "source_value": "conditional_path",
         "output_path": "workspace_output",
         "artifact_dir": "workspace_output",
-        "chk_name": "verbatim",
-        "rwf_name": "verbatim",
-        "fchk_name": "verbatim",
+        "chk_name": "workspace_output",
+        "rwf_name": "workspace_output",
+        "fchk_name": "workspace_output",
     },
     "submit_compute_job": {"input_file": "workspace_input"},
     "format_converter": {"input_path": "workspace_input", "output_path": "workspace_output"},
@@ -407,6 +411,8 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
         "ts_candidate_path": "workspace_output",
         "freq_log": "workspace_input",
         "irc_log": "workspace_input",
+        "reactant_logs": "workspace_input",
+        "product_logs": "workspace_input",
     },
     "read": {"path": "workspace_input"},
     "write": {"path": "workspace_relative_only"},

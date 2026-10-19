@@ -92,6 +92,10 @@ W_ACCURACY = 0.6
 AgentBackend = Callable[[TaskSpec, Path], None]
 
 
+class BenchmarkStopped(RuntimeError):
+    """The batch requested a cooperative stop; this task must not be scored."""
+
+
 @dataclass
 class RunResult:
     task_id: str
@@ -314,6 +318,7 @@ class BenchmarkRunner:
         backend: Optional[AgentBackend] = None,
         ged_config: Optional[GedConfig] = None,
         batch_id: str = "",
+        stop_event: threading.Event | None = None,
     ):
         self.data_dir = Path(data_dir)
         self.sandboxes = self.data_dir / "sandboxes"
@@ -322,6 +327,7 @@ class BenchmarkRunner:
         self.backend = backend or _default_backend
         self.ged_config = ged_config or GedConfig()
         self.batch_id = batch_id
+        self.stop_event = stop_event if stop_event is not None else threading.Event()
 
     def sandbox_for(self, task_id: str, batch_id: str = "") -> Path:
         """题目沙箱：带批次 id 时按批分目录（``<task_id>/<batch_id>``）——
@@ -499,10 +505,16 @@ class BenchmarkRunner:
     def run_task(self, task: TaskSpec) -> RunResult:
         # 沙箱按批次分目录：本批目录天然干净，不做任何删除——上一批的交付物
         # 与证据文件永久保留（benchmark 数据珍贵，清理永由用户显式执行）。
+        if self.stop_event.is_set():
+            raise BenchmarkStopped("benchmark batch stopped")
         sandbox = self.sandbox_for(task.task_id, self.batch_id)
         sandbox.mkdir(parents=True, exist_ok=True)
         self.backend(task, sandbox)
+        if self.stop_event.is_set():
+            raise BenchmarkStopped("benchmark batch stopped")
         result = self.score_sandbox(task, sandbox)
+        if self.stop_event.is_set():
+            raise BenchmarkStopped("benchmark batch stopped")
         result.batch_id = self.batch_id
         self.db.record(result)
         return result
@@ -513,14 +525,16 @@ class BenchmarkRunner:
         try:
             return self.run_task(task)
         except Exception as exc:
-            print(f"[benchmark] task {task.task_id} crashed: {exc!r}")
+            stopped = isinstance(exc, BenchmarkStopped)
+            if not stopped:
+                print(f"[benchmark] task {task.task_id} crashed: {exc!r}")
             res = RunResult(
                 task_id=task.task_id,
                 sandbox=str(self.sandbox_for(task.task_id, self.batch_id)),
                 batch_id=self.batch_id,
                 orchestration_mode=task.prompt.orchestration_mode.value,
             )
-            res.notes.append(f"task crashed: {exc!r}")
+            res.notes.append("cancelled by batch stop" if stopped else f"task crashed: {exc!r}")
             self.db.record(res)
             return res
 
@@ -534,10 +548,16 @@ class BenchmarkRunner:
 
         results: dict[str, RunResult] = {}
         with cf.ThreadPoolExecutor(max_workers=concurrency) as pool:
-            futures = {pool.submit(self._run_one_guarded, t): t for t in tasks}
-            for fut in cf.as_completed(futures):
-                res = fut.result()
-                results[res.task_id] = res
+            try:
+                futures = {pool.submit(self._run_one_guarded, t): t for t in tasks}
+                for fut in cf.as_completed(futures):
+                    res = fut.result()
+                    results[res.task_id] = res
+            except BaseException:
+                # Set this before the executor joins its workers: every private
+                # runtime loop can then finish its own asynchronous cleanup.
+                self.stop_event.set()
+                raise
         return [results[t.task_id] for t in tasks]
 
 
