@@ -27,7 +27,7 @@
 | --- | --- | --- |
 | `reaction` | `TsReaction`，必填 | `reactant_smiles`、`product_smiles`、总 `charge`、总 `multiplicity` 必填；可选 `electronic_character`、`selected_candidate`，`reaction_center` 默认空列表 |
 | `calculations` | `dict[str, QmCalculation]`，默认 `{}` | 本次输入内的命名完整计算配置；阶段通过 `{ref: "名称"}` 明确复用，不自动继承 |
-| `conformers` | `TsConformers`，默认空组 | 两端结构来源及成环/距离指导；支持 `generate`、`file`、`catalog` 和产物绕键旋转 |
+| `conformers` | `TsConformers`，可省略 | 两端未提供来源时自动从 SMILES 生成；也可指定 `generate`、`file`、`catalog` 或产物绕键旋转，以及成环/距离指导 |
 | `guess` | `xtb_path / scan / provided / null`，默认 `null` | 有类型的路径、扫描或有来源的候选结构 |
 | `ts_optimization` | `QmCalculation / CalculationRef / null`，默认 `null` | 正式鞍点优化的独立计算配置 |
 | `verification` | `TsVerification`，默认空组 | TS 频率、IRC、两端 Opt/Freq；可提供已有 `irc_log`、端点文件种子和分离产物 `component_logs` |
@@ -54,11 +54,11 @@
 
 ## 实际原子编号与结构来源
 
-程序管理两端实际分子的原子对应关系。唯一完整映射自动采用；存在多个完整候选时，先用 `ts_inspect` 查看，再通过 `reaction.selected_candidate` 或 `reaction_mapping(run_id, selected_candidate)` 选择 **0-based** 候选。当前公开输入不再要求模型维护 `atom_map`、`heavy_atom_binding` 或结构摘要。
+程序管理两端实际分子的原子对应关系。未指定候选时，复用现有映射评分及排序，自动采用第一个完整候选；保留歧义信息并在返回消息中说明自动选择。需要研究者覆盖时，通过 `reaction.selected_candidate` 或 `reaction_mapping(run_id, selected_candidate)` 选择 **0-based** 候选。模型无需维护 `atom_map`、`heavy_atom_binding` 或结构摘要。未填写 `reaction_center` 时，从已绑定的全原子对应推导成断键；显式反应中心优先，实际编号转换由程序处理。
 
 结构/反应字段使用当前实际原子表的 **1-based 全原子编号**；ORCA 原生 scan/freeze 用 **0-based**，Gaussian/xTB 用 **1-based**。这些是实际 XYZ 中的坐标行，不是 SMILES 重原子序号。修订后以返回的当前原子表为准；历史 QM 文件保留原编号。
 
-`conformers.<role>.kind="file"` 使用传入文件；省略或设置 `optimization:null` 即不额外做构建阶段预优化，不代表它已经是极小值。生成种子显式声明 `generation="ETKDGv3"` 和 `seed`，不暗中添加力场优化。来源字段修订保留省略项，`null` 清空可选项；显式重新声明文件路径会重新导入当前字节，即使路径字符串没变。
+未填两端结构来源或将来源设为 `null` 时，程序从相应 SMILES 自动生成起始几何；默认使用已有 ETKDGv3 和种子 42，显式种子优先。`conformers.<role>.kind="file"` 使用传入文件，文件错误会明确返回。省略或设置 `optimization:null` 即不额外做构建阶段预优化，不代表它已经是极小值。来源修订保留省略项；显式重新声明文件路径会重新导入当前字节，即使路径字符串没变。返回消息及终态通知汇总实际完成的结构生成、算法与种子、原子编号、映射选择和反应中心推导，已有科学判据保持不变。
 
 程序只在实际分子图对应关系可证明时沿用旧原子身份、转换新输入的坐标编号。来源身份无法对应时清除失效的映射和相关编号声明，点名要求检查；不猜测排列，也不改写外部源文件。需要保留电荷、自由基、同位素或立体身份时同时提供与 XYZ 同序的 MOL/SDF；MOL 声明不能代替实际 XYZ 连通性检查。
 

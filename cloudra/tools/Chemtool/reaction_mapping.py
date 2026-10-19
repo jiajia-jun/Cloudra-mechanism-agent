@@ -1062,9 +1062,8 @@ def _bind_endpoint_structures(reaction, reactant, product, states, *, inspect_co
     leading = [candidate for candidate in ordered if candidate['score'] <= ordered[0]['score'] + _AMBIGUITY_SCORE_WINDOW]
     result['mapping_status'] = 'unique' if len(leading) == 1 else 'ambiguous'
     selection = reaction.selected_candidate
-    if selection is None and len(leading) != 1:
-        result['message'] = 'Concrete endpoint correspondence is ambiguous; inspect candidates and choose selected_candidate.'
-        return result
+    automatic = selection is None
+    # 不填就复用既有排序选首项；保留歧义和候选，供研究者检查或显式覆盖。
     selection = 0 if selection is None else selection
     if not 0 <= selection < len(ordered):
         raise ValueError(f'selected_candidate={selection} out of range; {len(ordered)} complete concrete candidate(s) available')
@@ -1073,7 +1072,11 @@ def _bind_endpoint_structures(reaction, reactant, product, states, *, inspect_co
                   'order_changes', 'graph_watch_pairs', 'concrete_watch_pairs'):
         result[field] = selected[field]
     result.update(binding_status='complete', binding_source='concrete', watch_pairs=selected['concrete_watch_pairs'])
-    result['message'] = 'Complete concrete endpoint correspondence accepted.'
+    result['message'] = (
+        f'Automatically selected complete concrete candidate 0 of {len(ordered)} using the existing mapping ranking. '
+        f'Mapping remains {result["mapping_status"]}; selected_candidate can override this choice.'
+        if automatic else 'Complete concrete endpoint correspondence accepted.'
+    )
     return result
 
 
@@ -1091,10 +1094,10 @@ def _mapping_json_schema(schema):
 
 class ReactionMapping_input_schema(input_schema):
     model_config = ConfigDict(extra="forbid", json_schema_extra=_mapping_json_schema)
-    run_id: str | None = Field(default=None, min_length=1, description="Existing TS run. Use only with selected_candidate to commit a concrete mapping choice; inspect candidates with ts_inspect.")
+    run_id: str | None = Field(default=None, min_length=1, description="Existing TS run. Use only with selected_candidate to commit a concrete mapping choice; independent endpoint analysis returns alternatives, while ts_inspect shows the current bound structures.")
     reactant_smiles: str | None = Field(default=None, min_length=1, description="Independent analysis: reactant SMILES; mutually exclusive with run_id.")
     product_smiles: str | None = Field(default=None, min_length=1, description="Independent analysis: product SMILES.")
-    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="0-based complete concrete candidate choice. Omit/null for automatic adoption only when unique.")
+    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="0-based complete concrete candidate override. Omit/null to adopt candidate 0 from the existing mapping ranking; ambiguity and alternatives remain available for inspection.")
     reactant_path: Optional[str] = Field(default=None, description="Path of a concrete reactant structure (mol/sdf/xyz).")
     reactant_text: Optional[str] = Field(default=None, description="Concrete reactant structure text. Path takes precedence.")
     product_path: Optional[str] = Field(default=None, description="Path of a concrete product structure (mol/sdf/xyz).")
@@ -1116,7 +1119,7 @@ class ReactionMapping_input_schema(input_schema):
             if self.model_fields_set - {'run_id', 'selected_candidate'}:
                 raise ValueError('run_id cannot be combined with independent endpoint sources')
             if self.selected_candidate is None:
-                raise ValueError('run_id requires selected_candidate; use ts_inspect to view current candidates')
+                raise ValueError('run_id requires selected_candidate; omit run_id to analyze independent endpoint candidates')
         elif not self.reactant_smiles or not self.product_smiles:
             raise ValueError('independent analysis requires both endpoint SMILES')
         return self
@@ -1160,7 +1163,7 @@ class ReactionMapping_output_schema(output_schema):
 class ReactionMapping(Tool):
     tool_id: str = "t-49"
     tool_name: str = "reaction_mapping"
-    tool_description: str = "Choose an inspected complete concrete mapping on an existing TS run, or independently analyze endpoint sources. Unique complete mappings are adopted automatically; read existing run structures and candidates with ts_inspect."
+    tool_description: str = "Choose a complete concrete mapping on an existing TS run, or independently analyze endpoint sources and alternatives. Omitted candidate choices use the existing mapping ranking automatically, with ambiguity and alternatives returned by independent analysis. Read currently bound run structures with ts_inspect."
     input_schema: Any = ReactionMapping_input_schema
     output_schema: Any = ReactionMapping_output_schema
 

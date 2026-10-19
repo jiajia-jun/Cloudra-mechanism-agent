@@ -50,6 +50,18 @@ def path_endpoints(state: ReactionStructures) -> tuple[Molecule, Molecule]:
     return copy_conformer(state.reactant), renumber_atoms(state.product, order)
 
 
+def mapped_reaction_center(state: ReactionStructures) -> list[tuple[int, int]]:
+    """从已绑定的全原子对应推导成断键；复用映射算法，不另存一份反应中心。"""
+    if state.product_to_reactant is None:
+        return []
+    from cloudra.tools.Chemtool.reaction_mapping import _edit_facts
+
+    state.complete_correspondence()
+    facts = _edit_facts(state.reactant, state.product, list(state.product_to_reactant))
+    return sorted({tuple(index - 1 for index in pair)
+                   for pair in facts['formed_bonds'] + facts['broken_bonds']})
+
+
 def heavy_binding(mol) -> list[int]:
     if mol is None:
         return []
@@ -159,7 +171,7 @@ def structure_tables(record) -> dict[str, dict]:
 
         declared = Chem.MolFromSmiles(chemical_smiles(smiles))
         snapshot = source_snapshot(mol)
-        tables[role] = dict(role=role, source_kind=source.kind if source else None,
+        tables[role] = dict(role=role, source_kind=source.kind if source else snapshot.get('kind'),
             input_revision=snapshot.get("input_revision", record.declaration_revision),
             structure_digest=concrete_structure_digest(role, smiles, reaction.charge, reaction.multiplicity,
                 mol, electronic_character=reaction.electronic_character),

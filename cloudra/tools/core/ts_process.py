@@ -47,8 +47,10 @@ from cloudra.tools.core.reaction_state import (
     export_structure,
     heavy_binding,
     import_file_structure,
+    mapped_reaction_center,
     path_endpoints,
     set_heavy_binding,
+    source_snapshot,
 )
 from cloudra.tools.core.species_identity import chemical_smiles
 from cloudra.tools.core.structure_builder import (
@@ -57,7 +59,7 @@ from cloudra.tools.core.structure_builder import (
     StructureInput,
     prepare_structure,
 )
-from cloudra.tools.core.ts_inputs import TsInput, TsResumeRequest, resolve_calculation
+from cloudra.tools.core.ts_inputs import GeneratedConformer, TsInput, TsResumeRequest, resolve_calculation
 
 #: 运行目录名（工作区下）。与 SOP §7 一致。
 TS_ROOT_NAME = "ts"
@@ -577,7 +579,8 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
     for role, smiles in endpoints:
         source = getattr(record.input.conformers, role)
         if source is None:
-            return _block(record, 'build', 'missing_input', f'Explicit conformer source required for {role}', needs=[f'conformers.{role}'])
+            # 缺省来源直接生成；保留原声明，把实际算法和种子记在生成的分子上。
+            source = GeneratedConformer(kind='generate')
         # 已导入的分子是当前事实；推进、改设置和读取状态不重读源文件。
         if source.kind == 'file':
             if getattr(record.structures, role) is None:
@@ -672,6 +675,8 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
             if value.get('origin') == 'input_atom' and value.get('symbol') != 'H':
                 atom.SetIntProp('cloudra_smiles_heavy_index', heavy.index(value['input_atom_index']))
         setattr(record.structures, role, seed_mol)
+        seed_mol.SetProp('cloudra_import_source', json.dumps(dict(kind='generate',
+            generation=source.generation, seed=source.seed, input_revision=record.declaration_revision)))
         record.evidence_candidates.extend([seed_path, mol_path, prepared.artifact_path])
         if source.optimization is not None:
             record = _optimize_conformer_source(record, role)
@@ -693,6 +698,12 @@ def _build(record: TsProcessRecord) -> TsProcessRecord:
     )
     if guidance_warnings:
         detail += '\n' + '\n'.join(guidance_warnings)
+    for role, _ in endpoints:
+        actual_source = source_snapshot(getattr(record.structures, role))
+        if actual_source.get('kind') == 'generate':
+            detail += (f"; {role} generated from SMILES with {actual_source['generation']} "
+                       f"(seed={actual_source['seed']})")
+    detail += '; atom numbering maintained automatically in the owned structures'
     _record_stage(record, "build", "done", detail, record.evidence_candidates)
     return record
 
@@ -880,7 +891,7 @@ def _optimize_conformer_source(record, role):
     return record
 
 def _active_reaction_center(record: TsProcessRecord) -> list[tuple[int, int]]:
-    center = list(record.input.reaction.reaction_center)
+    center = list(record.input.reaction.reaction_center) or mapped_reaction_center(record.structures)
     guidance = record.input.conformers.guidance
     if guidance.ring_order or guidance.distance_filters:
         plan, _ = _seed_guidance_plan(record)
@@ -1020,6 +1031,7 @@ def _bind_structures(record: TsProcessRecord) -> TsProcessRecord:
     try:
         if record.structures.product_to_reactant is not None:
             record.structures.complete_correspondence()
+            _record_stage(record, 'map', 'done', 'Full atom correspondence reused; atom numbering maintained automatically.')
             return record
         result = bind_reaction_structures(record.input, record.structures.reactant, record.structures.product)
         if result.get('binding_status') != 'complete':
@@ -1057,6 +1069,7 @@ def _bind_structures(record: TsProcessRecord) -> TsProcessRecord:
             setattr(record.structures, role, bound)
         record.structures.product_to_reactant = tuple(index - 1 for index in result['atom_map'])
         record.structures.complete_correspondence()
+        _record_stage(record, 'map', 'done', result['message'] + ' Full atom numbering maintained automatically.')
     except (ValueError, OSError) as exc:
         return _block(record, 'map', 'input_identity_unconfirmed', str(exc), needs=['conformers', 'reaction.selected_candidate'])
     return record
@@ -1089,8 +1102,6 @@ def _map(record: TsProcessRecord) -> TsProcessRecord:
                           f"product: {[a.GetSymbol() for a in right.GetAtoms()]}"],
             needs=['reaction.reactant_smiles', 'reaction.product_smiles'])
     record = _bind_structures(record)
-    if not record.blocked:
-        _record_stage(record, 'map', 'done', 'Concrete endpoint correspondence confirmed and owned by this reaction.')
     return record
 
 def _assemble(record: TsProcessRecord) -> TsProcessRecord:
@@ -1105,6 +1116,10 @@ def _assemble(record: TsProcessRecord) -> TsProcessRecord:
     components = len(Chem.GetMolFrags(mol))
     identities = [dict(index=atom.GetIdx(), symbol=atom.GetSymbol()) for atom in mol.GetAtoms()]
     active_center = _active_reaction_center(record)
+    center_note = (
+        f"; automatically derived from the bound atom map (1-based): {[(a + 1, b + 1) for a, b in active_center]}"
+        if active_center and not record.input.reaction.reaction_center else ''
+    )
     if active_center and not identities:
         return _block(
             record, "assemble", "missing_built_atom_numbering",
@@ -1134,14 +1149,14 @@ def _assemble(record: TsProcessRecord) -> TsProcessRecord:
             record, "assemble", "done",
             "single-component process whose second endpoint is a declared rotation of the first: "
             "there is no inter-fragment orientation to sample, so no reaction_center applies — the "
-            "declared rotation is the reaction coordinate",
+            "declared rotation is the reaction coordinate" + center_note,
         )
         return record
     if components <= 1:
         _record_stage(
             record, "assemble", "done",
             "single component: nothing to assemble (no inter-fragment orientation). The reaction "
-            "coordinate is whatever the path guess explores",
+            "coordinate is whatever the path guess explores" + center_note,
         )
         return record
     if not active_center:
@@ -1154,7 +1169,7 @@ def _assemble(record: TsProcessRecord) -> TsProcessRecord:
         )
     _record_stage(
         record, "assemble", "done",
-        f"{len(active_center)} reaction-centre pair(s) guide the assembly",
+        f"{len(active_center)} reaction-centre pair(s) guide the assembly" + center_note,
     )
     return record
 

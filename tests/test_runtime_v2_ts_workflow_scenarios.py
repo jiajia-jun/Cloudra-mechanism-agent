@@ -40,6 +40,49 @@ class StateProvider(ScriptedProvider):
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('rdkit_chemistry')
+async def test_ts_prepare_automates_omitted_preparation_and_reports_it(tmp_path):
+    """真实 Agent→TS 工具→持久流程：缺省准备自动完成，研究选择仍明确返回。"""
+    from cloudra.tools.core.ts_process import _active_reaction_center, load_record
+
+    assert 'ts_automatic_preparation' in TS_SCENARIOS
+    payload = {'reaction': {'reactant_smiles': '[F-].CCl', 'product_smiles': 'CF.[Cl-]',
+                            'charge': -1, 'multiplicity': 1}}
+    provider = ScriptedProvider(by_role={'small_mol': [
+        Step(tools=[('ts_prepare', {'input': payload})]),
+        Step(tools=[('ts_inspect', {'run_id': 'ts_0001'})]),
+        Step(stop=True),
+    ]})
+    harness = await ScenarioHarness.start(tmp_path, workspace_dir=tmp_path, provider=provider)
+    try:
+        agent = await harness.spawn('small_mol', protocol='traditional')
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        assert [(call['tool_name'], call['is_success']) for call in calls] == [
+            ('ts_prepare', True), ('ts_inspect', True)], harness.describe(agent)
+        for call in calls:
+            result = call['result_data']
+            assert result['status'] == 'blocked' and result['stage'] == 'guess'
+            assert result['next']['required_inputs'] == ['guess']
+            assert result['result'] is None
+            assert {row['stage'] for row in result['available_results']} >= {'build', 'map', 'assemble'}
+            for role in ('reactant', 'product'):
+                structure = result['structures'][role]
+                assert structure['source_kind'] == 'generate'
+                assert structure['source']['generation'] == 'ETKDGv3'
+                assert structure['source']['seed'] == 42
+                assert structure['binding_status'] == 'complete'
+                assert [row['number'] for row in structure['atoms']] == list(range(1, structure['atom_count'] + 1))
+            assert 'ETKDGv3' in result['message'] and 'seed=42' in result['message']
+            assert 'automatically derived' in result['message']
+        record = await asyncio.to_thread(load_record, str(tmp_path), 'ts_0001')
+        assert record.input.conformers.reactant is None and record.input.reaction.reaction_center == []
+        assert set(_active_reaction_center(record)) == {(0, 1), (1, 2)}
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
 async def test_ts_conformer_source_revision_same_run(tmp_path, monkeypatch):
     from cloudra.persistence.database import ComputeDB
     from cloudra.tools.core.ts_process import load_record
@@ -680,6 +723,7 @@ async def test_ts_readonly_inspection(tmp_path):
     from cloudra.tools.core.ts_process import load_record
     inputs=water_input(tmp_path)
     inputs['conformers']={}
+    inputs['guess']=None
     provider=ScriptedProvider(by_role={'small_mol':[Step(tools=[('ts_prepare',{'input':inputs})]),Step(stop=True)],
         'explorer':[Step(tools=[('ts_inspect',{'run_id':'ts_0001'})]),Step(tools=[('ts_prepare',{'input':inputs})]),Step(stop=True)]})
     harness=await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
@@ -691,7 +735,7 @@ async def test_ts_readonly_inspection(tmp_path):
         await harness.wait_terminal(reviewer)
         assert [(e['tool_name'],e['is_success']) for e in harness.tool_events(reviewer)]==[('ts_inspect',True),('ts_prepare',False)],harness.describe(reviewer)
         after=await asyncio.to_thread(load_record,str(tmp_path),'ts_0001')
-        assert after.model_dump()==before.model_dump()
+        assert after.model_dump(mode='json')==before.model_dump(mode='json')
         def jobs():
             with ComputeDB().connect() as con:
                 return con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0]
@@ -747,7 +791,7 @@ async def test_ts_resume_scan_without_freeze(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('rdkit_chemistry')
 async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
-    """A scripted Agent reads the true 16-atom table and repairs both bindings without probing numbers."""
+    """A native scan repair uses the automatic full-atom mapping and the true 16-atom table."""
     assert 'ts_d1_atom_binding_native_scan_recovery' in TS_SCENARIOS
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.compute_admission import AdmissionOutcome
@@ -768,26 +812,9 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job',
                         lambda **_: AdmissionOutcome(ok=True,node_id='fixture',scheduler='local'))
 
-    def repair(provider):
-        if provider.call_count('small_mol') != 3:
-            return
-        record = load_record(str(tmp_path), 'ts_0001')
-        assert record.blocked.failure_class == 'input_identity_unconfirmed'
-        from cloudra.tools.core.reaction_state import structure_tables
-        tables = structure_tables(record)
-        assert [row['symbol'] for row in tables['reactant']['atoms'][4:6]] == ['H','H']
-        candidates = record.blocked.issues[0]['candidates']
-        assert all(len(candidate['atom_map']) == 16 for candidate in candidates)
-        selected = next(i for i, candidate in enumerate(candidates) if candidate['atom_map'] == list(range(1,17)))
-        changes = {'reaction': {'selected_candidate': selected}}
-        provider._scripts['small_mol'][0].tools = [('ts_resume', {
-            'run_id':record.run_id,
-            'reason':'Bind both concrete endpoint atom orders and the complete all-atom map',
-            'changes':changes})]
-
     provider = StateProvider(tmp_path, [Step(tools=[('ts_prepare', {'input':invalid})]),
         Step(tools=[('ts_prepare', {'input':base})]),
-        Step(tools=[('ts_inspect', {'run_id':'ts_0001'})]), Step(), Step(stop=True)], repair)
+        Step(tools=[('ts_inspect', {'run_id':'ts_0001'})]), Step(stop=True)])
     harness = await ScenarioHarness.start(tmp_path,workspace_dir=tmp_path,provider=provider)
     provider.harness = harness
     try:
@@ -795,9 +822,14 @@ async def test_ts_d1_atom_binding_native_scan_recovery(tmp_path, monkeypatch):
         await harness.wait_terminal(agent)
         calls = harness.tool_events(agent)
         assert [(item['tool_name'],item['is_success']) for item in calls] == [
-            ('ts_prepare',False),('ts_prepare',True),('ts_inspect',True),('ts_resume',True)], harness.describe(agent)
+            ('ts_prepare',False),('ts_prepare',True),('ts_inspect',True)]
+        inspected = calls[-1]['result_data']
+        assert [row['symbol'] for row in inspected['structures']['reactant']['atoms'][4:6]] == ['H','H']
+        assert inspected['structures']['reactant']['binding_status'] == 'complete'
         record = await asyncio.to_thread(load_record,str(tmp_path),'ts_0001')
-        assert record.structures.product_to_reactant is not None
+        assert sorted(record.structures.product_to_reactant) == list(range(16))
+        assert record.input.reaction.selected_candidate is None
+        assert record.input.guess.scans[0].atoms == [3,10]
         assert record.blocked is None, record.blocked
         assert record.waiting_for and record.scan_step and record.scan_step.purpose == 'scan'
         with ComputeDB().connect() as con:

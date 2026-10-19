@@ -128,7 +128,8 @@ def test_guided_source_uses_its_explicit_calculation_and_bound_windows(tmp_path,
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")
-def test_file_sources_are_copied_immutably_and_missing_source_blocks(tmp_path):
+def test_file_sources_are_immutable_and_omitted_sources_are_generated(tmp_path):
+    from cloudra.tools.core.reaction_state import source_snapshot
     from cloudra.tools.core.ts_process import _build, _read_built_xyz
 
     seed = tmp_path / "seed.xyz"
@@ -145,7 +146,9 @@ def test_file_sources_are_copied_immutably_and_missing_source_blocks(tmp_path):
     seed.write_text("source subsequently edited")
     assert Path(copied).read_bytes() == accepted_bytes
     record = record_fixture(tmp_path, input=TsInput.model_validate(dict(value, conformers={})))
-    assert _build(record).blocked.needs == ["conformers.reactant"]
+    assert _build(record).blocked is None
+    assert source_snapshot(record.structures.reactant)['kind'] == 'generate'
+    assert record.input.conformers.reactant is None
 
 
 @pytest.mark.usefixtures('rdkit_chemistry')

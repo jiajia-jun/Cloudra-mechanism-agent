@@ -42,6 +42,92 @@ def test_ended_workflow_preserves_recorded_scientific_verdict(tmp_path, terminal
     assert view.model_dump(mode="json")["result"] == view.result
 
 
+@pytest.mark.parametrize('terminal', ['candidate_only', 'verified'])
+def test_result_message_keeps_completed_program_preparation_after_later_revision(tmp_path, terminal):
+    """已完成的准备工作跨方法修订保留，但不能改写科学结论。"""
+    from copy import deepcopy
+
+    details = [
+        'Generated reactant and product from SMILES using ETKDGv3, seed=42; numbered atoms automatically.',
+        'Automatically adopted the complete reaction atom mapping.',
+        'Derived reaction centers from confirmed bond changes: [[1, 3]].',
+    ]
+    stages = [dict(stage=stage, status='done', detail=detail, source_input_revision=1)
+              for stage, detail in zip(('build', 'map', 'assemble'), details, strict=True)]
+    stages.append(dict(stage='verdict', status='done', detail='Recorded scientific check', source_input_revision=2))
+    state = dict(format_version=7, run_id='ts_prepared', revision=8, declaration_revision=2,
+        run_dir=str(tmp_path), stage='verdict', terminal=terminal, stage_records=stages,
+        input=state_input())
+    before = deepcopy(state)
+
+    view = build_process_view(state, [], can_write=False)
+
+    assert all(detail in view.message for detail in details)
+    assert view.result['reason'] == 'Recorded scientific check'
+    assert view.result['verified'] is (terminal == 'verified')
+    assert state == before
+
+
+def test_message_reports_only_completed_preparation_stages(tmp_path):
+    state = dict(format_version=7, run_id='ts_blocked', revision=1, declaration_revision=1,
+        run_dir=str(tmp_path), stage='map', blocked={'message': 'Identity does not match'},
+        stage_records=[dict(stage='build', status='done', detail='Automatically generated the reactant.'),
+                       dict(stage='map', status='blocked', detail='Do not report this as completed preparation.')],
+        input=state_input())
+
+    view = build_process_view(state, [], can_write=True)
+
+    assert 'Identity does not match' in view.message
+    assert 'Automatically generated the reactant.' in view.message
+    assert 'Do not report this as completed preparation.' not in view.message
+    assert view.result is None
+
+
+def partial_preparation_state(tmp_path, *, waiting=False):
+    import json
+
+    from rdkit import Chem
+
+    from cloudra.tools.core.reaction_state import ReactionStructures
+
+    generated = Chem.AddHs(Chem.MolFromSmiles('O'))
+    generated.SetProp('cloudra_import_source', json.dumps(dict(kind='generate', generation='ETKDGv3', seed=42)))
+    return dict(format_version=7, run_id='ts_partial', revision=2, declaration_revision=1,
+        run_dir=str(tmp_path), stage='build', structures=ReactionStructures(reactant=generated).model_dump(mode='json'),
+        waiting_for='job:17' if waiting else '',
+        blocked=None if waiting else dict(message='Explicit product file is missing', needs=['conformers.product']),
+        stage_records=[dict(stage='build', status='waiting' if waiting else 'blocked',
+                            detail='Waiting for preoptimization' if waiting else 'Explicit product file is missing')],
+        input=state_input(conformers={'product': {'kind': 'file', 'xyz_path': 'missing.xyz'}}))
+
+
+@pytest.mark.usefixtures('rdkit_chemistry')
+@pytest.mark.parametrize('waiting', [False, True])
+def test_partial_build_reports_generated_side_before_wait_or_other_side_failure(tmp_path, waiting):
+    """完成一端后即使整阶段未结束，也要如实报告已经代办的生成与编号。"""
+    state = partial_preparation_state(tmp_path, waiting=waiting)
+    jobs = [dict(job_id=17, state='running')] if waiting else []
+
+    view = build_process_view(state, jobs, can_write=True)
+
+    assert view.status == ('waiting' if waiting else 'blocked')
+    assert view.structures['reactant']['source'] == dict(kind='generate', generation='ETKDGv3', seed=42)
+    assert 'reactant' in view.message and 'ETKDGv3' in view.message and 'seed=42' in view.message
+    assert 'product generated' not in view.message
+    assert view.result is None
+
+
+@pytest.mark.usefixtures('rdkit_chemistry')
+def test_completed_build_detail_does_not_duplicate_generated_source_summary(tmp_path):
+    state = partial_preparation_state(tmp_path)
+    detail = 'Reactant generated from SMILES with ETKDGv3 (seed=42).'
+    state['stage_records'] = [dict(stage='build', status='done', detail=detail)]
+
+    view = build_process_view(state, [], can_write=True)
+
+    assert view.message.count('ETKDGv3') == 1
+
+
 def test_scan_actual_configuration_contract_and_artifact_survive_separate_scan_step(tmp_path):
     from copy import deepcopy
 

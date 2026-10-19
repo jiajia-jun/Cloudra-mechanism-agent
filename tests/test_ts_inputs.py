@@ -27,6 +27,47 @@ def input_payload():
     }
 
 
+def test_generated_conformer_supplies_omitted_algorithm_and_seed():
+    from cloudra.tools.core.ts_inputs import GeneratedConformer
+
+    source = GeneratedConformer(kind='generate')
+
+    assert source.generation == 'ETKDGv3'
+    assert source.seed == 42
+    assert source.optimization is None
+
+
+def test_generated_conformer_preserves_an_explicit_seed():
+    from cloudra.tools.core.ts_inputs import TsInput
+
+    payload = input_payload()
+    payload['conformers'] = {
+        'reactant': {'kind': 'generate', 'seed': 2718},
+        'product': {'kind': 'generate'},
+    }
+
+    current = TsInput.model_validate(payload)
+
+    assert current.conformers.reactant.seed == 2718
+    assert current.conformers.product.seed == 42
+    assert current.conformers.reactant.generation == 'ETKDGv3'
+
+
+def test_revising_file_source_to_generation_uses_program_defaults():
+    from cloudra.tools.core.ts_inputs import TsInput, TsInputChanges, apply_input_changes
+
+    current = TsInput.model_validate(input_payload())
+    updated = apply_input_changes(current, TsInputChanges.model_validate({
+        'conformers': {'reactant': {'kind': 'generate'}},
+    }))
+
+    assert updated.conformers.reactant.kind == 'generate'
+    assert updated.conformers.reactant.generation == 'ETKDGv3'
+    assert updated.conformers.reactant.seed == 42
+    assert updated.conformers.product == current.conformers.product
+    assert current.conformers.reactant.kind == 'file'
+
+
 def test_execution_does_not_accept_an_intervention_quota():
     from cloudra.tools.core.ts_inputs import TsExecutionLimits, TsInputChanges
 

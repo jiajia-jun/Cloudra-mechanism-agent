@@ -171,7 +171,7 @@ def _revise_structures(record, revised, changes):
         revised.structures.product_to_reactant = None
     for role in ('reactant', 'product'):
         source = getattr(revised.input.conformers, role)
-        if (role in species_changed or electronic_changed) and source and source.kind == 'generate':
+        if (role in species_changed or electronic_changed) and (source is None or source.kind == 'generate'):
             setattr(revised.structures, role, None)
         elif role in species_changed:
             mol = getattr(revised.structures, role)

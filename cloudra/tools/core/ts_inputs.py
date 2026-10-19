@@ -72,14 +72,14 @@ class TsReaction(InputModel):
     multiplicity: StrictInt = Field(ge=1)
     electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
         description="Optional declared electronic character, including open-shell singlets. This describes the requested seed state; it does not choose a ground state, wavefunction method or spin initialization.")
-    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="Choose an inspected complete concrete mapping candidate by its 0-based index only when correspondence is ambiguous. A unique complete mapping is adopted automatically; omitted/null never silently selects candidate 0.")
-    reaction_center: list[tuple[StrictInt, StrictInt]] = Field(default_factory=list, description="Forming/breaking atom pairs in the bound reactant's full coordinate order, 1-based and including explicit hydrogens. Use reaction_mapping.concrete_watch_pairs for the same concrete structure.")
+    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="Optional 0-based override of the existing algorithm's ranked complete mapping candidates. Omitted/null adopts its first candidate automatically and reports the choice.")
+    reaction_center: list[tuple[StrictInt, StrictInt]] = Field(default_factory=list, description="Optional forming/breaking atom pairs in the bound reactant's full coordinate order, 1-based and including explicit hydrogens. Omitted/empty derives the pairs from the bound reaction mapping.")
 
 
 class GeneratedConformer(InputModel):
     kind: Literal["generate"]
-    generation: Literal["ETKDGv3"]
-    seed: StrictInt
+    generation: Literal["ETKDGv3"] = 'ETKDGv3'
+    seed: StrictInt = 42
     optimization: CalculationValue | None = None
 
 
@@ -120,8 +120,10 @@ class ConformerGuidance(InputModel):
 
 
 class TsConformers(InputModel):
-    reactant: ConformerSource | None = None
-    product: ConformerSource | None = None
+    reactant: ConformerSource | None = Field(default=None,
+        description='Optional explicit reactant source. Omit or set null to generate the starting geometry from reaction.reactant_smiles with the program defaults.')
+    product: ConformerSource | None = Field(default=None,
+        description='Optional explicit product source. Omit or set null to generate the starting geometry from reaction.product_smiles with the program defaults.')
     guidance: ConformerGuidance = Field(default_factory=ConformerGuidance)
 
 

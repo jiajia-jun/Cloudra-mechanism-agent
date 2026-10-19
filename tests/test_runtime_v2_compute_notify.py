@@ -110,6 +110,60 @@ def _notified_at(job_id: int):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('native_failure', [None, 'Native optimization did not converge'])
+async def test_ts_completion_reports_program_preparation_with_scientific_or_native_failure(tmp_path, native_failure):
+    """准备摘要要进真实结束通知，不能被科学结论或原生失败原因遮住。"""
+    from cloudra.tools.core.ts_state_view import build_process_view
+    from tests.test_ts_state_view import state_input
+
+    core, project, coordinator = await _setup_core()
+    path = tmp_path / 'ts.inp'
+    await asyncio.to_thread(path.write_text, '! HF STO-3G OptTS\n')
+    job_state = 'failed' if native_failure else 'done'
+    job = await asyncio.to_thread(_insert_terminal_job, project.id, session_id=coordinator.id,
+        path=str(path), jobtype='orca', state=job_state, last_error=native_failure)
+    details = ['Generated both endpoints from SMILES with ETKDGv3, seed=42.',
+               'Automatically mapped and numbered the endpoint atoms.',
+               'Derived reaction centers: [[1, 3]].']
+    state = dict(format_version=7, run_id='ts_auto', revision=2, declaration_revision=2,
+        run_dir=str(tmp_path), stage='verdict', terminal='candidate_only', input=state_input(),
+        stage_records=[*[
+            dict(stage=stage, status='done', detail=detail, source_input_revision=1)
+            for stage, detail in zip(('build', 'map', 'assemble'), details, strict=True)],
+            dict(stage='verdict', status='done', detail='Frequency did not establish a first-order saddle.')])
+    view = build_process_view(state, [], can_write=False).model_dump(mode='json')
+
+    content = await ComputeNotifyBroker(core)._content_for(job, job_state, view=view)
+
+    assert all(detail in content for detail in details)
+    assert 'verified=false' in content
+    assert (native_failure or view['result']['reason']) in content
+    assert view['result']['verified'] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.usefixtures('rdkit_chemistry')
+async def test_ts_notice_reports_generated_side_when_build_has_no_completed_record(tmp_path):
+    from cloudra.tools.core.ts_state_view import build_process_view
+    from tests.test_ts_state_view import partial_preparation_state
+
+    core, project, coordinator = await _setup_core()
+    path = tmp_path / 'preopt.inp'
+    await asyncio.to_thread(path.write_text, '! HF STO-3G Opt\n')
+    job = await asyncio.to_thread(_insert_terminal_job, project.id, session_id=coordinator.id,
+        path=str(path), jobtype='orca', state='failed', last_error='Preoptimization did not converge')
+    state = await asyncio.to_thread(partial_preparation_state, tmp_path)
+    view = build_process_view(state, [], can_write=False).model_dump(mode='json')
+
+    content = await ComputeNotifyBroker(core)._content_for(job, 'failed', view=view)
+
+    assert 'Preoptimization did not converge' in content
+    assert 'reactant' in content and 'ETKDGv3' in content and 'seed=42' in content
+    assert 'product generated' not in content
+    assert 'verified=false' in content
+
+
+@pytest.mark.asyncio
 async def test_poll_delivers_agent_message_and_marks_notified():
     core, project, coordinator = await _setup_core()
     job_id = _insert_terminal_job(project.id, session_id=coordinator.id)
@@ -1110,12 +1164,14 @@ async def test_ts_outcome_wakes_owner_while_high_throughput_jobs_run(tmp_path, o
         assert str(tmp_path) in reflections[0].data["content"]
         persisted = await asyncio.to_thread(store.events_after, {})
         pin_index = next(index for index, row in enumerate(persisted)
-                         if row["type"] == "context.pin_set" and row["session_id"] == child.id)
+                         if row["type"] == "context.pin_set" and row["session_id"] == child.id
+                         and row['data']['key'].startswith('guidance-scientific-reflection:'))
         message_index = next(index for index, row in enumerate(persisted)
                              if row["type"] == "agent.message_injected" and row["session_id"] == child.id)
         assert pin_index < message_index
         await broker._poll_project(project.id)
-        assert len(core.event_log.query_session(child.id, types={"context.pin_set"})) == 1
+        assert sum(event.data['key'].startswith('guidance-scientific-reflection:')
+                   for event in core.event_log.query_session(child.id, types={"context.pin_set"})) == 1
     assert not core.event_log.query_session(coordinator.id, types={"context.pin_set"})
 
 

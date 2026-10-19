@@ -387,6 +387,11 @@ class ComputeNotifyBroker:
             if reason:
                 observation += f" {reason}"
             lines.append('Physical Reality: ' + observation)
+            from cloudra.tools.core.ts_state_view import preparation_summary
+
+            preparation = preparation_summary(view.get('available_results', []), view.get('structures'))
+            if preparation and preparation not in (reason or ''):
+                lines.append(preparation)
             inspect = f"ts_inspect(run_id={view['run_id']!r})"
             frequency = view.get('frequency_analysis') or {}
             alignment = frequency.get('mode_alignment') or {}

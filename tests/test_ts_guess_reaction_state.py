@@ -78,7 +78,7 @@ async def test_unresolved_xyz_does_not_establish_endpoint_identity(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_independent_mapping_ambiguity_reports_complete_candidates_for_selection(tmp_path):
+async def test_independent_mapping_ambiguity_uses_ranked_default_and_allows_override(tmp_path):
     Chem = pytest.importorskip('rdkit.Chem')
     mol = Chem.AddHs(Chem.MolFromSmiles('CC'))
     conf = Chem.Conformer(mol.GetNumAtoms())
@@ -87,16 +87,18 @@ async def test_independent_mapping_ambiguity_reports_complete_candidates_for_sel
     mol.AddConformer(conf)
     source = Chem.MolToMolBlock(mol)
     tool = TsGuess()
-    ambiguous = await tool.tool_call(TsGuess_input_schema(mode='interpolate',
+    automatic = await tool.tool_call(TsGuess_input_schema(mode='interpolate',
         reactant_text=source, product_text=source, n_images=2, interp_method='linear',
-        output_dir=str(tmp_path / 'ambiguous')), None)
-    assert not ambiguous.is_success
-    assert len(ambiguous.mapping_candidates) > 1
-    assert all(len(candidate['atom_map']) == 8 for candidate in ambiguous.mapping_candidates)
+        output_dir=str(tmp_path / 'automatic')), None)
+    assert automatic.is_success, automatic.message
+    assert len(list((tmp_path / 'automatic').glob('img_*.xyz'))) == 2
+    assert all(path.read_text().splitlines()[0] == '8'
+               for path in (tmp_path / 'automatic').glob('img_*.xyz'))
     selected = await tool.tool_call(TsGuess_input_schema(mode='interpolate',
         reactant_text=source, product_text=source, selected_candidate=1, n_images=2,
         interp_method='linear', output_dir=str(tmp_path / 'selected')), None)
     assert selected.is_success, selected.message
+    assert len(list((tmp_path / 'selected').glob('img_*.xyz'))) == 2
 
 
 @pytest.mark.asyncio

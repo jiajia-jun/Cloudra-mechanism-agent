@@ -210,13 +210,16 @@ def test_evidence_candidates_never_include_per_iteration_frames(tmp_path):
 
 
 
-def test_missing_reaction_center_blocks_with_a_reason(tmp_path):
-    """没有反应中心 → 普通复合物模式；不能当成"反应复合物已生成"，因此阻塞。"""
+def test_missing_reaction_center_is_derived_from_confirmed_atom_mapping(tmp_path):
+    """已有完整对应时复用成断键，不要求模型回填同一份编号。"""
+    from cloudra.tools.core.ts_process import _active_reaction_center
+
     record = _start(tmp_path, reaction_center=[])
     assert record.terminal is None
-    assert record.blocked.stage == "assemble"
-    assert record.blocked.failure_class == "reaction_center_missing"
-    assert record.blocked.needs == ["reaction.reaction_center"]
+    assert record.blocked.stage == "guess"
+    assert set(_active_reaction_center(record)) == {(0, 1), (1, 2)}
+    assert record.stage_record('assemble').status == 'done'
+    assert record.input.reaction.reaction_center == []
 
 
 def test_out_of_range_reaction_center_blocks_with_built_atom_numbering(tmp_path):

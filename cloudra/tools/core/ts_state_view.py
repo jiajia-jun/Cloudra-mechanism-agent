@@ -62,6 +62,20 @@ def _current_structure_tables(state: dict) -> tuple[dict[str, dict], list[dict]]
     return structure_tables(record), []
 
 
+def preparation_summary(stages: list[dict], structures: dict[str, dict] | None = None) -> str:
+    """复用已完成的准备记录；方法修订保留的有效阶段仍然属于本次流程。"""
+    completed = [row for row in stages if row.get('stage') in {'build', 'map', 'assemble'}
+                 and row.get('status') == 'done' and row.get('detail')]
+    details = [row['detail'] for row in completed]
+    if not any(row['stage'] == 'build' for row in completed):
+        for role, table in (structures or {}).items():
+            source = table.get('source') or {}
+            if source.get('kind') == 'generate':
+                details.append(f"{role} generated from SMILES with {source['generation']} "
+                               f"(seed={source['seed']}); atom numbering maintained automatically in the owned structure")
+    return 'Preparation performed:\n' + '\n'.join('- ' + detail for detail in details) if details else ''
+
+
 def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsProcessView:
     """Project recorded facts only: no computation, mutation or reparsing logs."""
     active = [deepcopy(job) for job in jobs if job.get("state") not in ("done", "failed", "cancelled")]
@@ -163,6 +177,9 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
     if export_revision is not None and export_revision != state['revision']:
         export_note = f'JSON export is stale (revision {export_revision}); use this authoritative revision {state["revision"]} and its current atom tables.'
         message = f'{message}; {export_note}' if message else export_note
+    preparation = preparation_summary(state.get('stage_records', []), structures) if supported else ''
+    if preparation:
+        message = f'{message}\n{preparation}' if message else preparation
     return TsProcessView(
         run_id=state["run_id"], revision=state["revision"], run_dir=state["run_dir"], status=status,
         stage=state["stage"], result=dict(outcome=terminal, verified=terminal == "verified", reason=detail,

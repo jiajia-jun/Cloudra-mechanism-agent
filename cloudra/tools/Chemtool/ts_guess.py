@@ -216,7 +216,7 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
     run_id: str | None = Field(default=None, min_length=1,
         description='Existing TS run in the current project and workspace. Mutually exclusive with endpoint files/text, charge/multiplicity/electronic_character and output/resource overrides. Guess changes use the existing revision transaction and automatic queue.')
     selected_candidate: StrictInt | None = Field(default=None, ge=0,
-        description='Independent endpoint analysis: choose a reported complete concrete atom-correspondence candidate (0-based). Omit when mapping is unique; genuine ambiguity requires an explicit choice.')
+        description='Independent endpoint analysis: optional 0-based override of a complete concrete atom-correspondence candidate. Omitted/null uses the existing mapping ranking automatically.')
     evidence_refs: list[str] = Field(default_factory=list,
         description='provided with run_id: source evidence for the supplied TS candidate.')
 
@@ -392,7 +392,7 @@ class TsGuess_output_schema(output_schema):
     diagnostics: list[str] = Field(default_factory=list,
         description='Original independent path-runner diagnostics; retained on failure and explicit interpolation fallback.')
     mapping_candidates: list[dict] = Field(default_factory=list,
-        description='Independent geometry analysis: complete concrete endpoint correspondences when mapping is ambiguous. Choose one with selected_candidate; these are mapping alternatives, not verified TS results.')
+        description='Independent geometry analysis: available endpoint correspondence alternatives when binding cannot be completed. These are mapping alternatives, not verified TS results; selected_candidate can specify an override.')
     calculation: QmCalculation | None = Field(default=None,
         description="scan_prepare: complete settings of the written input/manifest. Preparation is not a calculation result or TS validation.")
 

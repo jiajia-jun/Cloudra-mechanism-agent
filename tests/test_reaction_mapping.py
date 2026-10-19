@@ -150,6 +150,48 @@ def test_unbalanced_reaction_is_operational_failure():
         analyze_reaction_mapping("CC", "CCC")
 
 
+def test_ts_mapping_automatically_adopts_ranked_complete_symmetric_binding():
+    from cloudra.tools.Chemtool.reaction_mapping import bind_reaction_structures
+    from cloudra.tools.core.ts_inputs import TsInput
+
+    declaration = TsInput(reaction={
+        'reactant_smiles': 'CC', 'product_smiles': 'CC', 'charge': 0, 'multiplicity': 1,
+    })
+    reactant = Chem.AddHs(Chem.MolFromSmiles('CC'))
+    product = Chem.AddHs(Chem.MolFromSmiles('CC'))
+
+    result = bind_reaction_structures(declaration, reactant, product)
+    repeated = bind_reaction_structures(declaration, reactant, product)
+
+    assert result['mapping_status'] == 'ambiguous'
+    assert result['binding_status'] == 'complete'
+    assert result['atom_map'] == result['candidates'][0]['atom_map']
+    assert repeated['atom_map'] == result['atom_map']
+    assert sorted(result['atom_map']) == list(range(1, reactant.GetNumAtoms() + 1))
+    assert 'Automatically selected' in result['message']
+
+
+def test_ts_mapping_explicit_candidate_overrides_automatic_selection():
+    from cloudra.tools.Chemtool.reaction_mapping import bind_reaction_structures
+    from cloudra.tools.core.ts_inputs import TsInput
+
+    declaration = TsInput(reaction={
+        'reactant_smiles': 'CC', 'product_smiles': 'CC', 'charge': 0, 'multiplicity': 1,
+    })
+    reactant = Chem.AddHs(Chem.MolFromSmiles('CC'))
+    product = Chem.AddHs(Chem.MolFromSmiles('CC'))
+    automatic = bind_reaction_structures(declaration, reactant, product)
+    selected = len(automatic['candidates']) - 1
+    assert selected > 0
+    declaration.reaction.selected_candidate = selected
+
+    result = bind_reaction_structures(declaration, reactant, product)
+
+    assert result['binding_status'] == 'complete'
+    assert result['atom_map'] == automatic['candidates'][selected]['atom_map']
+    assert result['atom_map'] != automatic['atom_map']
+
+
 @pytest.mark.asyncio
 async def test_tool_returns_advisory_mapping_result(mock_session):
     """工具边界应保留 ambiguous，而不是把顶层候选改写成 pass。"""
@@ -164,9 +206,8 @@ async def test_tool_returns_advisory_mapping_result(mock_session):
     assert result.is_success is True
     assert result.mapping_status == "ambiguous"
     assert any(c["heavy_atom_map"] == [4, 5, 6, 1, 2, 3] for c in result.candidates)
-    assert result.binding_status == 'inconclusive'
-    assert result.atom_map == []
-    assert result.candidates[0]['atom_map']
+    assert result.binding_status == 'complete'
+    assert result.atom_map == result.candidates[0]['atom_map']
 
 
 @pytest.mark.asyncio
@@ -299,7 +340,7 @@ async def test_concrete_watch_pairs_follow_renumbered_reactant_coordinates(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_symmetric_concrete_embedding_is_inconclusive_without_labels(tmp_path, mock_session):
+async def test_symmetric_concrete_embedding_uses_ranked_mapping_without_manual_labels(tmp_path, mock_session):
     reactant = tmp_path / "ethane_r.mol"
     product = tmp_path / "ethane_p.mol"
     _write_mol(reactant, "CC")
@@ -316,8 +357,9 @@ async def test_symmetric_concrete_embedding_is_inconclusive_without_labels(tmp_p
     )
 
     assert result.reactant_identity == result.product_identity == "match"
-    assert result.binding_status == "inconclusive"
-    assert result.atom_map == []
+    assert result.binding_status == "complete"
+    assert result.atom_map == result.candidates[0]['atom_map']
+    assert result.mapping_status == 'ambiguous'
     assert any("symmetric" in item or "not unique" in item for item in result.binding_diagnostics)
 
 
