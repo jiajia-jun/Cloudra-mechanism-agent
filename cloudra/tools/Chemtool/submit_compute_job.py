@@ -79,8 +79,8 @@ class SubmitComputeJob_input_schema(input_schema):
         ge=1,
         le=1024,
         description=(
-            "CPU cores to reserve on the node. Omit to infer Gaussian %nprocshared "
-            "or ORCA %pal nprocs from the input; when absent there too, defaults to 1. "
+            "CPU cores to reserve on the node. Omit to infer Gaussian %nprocshared/%nproc "
+            "or ORCA PALn/%pal nprocs from the input; when absent there too, defaults to 1. "
             "An explicit value must be at least the input's request. Shell scripts are not parsed for resources; "
             "declare the cores their commands need, or omit for 1 CPU."
         ),
@@ -212,12 +212,15 @@ class SubmitComputeJob(Tool):
 
         # Omitted resources follow the input file's declarations.  Explicit
         # under-declarations remain errors in the shared admission check.
-        cpus = user_input.cpus
-        if cpus is None:
-            cpus = scan_task.cpus if scan_task else await asyncio.to_thread(declared_cpus, f_path, user_input.job_type) or 1
-        memory_mb = user_input.memory_mb
-        if memory_mb is None:
-            memory_mb = await asyncio.to_thread(declared_memory_mb, f_path, user_input.job_type)
+        try:
+            cpus = user_input.cpus
+            if cpus is None:
+                cpus = scan_task.cpus if scan_task else await asyncio.to_thread(declared_cpus, f_path, user_input.job_type) or 1
+            memory_mb = user_input.memory_mb
+            if memory_mb is None:
+                memory_mb = await asyncio.to_thread(declared_memory_mb, f_path, user_input.job_type)
+        except ValueError as exc:
+            return SubmitComputeJob_output_schema(is_success=False, message=f"Invalid resource declarations: {exc}")
 
         # 准入可能含 SSH 远端环境探测（阻塞 subprocess），一律离开事件循环线程。
         admission = await asyncio.to_thread(

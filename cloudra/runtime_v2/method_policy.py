@@ -72,7 +72,9 @@ _GAUSSIAN_JOB_TOKENS = {
 }
 _ORCA_JOB_TOKENS = {
     "opt", "freq", "irc", "scan", "sp", "ts", "optts", "numfreq", "tightscf",
-    "verytightscf", "slowconv", "normalprint", "smallprint", "largeprint",
+    "verytightscf", "loosescf", "slowconv", "normalprint", "smallprint", "largeprint", "engrad",
+    # SCF solvers select convergence machinery, not a different electronic method.
+    "soscf", "nososcf", "diis", "nodiis", "trah", "notrah",
     "noproperty", "d3", "d3bj", "d3zero", "d4", "ri", "rijcosx", "noautostart", "enzym",
     # 波函数类型修饰符，不是方法本身
     "rks", "uks", "roks", "rhf", "uhf", "rohf",

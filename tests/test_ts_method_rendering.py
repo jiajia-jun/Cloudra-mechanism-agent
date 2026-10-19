@@ -53,7 +53,8 @@ async def test_gaussian_writer_saves_native_basis_without_changing_declaration(t
     assert '%mem=10GB\n' in content and '%nproc=8\n' in content
     assert result.calculation.basis_set == 'def2-SVP'
     assert result.calculation.method == 'B3LYP'
-    assert result.calculation.keywords == request.keywords
+    assert result.calculation.keywords == "opt freq " + request.keywords
+    assert request.keywords == "EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight"
     assert compare_calculation_input(content, result.calculation.model_dump(), charge=0, multiplicity=1) == []
 
 
@@ -72,7 +73,7 @@ def test_gaussian_scan_renders_native_basis_and_preserves_keywords(tmp_path):
     result = TsGuess()._scan_prepare(request)
     assert result.is_success, result.message
     content = target.read_text()
-    assert ('#p opt=(modredundant,maxstep=10) B3LYP/def2SVP '
+    assert ('#p opt=modredundant B3LYP/def2SVP '
             'EmpiricalDispersion=GD3BJ SCF=Tight SCRF=(CPCM,Solvent=Water)\n') in content
     assert 'B 1 2 S 4 0.250000\n' in content
     assert request.basis_set == 'def2-SVP'

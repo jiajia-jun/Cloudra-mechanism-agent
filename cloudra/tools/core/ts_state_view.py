@@ -36,6 +36,7 @@ class TsProcessView(BaseModel):
     structures: dict[str, dict] = Field(default_factory=dict, description="Read-only atom tables derived from the owned molecular state, with 1-based structure numbers. Source files are never overwritten. Engine-specific scan numbering is converted at the execution boundary.")
     blocked: dict | None = None
     failed_attempt: dict | None = None
+    warnings: list[dict] = Field(default_factory=list, description='Recorded native calculation advice; settings remain as declared and scientific evidence still requires verification.')
     frequency_analysis: dict | None = Field(default=None, description="Recorded TS imaginary-mode composition, source job/revision and log digest. Atoms and reaction_center_pairs are 1-based in the frequency input's atom order. Atom fractions use unweighted squared displacements, not mass weighting or a pass/fail cutoff; modes=null means mode vectors or geometry were unavailable. mode_alignment reuses the ts_guess diagnostic: misaligned/undecidable notifies the owner for a decision without blocking IRC or cancelling jobs. This report does not establish that the motion belongs to the declared reaction.")
     next: dict = Field(default_factory=dict)
     methods: list[dict] = Field(default_factory=list, description="Per-stage resolved planned configurations, immutable actual job snapshots and native input contracts, including a separately recorded scan. A reference identifies the selected local profile; planned_error reports an invalid current declaration without hiding historical actual inputs. Isolated older formats retain their raw recorded fields.")
@@ -169,6 +170,8 @@ def build_process_view(state: dict, jobs: list[dict], *, can_write: bool) -> TsP
         waiting_for=active or deepcopy(jobs) if waiting and not stop_reason else active, failed_attempt=state.get("failed_attempt"),
         available_results=available, structures=structures, blocked=blocked, next=next_action, methods=method_entries,
         frequency_analysis=frequency_analysis,
+        warnings=[{key: deepcopy(value) for key, value in item.items() if key not in {'input_revision', 'source'}}
+            for item in state.get('warnings', []) if item.get('input_revision') == state.get('declaration_revision', 1)][-100:],
         usage={"interventions": state.get("intervention_count", 0), "compute_actions": len(jobs),
                "model_calls": None, "limits": value.get("execution", {}).get("limits"),
                **state.get("accounted_usage", {}), "jobs": usage_jobs},

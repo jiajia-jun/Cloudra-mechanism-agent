@@ -283,10 +283,7 @@ def _optimization_converged(path: str, engine: str | None) -> bool | None:
     if engine == 'xtb':
         return xtb_frames.opt_converged(text)
     if engine == 'gaussian':
-        if 'Optimization stopped.' in text:
-            return False
-        if 'Optimization completed.' in text or 'Stationary point found.' in text:
-            return True
+        return gaussian_frames.opt_converged(text)
     return None
 
 

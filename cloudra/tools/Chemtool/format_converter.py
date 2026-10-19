@@ -7,7 +7,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.tools.core.molecule import from_ase, to_ase
+from cloudra.tools.core.molecule import _read_gaussian_structure, from_ase, to_ase
 
 description = (
     "Convert among common computational-chemistry file formats (mol, xyz, gjf, inp (ORCA), pdb, SDF, cif, etc.) via ASE; "
@@ -305,6 +305,14 @@ class FormatConverter(Tool):
                         f"Input {user_input.input_format} contains {n_frames} frames/molecules; "
                         "only the first one was converted."
                     )
+            elif user_input.input_format == 'gjf':
+                # ASE's Gaussian reader leaves Units=Bohr numbers unchanged.
+                # Share the native structure reader's section and unit handling.
+                from pathlib import Path
+
+                atoms, _, _, _ = await asyncio.to_thread(
+                    lambda: _read_gaussian_structure(Path(input_path).read_text(encoding='utf-8-sig')),
+                )
             else:
                 # 单次惰性扫描：只物化第一帧（整条轨迹物化既耗内存也只用首帧），
                 # 帧数仍在同一趟扫描里数出，message 如实披露"取第一帧"。

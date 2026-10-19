@@ -498,6 +498,8 @@ class LogParser(Tool):
                 elif engine == "xtb":
                     # 同款文本权威：normal termination of xtb（GH #26）
                     result["normal_termination"] = xtb_frames.normal_termination(log_text)
+                elif engine == "gaussian":
+                    result["normal_termination"] = gaussian_frames.normal_termination(log_text)
                 elif hasattr(data, "metadata") and data.metadata is not None:
                     result["normal_termination"] = bool(data.metadata.get("success", False))
                 elif hasattr(data, "optdone"):
@@ -517,6 +519,15 @@ class LogParser(Tool):
                 elif engine == "xtb":
                     # xtb 同款语义（GH #26）：FAILED TO CONVERGE 即 False
                     result["opt_converged"] = xtb_frames.opt_converged(log_text)
+                elif engine == "gaussian":
+                    converged = gaussian_frames.opt_converged(log_text)
+                    if converged is None and {"opt", "ts"} & detected_jobs:
+                        # Gaussian cclib optdone also contains IRC corrector
+                        # steps, which are not independent optimizations.
+                        optdone = getattr(data, "optdone", None)
+                        if optdone is not None:
+                            converged = bool(optdone)
+                    result["opt_converged"] = converged
                 elif data is not None:
                     optdone = getattr(data, "optdone", None)
                     if optdone is not None:

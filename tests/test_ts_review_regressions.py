@@ -10,7 +10,7 @@ pytestmark = pytest.mark.usefixtures('ts_producer_authority')
 
 
 @pytest.mark.parametrize('field', ['orca_blocks'])
-def test_irc_hessian_requires_complete_scientific_settings(tmp_path, field):
+def test_irc_preserves_complete_scientific_settings_without_hessian_inference(tmp_path, field):
     from cloudra.tools.core.ts_inputs import QmCalculation
     from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
     record = record_fixture(tmp_path)
@@ -27,8 +27,8 @@ def test_irc_hessian_requires_complete_scientific_settings(tmp_path, field):
     folder.mkdir()
     error,path = _write_irc_input(record,str(folder))
     assert not error
-    assert 'InitHess calc_numfreq' in Path(path).read_text()
-    assert 'InitHess read' not in Path(path).read_text()
+    assert '%cpcm epsilon 80 end' in Path(path).read_text()
+    assert 'InitHess' not in Path(path).read_text()
 
 
 @pytest.mark.usefixtures("rdkit_chemistry")
@@ -275,7 +275,7 @@ def test_real_concrete_ambiguity_requests_one_candidate_choice(tmp_path):
     ('opt(ts) freq(num)', {'ts_opt', 'frequency'}, 'numeric'),
     ('opt=(ts,calcfc) freq=(numer)', {'ts_opt', 'frequency'}, 'numeric'),
     ('irc(maxpoints=20)', {'irc'}, 'auto'),
-    ('opt(qst2) freq(analytic)', {'ts_opt', 'frequency'}, 'auto'),
+    ('opt(qst2) freq(analytic)', {'ts_opt', 'frequency'}, 'analytic'),
 ])
 def test_gaussian_parenthesis_routes_preserve_native_intent(route, tasks, mode):
     from cloudra.tools.core.calculation_intent import inspect_input

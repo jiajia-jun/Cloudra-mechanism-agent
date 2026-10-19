@@ -1242,9 +1242,9 @@ _ORCA_EXTOPT_OPT_CONVERGED = (
 
 
 @pytest.mark.asyncio
-async def test_parse_orca_log_unconverged_opt_is_failed(tmp_path, monkeypatch):
+async def test_parse_orca_log_unconverged_opt_preserves_native_success(tmp_path, monkeypatch):
     """GH #21：优化跑满最大步数未收敛时 ORCA 仍打印 TERMINATED NORMALLY——
-    终止标记不构成成功判据，文本收敛标记判 failed 且错误信息指出未收敛；
+    原生正常终态与 opt_converged=False 分开记录，科学验收仍须实际收敛；
     能量取最后的 Current Energy（GH #22，起始几何的 FINAL SP 是错的）。"""
     import cclib
 
@@ -1258,10 +1258,10 @@ async def test_parse_orca_log_unconverged_opt_is_failed(tmp_path, monkeypatch):
     log = tmp_path / "job.out"
     log.write_text(_ORCA_EXTOPT_OPT_NOT_CONVERGED, encoding="utf-8")
     data, ok = await _parse_log(log, parse_timeout=60, job_type="orca")
-    assert ok is False
-    assert data["is_success"] is False
+    assert ok is True
+    assert data["is_success"] is True
+    assert data["normal_termination"] is True
     assert data["opt_converged"] is False
-    assert "未收敛" in data["error"]
     assert data["total_energy_hartree"] == pytest.approx(-383.544742265)
 
 
@@ -1290,7 +1290,7 @@ async def test_parse_orca_log_converged_opt_stays_done(tmp_path, monkeypatch):
 @pytest.mark.asyncio
 async def test_parse_orca_log_unconverged_opt_via_cclib_optdone(tmp_path, monkeypatch):
     """GH #21 cclib 辅助路径：文本收敛标记缺失（如版本差异）但 cclib 可解析
-    且 optdone=False 的 Opt 日志，同样判 failed。"""
+    且 optdone=False 的 Opt 日志，记录未收敛但保留原生正常终态。"""
     import cloudra.runtime.monitor as monitor
 
     async def _fake_cclib(target):
@@ -1307,18 +1307,17 @@ async def test_parse_orca_log_unconverged_opt_via_cclib_optdone(tmp_path, monkey
         encoding="utf-8",
     )
     data, ok = await monitor._parse_log(log, parse_timeout=60, job_type="orca")
-    assert ok is False
-    assert data["is_success"] is False
+    assert ok is True
+    assert data["is_success"] is True
+    assert data["normal_termination"] is True
     assert data["opt_converged"] is False
-    assert "未收敛" in data["error"]
 
 
 @pytest.mark.asyncio
-async def test_guard_marks_failed_for_unconverged_extopt_opt(
+async def test_guard_records_native_done_for_unconverged_extopt_opt(
     isolated_db, monkeypatch, tmp_path
 ):
-    """GH #21 端到端：guard 对未收敛的 ExtOpt Opt 落 failed，last_error 与
-    state json 明确指出未收敛（不能因 TERMINATED NORMALLY 误判 done）。"""
+    """guard 对原生正常结束的 ExtOpt Opt 落 done，独立保留优化未收敛事实。"""
     import json as _json
     import sys
 
@@ -1366,12 +1365,13 @@ async def test_guard_marks_failed_for_unconverged_extopt_opt(
         row = await (await con.execute(
             "SELECT state, last_error FROM compute_jobs WHERE id=?", (task_id,)
         )).fetchone()
-    assert row[0] == "failed"
-    assert "未收敛" in row[1]
+    assert row[0] == "done"
+    assert row[1] is None
 
     payload = _json.loads((workdir / f"state_{task_id}.json").read_text(encoding="utf-8"))
-    assert payload["is_success"] is False
-    assert "未收敛" in payload["error"]
+    assert payload["is_success"] is True
+    assert payload["normal_termination"] is True
+    assert payload["opt_converged"] is False
     assert payload["total_energy_hartree"] == pytest.approx(-383.544742265)
 
 

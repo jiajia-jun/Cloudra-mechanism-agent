@@ -198,6 +198,8 @@ def measure_windows(
 def geometry_stereochemistry_errors(graph, positions) -> list[str]:
     """Compare declared stereochemistry with actual 3D geometry, without inference."""
     expected = Chem.Mol(graph)
+    # A coarse seed conformer must not redefine the declared stereochemistry.
+    expected.RemoveAllConformers()
     Chem.AssignStereochemistry(expected, cleanIt=True, force=True)
     chiral = {a.GetIdx():a.GetProp('_CIPCode') for a in expected.GetAtoms() if a.HasProp('_CIPCode')}
     bonds = {b.GetIdx():b.GetStereo() for b in expected.GetBonds()

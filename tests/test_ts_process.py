@@ -517,8 +517,8 @@ def test_xtb_path_guess_uses_explicit_path_solvation(tmp_path, monkeypatch):
 
 
 
-def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_path):
-    """Hessian 分支由**证据**决定：文件在就用 read+Hess_Filename，不在就 calc_numfreq。"""
+def test_irc_input_never_selects_a_hessian_policy_from_files(tmp_path):
+    """A Hessian file is evidence, not authorization to select solver settings."""
     from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
 
     record = _start(tmp_path, keywords="CPCM(Water)")
@@ -535,20 +535,20 @@ def test_irc_input_reuses_the_hessian_only_when_the_file_is_actually_there(tmp_p
 
     job3 = Path(record.run_dir) / "jobs" / "job_0003"
     job3.mkdir(parents=True, exist_ok=True)
-    # 没有 .hess -> 数值评估
+    # An absent Hessian does not select a numerical evaluation.
     error, path = _write_irc_input(record, str(job3))
     assert error == ""
-    assert "InitHess calc_numfreq" in Path(path).read_text(encoding="utf-8")
+    assert "%irc" not in Path(path).read_text(encoding="utf-8")
 
-    # 落下 .hess -> 复用同一几何的 Hessian
+    # An existing Hessian does not select a read/reuse policy.
     (job2 / "frequency.hess").write_text("$hessian\n", encoding="utf-8")
     new_attempt = job3 / "with_hessian"
     new_attempt.mkdir()
     error, path = _write_irc_input(record, str(new_attempt))
     assert error == ""
     content = Path(path).read_text(encoding="utf-8")
-    assert "InitHess read" in content
-    assert str(job2 / "frequency.hess") in content
+    assert "InitHess" not in content
+    assert str(job2 / "frequency.hess") not in content
     assert "CPCM(Water)" in content
 
 
@@ -689,8 +689,8 @@ def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, 
     assert record.stage_record("refine").status == "done"
 
 
-def test_gaussian_irc_uses_the_skill_recipe(tmp_path):
-    """Gaussian 走原生 calcfc 写法，不强加步数上限或 ORCA 的 %irc 块。"""
+def test_gaussian_irc_has_only_the_stage_task_by_default(tmp_path):
+    """An IRC stage does not imply an initial-Hessian or step-size policy."""
     from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
 
     record = _start(tmp_path, engine="gaussian")
@@ -709,50 +709,28 @@ def test_gaussian_irc_uses_the_skill_recipe(tmp_path):
     error, path = _write_irc_input(record, str(job3))
     assert error == ""
     content = Path(path).read_text(encoding="utf-8")
-    assert "irc=calcfc" in content
+    assert "#p irc " in content
+    assert "calcfc" not in content
     assert "maxpoints" not in content.lower()
     assert "%irc" not in content
 
 
 def test_extract_gaussian_irc_keywords():
-    """解析 Gaussian IRC 关键词，保证必须包含 calcfc，无正则。"""
+    """Extract native IRC settings without supplying undeclared options."""
     from cloudra.tools.core.ts_process import _extract_gaussian_irc_keywords
-
-    # 1. 空或无参数 -> 默认 calcfc
-    assert _extract_gaussian_irc_keywords("") == ("calcfc", "", None)
-    assert _extract_gaussian_irc_keywords(None) == ("calcfc", "", None)
-
-    # 2. 完整带 calcfc 与其他参数 -> 无 warning，保留其余关键词
-    subopts, rem, warn = _extract_gaussian_irc_keywords("irc=(calcfc,maxpoints=40,stepsize=10) empiricaldispersion=gd3bj")
-    assert subopts == "calcfc,maxpoints=40,stepsize=10"
-    assert rem == "empiricaldispersion=gd3bj"
-    assert warn is None
-
-    # 3. 遗漏 calcfc -> 自动补齐并给出明确警告
-    subopts, rem, warn = _extract_gaussian_irc_keywords("irc=(maxpoints=40,stepsize=10)")
-    assert subopts == "calcfc,maxpoints=40,stepsize=10"
-    assert rem == ""
-    assert warn is not None
-    assert "Gaussian IRC requires initial force constants ('calcfc')" in warn
-
-    # 4. 裸 irc 声明 -> 补齐 calcfc 并报警
-    subopts, rem, warn = _extract_gaussian_irc_keywords("irc")
-    assert subopts == "calcfc"
-    assert rem == ""
-    assert warn is not None
-    assert "Gaussian IRC requires initial force constants ('calcfc')" in warn
-
-    # 5. 直接传入 IRC 子参数格式（如 maxpoints=50,stepsize=5） -> 自动打包进 irc 并补上 calcfc 与警告
-    subopts, rem, warn = _extract_gaussian_irc_keywords("maxpoints=50,stepsize=5")
-    assert subopts == "calcfc,maxpoints=50,stepsize=5"
-    assert rem == ""
-    assert warn is not None
-    assert "Gaussian IRC requires initial force constants ('calcfc')" in warn
+    assert _extract_gaussian_irc_keywords('') == (None, '', None)
+    assert _extract_gaussian_irc_keywords(None) == (None, '', None)
+    assert _extract_gaussian_irc_keywords('irc=(calcfc,maxpoints=40,stepsize=10) nosymm') == (
+        'calcfc,maxpoints=40,stepsize=10', 'nosymm', None)
+    assert _extract_gaussian_irc_keywords('irc=(maxpoints=40,stepsize=10)') == (
+        'maxpoints=40,stepsize=10', '', None)
+    assert _extract_gaussian_irc_keywords('irc') == (None, '', None)
+    assert _extract_gaussian_irc_keywords('maxpoints=50,stepsize=5') == (
+        'maxpoints=50,stepsize=5', '', None)
 
 
-def test_gaussian_irc_custom_options_missing_calcfc_warns_and_fixes(tmp_path):
-    """模型漏写 calcfc 时（Issue #184），自动补齐 calcfc、发出警告，且避免路线重复 irc 报错。"""
-    import pytest
+def test_gaussian_irc_custom_options_missing_calcfc_preserves_input_and_warns(tmp_path):
+    """Native solver advice is visible without rewriting the accepted route."""
 
     from cloudra.tools.core.ts_process import TsJobStep, _write_irc_input
 
@@ -770,15 +748,16 @@ def test_gaussian_irc_custom_options_missing_calcfc_warns_and_fixes(tmp_path):
     job3 = Path(record.run_dir) / "jobs" / "job_0003"
     job3.mkdir(parents=True, exist_ok=True)
 
-    with pytest.warns(UserWarning, match=r"Gaussian IRC requires initial force constants"):
-        error, path = _write_irc_input(record, str(job3))
+    error, path = _write_irc_input(record, str(job3))
+    assert any(item["code"] == "initial_hessian_unspecified" for item in record.warnings)
 
     assert error == ""
     content = Path(path).read_text(encoding="utf-8")
     route_lines = [line for line in content.splitlines() if line.startswith("#")]
     assert len(route_lines) == 1
     route = route_lines[0].lower()
-    assert "irc=(calcfc,maxpoints=40,stepsize=10)" in route
+    assert "irc=(maxpoints=40,stepsize=10)" in route
+    assert "calcfc" not in route
     assert route.count("irc") == 1  # 绝不出现两个 irc 关键词导致 Gaussian 语法崩溃
 
 
@@ -816,12 +795,12 @@ def test_gaussian_irc_custom_options_with_calcfc_clean_route(tmp_path, recwarn):
 
 
 def test_extract_gaussian_opt_keywords():
-    """解析 Gaussian opt 关键词：TS 阶段确保 ts/calcfc/noeigen，极小值阶段按需提取。"""
+    """Only an absent optimization task gets the basic stage task."""
     from cloudra.tools.core.ts_process import _extract_gaussian_opt_keywords
 
-    # 1. 空或无参数 -> TS 默认 TS,calcfc,noeigen；极小值返回 None
-    assert _extract_gaussian_opt_keywords("", is_ts=True) == ("TS,calcfc,noeigen", "", None)
-    assert _extract_gaussian_opt_keywords(None, is_ts=True) == ("TS,calcfc,noeigen", "", None)
+    # An absent task gets TS only; a minimum stage gets bare Opt.
+    assert _extract_gaussian_opt_keywords("", is_ts=True) == ("TS", "", None)
+    assert _extract_gaussian_opt_keywords(None, is_ts=True) == ("TS", "", None)
     assert _extract_gaussian_opt_keywords("", is_ts=False) == (None, "", None)
 
     # 2. TS opt 完整指定 -> 无警告，剥离其余关键字
@@ -830,14 +809,12 @@ def test_extract_gaussian_opt_keywords():
     assert rem == "nosymm"
     assert warn is None
 
-    # 3. TS opt 漏写 ts -> 自动补齐 ts/calcfc/noeigen 并发出警告
+    # An explicit minimum optimization keeps every option and receives advice.
     subopts, rem, warn = _extract_gaussian_opt_keywords("opt=(maxstep=10)", is_ts=True)
-    assert "ts" in subopts.lower()
-    assert "calcfc" in subopts.lower()
-    assert "noeigen" in subopts.lower()
+    assert subopts == "maxstep=10"
     assert rem == ""
     assert warn is not None
-    assert "Gaussian TS optimization requires 'ts'" in warn
+    assert "does not request TS optimization" in warn
 
     # 4. 极小值优化提取自定义 opt 选项，无多余补齐与警告
     subopts, rem, warn = _extract_gaussian_opt_keywords("opt=(tight,calcfc) nosymm", is_ts=False)

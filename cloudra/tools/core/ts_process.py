@@ -172,6 +172,7 @@ class TsProcessRecord(BaseModel):
     provided_guess_binding: TsProvidedGuessBinding | None = None
     failed_attempt: dict | None = None
     method_checks: dict[str, dict] = Field(default_factory=dict)
+    warnings: list[dict] = Field(default_factory=list)
     stage: TsStage = "declare"
     stage_records: list[TsStageRecord] = Field(default_factory=list)
     terminal: Optional[TsTerminal] = None
@@ -821,25 +822,21 @@ def _optimize_conformer_source(record, role):
             _write_immutable_input(str(manifest), task.model_dump_json())
             job_type = 'chem_task'
         else:
-            if calculation.engine == 'gaussian':
-                opt_subopts, rem_keywords, warn = _extract_gaussian_opt_keywords(calculation.keywords, is_ts=False)
-                task_type = [{'opt': opt_subopts}]
-                calc_copy = calculation.model_copy(update={'keywords': rem_keywords or ''})
-            else:
-                task_type = [{'opt': None}]
-                calc_copy = calculation
+            calc_copy, task_type = _stage_writer_tasks(calculation, [{'opt': None}])
             manifest = directory / ('seed-opt.inp' if calculation.engine == 'orca' else 'seed-opt.gjf')
             request = QmInputWriter_input_schema(**calc_copy.model_dump(mode='json'),
                 source_type='xyz_file', source_value=built[2], task_type=task_type,
                 nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(manifest),
                 charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity,
                 electronic_character=record.input.reaction.electronic_character)
-            from cloudra.tools.core.calculation_intent import validate_writer_request
-            conflicts = validate_writer_request(request.model_dump())
+            conflicts = _writer_request_errors(record, purpose, request)
             if conflicts:
                 return _block(record, 'build', 'conformer_input_invalid', str(conflicts), needs=[f'conformers.{role}.optimization'])
             molecule = getattr(record.structures, role)
             content = QmInputWriter.render_input(request, molecule)
+            error = _writer_render_error(record, purpose, request, content)
+            if error:
+                return _block(record, 'build', 'conformer_input_invalid', error, needs=[f'conformers.{role}.optimization'])
             _write_immutable_input(str(manifest), content)
             job_type = calculation.engine
         error, job = _submit_step(record, purpose, str(manifest), job_type)
@@ -1217,6 +1214,7 @@ def _guess_scan(record: TsProcessRecord) -> TsProcessRecord:
             if not prepared.is_success:
                 return _block(record, "guess", "invalid_scan", prepared.message, needs=["guess"])
             input_path = prepared.input_file_path
+            _record_calculation_warnings(record, 'scan', input_path, prepared.warnings, source='writer')
             job_type = calculation.engine
         error, job_id = _submit_step(record, "scan", input_path, job_type)
         if error:
@@ -1534,6 +1532,52 @@ def _validate(record: TsProcessRecord) -> TsProcessRecord:
     _record_stage(record, "validate", "done", "internal validation passed")
     return record
 
+def _record_calculation_warnings(record, purpose, input_path, issues, *, source):
+    """Replace current advice per stage/source; preserve it in the durable model receipt."""
+    record.warnings = [item for item in record.warnings
+        if item.get('input_revision') == record.declaration_revision
+        and (item.get('purpose'), item.get('source')) != (purpose, source)]
+    for issue in issues:
+        item = dict(issue, severity='warning', purpose=purpose, input_path=str(input_path),
+            input_revision=record.declaration_revision, source=source)
+        if item not in record.warnings:
+            record.warnings.append(item)
+    record.warnings = record.warnings[-100:]
+
+
+def _writer_request_errors(record, purpose, request):
+    from cloudra.tools.core.calculation_intent import validate_writer_request
+    issues = validate_writer_request(request.model_dump())
+    _record_calculation_warnings(record, purpose, request.output_path,
+        [item for item in issues if item['severity'] == 'warning'], source='writer')
+    return [item for item in issues if item['severity'] == 'error']
+
+
+def _writer_render_error(record, purpose, request, content):
+    """Expose native uncertainty while preserving the shared renderer-integrity check."""
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter
+    from cloudra.tools.core.calculation_intent import inspect_input
+    issues = []
+    if inspect_input(content, engine=request.engine).certainty == 'unknown':
+        issues.append(dict(code='native_task_uncertain', field='keywords',
+            message='The preserved native parameters could not be classified; inspect native engine diagnostics before accepting scientific evidence.'))
+    _record_calculation_warnings(record, purpose, request.output_path, issues, source='inspection')
+    errors = QmInputWriter.validate_rendered_input(request, content, charge=request.charge)
+    return 'input internal mismatch: ' + ' | '.join(errors) if errors else ''
+
+
+def _stage_writer_tasks(calculation, default_tasks):
+    """A stage supplies its basic task only in the absence of a native declaration."""
+    from cloudra.tools.core.calculation_intent import declared_native_tasks
+    tasks, unknown = declared_native_tasks(calculation.model_dump())
+    if tasks or unknown:
+        return calculation, []
+    if calculation.engine == 'gaussian' and default_tasks == [{'irc': None}]:
+        suboptions, remaining, _ = _extract_gaussian_irc_keywords(calculation.keywords)
+        return calculation.model_copy(update={'keywords': remaining}), [{'irc': suboptions}]
+    return calculation, default_tasks
+
+
 def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
     """把 TS 候选写成精修作业的引擎输入；返回 ``(错误, 输入路径)``。
 
@@ -1541,11 +1585,6 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
     只能有一份实现，否则同一份作业会在两条入口下写出不同的文件、走不同的校验。
     """
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
-    from cloudra.tools.core.calculation_intent import (
-        inspect_input,
-        intent_from_writer,
-        validate_writer_request,
-    )
     declaration = record.input.reaction
     calculation = stage_calculation(record, 'ts_opt')
     if calculation is None:
@@ -1556,21 +1595,8 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
 
     input_name = REFINEMENT_INPUT_NAMES[calculation.engine]
     input_path = os.path.join(job_dir, input_name)
-    # 引擎各自的原生 TS 写法由项目的 skill 规定（references/orca-inputs.md /
-    # gaussian-inputs.md）。ORCA 用 `! OptTS`，初始 Hessian 走原生 %geom 块；
-    # **频率是后续独立作业**（skill 的"Frequency and IRC follow-ups"），因此这里只写 TS 优化，
-    # 频率/IRC 归 refine 阶段。若 skill 里的配方变了，改这里一处即可。
-    if calculation.engine == "orca":
-        task_type: list[dict] = [{"opt": "ts"}]
-        orca_blocks: Optional[str] = "%geom\n  Calc_Hess true\nend"
-        calc_copy = calculation.model_copy(update={'orca_blocks': '\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None})
-    else:
-        import warnings
-        opt_subopts, rem_keywords, warn = _extract_gaussian_opt_keywords(calculation.keywords, is_ts=True)
-        if warn:
-            warnings.warn(warn, UserWarning, stacklevel=2)
-        task_type = [{"opt": opt_subopts}]
-        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or ''})
+    calc_copy, task_type = _stage_writer_tasks(calculation,
+        [{'opt': 'ts' if calculation.engine == 'orca' else 'TS'}])
     request = QmInputWriter_input_schema(
         **calc_copy.model_dump(mode='json'),
         nproc=record.compute_cpus,
@@ -1585,22 +1611,17 @@ def _write_refinement_input(record: TsProcessRecord, job_dir: str) -> tuple[str,
         output_path=input_path,
     )
     # 输入冲突前置校验（与 qm_input_writer 同一份）
-    conflicts = validate_writer_request(request.model_dump())
+    conflicts = _writer_request_errors(record, 'ts_opt', request)
     if conflicts:
         return "refinement input refused: " + " | ".join(
             f"[{c['code']}] {c['message']}" for c in conflicts
         ), ""
 
     content = QmInputWriter.render_input(request, record.structures.candidate)
-    # 不信 writer 自述：从生成文本重新 inspect，任务集合不一致即失败（同一份纪律）
-    inspected = inspect_input(content, engine=calculation.engine)
-    requested = intent_from_writer(request.model_dump())
-    if inspected.tasks != requested.tasks:
-        return (
-            "refinement input internal mismatch: the generated file encodes tasks "
-            f"{sorted(inspected.tasks)} but {sorted(requested.tasks)} were requested",
-            "",
-        )
+    # Inspect the generated input independently; native uncertainty is advice, lost settings are errors.
+    error = _writer_render_error(record, 'ts_opt', request, content)
+    if error:
+        return error, ''
     _write_immutable_input(input_path, content)
     return "", input_path
 
@@ -1807,10 +1828,24 @@ def _reuse_existing_irc(record):
     native_path = str(directory / ('existing.inp' if engine == 'orca' else 'existing.gjf'))
     log_path = str(directory / 'existing.log')
     _write_immutable_input(native_path, text)
-    _write_immutable_input(log_path, source_log.read_text())
+    _write_immutable_input(log_path, log_text)
+    artifacts = [native_path, log_path]
+    if engine == 'orca':
+        manifest = dict(log_sha256=_artifact_sha256(Path(log_path)),
+            atom_binding=_direction_atom_binding(record), endpoints={})
+        for direction, side in [('forward', 'a'), ('backward', 'b')]:
+            endpoint_path = directory / f'irc_{direction}.xyz'
+            _write_immutable_input(str(endpoint_path), Path(info['path_' + side]).read_text())
+            manifest['endpoints'][direction] = dict(filename=endpoint_path.name,
+                sha256=_artifact_sha256(endpoint_path), origin='final_endpoint_snapshot',
+                converged=(info.get('meta') or {}).get(direction + '_converged'))
+            artifacts.append(str(endpoint_path))
+        manifest_path = directory / 'irc_endpoints.json'
+        _write_immutable_input(str(manifest_path), json.dumps(manifest, ensure_ascii=False))
+        artifacts.append(str(manifest_path))
     facts = dict(source_job_id=job, source_input=str(source_input), source_log=str(source_log),
         log_path=log_path, frequency_input=frequency.input_path, atom_binding=_direction_atom_binding(record),
-        artifact_hashes={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in (native_path, log_path)})
+        artifact_hashes={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in artifacts})
     record.method_checks[native_path] = record.method_checks[str(source_input)]
     return TsJobStep(purpose='irc', state='done', input_path=native_path, actual_calculation=stage_calculation(record, 'irc'),
         source_input_revision=record.declaration_revision, stage_key='external:irc', external_source=facts, atom_binding=_direction_atom_binding(record))
@@ -1818,7 +1853,7 @@ def _reuse_existing_irc(record):
 def _check_calculation_submission(record, purpose, input_path, job_type):
     from cloudra.runtime_v2.method_policy import check_input_content, check_method
     from cloudra.services.ts_pipeline_context import require_pipeline_authority
-    from cloudra.tools.core.calculation_intent import compare_calculation_input
+    from cloudra.tools.core.calculation_intent import MethodDifference, compare_calculation_input
     policy = require_pipeline_authority(record.owner_conversation_id, record.owner_session_id)
     calculation = stage_calculation(record, purpose)
     if calculation is None:
@@ -1829,6 +1864,8 @@ def _check_calculation_submission(record, purpose, input_path, job_type):
             check_input_content(content, policy, filename=input_path, strict=True))
         if not verdict.allowed:
             raise ValueError(verdict.reason)
+    issues = []
+    trusted_differences = []
     if job_type == 'chem_task':
         from cloudra.runtime.chem_task import ChemTask
         task = ChemTask.model_validate_json(content)
@@ -1870,18 +1907,45 @@ def _check_calculation_submission(record, purpose, input_path, job_type):
             'reactant_frequency': {'frequency'}, 'product_frequency': {'frequency'},
             'candidate_opt': {'minimum_opt'}, 'product_seed_opt': {'minimum_opt'}}
         if actual_intent.tasks != expected_tasks.get(purpose, set()):
-            raise ValueError(f'Actual task {actual_intent.tasks} differs from accepted purpose {purpose}')
+            issues.append(dict(code='purpose_task_mismatch', field='task_type',
+                message=f'Actual task {sorted(actual_intent.tasks)} differs from accepted purpose {purpose}; the native declaration was preserved.'))
         differences = compare_calculation_input(content, calculation.model_dump(), charge=record.input.reaction.charge, multiplicity=record.input.reaction.multiplicity)
         # Complete task/user contracts, when present, come from project settings.
         contract = policy.calculation_contracts.get(purpose) if policy is not None else None
         if contract:
-            differences += compare_calculation_input(content, contract, charge=contract.get('charge', record.input.reaction.charge), multiplicity=contract.get('multiplicity', record.input.reaction.multiplicity))
+            from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+            from cloudra.tools.core.calculation_intent import declared_native_tasks
+            expected_contract = contract
+            if 'task_type' in contract:
+                template = {key: value for key, value in contract.items()
+                    if key in QmInputWriter_input_schema.model_fields}
+                template.update(source_type='xyz_file', source_value=input_path, output_path=input_path)
+                template.setdefault('charge', record.input.reaction.charge)
+                template.setdefault('multiplicity', record.input.reaction.multiplicity)
+                written = QmInputWriter._written_calculation(QmInputWriter_input_schema.model_validate(template))
+                expected_contract = {**contract, 'keywords': written.keywords,
+                    'orca_blocks': written.orca_blocks, 'end_setting': written.end_setting}
+            trusted_differences = compare_calculation_input(content, expected_contract,
+                charge=contract.get('charge', record.input.reaction.charge),
+                multiplicity=contract.get('multiplicity', record.input.reaction.multiplicity))
+            contract_tasks, _ = declared_native_tasks(contract)
+            if contract_tasks and actual_intent.tasks != contract_tasks:
+                trusted_differences.append(MethodDifference(field='task_type', expected=sorted(contract_tasks),
+                    actual=sorted(actual_intent.tasks), message='Native task differs from the trusted calculation contract.'))
+            differences += trusted_differences
     result = dict(input_revision=record.declaration_revision, purpose=purpose, actual=calculation.model_dump(),
         source='project_method_policy' if policy is not None else 'stage_declaration',
-        differences=[d.model_dump() for d in differences], matched=not differences)
+        differences=[d.model_dump() for d in differences], matched=not differences and not issues)
     record.method_checks[input_path] = result
-    if differences:
-        raise ValueError('; '.join(d.message for d in differences))
+    issues += [dict(code='native_calculation_difference', field=item.field, message=item.message)
+        for item in differences]
+    _record_calculation_warnings(record, purpose, input_path, issues, source='submission')
+    if trusted_differences:
+        raise ValueError(f'Native input differs from trusted {purpose} calculation contract: ' +
+            '; '.join(item.message for item in trusted_differences))
+    structural = [item for item in differences if item.field in {'engine', 'charge', 'multiplicity'}]
+    if structural:
+        raise ValueError('; '.join(item.message for item in structural))
 
 def _submit_step(record: TsProcessRecord, purpose: str, input_path: str,
                  job_type: str, *, stage_key: str | None = None, action_kind: str | None = None,
@@ -1989,11 +2053,6 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     """
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
     from cloudra.tools.core import gaussian_frames, orca_frames
-    from cloudra.tools.core.calculation_intent import (
-        inspect_input,
-        intent_from_writer,
-        validate_writer_request,
-    )
     if not record.job_steps:
         return "no TS-optimisation job was submitted, so there is no optimised geometry", ""
     step = next(step for step in reversed(record.job_steps) if step.purpose == 'ts_opt')
@@ -2017,16 +2076,7 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     if calculation is None:
         return 'Explicit verification.frequency required', ''
     input_path = os.path.join(job_dir, f"frequency.{'inp' if calculation.engine == 'orca' else 'gjf'}")
-    if calculation.engine == "gaussian":
-        import warnings
-        freq_subopts, rem_keywords, warn = _extract_gaussian_freq_keywords(calculation.keywords)
-        if warn:
-            warnings.warn(warn, UserWarning, stacklevel=2)
-        task_type = [{"freq": freq_subopts}]
-        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or ''})
-    else:
-        task_type = [{"freq": None}]
-        calc_copy = calculation
+    calc_copy, task_type = _stage_writer_tasks(calculation, [{'freq': None}])
     request = QmInputWriter_input_schema(
         **calc_copy.model_dump(mode='json'),
         nproc=record.compute_cpus,
@@ -2040,36 +2090,24 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
         title=f"frequency at the refined stationary point: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
         output_path=input_path,
     )
-    conflicts = validate_writer_request(request.model_dump())
+    conflicts = _writer_request_errors(record, 'frequency', request)
     if conflicts:
         return "frequency input refused: " + " | ".join(
             f"[{c['code']}] {c['message']}" for c in conflicts
         ), ""
     content = QmInputWriter.render_input(request, read_molecule(optimized_xyz, charge=declaration.charge))
-    inspected = inspect_input(content, engine=calculation.engine)
-    requested = intent_from_writer(request.model_dump())
-    if inspected.tasks != requested.tasks:
-        return (
-            "frequency input internal mismatch: generated "
-            f"{sorted(inspected.tasks)} but {sorted(requested.tasks)} were requested",
-            "",
-        )
+    error = _writer_render_error(record, 'frequency', request, content)
+    if error:
+        return error, ''
     _write_immutable_input(input_path, content)
     return "", input_path
 
 
 def _extract_gaussian_opt_keywords(keywords: str | None, *, is_ts: bool = True) -> tuple[str | None, str, str | None]:
-    """从关键字中解析 Gaussian 的 opt 子参数，剥离 opt 后的其余关键字，并校验/补充必要参数。
-
-    - is_ts=True: 用于过渡态优化阶段。默认确保包含 ts, calcfc, noeigen；若用户指定了 opt 但遗漏关键选项，则补充并返回警告。
-    - is_ts=False: 用于极小值（端点/种子）优化阶段。若用户指定了 opt 则提取其子参数（无子参数返回 None 表示裸 opt），未指定 opt 返回 None。
-
-    返回: (opt_suboptions, remaining_keywords, warning_message)
-    严格遵守 AGENTS.md 规范：不使用正则表达式 (re)，采用显式 token 与字符串拆分。
-    """
+    """Extract declared Gaussian Opt options; only an absent task gets the stage task."""
     if not keywords or not keywords.strip():
         if is_ts:
-            return "TS,calcfc,noeigen", "", None
+            return "TS", "", None
         return None, "", None
 
     from cloudra.tools.core.calculation_intent import native_tokens
@@ -2107,38 +2145,11 @@ def _extract_gaussian_opt_keywords(keywords: str | None, *, is_ts: bool = True) 
             other_tokens.append(token)
 
     warning = None
-    if is_ts:
-        if found_opt:
-            has_ts = any(s.lower() in ("ts", "qst2", "qst3") for s in opt_subopts)
-            has_fc = any(s.lower() in ("calcfc", "rcfc", "readfc", "calcall") for s in opt_subopts)
-            if not has_ts:
-                opt_subopts.insert(0, "ts")
-                warning = (
-                    "Gaussian TS optimization requires 'ts'. "
-                    "Automatically prepended 'ts' to opt suboptions; "
-                    "please declare 'ts' explicitly in 'keywords' (e.g., opt=(ts,...))."
-                )
-            if not has_fc:
-                idx = 1 if opt_subopts and opt_subopts[0].lower() in ("ts", "qst2", "qst3") else 0
-                opt_subopts.insert(idx, "calcfc")
-                if warning:
-                    warning += " Also added 'calcfc' because Gaussian Berny TS optimization requires initial force constants."
-                else:
-                    warning = (
-                        "Gaussian TS optimization requires force constants ('calcfc'). "
-                        "Automatically added 'calcfc' to opt suboptions; "
-                        "please declare 'calcfc' explicitly in 'keywords' (e.g., opt=(ts,calcfc,...))."
-                    )
-            if not any(s.lower() == "noeigen" for s in opt_subopts):
-                opt_subopts.append("noeigen")
-        else:
-            opt_subopts = ["TS", "calcfc", "noeigen"]
-        return ",".join(opt_subopts), " ".join(other_tokens), warning
-    else:
-        if found_opt:
-            sub = ",".join(opt_subopts) if opt_subopts else None
-            return sub, " ".join(other_tokens), None
-        return None, " ".join(other_tokens), None
+    if found_opt:
+        if is_ts and not any(option.lower() in {'ts', 'qst2', 'qst3'} for option in opt_subopts):
+            warning = 'The declared Gaussian Opt does not request TS optimization; options were preserved.'
+        return ','.join(opt_subopts) or None, ' '.join(other_tokens), warning
+    return 'TS' if is_ts else None, ' '.join(other_tokens), None
 
 
 def _extract_gaussian_freq_keywords(keywords: str | None) -> tuple[str | None, str, str | None]:
@@ -2190,14 +2201,14 @@ def _extract_gaussian_freq_keywords(keywords: str | None) -> tuple[str | None, s
     return None, " ".join(other_tokens), None
 
 
-def _extract_gaussian_irc_keywords(keywords: str | None) -> tuple[str, str, str | None]:
-    """从关键字中解析 Gaussian 的 IRC 子参数，确保包含 calcfc，并返回剥离了 irc 后的其余关键字。
+def _extract_gaussian_irc_keywords(keywords: str | None) -> tuple[str | None, str, str | None]:
+    """Extract Gaussian IRC options without inventing force-constant settings.
 
     返回: (irc_suboptions, remaining_keywords, warning_message)
     严格遵守 AGENTS.md 规范：不使用正则表达式 (re)，采用显式 token 与字符串拆分。
     """
     if not keywords or not keywords.strip():
-        return "calcfc", "", None
+        return None, "", None
 
     from cloudra.tools.core.calculation_intent import native_tokens
 
@@ -2208,7 +2219,6 @@ def _extract_gaussian_irc_keywords(keywords: str | None) -> tuple[str, str, str 
 
     irc_subopts: list[str] = []
     other_tokens: list[str] = []
-    found_irc = False
 
     for raw_token in tokens:
         token = raw_token.strip().rstrip(",")
@@ -2216,7 +2226,6 @@ def _extract_gaussian_irc_keywords(keywords: str | None) -> tuple[str, str, str 
             continue
         token_lower = token.lower()
         if token_lower == "irc" or token_lower.startswith("irc=") or token_lower.startswith("irc("):
-            found_irc = True
             if token_lower.startswith("irc="):
                 val = token[4:].strip()
             elif token_lower.startswith("irc("):
@@ -2231,7 +2240,6 @@ def _extract_gaussian_irc_keywords(keywords: str | None) -> tuple[str, str, str 
                     if s:
                         irc_subopts.append(s)
         elif any(token_lower.startswith(prefix) for prefix in ("maxpoints=", "stepsize=", "recalc=")):
-            found_irc = True
             for sub in token.split(","):
                 s = sub.strip()
                 if s:
@@ -2239,42 +2247,12 @@ def _extract_gaussian_irc_keywords(keywords: str | None) -> tuple[str, str, str 
         else:
             other_tokens.append(token)
 
-    warning = None
-    if found_irc:
-        has_calcfc = any(s.lower() == "calcfc" for s in irc_subopts)
-        if not has_calcfc:
-            irc_subopts.insert(0, "calcfc")
-            warning = (
-                "Gaussian IRC requires initial force constants ('calcfc'). "
-                "Automatically prepended 'calcfc' to IRC suboptions; "
-                "please declare 'calcfc' explicitly in 'keywords' (e.g., irc=(calcfc,...))."
-            )
-    else:
-        irc_subopts = ["calcfc"]
-
-    return ",".join(irc_subopts), " ".join(other_tokens), warning
+    return ','.join(irc_subopts) or None, ' '.join(other_tokens), None
 
 
 def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
-    """写 IRC 作业输入；返回 ``(错误, 输入路径)``。
-
-    几何与频率作业**同一帧**（TS 优化末帧）——skill 要求"reuse its same-geometry frequency
-    Hessian for both IRC directions"。两个引擎的原生写法照
-    ``references/{orca,gaussian}-inputs.md``：
-
-    - Gaussian：``task_type=[{"irc": irc_subopts}]``（根据用户输入解析或默认 calcfc）。
-    - ORCA：``task_type=[{"irc": None}]`` + 原生 ``%irc`` 块。Hessian 走哪个分支由**证据**决定，
-      不是偏好：频率作业真的落下了同名 ``.hess`` 就用 ``InitHess read`` + ``Hess_Filename``；
-      没有就按 skill 说的 ``InitHess calc_numfreq``（数值评估），绝不默认请求解析外部 Hessian。
-    """
-    import warnings
-
+    """Write the declared IRC using the accepted frequency geometry."""
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
-    from cloudra.tools.core.calculation_intent import (
-        inspect_input,
-        intent_from_writer,
-        validate_writer_request,
-    )
 
     declaration = record.input.reaction
     calculation = stage_calculation(record, 'irc')
@@ -2295,33 +2273,9 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
 
     input_path = os.path.join(job_dir, f"irc.{'inp' if calculation.engine == 'orca' else 'gjf'}")
 
-    if calculation.engine == "orca":
-        task_type: list[dict] = [{"irc": None}]
-        hess_path = os.path.splitext(frequency_step.input_path)[0] + ".hess"
-        previous_calculation = _step_calculation(record, frequency_step)
-        same_theory = previous_calculation.model_dump(exclude={'frequency_mode'}) == calculation.model_dump(exclude={'frequency_mode'})
-        if os.path.isfile(hess_path) and same_theory:
-            # 频率作业真的落下了 Hessian：复用同一几何的 Hessian（skill 的首选做法）
-            irca = (
-                "%irc\n  Direction both\n  InitHess read\n"
-                f'  Hess_Filename "{hess_path}"\nend'
-            )
-        else:
-            irca = "%irc\n  Direction both\n  InitHess calc_numfreq\nend"
-        orca_blocks: Optional[str] = irca
-        clean_keywords = calculation.keywords
-    else:
-        irc_subopts, clean_keywords, warning = _extract_gaussian_irc_keywords(calculation.keywords)
-        if warning:
-            warnings.warn(warning, UserWarning)
-        task_type = [{"irc": irc_subopts}]
-        orca_blocks = None
-
+    calc_copy, task_type = _stage_writer_tasks(calculation, [{'irc': None}])
     request = QmInputWriter_input_schema(
-        **calculation.model_copy(update={
-            'orca_blocks': '\n'.join(filter(None, [orca_blocks, calculation.orca_blocks])) or None,
-            'keywords': clean_keywords,
-        }).model_dump(mode='json'),
+        **calc_copy.model_dump(mode='json'),
         nproc=record.compute_cpus,
         mem=f"{record.compute_memory_mb}MB",
         source_type="xyz_file",
@@ -2330,23 +2284,18 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
         charge=declaration.charge,
         multiplicity=declaration.multiplicity,
         electronic_character=declaration.electronic_character,
-        title=f"IRC both directions from the refined saddle: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
+        title=f"IRC from the refined saddle: {declaration.reactant_smiles} | smiles: {declaration.reactant_smiles}",
         output_path=input_path,
     )
-    conflicts = validate_writer_request(request.model_dump())
+    conflicts = _writer_request_errors(record, 'irc', request)
     if conflicts:
         return "IRC input refused: " + " | ".join(
             f"[{c['code']}] {c['message']}" for c in conflicts
         ), ""
     content = QmInputWriter.render_input(request, read_molecule(geometry, charge=declaration.charge))
-    inspected = inspect_input(content, engine=calculation.engine)
-    requested = intent_from_writer(request.model_dump())
-    if inspected.tasks != requested.tasks:
-        return (
-            f"IRC input internal mismatch: generated {sorted(inspected.tasks)} but "
-            f"{sorted(requested.tasks)} were requested",
-            "",
-        )
+    error = _writer_render_error(record, 'irc', request, content)
+    if error:
+        return error, ''
     _write_immutable_input(input_path, content)
     return "", input_path
 
@@ -2552,11 +2501,6 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
     provenance and uses that converged geometry. Roles and IRC A/B are distinct.
     """
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
-    from cloudra.tools.core.calculation_intent import (
-        inspect_input,
-        intent_from_writer,
-        validate_writer_request,
-    )
 
     calculation = stage_calculation(record, f'{role}_{task}')
     if calculation is None:
@@ -2640,20 +2584,8 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         'IRC side ' + provenance['label']
         if provenance['kind'] == 'irc_outer_frame' else 'explicit species seed'
     )
-    if calculation.engine == "gaussian":
-        import warnings
-        if task == "opt":
-            opt_subopts, rem_keywords, warn = _extract_gaussian_opt_keywords(calculation.keywords, is_ts=False)
-            task_type = [{"opt": opt_subopts}]
-        else:
-            freq_subopts, rem_keywords, warn = _extract_gaussian_freq_keywords(calculation.keywords)
-            task_type = [{"freq": freq_subopts}]
-        if warn:
-            warnings.warn(warn, UserWarning, stacklevel=2)
-        calc_copy = calculation.model_copy(update={'keywords': rem_keywords or ''})
-    else:
-        task_type = [{"opt": None}] if task == "opt" else [{"freq": None}]
-        calc_copy = calculation
+    calc_copy, task_type = _stage_writer_tasks(calculation,
+        [{'opt': None}] if task == 'opt' else [{'freq': None}])
     name = f"{role}_{task}.{'inp' if calculation.engine == 'orca' else 'gjf'}"
     input_path = os.path.join(job_dir, name)
     request = QmInputWriter_input_schema(
@@ -2667,7 +2599,7 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         title=f"Endpoint {role} {task} from {origin_label}; identity unverified | declared_species: {getattr(declaration, role + '_smiles')}",
         output_path=input_path,
     )
-    conflicts = validate_writer_request(request.model_dump())
+    conflicts = _writer_request_errors(record, f'{role}_{task}', request)
     if conflicts:
         return f"{role} {task} input refused: " + " | ".join(
             f"[{item['code']}] {item['message']}" for item in conflicts
@@ -2678,10 +2610,9 @@ def _write_endpoint_input(record: TsProcessRecord, job_dir: str,
         return f'{role} endpoint frame differs from the owned atom identities', ''
     molecule = with_positions(reference, frame.GetConformer().GetPositions())
     content = QmInputWriter.render_input(request, molecule)
-    if inspect_input(content, engine=calculation.engine).tasks != intent_from_writer(
-        request.model_dump()
-    ).tasks:
-        return f"{role} {task} input task mismatch", ""
+    error = _writer_render_error(record, f'{role}_{task}', request, content)
+    if error:
+        return error, ''
     _write_immutable_input(input_path, content)
     return "", input_path
 
@@ -2781,7 +2712,7 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         return record
 
     if current.purpose == "frequency":
-        # 频率完成：TS 已由频率数据支持，接着跑 IRC（第二道闸），复用同一几何的 Hessian
+        # The frequency-verified TS geometry anchors the declared IRC calculation.
         from cloudra.dag.evidence_ingest import snapshot_evidence_file
         log_path = _refinement_log_path(record, current)
         if not Path(log_path).is_file():
@@ -2824,8 +2755,8 @@ def _refine(record: TsProcessRecord) -> TsProcessRecord:
         record.waiting_for = f"job:{job_id}"
         _record_stage(
             record, "refine", "waiting",
-            f"frequency job {current.job_id} finished; IRC job {job_id} submitted (both "
-            "directions) from the same optimised geometry. Waiting for its terminal state via the "
+            f"frequency job {current.job_id} finished; IRC job {job_id} submitted "
+            "from the same optimised geometry. Waiting for its terminal state via the "
             "existing notification path",
             [input_path],
         )

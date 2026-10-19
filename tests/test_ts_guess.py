@@ -95,7 +95,7 @@ def test_scan_preparation_reports_written_method_without_reselection_hint(tmp_pa
     result = TsGuess()._scan_prepare(request)
     assert result.is_success
     assert target.read_text().splitlines()[0] == '! Opt B3LYP def2-SVP ' + keywords
-    assert result.calculation.method == 'B3LYP' and result.calculation.keywords == keywords
+    assert result.calculation.method == 'B3LYP' and result.calculation.keywords == 'Opt ' + keywords
     assert 'PM7' not in result.run_hint and 'GFN2' not in result.run_hint
     assert 'submit_compute_job' in result.run_hint and 'B3LYP' in result.message
 
@@ -522,7 +522,7 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
     content = out.read_text()
     assert "qst" not in content.lower()
     assert f"%chk={out.with_suffix('.chk')}\n" in content
-    assert "opt=(modredundant,maxstep=10)" in content
+    assert "opt=modredundant" in content
     assert "b3lyp/def2svp" in content
     assert "\n0 1\n" in content
     # 当前 O-H 键长 ≈ 0.9589 Å，步长 = (2.0 - 0.9589)/10 ≈ +0.104

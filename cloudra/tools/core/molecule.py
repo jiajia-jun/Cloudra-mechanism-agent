@@ -92,65 +92,39 @@ def _cartesian_atoms(rows, *, source):
 
 def _read_gaussian_structure(text):
     """Read one explicit Cartesian section, normalizing declared units to Angstrom."""
-    from cloudra.tools.core.calculation_intent import native_tokens
+    from cloudra.tools.core.native_input_sections import (
+        gaussian_coordinate_units,
+        gaussian_option,
+        gaussian_sections,
+    )
 
     lines = [line.strip() for line in text.splitlines()]
     if any(line.lower() == '--link1--' for line in lines):
         raise ValueError("Gaussian Link1/multiple jobs are unsupported; provide one explicit Cartesian structure or convert the intended geometry to XYZ")
-    index = 0
-    while index < len(lines) and (not lines[index] or lines[index].startswith('%')):
-        index += 1
-    if index == len(lines) or not lines[index].startswith('#'):
+    sections = gaussian_sections(text)
+    if not sections:
         raise ValueError("Gaussian input is missing its route section; provide a single Cartesian input or XYZ")
-    route = []
-    while index < len(lines) and lines[index]:
-        route.append(lines[index])
-        index += 1
-    source_units = None
-    unit_names = {'angstrom': 'angstrom', 'angstroms': 'angstrom', 'ang': 'angstrom',
-                  'bohr': 'bohr', 'au': 'bohr', 'a.u.': 'bohr'}
-    for token in native_tokens(' '.join(route).lstrip('#')):
-        key, separator, value = token.partition('=')
-        if not separator and '(' in token:
-            key, _, value = token.partition('(')
-        options = {option.strip() for option in value.strip('()').split(',')}
+    section = sections[0]
+    for token in section.route:
+        key, options = gaussian_option(token)
         if key == 'opt' and options & {'qst2', 'qst3'}:
             raise ValueError("Gaussian QST2/QST3 jobs contain multiple geometries; provide the intended single Cartesian structure or XYZ")
         if key == 'geom' and options & {'check', 'checkpoint', 'allcheck', 'allcheckpoint'}:
             raise ValueError("Gaussian checkpoint geometry is unsupported; provide explicit Cartesian coordinates or an exported XYZ")
-        if key == 'units':
-            unit = unit_names.get(next(iter(options))) if len(options) == 1 else None
-            if unit is None:
-                raise ValueError(f"Gaussian units {value!r} are unsupported; provide Cartesian coordinates in Angstrom or Bohr")
-            if source_units is not None and unit != source_units:
-                raise ValueError("Conflicting Gaussian units declarations; provide one unambiguous coordinate unit")
-            source_units = unit
-    while index < len(lines) and not lines[index]:
-        index += 1
-    # The title is a complete section, not any line containing two integers.
-    while index < len(lines) and lines[index]:
-        index += 1
-    while index < len(lines) and not lines[index]:
-        index += 1
-    try:
-        tokens = lines[index].split()
-        if len(tokens) != 2:
-            raise ValueError
-        charge, multiplicity = map(int, tokens)
-    except (IndexError, ValueError) as exc:
-        raise ValueError("Gaussian charge and multiplicity must be two integers after the title section") from exc
+    source_units = gaussian_coordinate_units(section.route)
+    if source_units == 'unknown':
+        raise ValueError("Gaussian units declarations are unsupported or conflicting; provide Cartesian coordinates in one unambiguous unit, Angstrom or Bohr")
+    if section.charge is None:
+        raise ValueError("Gaussian charge and multiplicity must be two integers after the title section")
+    charge, multiplicity = section.charge
     if multiplicity <= 0:
         raise ValueError("Gaussian multiplicity must be positive")
-    index += 1
-    end = index
-    while end < len(lines) and lines[end]:
-        end += 1
-    atoms = _cartesian_atoms(lines[index:end], source='Gaussian')
+    atoms = _cartesian_atoms(section.geometry, source='Gaussian')
     if source_units == 'bohr':
         from ase.units import Bohr
 
         atoms.positions *= Bohr
-    return atoms, charge, multiplicity, source_units or 'angstrom'
+    return atoms, charge, multiplicity, source_units
 
 
 def _read_xyz_structure(text):
@@ -219,6 +193,7 @@ def read_molecule(input_path=None, input_text=None, input_format="auto", charge=
         text = input_text
     else:
         raise ValueError("Must provide input_path or input_text")
+    text = text.lstrip('\ufeff')
     fmt = input_format
     native_charge = native_multiplicity = native_units = None
     if fmt == "auto":

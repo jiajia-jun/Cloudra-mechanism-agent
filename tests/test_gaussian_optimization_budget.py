@@ -13,7 +13,7 @@ from cloudra.tools.core.ts_process import _extract_gaussian_opt_keywords
 @pytest.mark.parametrize("workflow,expected_opt", [
     ("direct", "opt=(readfc,maxcycles=200)"),
     ("minimum", "opt=(readfc,maxcycles=200)"),
-    ("ts", "opt=(ts,readfc,maxcycles=200,noeigen)"),
+    ("ts", "opt=(readfc,maxcycles=200)"),
 ])
 @pytest.mark.parametrize("explicit_iop", ["", "iop(1/152=200)"])
 def test_render_preserves_requested_optimization_cycles_and_explicit_iop(

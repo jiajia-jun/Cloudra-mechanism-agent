@@ -10,7 +10,9 @@ Use with the mechanism SOP; these are Gaussian routes, not ORCA syntax. Set `eng
 | TS from a prepared XYZ | `[{"opt":"ts,calcfc"},{"freq":null}]` | Initial force constants; full stationarity and one relevant imaginary mode |
 | Frequency at a finished geometry | `[{"freq":null}]` | Read its actual optimized XYZ; same geometry-level method/conditions |
 | Short IRC with a newly calculated Hessian | `[{"irc":"calcfc"}]` | Both directions by default; choose any path-length setting for the task's evidence need, then optimize outer frames and check minima, identity and direction |
-| Single point | `[]` | Explicit empty list prevents the default optimization |
+| Single point | `[{"sp":null}]` | Explicit single-point declaration |
+
+These are explicit examples, not options that Cloudra adds to every job. The writer and TS stages do not automatically add `CalcFC`, `NoEigenTest` or `MaxStep=10`. Existing native task declarations take precedence over a stage's basic task template. Questionable or unrecognized native parameters are preserved with model-visible `warnings`; review the installed engine's diagnostics. Missing initial-Hessian settings may produce advice, without selecting a setting on the user's behalf. File integrity, resource capacity and final scientific evidence still require independent checks.
 
 `NoEigenTest` suppresses an optimizer curvature test; it does not establish that a saddle is valid — it transfers all saddle validation to the final freq, which then becomes mandatory. Add it only when a diagnosed early curvature rejection warrants continuing from a credible guess. `MaxStep=10` or a tighter grid may address a specific step-size/numerical problem; do not stack them onto every failed job. **QST2/QST3 are banned** (synchronous-transit interpolation fails systematically and has no path correction); the ceiling is mapped interpolation/NEB, with relaxed scans as the workhorse — see `ts-search-playbook.md`.
 

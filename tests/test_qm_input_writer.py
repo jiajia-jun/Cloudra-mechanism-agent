@@ -30,10 +30,10 @@ def test_writer_requires_explicit_calculation_fields(missing):
 
 
 @pytest.mark.parametrize('method', ['B3LYP/def2-SVP', 'B3LYP D3BJ', 'B3LYP/def2SVP CPCM(DCM)'])
-def test_writer_refuses_combined_route_in_method_before_coordinate_work(method):
-    with pytest.raises(ValidationError, match='method'):
-        QmInputWriter_input_schema(engine='orca', method=method, basis_set='def2-SVP',
-            source_type='xyz_file', source_value='water.xyz', output_path='job.inp')
+def test_writer_schema_keeps_combined_native_method_for_tool_advice(method):
+    request = QmInputWriter_input_schema(engine='orca', method=method, basis_set='def2-SVP',
+        source_type='xyz_file', source_value='water.xyz', output_path='job.inp')
+    assert request.method == method
 
 
 @pytest.mark.asyncio
@@ -48,7 +48,8 @@ async def test_writer_reports_complete_written_calculation_without_method_substi
     assert result.is_success, result.message
     assert result.calculation.method == 'B3LYP'
     assert result.calculation.basis_set == 'def2SVP'
-    assert result.calculation.keywords == keywords
+    assert result.calculation.keywords == 'Opt ' + keywords
+    assert request.keywords == keywords
     assert target.read_text().splitlines()[0] == '! Opt B3LYP def2-SVP ' + keywords
 
 
@@ -535,8 +536,7 @@ async def test_qm_input_writer_orca_engine_produces_valid_inp(tmp_path):
 
 @pytest.mark.asyncio
 async def test_qm_input_writer_orca_single_point_key(tmp_path):
-    """task_type=[{"single_point": None}] 被接受并归一化：ORCA 单点的 ! 行
-    只留方法/基组（无任务关键字），回读意图为 single_point。"""
+    """Explicit SP distinguishes a declared single point from unclassified native tasks."""
     xyz = tmp_path / "water.xyz"
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
     out = tmp_path / "water_sp.inp"
@@ -556,7 +556,7 @@ async def test_qm_input_writer_orca_single_point_key(tmp_path):
 
     assert result.is_success is True, result.message
     content = out.read_text(encoding="utf-8")
-    assert content.startswith("! b3lyp def2-svp")
+    assert content.startswith("! SP b3lyp def2-svp")
     assert result.interpreted_intent["tasks"] == ["single_point"]
 
 
@@ -612,13 +612,13 @@ async def test_qm_input_writer_orca_plain_opt_maps_keywords(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_qm_input_writer_orca_scan_routes_to_structured_prepare(tmp_path):
+async def test_qm_input_writer_orca_native_scan_is_preserved_with_guidance(tmp_path):
     xyz = tmp_path / "water.xyz"
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
     output = tmp_path / "water_scan.inp"
 
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, method='b3lyp', basis_set='6-31g(d)',
             engine="orca",
             source_type="xyz_file",
             source_value=str(xyz),
@@ -629,9 +629,9 @@ async def test_qm_input_writer_orca_scan_routes_to_structured_prepare(tmp_path):
         session=None,
     )
 
-    assert not result.is_success
-    assert "scan_prepare" in result.message
-    assert not output.exists()
+    assert result.is_success, result.message
+    assert any('scan_prepare' in entry['message'] for entry in result.warnings)
+    assert 'Scan B 0 1 = 0.95, 1.20, 4 end' in output.read_text()
 
 
 @pytest.mark.asyncio
@@ -1181,14 +1181,12 @@ def _water_xyz_file(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_gaussian_bare_scan_refused_with_semantics_recorded(tmp_path):
-    """同一 task_type 的 scan 在 Gaussian 是刚性扫描、ORCA 是松弛扫描且
-    inspect_input 检不出差异——裸 {'scan': None} 必须拒绝并在
-    unapplied_options 里显式记录 rigid/relaxed 语义冲突。"""
+async def test_gaussian_bare_scan_warns_with_semantics_recorded(tmp_path):
+    """Bare Gaussian scan is retained, with its native rigid-scan meaning visible."""
     xyz = _water_xyz_file(tmp_path)
     out = tmp_path / "scan.gjf"
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
             source_type="xyz_file",
             source_value=str(xyz),
             task_type=[{"scan": None}],
@@ -1197,20 +1195,18 @@ async def test_gaussian_bare_scan_refused_with_semantics_recorded(tmp_path):
         ),
         session=None,
     )
-    assert result.is_success is False
-    assert "RIGID" in result.message and "RELAXED" in result.message
-    assert result.unapplied_options
-    assert "rigid" in result.unapplied_options[0]
-    assert not out.exists()
+    assert result.is_success, result.message
+    assert any('RIGID' in entry['message'] and 'RELAXED' in entry['message'] for entry in result.warnings)
+    assert not result.unapplied_options
+    assert out.exists()
 
 
 @pytest.mark.asyncio
-async def test_gaussian_scan_relaxed_declaration_refused_with_guidance(tmp_path):
-    """{'scan': 'relaxed'}：Gaussian 松弛扫描不是裸 scan 路由能表达的——
-    拒绝并指路 opt=modredundant / 结构化scan_prepare。"""
+async def test_gaussian_scan_relaxed_declaration_preserved_with_guidance(tmp_path):
+    """A questionable scan parameter is kept verbatim and receives advice."""
     xyz = _water_xyz_file(tmp_path)
     result = await QmInputWriter().tool_call(
-        QmInputWriter_input_schema(engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
+        QmInputWriter_input_schema(charge=0, engine='gaussian', method='b3lyp', basis_set='6-31g(d)',
             source_type="xyz_file",
             source_value=str(xyz),
             task_type=[{"scan": "relaxed"}],
@@ -1218,9 +1214,9 @@ async def test_gaussian_scan_relaxed_declaration_refused_with_guidance(tmp_path)
         ),
         session=None,
     )
-    assert result.is_success is False
-    assert "modredundant" in result.message
-    assert result.unapplied_options
+    assert result.is_success, result.message
+    assert any('modredundant' in entry['message'] for entry in result.warnings)
+    assert 'scan=relaxed' in (tmp_path / 'scan.gjf').read_text()
 
 
 @pytest.mark.asyncio

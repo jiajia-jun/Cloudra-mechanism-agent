@@ -115,7 +115,7 @@ async def test_frequency_advisory_wakes_only_owner_without_interrupting_irc(tmp_
 
     assert len(notices(core, child.id)) == 1
     assert notices(core, child.id)[0].data['manifest'] == {
-        'kind': 'compute_completion', 'task_id': jobs['frequency'],
+        'kind': 'compute_completion', 'task_ids': [jobs['frequency']],
     }
     assert core.runner.wakes == [child.id]
     assert child.state.value == 'running'

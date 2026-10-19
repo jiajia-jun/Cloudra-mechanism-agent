@@ -1,5 +1,4 @@
-"""calculation_intent + qm_input_writer 严格化（Task 2）：无法实现的选项
-明确拒绝、不静默丢参；生成文本可重新 inspect 出一致意图。"""
+"""Native calculation settings are preserved and questionable options warn."""
 
 import pytest
 
@@ -41,6 +40,12 @@ def _codes(entries):
     return [e["code"] for e in entries]
 
 
+def test_explicit_native_orca_scan_is_not_advised_to_use_itself():
+    issues = validate_writer_request(dict(engine='orca', method='HF', basis_set='STO-3G',
+        task_type=[{'opt': None}], orca_blocks='%geom Scan B 0 1 = 1.0, 2.0, 5 end end'))
+    assert 'scan_requires_ts_guess' not in _codes(issues)
+
+
 def _writer(tmp_path, **overrides):
     xyz = tmp_path / "water.xyz"
     xyz.write_text(_WATER_XYZ, encoding="utf-8")
@@ -57,26 +62,27 @@ def _writer(tmp_path, **overrides):
     return QmInputWriter().tool_call(QmInputWriter_input_schema(**args), session=None)
 
 
-# --- validate_writer_request：固定 code/field/message 形状 ---
+# --- validate_writer_request：结构化可见建议 ---
 
 
 def test_validate_entries_shape_and_empty_means_no_conflict():
-    entries = validate_writer_request({"engine": "orca", "task_type": [{"numfreq": None}]})
+    entries = validate_writer_request({"engine": "orca", "task_type": [{"FutureTask": None}]})
     assert entries
     for entry in entries:
-        assert set(entry) == {"code", "field", "message"}
+        assert set(entry) == {"code", "field", "message", "severity"}
+        assert entry['severity'] == 'warning'
     assert validate_writer_request(
         {"engine": "orca", "task_type": [{"opt": None}, {"freq": None}]}
     ) == []
 
 
-def test_unknown_numfreq_key_rejected_with_suggestion():
+def test_native_numfreq_key_is_accepted_without_alias_rewrite():
     entries = validate_writer_request({"engine": "orca", "task_type": [{"numfreq": None}]})
-    assert "unknown_task_key" in _codes(entries)
-    assert "frequency_mode='numeric'" in entries[0]["message"]
+    assert entries == []
+    assert intent_from_writer({'engine': 'orca', 'task_type': [{'NumFreq': None}]}).tasks == {'frequency'}
 
 
-def test_gaussian_opt_suboptions_rejected_for_orca():
+def test_gaussian_opt_suboptions_warn_for_orca():
     entries = validate_writer_request(
         {"engine": "orca", "task_type": [{"opt": "ts,calcfc,noeigen"}]}
     )
@@ -84,14 +90,14 @@ def test_gaussian_opt_suboptions_rejected_for_orca():
     assert "orca_blocks" in entries[0]["message"]
 
 
-def test_orca_end_setting_rejected():
+def test_orca_end_setting_warns():
     entries = validate_writer_request(
         {"engine": "orca", "task_type": [{"opt": None}], "end_setting": "B 1 34 S 15 0.02"}
     )
     assert "gaussian_only_field" in _codes(entries)
 
 
-def test_conflicting_and_duplicate_task_blocks_rejected():
+def test_conflicting_and_duplicate_task_blocks_warn():
     conflicting = validate_writer_request(
         {"engine": "orca", "task_type": [{"opt": "ts"}, {"opt": None}]}
     )
@@ -102,14 +108,14 @@ def test_conflicting_and_duplicate_task_blocks_rejected():
     assert "duplicate_task" in _codes(duplicate)
 
 
-def test_frequency_mode_without_frequency_task_rejected():
+def test_frequency_mode_without_frequency_task_warns():
     entries = validate_writer_request(
         {"engine": "orca", "task_type": [{"opt": None}], "frequency_mode": "numeric"}
     )
     assert "frequency_mode_without_frequency" in _codes(entries)
 
 
-def test_bare_orca_scan_without_geom_block_rejected():
+def test_bare_orca_scan_without_geom_block_warns():
     entries = validate_writer_request({"engine": "orca", "task_type": [{"scan": None}]})
     assert "scan_requires_ts_guess" in _codes(entries)
 
@@ -129,12 +135,11 @@ def test_single_point_key_accepted_and_normalized():
         assert intent.certainty == "known"
 
 
-def test_unknown_task_key_error_lists_both_sp_spellings():
+def test_unknown_task_key_warns_without_guessing_a_replacement():
     entries = validate_writer_request({"engine": "orca", "task_type": [{"singlepoint": None}]})
     assert "unknown_task_key" in _codes(entries)
-    assert "single_point" in entries[0]["message"]
-    assert "'sp'" in entries[0]["message"]
-    assert "Did you mean 'single_point'?" in entries[0]["message"]
+    assert entries[0]['severity'] == 'warning'
+    assert 'preserved' in entries[0]['message']
 
 
 def test_sp_and_single_point_spelling_conflict_detected():
@@ -149,28 +154,33 @@ def test_sp_and_single_point_spelling_conflict_detected():
     assert "duplicate_task" in _codes(duplicate)
 
 
-# --- writer 行为：拒绝不落盘；成功时 unapplied_options 为空 ---
+# --- writer 行为：保留参数并返回 warning；成功时 unapplied_options 为空 ---
 
 
 @pytest.mark.asyncio
-async def test_writer_refusal_writes_no_file(tmp_path):
+async def test_writer_questionable_options_are_written_with_warnings(tmp_path):
     result = await _writer(tmp_path, task_type=[{"opt": "ts,calcfc,noeigen"}])
-    assert result.is_success is False
-    assert result.unapplied_options
-    assert not (tmp_path / "job.inp").exists()
+    assert result.is_success, result.message
+    assert not result.unapplied_options
+    assert result.warnings
+    assert 'calcfc,noeigen' in (tmp_path / 'job.inp').read_text()
 
 
 @pytest.mark.asyncio
-async def test_writer_rejects_invalid_options_before_building_coordinates(tmp_path, monkeypatch):
-    def unexpected_build(*_args, **_kwargs):
-        raise AssertionError("invalid request must not start coordinate generation")
+async def test_writer_warning_does_not_skip_coordinate_work(tmp_path, monkeypatch):
+    original = QmInputWriter._get_molecule
+    calls = []
 
-    monkeypatch.setattr(QmInputWriter, "_get_molecule", staticmethod(unexpected_build))
+    def record_build(*args, **kwargs):
+        calls.append(True)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(QmInputWriter, "_get_molecule", staticmethod(record_build))
     result = await _writer(tmp_path, task_type=[{"opt": "ts,calcfc,noeigen"}])
 
-    assert result.is_success is False
-    assert result.unapplied_options
-    assert "gaussian_only_suboption" in result.message
+    assert result.is_success, result.message
+    assert calls
+    assert 'gaussian_only_suboption' in _codes(result.warnings)
 
 
 @pytest.mark.asyncio

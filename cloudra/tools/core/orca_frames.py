@@ -126,8 +126,11 @@ NORMAL_TERMINATION_MARKER = "ORCA TERMINATED NORMALLY"
 
 
 def normal_termination(text: str) -> bool:
-    """ORCA 日志文本是否含正常终止标记（引擎自报，不依赖 cclib）。"""
-    return NORMAL_TERMINATION_MARKER in text
+    """原生正常终止且没有原生错误终止；历史正常标记不能覆盖后续失败。"""
+    return (
+        NORMAL_TERMINATION_MARKER in text
+        and "ORCA finished by error termination" not in text
+    )
 
 
 # ORCA 优化收敛标记：跑满最大步数未收敛时进程仍正常终止（照常打印

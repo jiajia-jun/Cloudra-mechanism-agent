@@ -37,7 +37,7 @@ async def test_ts_mode_advisory_wakes_owner_while_irc_continues(tmp_path):
         events = harness.events(agent)
         notices = [event for event in events if event.type == 'agent.message_injected'
                    and (event.data.get('manifest') or {}).get('kind') == 'compute_completion']
-        assert [event.data['manifest']['task_id'] for event in notices] == [jobs['frequency']]
+        assert [event.data['manifest']['task_ids'] for event in notices] == [[jobs['frequency']]]
         gates = [event for event in events if event.type == 'agent.completion_gate']
         assert gates[-1].data['action'] == 'wait_background'
         assert await asyncio.to_thread(irc_checkpoint, db, process_id, jobs) == before

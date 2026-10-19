@@ -301,16 +301,16 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
                     "Gaussian/xTB atoms start at 1; ORCA at 0. Do not freeze a scanned coordinate.",
     )
     method: str | None = Field(default=None, description="scan_prepare requires one native method token. Put the basis only in basis_set and additional native settings only in keywords. Use the same calculation fields as qm_input_writer and ts_prepare. Current task requirements govern the method; MethodPolicy applies only to Benchmark tasks.")
-    basis_set: str | None = Field(default=None, description="scan_prepare requires an explicit basis token, or an explicit empty string for a method with no basis. A method/basis route string is not accepted in method.")
+    basis_set: str | None = Field(default=None, description="scan_prepare requires an explicit basis token, or an explicit empty string for a method with no basis. Declare the method and basis in their separate fields.")
     keywords: str = Field(default='', description="scan_prepare: explicitly requested native electronic keywords, e.g. D3BJ RIJCOSX def2/J TightSCF CPCM(DCM) for ORCA, or scrf=(solvent=water) for Gaussian.")
-    frequency_mode: Literal['auto', 'analytic', 'numeric'] = Field(default='auto', description="scan_prepare accepts only auto: this operation writes a scan, not a frequency calculation.")
+    frequency_mode: Literal['auto', 'analytic', 'numeric'] = Field(default='auto', description="Native frequency-mode declaration. Setting this without a frequency task produces a warning and does not add a frequency task.")
     output_path: Optional[str] = Field(default=None, description="scan_prepare: path to write the Gaussian/ORCA input or xTB typed manifest (required). Absolute as-is, or relative to the Agent working directory.")
     orca_blocks: Optional[str] = Field(
         default=None,
-        description="scan_prepare, ORCA only: raw % blocks appended after generated resources/geometry. %geom/%pal/%maxcore use scans/freeze/nproc/mem instead. For example, the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. Rejected for engine='gaussian'.",
+        description="scan_prepare: explicit native % blocks preserved beside generated scan coordinates. Additional %geom blocks produce advice; shared resource admission checks %pal/%maxcore declarations. For example, the external-potential block '%method\\n  ProgExt \"/abs/path/to/mace\"\\n  Ext_Params \"--model /abs/model --device cpu --dtype float64\"\\nend' when method='ExtOpt'. For Gaussian the text is preserved in the trailing section with a warning.",
     )
 
-    end_setting: str = Field(default='', description='scan_prepare: explicit Gaussian trailing native settings, after ModRedundant coordinates. ORCA uses orca_blocks.')
+    end_setting: str = Field(default='', description='scan_prepare: explicit trailing native settings, after Gaussian ModRedundant coordinates. With ORCA the text is preserved with a native-syntax warning.')
     force_constant: float | None = Field(default=None, gt=0, allow_inf_nan=False, description='Native xTB scan restraint force constant in atomic units; required for engine=xtb.')
     scan_mode: Literal['concerted', 'sequential', 'grid'] | None = Field(default=None, description='Two-coordinate scan intent: ORCA requires concerted (simultaneous path, equal steps) or grid (independent surface, no automatic TS candidate); xTB supports concerted or sequential. Omit for one coordinate or Gaussian grids.')
     solvation: PathSolvation | None = Field(default=None, description='Native xTB solvation declaration, when used.')
@@ -367,8 +367,6 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
             if self.basis_set is None:
                 raise ValueError("scan_prepare requires an explicit basis_set; use '' for no basis")
             QmCalculation.model_validate({field: getattr(self, field) for field in QmCalculation.model_fields})
-            if self.frequency_mode != 'auto':
-                raise ValueError('scan_prepare writes a scan, not a frequency job; frequency_mode must be auto')
             if self.engine == 'xtb' and 'mem' in self.model_fields_set:
                 raise ValueError('native xTB scan does not use mem; this field is for Gaussian/ORCA inputs')
             if not self.scans:
@@ -391,6 +389,7 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
 class TsGuess_output_schema(output_schema):
     is_success: bool = Field(description="Whether the operation succeeded")
     message: str = Field(default="", description="Status or error message")
+    warnings: list[dict] = Field(default_factory=list, description="Native calculation advice; declared settings are preserved.")
     process: dict | None = Field(default=None,
         description='For run_id operations: authoritative TS process view after the accepted guess revision. A successful call is not scientific verification.')
     diagnostics: list[str] = Field(default_factory=list,
@@ -1714,10 +1713,6 @@ class TsGuess(Tool):
         ScanGuess(kind='scan', calculation=calculation, scans=user_input.scans or [],
                   freeze=user_input.freeze, mode=user_input.scan_mode,
                   force_constant=user_input.force_constant, solvation=user_input.solvation)
-        if user_input.engine == 'orca' and user_input.end_setting:
-            raise ValueError('ORCA scan does not support end_setting; use orca_blocks')
-        if user_input.engine == 'gaussian' and user_input.orca_blocks:
-            raise ValueError('Gaussian scan does not support orca_blocks; use end_setting')
         need = {"bond": 2, "angle": 3, "dihedral": 4}
         if not user_input.scans:
             raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
@@ -1803,12 +1798,6 @@ class TsGuess(Tool):
                     raise ValueError(f"Degenerate frozen dihedral {entry.atoms}")
             seen.add(key)
             frozen.append((entry.coord_type, idx))
-        if user_input.engine == "orca" and user_input.orca_blocks:
-            from cloudra.tools.core.calculation_intent import orca_directives
-            blocks = orca_directives(user_input.orca_blocks)[1]
-            if blocks.keys() & {"geom", "pal", "maxcore"}:
-                raise ValueError("orca_blocks cannot contain %geom, %pal or %maxcore; "
-                                 "use scans/freeze and nproc/mem")
 
         if start_mismatches and user_input.engine == "gaussian":
             return TsGuess_output_schema(
@@ -1844,7 +1833,7 @@ class TsGuess(Tool):
                     for kind, idx in frozen
                 )
             native_settings['end_setting'] = '\n\n'.join(filter(None, [scan_block, user_input.end_setting]))
-            task_type = [{'opt': 'modredundant,maxstep=10'}]
+            task_type = [{'opt': 'modredundant'}]
             run_hint = (
                 f"Submit {user_input.output_path} with submit_compute_job (job_type='gaussian'); "
                 + ("this is a 2D independent potential-energy grid; scan_parse does not derive a TS candidate. "
@@ -1881,7 +1870,14 @@ class TsGuess(Tool):
             )
 
         from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
-
+        from cloudra.tools.core.calculation_intent import (
+            declared_native_tasks,
+            inspect_input,
+            validate_writer_request,
+        )
+        native_tasks, unknown = declared_native_tasks(calculation.model_dump())
+        if native_tasks or unknown:
+            task_type = []
         # 科学状态和资源只使用共同字段，扫描不再另写电子态、资源、坐标或检查点。
         request = QmInputWriter_input_schema(
             **native_settings, **user_input.model_dump(include=set(QmInputSettings.model_fields)),
@@ -1889,7 +1885,25 @@ class TsGuess(Tool):
             source_value=user_input.input_path or '<inline>', task_type=task_type,
             output_path=user_input.output_path,
         )
+        issues = validate_writer_request(request.model_dump())
+        errors = [item for item in issues if item['severity'] == 'error']
+        if errors:
+            return TsGuess_output_schema(is_success=False, message=str(errors))
+        advice = [item for item in issues if item['severity'] == 'warning']
+        if user_input.engine == 'orca' and any(
+            line.split() and line.split()[0].lower() == '%geom'
+            for line in (user_input.orca_blocks or '').splitlines()
+        ):
+            advice.append(dict(code='scan_native_geometry_block', field='orca_blocks', severity='warning',
+                message='The declared native %geom block is preserved beside the generated scan coordinates; review the combined geometry settings.'))
         content = QmInputWriter.render_input(request, mol)
+        errors = QmInputWriter.validate_rendered_input(request, content, charge=total_charge(mol))
+        if errors:
+            return TsGuess_output_schema(is_success=False, message='scan input internal mismatch: ' + ' | '.join(errors), warnings=advice[-100:])
+        actual = inspect_input(content, engine=user_input.engine)
+        if actual.tasks != {'relaxed_scan'}:
+            advice.append(dict(code='purpose_task_mismatch', field='keywords', severity='warning',
+                message=f'The preserved native declaration requests {sorted(actual.tasks)} rather than the scan task; review its native scan options.'))
         out_dir = os.path.dirname(os.path.abspath(user_input.output_path))
         os.makedirs(out_dir, exist_ok=True)
         atomic_write_text(user_input.output_path, content)
@@ -1897,7 +1911,8 @@ class TsGuess(Tool):
         return TsGuess_output_schema(
             is_success=True,
             input_file_path=user_input.output_path,
-            calculation=calculation,
+            calculation=QmInputWriter._written_calculation(request),
+            warnings=advice[-100:],
             run_hint=run_hint,
             message=(
                 f"{user_input.engine} constrained-scan input written to {user_input.output_path} "

@@ -370,13 +370,25 @@ def resolve_log_path(input_file: str, job_type: str = "gaussian", task_id: int |
     日志文件（如本机 ORCA 6.1.1 macOS 构建把主输出全部写 stdout、从不落 .out），
     guard 会把 calculator stdout 捕获到 ``.cloudra/calc-<id>.out.log`` 并回退解析它，
     实际解析路径记录在 guard state json 的 ``log_file`` 字段。
-    优先级：state json 记录的真实 log_file（文件仍存在）→ calc 落盘文件
-    （存在时）→ get_log_path 的纯字符串预测。
+    远端已有本轮 results 收据时只认收据内的原生日志/捕获，不读取旧本地证据。
+    本地优先 state json 的真实 log_file；无 state 时 Gaussian 优先非空原生日志，
+    其他引擎保留 calc 捕获优先，缺捕获时使用惯例路径。
     """
     if job_type == 'chem_task':
         return input_file
     if input_file and task_id is not None:
         workdir = Path(input_file).parent
+        remote_results = workdir / '.cloudra' / f'remote-{task_id}' / 'results'
+        if remote_results.is_dir():
+            # A remote execution receipt must never fall back to evidence left
+            # by a previous local/remote run in the shared input directory.
+            native = remote_results / Path(get_log_path(input_file, job_type)).name
+            if native.is_file() and native.stat().st_size:
+                return str(native)
+            captured = remote_results / '.cloudra' / f'calc-{task_id}.out.log'
+            if captured.is_file():
+                return str(captured)
+            return str(native)
         try:
             recorded = json.loads(
                 (workdir / f"state_{task_id}.json").read_text(encoding="utf-8")
@@ -385,6 +397,9 @@ def resolve_log_path(input_file: str, job_type: str = "gaussian", task_id: int |
             recorded = None
         if recorded and Path(recorded).is_file():
             return str(recorded)
+        native = Path(get_log_path(input_file, job_type=job_type))
+        if job_type == 'gaussian' and native.is_file() and native.stat().st_size:
+            return str(native)
         captured = workdir / ".cloudra" / f"calc-{task_id}.out.log"
         if captured.is_file():
             return str(captured)

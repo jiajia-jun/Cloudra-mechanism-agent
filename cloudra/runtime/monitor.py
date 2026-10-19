@@ -237,18 +237,25 @@ async def _cclib_parse(target: Path) -> tuple[dict, bool] | None:
 
 async def _parse_gaussian_log(target: Path) -> tuple[dict, bool]:
     """Gaussian 日志解析：终止标记定成败，cclib 只负责提取数据字段。"""
-    from cloudra.tools.core.gaussian_frames import normal_termination
+    from cloudra.tools.core import gaussian_frames
 
     try:
         text = await asyncio.to_thread(target.read_text, encoding="utf-8", errors="replace")
     except OSError as e:
         print(f'读取 Gaussian 日志失败：{e}')
         return {"is_success": False, "log_file": str(target)}, False
-    is_success = normal_termination(text)
+    is_success = gaussian_frames.normal_termination(text)
     parsed = await _cclib_parse(target)
-    if parsed is None:
-        return {"is_success": is_success, "log_file": str(target)}, is_success
-    data_dic, _cclib_success = parsed
+    data_dic = parsed[0] if parsed is not None else {}
+    opt_ok = gaussian_frames.opt_converged(text)
+    if opt_ok is None and {"opt", "ts"} & gaussian_frames.detect_job_types_from_text(text):
+        # cclib also records IRC corrector convergence in optdone; only an
+        # independently declared optimization may use it as a fallback.
+        optdone = data_dic.get("optdone")
+        if optdone is not None:
+            opt_ok = bool(optdone)
+    data_dic["normal_termination"] = is_success
+    data_dic["opt_converged"] = opt_ok
     data_dic["is_success"] = is_success
     data_dic["log_file"] = str(target)
     return data_dic, is_success
@@ -265,9 +272,8 @@ async def _parse_orca_log(target: Path) -> tuple[dict, bool]:
     失败时退化为文本提取的最小数据（最终能量 + is_success + log_file）。
     终止/能量的文本权威判据与 log_parser 共用 tools.core.orca_frames。
 
-    优化收敛是独立于终止标记的第二判据（GH #21）：跑满最大步数未收敛时
-    ORCA 仍打印 TERMINATED NORMALLY——文本收敛标记为主，cclib optdone 为辅
-    （外部 MLIP 日志 cclib 可能解析失败，不能依赖它）。
+    优化收敛单独记录，不改写作业原生终态；科学验收仍要求实际收敛。
+    文本收敛标记为主，cclib optdone 为辅（外部 MLIP 日志 cclib 可能解析失败）。
     """
     from cloudra.tools.core import orca_frames
 
@@ -298,9 +304,7 @@ async def _parse_orca_log(target: Path) -> tuple[dict, bool]:
             if optdone is not None:
                 opt_ok = bool(optdone)
     data_dic["opt_converged"] = opt_ok
-    if is_success and opt_ok is False:
-        is_success = False
-        data_dic["error"] = "ORCA 几何优化未收敛（达到最大优化步数），结果不可信"
+    data_dic["normal_termination"] = is_success
     data_dic["is_success"] = is_success
     return data_dic, is_success
 
@@ -505,8 +509,7 @@ async def _finalize(
     state = 'done' if is_success else 'failed'
     fail_reason = ""
     if state == 'failed':
-        # 解析器已给出明确原因时优先采用（如 ORCA 优化未收敛——日志尾部没有
-        # 已知失败标记，通用尾部提取只会捞到无信息的几行）
+        # 解析器已给出明确原因时优先采用。
         parser_reason = str(data_dic.get("error") or "")
         # reason 从"实际应解析的日志"取：推导路径缺失时它可能在落盘回退文件里
         target, _ = await asyncio.to_thread(_resolve_log_target, log_path, fallback_log_path)

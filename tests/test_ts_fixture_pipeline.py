@@ -189,7 +189,8 @@ def test_contract_single_mode_admits_one_irc_and_preserves_same_geometry(
     assert [s.purpose for s in persisted.job_steps] == ["frequency", "irc"]
     irc = persisted.job_steps[-1]
     text = Path(irc.input_path).read_text()
-    assert "Direction both" in text
+    assert "%irc" not in text
+    assert "Direction" not in text
     lines = text.splitlines()
     coordinate_start = next(i + 1 for i, line in enumerate(lines) if line.split() == ["*", "xyz", "0", "1"])
     atoms = [line.split() for line in lines[coordinate_start:coordinate_start + 3]]
@@ -197,10 +198,11 @@ def test_contract_single_mode_admits_one_irc_and_preserves_same_geometry(
     for atom, expected in zip(atoms, [[0, 0, -1.252682], [0, 0, 0], [0, 0, 1.252682]], strict=True):
         assert [float(value) for value in atom[1:]] == pytest.approx(expected)
     assert "def2-SVP" in text and "def2svp" not in text
-    assert ("InitHess read" in text) == hessian
-    assert ("InitHess calc_numfreq" in text) == (not hessian)
+    assert "InitHess" not in text
+    assert "Hess_Filename" not in text
+    assert persisted.input.verification.irc == record.input.verification.irc
     if hessian:
-        assert f'Hess_Filename "{hess}"' in text
+        assert hess.read_text() == "contract Hessian placeholder; engine is never executed\n"
     from cloudra.tools.core.calculation_intent import inspect_input
     assert inspect_input(text, engine="orca").tasks == {"irc"}
     assert handle_process_job_terminal(db, step.job_id) == result

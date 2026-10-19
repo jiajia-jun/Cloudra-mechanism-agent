@@ -225,6 +225,11 @@ async def test_recovery_reads_pipeline_records_only_by_known_process_id(acknowle
     await broker._poll_all()
     reads = [sql for sql in statements if sql.lstrip().upper().startswith('SELECT')
              and 'ts_pipeline_processes' in sql.lower()]
+    # Schema initialization also visits payloads to remove an obsolete limit.
+    # Keep that exact migration separate from the recovery record-read check.
+    migrations = {f'SELECT rowid,{column} FROM ts_pipeline_processes WHERE instr({column},\'"max_interventions"\')>0'
+        for column in ('payload', 'record')}
+    reads = [sql for sql in reads if sql not in migrations]
     assert reads, 'Recovery must read the authoritative process identified by its saved reference'
     for sql in reads:
         where = ' '.join(sql.lower().split()).partition(' where ')[2]
@@ -279,7 +284,7 @@ async def test_blocked_recovery_notice_survives_broker_restart_after_content_fai
     assert acknowledged is not None
     messages = core.event_log.query_session(coordinator.id, types={'agent.message_injected'})
     assert len(messages) == 1
-    assert messages[0].data['manifest'] == {'kind': 'compute_completion', 'task_id': job}
+    assert messages[0].data['manifest'] == {'kind': 'compute_completion', 'task_ids': [job]}
     await restarted._poll_all()
     assert len(core.event_log.query_session(coordinator.id, types={'agent.message_injected'})) == 1
     assert await asyncio.to_thread(job_count, db) == 1

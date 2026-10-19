@@ -41,9 +41,8 @@ def checkpoint(tmp_path):
 
 @pytest.mark.parametrize("crash_after_ready", [False, True])
 def test_scan_submission_recovers_exact_input_after_checkpoint_crash(tmp_path, monkeypatch, crash_after_ready):
-    from types import SimpleNamespace
-
     from cloudra.services.compute_admission import AdmissionOutcome
+    from cloudra.tools.Chemtool.ts_guess import TsGuess_output_schema
     from cloudra.tools.core.ts_pipeline_driver import advance_process
 
     db, pid, record = checkpoint(tmp_path)
@@ -61,7 +60,7 @@ def test_scan_submission_recovers_exact_input_after_checkpoint_crash(tmp_path, m
         path = Path(request.output_path)
         geometry = '\n'.join(to_xyz(record.structures.reactant).splitlines()[2:])
         ts_process._write_immutable_input(str(path), f"! Opt B3LYP def2SVP\n%geom Scan B 0 1 = 1., 2., 5 end end\n* xyz 0 1\n{geometry}\n*\n")
-        return SimpleNamespace(is_success=True, input_file_path=str(path))
+        return TsGuess_output_schema(is_success=True, input_file_path=str(path))
 
     monkeypatch.setattr("cloudra.tools.Chemtool.ts_guess.TsGuess._scan_prepare", prepare)
     monkeypatch.setattr(

@@ -54,6 +54,15 @@ def normal_termination(text: str) -> bool:
     return "Normal termination" in text and "Error termination" not in text
 
 
+def opt_converged(text: str) -> bool | None:
+    """独立优化的原生收敛标记；IRC corrector 的收敛不构成驻点证据。"""
+    if "Optimization stopped." in text:
+        return False
+    if "Optimization completed." in text or "Stationary point found." in text:
+        return True
+    return None
+
+
 def _collect_route_card(text: str) -> str:
     """收集日志中回显的路由行（` #` 开头，可能跨行缠绕），拼接为小写字符串。
 

@@ -3,8 +3,6 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from cloudra.tools.core.qm_keywords import is_basis_keyword
-
 
 class QmInputSettings(BaseModel):
     """Electronic state and resources shared by native input generators."""
@@ -41,37 +39,19 @@ class QmCalculation(BaseModel):
     @classmethod
     def native_method(cls, value):
         value = value.strip()
-        if not value or any(character.isspace() for character in value):
-            raise ValueError('method must be one explicit native token; put basis_set and keywords in their separate fields')
-        _, separator, suffix = value.partition('/')
-        if is_basis_keyword(value) or (separator and is_basis_keyword(suffix)):
-            raise ValueError('method must not contain a basis; declare the native method and basis_set separately')
+        if not value:
+            raise ValueError('method must be non-empty')
         return value
 
     @field_validator('basis_set')
     @classmethod
     def native_basis(cls, value):
         value = value.strip()
-        if any(character.isspace() for character in value):
-            raise ValueError('basis_set must be one native basis token or an explicit empty string')
-        return value
-
-    @field_validator('keywords')
-    @classmethod
-    def separate_orbital_basis(cls, value):
-        for token in value.split():
-            head, separator, suffix = token.rpartition('/')
-            auxiliary = separator and is_basis_keyword(head) and suffix.lower() in {'j', 'jk', 'jksmall', 'c'}
-            if not auxiliary and (is_basis_keyword(token) or (separator and is_basis_keyword(suffix))):
-                raise ValueError(f'keywords contain orbital basis {token!r}; declare it only in basis_set, using an empty basis_set only for a method without an orbital basis')
         return value
 
     @model_validator(mode='after')
     def engine_settings(self):
-        if self.engine != 'orca' and self.orca_blocks:
-            raise ValueError('orca_blocks are only valid for engine=orca')
-        if self.engine != 'gaussian' and self.end_setting:
-            raise ValueError('end_setting is only valid for engine=gaussian')
-        if self.engine == 'xtb' and (self.basis_set or self.keywords or self.frequency_mode != 'auto'):
+        if self.engine == 'xtb' and (self.basis_set or self.keywords or self.frequency_mode != 'auto'
+                                     or self.orca_blocks or self.end_setting):
             raise ValueError('native xTB declares an empty basis_set and no ORCA/Gaussian keywords or frequency mode')
         return self

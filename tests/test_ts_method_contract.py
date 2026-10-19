@@ -106,8 +106,7 @@ def test_runtime_method_authority_is_benchmark_only(tmp_path):
             require_pipeline_authority(project.id, agent.id)
 
 
-def test_ordinary_ts_still_checks_accepted_input(tmp_path):
-    import pytest
+def test_ordinary_ts_records_native_declaration_differences(tmp_path):
 
     from cloudra.services.ts_pipeline_context import use_pipeline_authority
     from cloudra.tools.core.ts_process import _check_calculation_submission
@@ -115,9 +114,11 @@ def test_ordinary_ts_still_checks_accepted_input(tmp_path):
 
     source = tmp_path / "ts.inp"
     source.write_text("! OptTS PBE0 def2-TZVP\n* xyz 0 1\nO 0 0 0\n*\n")
+    record = record_fixture(tmp_path)
     with use_pipeline_authority(lambda project, owner: (True, None)):
-        with pytest.raises(ValueError, match="method"):
-            _check_calculation_submission(record_fixture(tmp_path), "ts_opt", str(source), "orca")
+        _check_calculation_submission(record, "ts_opt", str(source), "orca")
+    assert not record.method_checks[str(source)]['matched']
+    assert any(item['field'] == 'method' for item in record.warnings)
 
 
 def expected(engine='orca', **changes):
@@ -151,10 +152,10 @@ def test_native_blocks_and_gaussian_links_are_all_checked():
     assert any(d.field == 'method' for d in intent.compare_calculation_input(gaussian, declaration, charge=0, multiplicity=1))
 
 
-def test_unauthorized_method_and_missing_keyword_block_before_ready(tmp_path, monkeypatch):
+def test_trusted_method_is_enforced_while_declared_keyword_differences_warn(tmp_path, monkeypatch):
     from cloudra.runtime_v2.schemas import MethodPolicy
     from cloudra.services.ts_pipeline_context import use_pipeline_authority
-    from cloudra.tools.core.ts_process import _submit_step
+    from cloudra.tools.core.ts_process import _check_calculation_submission, _submit_step
     from tests.test_ts_stage_inputs import record_fixture
 
     record = record_fixture(tmp_path)
@@ -162,8 +163,8 @@ def test_unauthorized_method_and_missing_keyword_block_before_ready(tmp_path, mo
     source.write_text('! OptTS B3LYP def2SVP\n* xyz 0 1\nO 0 0 0\n*\n')
     monkeypatch.setattr('cloudra.services.compute_admission.admit_job', lambda **_: (_ for _ in ()).throw(AssertionError('must reject before admission')))
     with use_pipeline_authority(lambda project, owner: (True, MethodPolicy(allowed_methods=['b3lyp/def2svp']))):
-        error, job_id = _submit_step(record, 'ts_opt', str(source), 'orca')
-    assert job_id == -1 and 'keywords' in error
+        _check_calculation_submission(record, 'ts_opt', str(source), 'orca')
+    assert any(item['field'] == 'keywords' for item in record.warnings)
     source.write_text('! OptTS B3LYP def2SVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n')
     with use_pipeline_authority(lambda project, owner: (True, MethodPolicy(allowed_methods=['xtb']))):
         error, job_id = _submit_step(record, 'ts_opt', str(source), 'orca')
@@ -207,10 +208,11 @@ def test_undeclared_frequency_block_and_gaussian_trailing_settings_are_differenc
     assert intent.compare_calculation_input(text,declaration,charge=0,multiplicity=1)
 
 
-def test_explicit_geometry_block_can_coexist_with_writer_hessian():
+def test_unrequested_hessian_setting_is_a_real_native_difference():
     declaration=dict(basis_set='STO-3G', engine='orca',method='HF',keywords='',orca_blocks='%geom MaxIter 200 end',end_setting='')
     text='! HF STO-3G OptTS\n%geom Calc_Hess true end\n%geom MaxIter 200 end\n* xyz 0 1\nO 0 0 0\n*\n'
-    assert intent.compare_calculation_input(text,declaration,charge=0,multiplicity=1)==[]
+    assert any(item.field == 'orca_blocks' for item in
+        intent.compare_calculation_input(text,declaration,charge=0,multiplicity=1))
 
 
 def test_whitelist_checks_complete_native_method_and_explicit_basis(tmp_path):

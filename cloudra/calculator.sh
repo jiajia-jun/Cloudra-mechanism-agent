@@ -155,13 +155,25 @@ run_orca() {
     # basename 本身含空白时继续使用作业目录内的硬链接安全名，并在日志留映射。
     local input_arg
     input_arg=$(basename "$INPUT_FILE")
+    local original_stem="${input_arg%.*}"
     local safe_input_name=""
+    local safe_stem=""
     case "$input_arg" in
         *[[:space:]]*)
             safe_input_name=$(printf '%s' "$input_arg" | tr '[:space:]' '_')
             safe_input_name=".cloudra_orasafe_$$_$safe_input_name"
             ln "$INPUT_FILE" "$WORKDIR/$safe_input_name"
             input_arg="$safe_input_name"
+            safe_stem="${safe_input_name%.*}"
+            # Existing same-stem files can be native restart dependencies.
+            # Copy rather than hard-link: ORCA may update them during execution.
+            local existing suffix
+            for existing in "$WORKDIR/$original_stem".*; do
+                [ -f "$existing" ] || continue
+                [ "$existing" = "$WORKDIR/$(basename "$INPUT_FILE")" ] && continue
+                suffix="${existing#"$WORKDIR/$original_stem"}"
+                cp -p -- "$existing" "$WORKDIR/$safe_stem$suffix"
+            done
             echo "[calculator] orca input mapped to safe execution name: $safe_input_name (original: $INPUT_FILE)" >&2
             ;;
     esac
@@ -170,6 +182,25 @@ run_orca() {
     local orca_status=$?
     set -e
     if [ -n "$safe_input_name" ]; then
+        # ORCA names native artifacts after the execution stem. Restore that
+        # stem even when the engine failed; partial artifacts are evidence too.
+        # Preserve an existing destination before replacing it.
+        local artifact target suffix backup_dir
+        backup_dir="$WORKDIR/.cloudra/orca-name-map-$$"
+        mkdir -p "$backup_dir"
+        printf '%s\t%s\n' "$safe_input_name" "$(basename "$INPUT_FILE")" > "$backup_dir/mapping.tsv"
+        for artifact in "$WORKDIR/$safe_stem"*; do
+            [ -e "$artifact" ] || [ -L "$artifact" ] || continue
+            [ "$artifact" = "$WORKDIR/$safe_input_name" ] && continue
+            suffix="${artifact#"$WORKDIR/$safe_stem"}"
+            target="$WORKDIR/$original_stem$suffix"
+            if [ -e "$target" ] || [ -L "$target" ]; then
+                mv -- "$target" "$backup_dir/$(basename "$target")"
+            fi
+            mv -- "$artifact" "$target"
+            printf '%s\t%s\n' "$(basename "$artifact")" "$(basename "$target")" >> "$backup_dir/mapping.tsv"
+            echo "[calculator] orca artifact mapped: $(basename "$artifact") -> $(basename "$target")" >&2
+        done
         rm -f "$WORKDIR/$safe_input_name" || true
     fi
     [ "$orca_status" -eq 0 ] || exit "$orca_status"

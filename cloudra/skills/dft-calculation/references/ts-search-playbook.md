@@ -37,10 +37,12 @@ QST interpolates a single quadratic transit curve between endpoint geometries an
 
 ## 5. TS refinement and the convergence ladder
 
-Default templates:
+Explicit setting examples; choose them for the diagnosed calculation rather than adding them automatically:
 
 - ORCA: `! OptTS Freq TightSCF` + `%geom Calc_Hess true end` (exact initial Hessian; a model/force-field Hessian knows only positive curvature and cannot describe a saddle). Local mode → `Hess_Internal` from scan neighbors (ScanTS automates); delocalized/concerted mode → `Hybrid_Hess {reactive atoms}`.
-- Gaussian: `Opt=(TS,CalcFC,NoEigenTest) Freq`. CalcFC (exact Hessian at point 1) is the minimum; CalcAll (every step) is the last resort for pathological cases, not a default. NoEigenTest only suppresses mid-optimization curvature aborts — **it transfers all saddle validation to the final freq**, never skip that.
+- Gaussian: `Opt=(TS,CalcFC,NoEigenTest) Freq` explicitly requests these options. `CalcFC` requests an exact Hessian at point 1; `CalcAll` requests one at every step. Choose Hessian handling from the available data and native engine support. `NoEigenTest` suppresses mid-optimization curvature aborts; final frequency and reaction-mode validation remain required.
+
+Cloudra does not force these solver settings. A TS stage supplies its basic `OptTS`/`Opt=TS`, `Freq` or `IRC` task only when no explicit native task was declared. User native options are retained, and questionable parameters appear in tool and TS-state `warnings`. Use the existing calculation fields and `ts_resume.changes` to revise them; a warning does not establish scientific validity.
 
 When refinement struggles, climb in order:
 
