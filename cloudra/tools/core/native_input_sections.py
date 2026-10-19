@@ -36,6 +36,28 @@ def gaussian_coordinate_units(route: list[str]) -> Literal['angstrom', 'bohr', '
     return declared.pop() if declared else 'angstrom'
 
 
+def gaussian_code(text: str) -> str:
+    """Ignore Gaussian ! line comments while retaining quoted native values."""
+    lines = []
+    quote = ''
+    for line in text.splitlines():
+        code = []
+        for char in line:
+            if quote:
+                code.append(char)
+                if char == quote:
+                    quote = ''
+            elif char in ('"', "'"):
+                quote = char
+                code.append(char)
+            elif char == '!':
+                break
+            else:
+                code.append(char)
+        lines.append(''.join(code))
+    return '\n'.join(lines)
+
+
 def gaussian_sections(text: str) -> list[GaussianSections]:
     """Read route/title/molecule boundaries without requiring explicit geometry.
 
@@ -58,9 +80,10 @@ def gaussian_sections(text: str) -> list[GaussianSections]:
             continue
         route_lines = []
         while index < len(lines) and lines[index]:
+            # A whole comment line is not the blank line ending the route.
             route_lines.append(lines[index])
             index += 1
-        route_text = ' '.join(route_lines)[1:]
+        route_text = gaussian_code('\n'.join(route_lines)).replace('\n', ' ')[1:]
         head = route_text.split(None, 1)
         if head and head[0].lower() in {'p', 'n', 't'}:
             route_text = head[1] if len(head) > 1 else ''

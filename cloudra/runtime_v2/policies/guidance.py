@@ -8,8 +8,8 @@
 引导项：
 - TS/PES 准备与分子计算提交 → 物理条件、模型边界与坐标耦合的思考提醒；
 - submit_compute_job 提交 TS/IRC 类作业 → ts_prepare SOP 提示（含 QST
-  禁令复述）；输入文件嗅探是 fail-soft 的纯 token 扫描（调度核心链路的
-  零输入解析铁律不碰：这里读的是 agent 自己提交的文件，读不出就不提示）；
+  禁令复述）；按声明引擎复用原生输入解析，只检查 Agent 提交的文件，
+  在线程中完成读取与识别；读不出或无法识别时不提示，不修改调度准入；
 - Coordinator 亲自提交正式计算 → 派单提醒（原 delegation_guard 从工具
   结果前置文案迁入）；
 - bash 写文件/手写坐标 → 结构化工具提醒（原 bash_habit_guard/coord_guard
@@ -140,26 +140,11 @@ def guide_ts_process(notices: NoticeManager | None, agent_id: str, data: dict) -
         content = f"[Guidance] The target TS step remains unverified; {source}. {_REFLECTION_ADVICE}"
     _pin_reflection(notices, agent_id, key, content)
 
-# TS/IRC 路由嗅探：括号形式走子串（大小写不敏感），裸词走 token 精确比对。
-_TS_ROUTE_SUBSTRINGS = ("optts", "scants", "qst2", "qst3", "opt=(ts", "opt = (ts")
-_TS_ROUTE_TOKENS = frozenset({"irc"})
-_SNIFF_HEAD_BYTES = 65536
+def sniff_ts_or_irc_input(text: str, *, engine: str) -> bool:
+    """Recognize native TS/IRC tasks, excluding titles, comments and plain scans."""
+    from cloudra.tools.core.calculation_intent import inspect_input
 
-
-def sniff_ts_or_irc_input(text: str) -> bool:
-    """输入文件是否声明 TS/IRC 类作业（纯 token 扫描，非解析）。
-
-    松弛扫描（modredundant 等）不触发——扫描是 agent 侧的正当手段，本引导
-    针对的是直接 TS/IRC 提交。读不出/不含声明时返回 False（fail-soft）。
-    """
-    folded = text.casefold()
-    if any(marker in folded for marker in _TS_ROUTE_SUBSTRINGS):
-        return True
-    for line in folded.splitlines():
-        for raw in line.replace("=", " ").split():
-            if raw.strip("!%(),;:#") in _TS_ROUTE_TOKENS:
-                return True
-    return False
+    return bool(inspect_input(text, engine=engine).tasks & {'ts_opt', 'irc'})
 
 
 class GuidanceStage:
@@ -186,7 +171,7 @@ class GuidanceStage:
             if intent is not None and any(task in intent.tasks for task in ("ts_opt", "irc")):
                 notices.pin(ctx.agent.id, key=_PIN_TS_SOP, content=_TS_NOTICE)
         if call.name == "submit_compute_job":
-            self._guide_submit(ctx, call, notices)
+            await self._guide_submit(ctx, call, notices)
         elif call.name == "bash":
             self._guide_bash(ctx, call, notices)
         return PolicyResult.allow()
@@ -298,12 +283,15 @@ class GuidanceStage:
             return call.arguments.get("job_type") in ("gaussian", "orca")
         return False
 
-    def _guide_submit(self, ctx: PipelineContext, call: ToolCall, notices) -> None:
+    async def _guide_submit(self, ctx: PipelineContext, call: ToolCall, notices) -> None:
         if getattr(ctx.agent, "role_id", "") == "coordinator":
             notices.pin(ctx.agent.id, key=_PIN_DELEGATE, content=_DELEGATE_NOTICE)
+        engine = call.arguments.get('job_type', 'gaussian')
+        if engine not in ('gaussian', 'orca'):
+            return
         input_file = str(call.arguments.get("input_file") or "")
-        text = self._read_input_head(ctx, input_file)
-        if text is not None and sniff_ts_or_irc_input(text):
+        text = await asyncio.to_thread(self._read_input, ctx, input_file)
+        if text is not None and await asyncio.to_thread(sniff_ts_or_irc_input, text, engine=engine):
             notices.pin(ctx.agent.id, key=_PIN_TS_SOP, content=_TS_NOTICE)
 
     def _guide_bash(self, ctx: PipelineContext, call: ToolCall, notices) -> None:
@@ -316,8 +304,8 @@ class GuidanceStage:
             notices.pin(ctx.agent.id, key=_PIN_BASH_WRITE, content=_BASH_WRITE_NOTICE)
 
     @staticmethod
-    def _read_input_head(ctx: PipelineContext, input_file: str) -> str | None:
-        """读输入文件头部；相对路径同时试 workspace_dir 与进程 cwd。"""
+    def _read_input(ctx: PipelineContext, input_file: str) -> str | None:
+        """Read the complete native input, including later Link1 jobs."""
         if not input_file:
             return None
         candidates = [input_file]
@@ -326,7 +314,7 @@ class GuidanceStage:
         for candidate in candidates:
             try:
                 with open(candidate, encoding="utf-8", errors="replace") as fh:
-                    return fh.read(_SNIFF_HEAD_BYTES)
+                    return fh.read()
             except OSError:
                 continue
         return None

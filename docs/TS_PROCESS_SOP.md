@@ -15,6 +15,8 @@
 
 **正式 TS 求解与完整验证优先走 `ts_prepare` / `ts_resume`**；直接 `submit_compute_job` 提交 TS/IRC 仅用于探索性试算或能力探针。普通物种 Opt/Freq、单点和探索扫描仍使用计算队列。候选以 `guess.kind="provided"`、`guess.xyz_path` 和 `guess.evidence_refs` 接回流程，符合来源校验的已有 IRC 可用 `verification.irc_log`；这不是任意 TS/Freq 日志的通用导入接口。阻塞时先 `ts_inspect` 并修订点名声明，不以手动串联替代正式流程。提交成功不代表 TS 已确证或已绑定 DAG。队列兼容回归见 `tests/test_manual_ts_submission.py`。
 
+直接提交的动态提醒按声明引擎解析完整原生输入，包含 Gaussian 各种 `Opt=TS` / `Opt=(...,TS)` 与后续 Link1，以及 ORCA `NEB-TS` 变体和有效的 `%neb NEB_TS true`。标题、注释、普通优化和扫描不产生 TS 提醒。提醒固定到下一轮 Agent 系统上下文，重复提交不重复注入；当前提交仍按现有准入规则继续，提醒不构成拦截。shell 脚本内容不被猜测为 Gaussian/ORCA 输入。
+
 直接以 `job_type="gaussian"` / `"orca"` 提交的 IRC 在完成冻结后，正常终止且真实双侧可得时自动导出规范 XYZ；完成通知给出两条路径，`query_compute_job` 以 `irc_end_a_path` / `irc_end_b_path` 返回。A/B 不代表反应物/产物，仍须分别无约束 Opt/Freq 并核对身份与方向。若 QM 由 shell 脚本内部启动，shell 回执不解析内部 QM；将原生日志提交 DAG 后，入库快照才生成恢复文件，断链诊断给出具体 Opt 与规范端点路径。程序不修改原生日志或输入，也不放宽几何同一性判据。
 
 ## 输入分组

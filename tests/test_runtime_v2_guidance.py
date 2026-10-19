@@ -8,6 +8,7 @@ TS/IRC 输入嗅探的 fail-soft 语义（读不出/不声明就不提示）。
 from __future__ import annotations
 
 import asyncio
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -17,6 +18,7 @@ from cloudra.runtime_v2.notices import NoticeManager
 from cloudra.runtime_v2.policies.base import PipelineContext, ToolCall, ToolResult
 from cloudra.runtime_v2.policies.guidance import GuidanceStage, sniff_ts_or_irc_input
 from cloudra.runtime_v2.schemas import AgentCapabilities, PermissionSet, RuntimeSettings
+from tests.test_manual_ts_submission import TS_INPUTS
 
 
 def _ctx(role_id: str, notices, workspace_dir: str | None = None) -> PipelineContext:
@@ -36,8 +38,8 @@ def _run(stage, ctx, call):
     return asyncio.run(stage.before_tool(ctx, call))
 
 
-def _submit(path: str) -> ToolCall:
-    return ToolCall(id="t1", name="submit_compute_job", arguments={"input_file": path})
+def _submit(path: str, engine: str = 'orca') -> ToolCall:
+    return ToolCall(id="t1", name="submit_compute_job", arguments={"input_file": path, "job_type": engine})
 
 
 def _bash(command: str) -> ToolCall:
@@ -48,19 +50,19 @@ def _bash(command: str) -> ToolCall:
 
 
 def test_sniff_detects_ts_irc_qst_routes():
-    assert sniff_ts_or_irc_input("! B3LYP def2-SVP OptTS Freq\n")
-    assert sniff_ts_or_irc_input("# opt=(ts,calcfc,noeigentest) b3lyp/def2svp\n")
-    assert sniff_ts_or_irc_input("# qst2 b3lyp/def2svp\n")
-    assert sniff_ts_or_irc_input("! IRC\n%irc MaxIter 50 end\n")
-    assert sniff_ts_or_irc_input("# irc=calcfC\n")
+    assert sniff_ts_or_irc_input("! B3LYP def2-SVP OptTS Freq\n", engine='orca')
+    assert sniff_ts_or_irc_input("# opt=(ts,calcfc,noeigentest) b3lyp/def2svp\n", engine='gaussian')
+    assert sniff_ts_or_irc_input("# opt=qst2 b3lyp/def2svp\n", engine='gaussian')
+    assert sniff_ts_or_irc_input("! IRC\n%irc MaxIter 50 end\n", engine='orca')
+    assert sniff_ts_or_irc_input("# irc=calcfC\n", engine='gaussian')
 
 
 def test_sniff_ignores_plain_and_scan_jobs():
-    assert not sniff_ts_or_irc_input("! B3LYP def2-SVP Opt Freq\n")
-    assert not sniff_ts_or_irc_input("# opt b3lyp/def2svp\n")
+    assert not sniff_ts_or_irc_input("! B3LYP def2-SVP Opt Freq\n", engine='orca')
+    assert not sniff_ts_or_irc_input("# opt b3lyp/def2svp\n", engine='gaussian')
     # 松弛扫描是 agent 侧正当手段，不触发 TS 引导
-    assert not sniff_ts_or_irc_input("# opt=modredundant b3lyp/def2svp\nB 1 2 S 10 0.1\n")
-    assert not sniff_ts_or_irc_input("")
+    assert not sniff_ts_or_irc_input("# opt=modredundant b3lyp/def2svp\nB 1 2 S 10 0.1\n", engine='gaussian')
+    assert not sniff_ts_or_irc_input("", engine='gaussian')
 
 
 # ---------------------------------------------------------------- submit 引导
@@ -74,6 +76,107 @@ def test_ts_submission_pins_sop_guidance(tmp_path):
     assert result.outcome == "allow"
     pin = notices.pin_content("as_g", "guidance-ts-sop")
     assert pin is not None and "ts_prepare" in pin and "QST2/QST3" in pin
+
+
+@pytest.mark.parametrize('engine,content', [
+    *TS_INPUTS,
+    ('gaussian', '#p B3LYP/def2SVP Opt=TS\n\n'),
+    ('gaussian', '#p B3LYP/def2SVP Opt=(CalcFC,TS)\n\n'),
+    ('gaussian', '#p HF/Gen Opt=(TS,CalcFC)\n\ntrial\n\n0 1\nH 0 0 0\n\n'
+                 '! basis selection (previous run\nH 0\nSTO-3G\n****\n'),
+    ('gaussian', '#p HF/STO-3G Opt=(TS,ModRedundant)\n\ntrial\n\n0 1\nH 0 0 0\n\n'
+                 '! exploratory constraint "from previous run\nB 1 2 F\n'),
+])
+def test_native_ts_submission_variants_pin_the_workflow_without_blocking(tmp_path, engine, content):
+    path = tmp_path / 'prepared_input.txt'
+    path.write_text(content)
+    notices = NoticeManager()
+
+    result = _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), _submit(str(path), engine))
+
+    assert result.outcome == 'allow'
+    pin = notices.pin_content('as_g', 'guidance-ts-sop')
+    assert pin and 'ts_prepare' in pin and 'exploratory trials' in pin
+    assert {'role': 'system', 'content': pin} in notices.collect_batch('as_g', fresh=False)
+
+
+@pytest.mark.parametrize('engine,content', [
+    ('gaussian', '#p HF/STO-3G Opt Freq\n\nIRC OptTS QST2\n\n0 1\nH 0 0 0\n\n'),
+    ('gaussian', '#p HF/STO-3G Opt\n\n! OptTS and # IRC are title text\n\n'),
+    ('gaussian', '#p HF/STO-3G External="/tmp/irc/driver" Opt\n\n'),
+    ('gaussian', '#p HF/STO-3G Opt ! IRC and Opt=TS are a comment\n\n'),
+    ('gaussian', '#p HF/STO-3G Opt\n! Opt=TS is a comment\n Freq\n\n'),
+    ('gaussian', '#p HF/STO-3G Opt=(ModRedundant)\n\nscan\n\n'),
+    ('orca', '# OptTS IRC NEB-TS are comments\n! HF STO-3G Opt Freq\n'),
+    ('orca', '! HF STO-3G Opt # IRC OptTS are comments\n'),
+    ('orca', '! HF STO-3G NEB\n%neb NEB_TS false end\n'),
+    ('orca', '! HF STO-3G NEB\n%neb NEB_TS true NEB_TS = false end\n'),
+    ('orca', '! HF STO-3G NEB\n%neb\n# NEB_TS true\nNEB_TS false\nend\n'),
+    ('orca', '! HF STO-3G\n%geom Scan\nB 0 1 = 1.5, 2.5, 5\nend\nend\n'),
+    ('gaussian', '#p HF/STO-3G Opt=(TS\n\n'),
+])
+def test_native_non_ts_submission_does_not_pin_workflow(tmp_path, engine, content):
+    path = tmp_path / 'irc_optts_neb_ts_input.txt'
+    path.write_text(content)
+    notices = NoticeManager()
+
+    result = _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), _submit(str(path), engine))
+
+    assert result.outcome == 'allow'
+    assert notices.pin_content('as_g', 'guidance-ts-sop') is None
+
+
+@pytest.mark.parametrize('engine', ['shell', 'xtb', 'vasp', 'cp2k'])
+def test_non_qm_submission_does_not_sniff_script_contents(tmp_path, monkeypatch, engine):
+    def unexpected(*_args):
+        pytest.fail('Native TS input inspection must only read Gaussian/ORCA jobs')
+
+    monkeypatch.setattr(GuidanceStage, '_read_input', unexpected)
+    notices = NoticeManager()
+    result = _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), _submit('script.sh', engine))
+    assert result.outcome == 'allow'
+    assert notices.pin_content('as_g', 'guidance-ts-sop') is None
+
+
+def test_omitted_submit_engine_uses_the_gaussian_schema_default(tmp_path):
+    path = tmp_path / 'input_without_engine.txt'
+    path.write_text('#p HF/STO-3G Opt=TS\n\n')
+    notices = NoticeManager()
+    call = ToolCall(id='default-engine', name='submit_compute_job', arguments={'input_file': str(path)})
+    assert _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), call).outcome == 'allow'
+    assert notices.pin_content('as_g', 'guidance-ts-sop') is not None
+
+
+@pytest.mark.asyncio
+async def test_native_submit_guidance_reads_input_off_the_event_loop(tmp_path, monkeypatch):
+    path = tmp_path / 'prepared.inp'
+    path.write_text('! HF STO-3G NEB-TS\n')
+    read = GuidanceStage._read_input
+    loop_thread = threading.get_ident()
+    threads = []
+
+    def recording_read(ctx, input_file):
+        threads.append(threading.get_ident())
+        return read(ctx, input_file)
+
+    monkeypatch.setattr(GuidanceStage, '_read_input', staticmethod(recording_read))
+    notices = NoticeManager()
+    result = await GuidanceStage().before_tool(_ctx('small_mol', notices, str(tmp_path)), _submit(str(path)))
+    assert result.outcome == 'allow'
+    assert threads and all(thread != loop_thread for thread in threads)
+    assert notices.pin_content('as_g', 'guidance-ts-sop') is not None
+
+
+def test_submit_guidance_reads_ts_link_after_large_first_geometry(tmp_path):
+    first = '#p HF/STO-3G Opt\n\nlarge first molecule\n\n0 1\n' + ''.join(
+        f'H {index}.0 0.0 0.0\n' for index in range(7000)) + '\n'
+    assert len(first.encode()) > 65536
+    path = tmp_path / 'linked.gjf'
+    path.write_text(first + '--Link1--\n#p HF/STO-3G Opt=TS\n\n')
+    notices = NoticeManager()
+    result = _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), _submit(str(path), 'gaussian'))
+    assert result.outcome == 'allow'
+    assert notices.pin_content('as_g', 'guidance-ts-sop') is not None
 
 
 def test_plain_opt_submission_no_pin(tmp_path):
@@ -117,10 +220,13 @@ def test_pin_is_idempotent_across_calls(tmp_path):
     stage = GuidanceStage()
     ctx = _ctx("small_mol", notices, str(tmp_path))
     _run(stage, ctx, _submit("ts.inp"))
+    pins = notices.render_current("as_g")
+    sequence = notices._local_seqs['as_g']
     _run(stage, ctx, _submit("ts.inp"))
     # 幂等：重复 pin 同内容不产生新事件（NoticeManager 按键去重）
-    pins = notices.render_current("as_g")
-    assert len(pins) == 1
+    assert notices.render_current("as_g") == pins
+    assert notices._local_seqs['as_g'] == sequence
+    assert notices.pin_content('as_g', 'guidance-ts-sop') is not None
 
 
 # ---------------------------------------------------------------- bash 引导

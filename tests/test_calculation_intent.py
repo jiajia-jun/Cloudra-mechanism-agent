@@ -10,6 +10,7 @@ from cloudra.services.compute_admission import resource_underestimate
 from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
 from cloudra.tools.core.calculation_intent import (
     TASK_VOCABULARY,
+    compare_calculation_input,
     inspect_input,
     intent_from_writer,
     validate_writer_request,
@@ -312,6 +313,119 @@ def test_inspect_incomplete_input_is_not_guessed():
     intent = inspect_input("# nothing recognizable here\n", engine="orca")
     assert intent.tasks == set()
     assert intent.certainty == "unknown"
+
+
+@pytest.mark.parametrize('route,expected', [
+    ('# HF/STO-3G Opt ! IRC Opt=TS\n', {'minimum_opt'}),
+    ('# HF/STO-3G Opt\n ! IRC Opt=TS\n Freq\n', {'minimum_opt', 'frequency'}),
+    ('# HF/STO-3G Opt\n ! unmatched quote " and parenthesis ( are comments\n Freq\n',
+     {'minimum_opt', 'frequency'}),
+    ('# HF/STO-3G\n ! IRC is a comment\n Opt=(TS,CalcFC)\n', {'ts_opt'}),
+    ('# HF/STO-3G Opt=(TS,\n ! IRC and unmatched ( are comments\n CalcFC)\n', {'ts_opt'}),
+])
+def test_gaussian_route_comments_do_not_create_tasks_or_hide_continuation(route, expected):
+    text = route + '\n# IRC and Opt=TS are title text!\n\n0 1\nH 0 0 0\n\n'
+
+    intent = inspect_input(text, engine='gaussian')
+
+    assert intent.tasks == expected
+    assert (intent.charge, intent.multiplicity) == (0, 1)
+
+
+@pytest.mark.parametrize('quote', ['"', "'"])
+def test_gaussian_route_comments_preserve_bang_in_quoted_external_path(quote):
+    from cloudra.tools.core.native_input_sections import gaussian_sections
+
+    external = f'external={quote}/tmp/driver!native{quote}'
+    text = (f'# {external} Opt ! IRC Opt=TS are comments\n'
+            '\n# IRC Opt=TS is still title text!\n\n-1 2\nH 0 0 0\n\nkeep this trailing!\n')
+
+    intent = inspect_input(text, engine='gaussian')
+    section, = gaussian_sections(text)
+
+    assert intent.tasks == {'minimum_opt'}
+    assert intent.provider == 'driver!native'
+    assert external in section.route
+    assert section.charge == (-1, 2)
+    assert section.geometry == ['H 0 0 0']
+    assert 'keep this trailing!' in section.trailing
+
+
+@pytest.mark.parametrize('second_route,expected', [
+    ('# HF/STO-3G Freq ! Opt=TS is a comment\n', {'minimum_opt', 'frequency'}),
+    ('# HF/STO-3G\n ! IRC is a comment\n Opt=TS\n', {'minimum_opt', 'ts_opt'}),
+])
+def test_gaussian_route_comments_preserve_link1_section_boundaries(second_route, expected):
+    from cloudra.tools.core.native_input_sections import gaussian_sections
+
+    first = '# HF/STO-3G Opt ! IRC is a comment\n\nfirst title!\n\n0 1\nH 0 0 0\n\n'
+    second = second_route + '\nsecond title!\n\n-1 2\nH 0 0 1\n\n'
+    text = first + '--Link1--\n' + second
+
+    intent = inspect_input(text, engine='gaussian')
+    sections = gaussian_sections(text)
+
+    assert intent.tasks == expected
+    assert [section.charge for section in sections] == [(0, 1), (-1, 2)]
+    assert [section.geometry for section in sections] == [['H 0 0 0'], ['H 0 0 1']]
+
+
+@pytest.mark.parametrize('comment', [
+    '! basis selection (previous run',
+    '! basis selection "previous run',
+])
+def test_gaussian_tail_comments_do_not_erase_explicit_gen_ts(comment):
+    from cloudra.tools.core.native_input_sections import gaussian_sections
+
+    tail = comment + '\nH 0\nSTO-3G\n****\n'
+    text = '#p HF/Gen Opt=(TS,CalcFC)\n\nTS trial\n\n0 1\nH 0 0 0\n\n' + tail
+
+    assert inspect_input(text, engine='gaussian').tasks == {'ts_opt'}
+    section, = gaussian_sections(text)
+    assert comment in section.trailing  # Native tail evidence retains its original text.
+
+
+def test_gaussian_tail_comments_preserve_real_modredundant_scan_cards():
+    tail = '! IRC Opt=TS are not tasks, and "( is just a comment\nB 1 2 S 5 0.1 ! old range (\n'
+    arguments = dict(engine='gaussian', method='HF', basis_set='STO-3G',
+        task_type=[{'opt': 'modredundant'}], end_setting=tail)
+    text = '# HF/STO-3G Opt=ModRedundant\n\nscan\n\n0 1\nH 0 0 0\nH 0 0 1\n\n' + tail
+
+    assert inspect_input(text, engine='gaussian').tasks == {'relaxed_scan'}
+    assert intent_from_writer(arguments).tasks == {'relaxed_scan'}
+
+
+@pytest.mark.parametrize('changed_basis', [False, True])
+def test_gaussian_tail_comments_compare_settings_without_hiding_basis_changes(changed_basis):
+    expected_tail = '! declared basis (\nH 0\nSTO-3G\n****\n'
+    actual_tail = '! observed basis "\nH 0\n' + ('6-31G' if changed_basis else 'STO-3G') + '\n****\n'
+    expected = dict(engine='gaussian', method='HF', basis_set='Gen', end_setting=expected_tail)
+    text = '# HF/Gen Opt=TS\n\ntrial\n\n0 1\nH 0 0 0\n\n' + actual_tail
+
+    differences = compare_calculation_input(text, expected, charge=0, multiplicity=1)
+
+    assert {difference.field for difference in differences} == ({'end_setting'} if changed_basis else set())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('kind', ['gen_ts', 'modredundant_scan'])
+async def test_gaussian_tail_comments_survive_writer_and_semantic_round_trip(tmp_path, kind):
+    if kind == 'gen_ts':
+        tail = '! basis selection (previous run\nO H 0\nSTO-3G\n****\n'
+        task, basis, expected_tasks = 'ts', 'Gen', {'ts_opt'}
+    else:
+        tail = '! IRC and unmatched "( are comments\nB 1 2 S 5 0.1 ! old range (\n'
+        task, basis, expected_tasks = 'modredundant', 'STO-3G', {'relaxed_scan'}
+
+    result = await _writer(tmp_path, engine='gaussian', method='HF', basis_set=basis,
+        task_type=[{'opt': task}], end_setting=tail, output_path=str(tmp_path / 'job.gjf'))
+
+    assert result.is_success, result.message
+    assert result.unapplied_options == []
+    assert 'malformed_native_end_setting' not in _codes(result.warnings)
+    content = (tmp_path / 'job.gjf').read_text()
+    assert tail in content
+    assert inspect_input(content, engine='gaussian').tasks == expected_tasks
 
 
 # --- MethodPolicy fail-closed 不因意图模型放宽 ---

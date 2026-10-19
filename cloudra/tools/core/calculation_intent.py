@@ -23,6 +23,8 @@ from typing import Any, Literal, Mapping
 
 from pydantic import BaseModel, Field
 
+from cloudra.tools.core.native_input_sections import gaussian_code
+
 TASK_VOCABULARY = frozenset(
     {"minimum_opt", "ts_opt", "frequency", "single_point", "irc", "relaxed_scan"}
 )
@@ -169,7 +171,7 @@ def declared_native_tasks(arguments: Mapping[str, Any]) -> tuple[set[str], list[
         if engine == 'gaussian':
             tasks.update(_gaussian_tasks(tokens))
             if ('minimum_opt' in tasks and _gaussian_modredundant(opt_tokens + tokens)
-                    and _gaussian_scan_cards(native_tokens(str(arguments.get('end_setting') or '')))):
+                    and _gaussian_scan_cards(native_tokens(gaussian_code(str(arguments.get('end_setting') or ''))))):
                 tasks.remove('minimum_opt')
                 tasks.add('relaxed_scan')
         elif engine == 'orca':
@@ -286,7 +288,8 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
                 f'Native keywords contain orbital basis {token!r}; its text is preserved. Review it together with basis_set.'))
     for field in ('method', 'basis_set', 'orca_blocks', 'end_setting'):
         try:
-            native_tokens(str(arguments.get(field) or ''))
+            value = str(arguments.get(field) or '')
+            native_tokens(gaussian_code(value) if engine == 'gaussian' and field == 'end_setting' else value)
         except ValueError as exc:
             entries.append(_entry('malformed_native_' + field, field, str(exc)))
 
@@ -679,7 +682,7 @@ def geometry_hash_of(xyz_block: str) -> str:
 def _gaussian_trailing_cards(content):
     from cloudra.tools.core.native_input_sections import gaussian_sections
 
-    return [native_tokens(' '.join(section.trailing)) for section in gaussian_sections(content)]
+    return [native_tokens(gaussian_code('\n'.join(section.trailing))) for section in gaussian_sections(content)]
 
 
 def _generated_gaussian_coordinates(tokens):
@@ -776,7 +779,8 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
                     diff('orca_blocks', (name, 'only explicit settings and writer task controls'), (name, actual_block))
         elif engine == "gaussian":
             trailing = _gaussian_trailing_cards(content)
-            expected_tail = native_tokens('\n'.join(filter(None, [str(expected.get('end_setting') or ''), str(expected.get('orca_blocks') or '')])))
+            expected_tail = native_tokens(gaussian_code('\n'.join(filter(None,
+                [str(expected.get('end_setting') or ''), str(expected.get('orca_blocks') or '')]))))
             for tail in trailing:
                 # Generated ModRedundant scan/freeze cards are task coordinates,
                 # not extra electronic settings. All other trailing directives
