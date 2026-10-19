@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import datetime
 from typing import Any, Dict, Optional
@@ -126,7 +127,7 @@ class QueryComputeJob(Tool):
         conv_id = getattr(self.subagent, 'conversation_id', None) or 'default'
         # compute_jobs 住中央库（节点级共享）；按 conversation_id 过滤出本会话的作业
         db = ComputeDB()
-        if not os.path.exists(db.path):
+        if not await asyncio.to_thread(os.path.exists, db.path):
             return QueryComputeJob_output_schema(is_success=True, jobs=[], message="No compute jobs have been submitted in this conversation yet.")
 
         try:
@@ -147,7 +148,7 @@ class QueryComputeJob(Tool):
         except Exception as e:
             return QueryComputeJob_output_schema(is_success=False, jobs=[], message=f"Query failed: {e}")
 
-        jobs = [_row_to_dict(row) for row in rows]
+        jobs = await asyncio.to_thread(lambda: [_row_to_dict(row) for row in rows])
         message = f"{len(jobs)} job record(s)."
         if any(job["state"] not in TERMINAL_STATES for job in jobs):
             message += (

@@ -1,9 +1,11 @@
 """计算任务相关的公共工具函数。"""
 
 import asyncio
+import hashlib
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -13,6 +15,7 @@ from typing import Mapping, Optional
 
 from cloudra.infra.platform_utils import get_bash_path, is_posix
 from cloudra.persistence.database import ComputeDB
+from cloudra.persistence.fs_utils import atomic_write_json
 from cloudra.services.compute_store import aget_compute_job
 
 # 各 job_type 所需的任一外部可执行程序（通过系统 PATH 查找）。
@@ -28,6 +31,7 @@ _REQUIRED_BINS = {
 
 # guard 轮询间隔（秒）
 GUARD_POLL_INTERVAL = 1800
+ORCA_NEB_GEOMETRY_INPUTS = frozenset({'neb_end_xyzfile', 'neb_ts_xyzfile'})
 
 
 # ---------------------------------------------------------------------------
@@ -363,6 +367,172 @@ def get_log_path(input_file: str, job_type: str = "gaussian") -> str:
     return str(path.with_suffix(".out"))
 
 
+def _execution_receipt(input_file: str, task_id: int) -> Path:
+    return Path(input_file).parent / '.cloudra' / f'execution-{task_id}'
+
+
+def _orca_geometry_output_paths(input_file: str, *, protect_dependencies: bool = True) -> set[Path]:
+    """Known native IRC outputs for the input stem and explicit %base prefixes."""
+    source = Path(input_file)
+    prefixes = {source.with_suffix('')}
+    dependencies = set()
+    in_neb = False
+    text = source.read_text(encoding='utf-8', errors='replace') if source.is_file() else ''
+    for line in text.splitlines():
+        stripped = line.strip()
+        first = stripped.split(maxsplit=1)[0].casefold() if stripped else ''
+        if first == '%neb':
+            in_neb = True
+        if not (first in {'%base', '%neb', '*', '*xyzfile'} or in_neb):
+            continue
+        lexer = shlex.shlex(stripped, posix=True, punctuation_chars='=')
+        lexer.whitespace_split = True
+        lexer.commenters = '#'
+        try:
+            tokens = list(lexer)
+        except ValueError:
+            continue  # Native syntax is advisory; never fix a malformed solver string.
+        neb_tokens = tokens[1:] if tokens and tokens[0].casefold() == '%neb' else tokens
+        if in_neb and len(neb_tokens) >= 2 and neb_tokens[0].casefold() in ORCA_NEB_GEOMETRY_INPUTS:
+            values = [token for token in neb_tokens[1:] if token != '=']
+            if values:
+                dependencies.add((source.parent / values[0]).resolve())
+        if any(token.casefold() == 'end' for token in tokens):
+            in_neb = False
+        if tokens and tokens[0].casefold() == '%base':
+            values = [token for token in tokens[1:] if token != '=']
+            if values:
+                prefixes.add((source.parent / values[0]).resolve())
+        elif tokens and tokens[0].casefold() in {'*', '*xyzfile'}:
+            geometry = tokens[1:] if tokens[0] == '*' else ['xyzfile', *tokens[1:]]
+            if geometry and geometry[0].casefold() == 'xyzfile' and len(geometry) >= 4:
+                dependencies.add((source.parent / geometry[3]).resolve())
+    outputs = {prefix.with_name(prefix.name + suffix)
+               for prefix in prefixes for suffix in ('_IRC_F.xyz', '_IRC_B.xyz', '_IRC_F_trj.xyz', '_IRC_B_trj.xyz', '_NEB-TS_converged.xyz')}
+    for prefix in prefixes:
+        if not prefix.parent.is_dir():
+            continue
+        for child in prefix.parent.iterdir():
+            lead = prefix.name + '_im'
+            if child.name.startswith(lead) and child.suffix == '.xyz' and child.name[len(lead):-4].isdigit():
+                outputs.add(child)
+    if protect_dependencies and any(output.resolve() in dependencies for output in outputs if output.exists()):
+        raise ValueError('native IRC output overlaps an explicit XYZ input dependency')
+    return outputs
+
+
+def prepare_execution_evidence(input_file: str, job_type: str, task_id: int, db: ComputeDB) -> None:
+    """Archive prior native output before launch; never infer ownership from mtime.
+
+    The old bytes stay in previous/. A new file at the conventional path is then
+    unambiguously this execution, even when its contents equal the previous run.
+    A recovered guard reuses the receipt instead of archiving current output.
+    """
+    if job_type not in {'gaussian', 'orca'}:
+        return
+    from cloudra.infra.flocks import is_lock_held, locked
+
+    native = Path(get_log_path(input_file, job_type))
+    receipt = _execution_receipt(input_file, task_id)
+    receipt.mkdir(parents=True, exist_ok=True)
+    if native.resolve() == Path(input_file).resolve():
+        raise ValueError('native output path is the submitted input; refusing to archive the input')
+    # One short local preparation lock also covers distinct inputs sharing an
+    # explicit external %base. Engine execution never holds this coordination lock.
+    output_lock = Path(db.path).with_suffix('.native-evidence.lock')
+    with locked(str(output_lock)):
+        metadata = receipt / 'evidence.json'
+        if metadata.exists():
+            return
+        sidecars = _orca_geometry_output_paths(input_file) if job_type == 'orca' else set()
+        own_outputs = {path.resolve() for path in sidecars}
+        with db.connect() as con:
+            rows = con.execute('SELECT id,path,jobtype,state,scheduler,scheduler_job_id FROM compute_jobs WHERE id!=?',
+                               (task_id,)).fetchall()
+        previous_jobs = []
+        for other, path, engine, state, scheduler, handle in rows:
+            if not path or engine not in {'gaussian', 'orca'}:
+                continue
+            shared_output = Path(get_log_path(path, engine)).resolve() == native.resolve()
+            workdir = str(Path(path).parent)
+            active_owner = state in {'running', 'cancel_requested'} and (
+                (Path(workdir).is_dir() and (is_lock_held(calc_lock_path(workdir, other))
+                                           or is_lock_held(guard_lock_path(workdir, other))))
+                or (_execution_receipt(path, other) / 'evidence.json').is_file()
+                or (scheduler != 'local' and handle))
+            if not shared_output and active_owner and engine == 'orca' and own_outputs:
+                other_outputs = _orca_geometry_output_paths(path, protect_dependencies=False)
+                shared_output = bool(own_outputs & {item.resolve() for item in other_outputs})
+            if not shared_output:
+                continue
+            if state in {'running', 'cancel_requested'}:
+                if active_owner:
+                    raise ValueError(f'native output is owned by active compute job {other}: {native}')
+            elif state in {'done', 'failed', 'cancelled'}:
+                previous_jobs.append((other, path, engine))
+        if native.is_symlink() or (native.exists() and not native.is_file()):
+            raise ValueError(f'native output must be a regular file before execution: {native}')
+        # Older completed rows may still point at the conventional path. Freeze
+        # that evidence before relocating it, so their queries keep the old bytes.
+        for other, path, engine in previous_jobs:
+            if Path(resolve_log_path(path, engine, other)) == native:
+                selected = complete_execution_evidence(path, engine, other)
+                state_path = Path(path).parent / f'state_{other}.json'
+                if state_path.is_file():
+                    state_record = json.loads(state_path.read_text())
+                    state_record['log_file'] = selected
+                    atomic_write_json(state_path, state_record)
+        previous = receipt / 'previous' / native.name
+        previous.parent.mkdir(parents=True, exist_ok=True)
+        if native.exists():
+            native.rename(previous)
+        if job_type == 'orca':
+            for sidecar in sidecars:
+                if not sidecar.is_file():
+                    continue
+                # Keep external %base outputs distinct without changing their bytes.
+                name = sidecar.name if sidecar.parent == native.parent else hashlib.sha256(str(sidecar).encode()).hexdigest()[:16] + '_' + sidecar.name
+                shutil.move(str(sidecar), str(previous.parent / name))
+        atomic_write_json(metadata, {'input_file': input_file, 'job_type': job_type,
+                                     'previous_log': str(previous) if previous.exists() else None,
+                                     'geometry_stems': sorted({path.name.removesuffix('_IRC_F.xyz')
+                                                               for path in sidecars if path.name.endswith('_IRC_F.xyz')})})
+
+
+def complete_execution_evidence(input_file: str, job_type: str, task_id: int) -> str:
+    """Freeze this execution's selected log and its native IRC endpoint bundle."""
+    if job_type not in {'gaussian', 'orca'}:
+        return resolve_log_path(input_file, job_type, task_id)
+    receipt = _execution_receipt(input_file, task_id)
+    metadata = receipt / 'evidence.json'
+    record = json.loads(metadata.read_text()) if metadata.exists() else {}
+    if record.get('log_file'):
+        return record['log_file']
+    native = Path(get_log_path(input_file, job_type))
+    captured = Path(input_file).parent / '.cloudra' / f'calc-{task_id}.out.log'
+    source = native if native.is_file() and native.stat().st_size else captured
+    results = receipt / 'results'
+    results.mkdir(parents=True, exist_ok=True)
+    target = results / source.name
+    if source.is_file():
+        shutil.copy2(source, target)
+        if job_type == 'orca':
+            geometries = _orca_geometry_output_paths(input_file)
+            record.update(input_file=input_file, job_type=job_type,
+                          geometry_stems=sorted({path.name.removesuffix('_IRC_F.xyz') for path in geometries
+                                                 if path.name.endswith('_IRC_F.xyz')}))
+            atomic_write_json(metadata, record)
+            for geometry in geometries:
+                if geometry.is_file():
+                    shutil.copy2(geometry, results / geometry.name)
+            from cloudra.tools.core.orca_frames import snapshot_irc_endpoints
+
+            snapshot_irc_endpoints(str(target), results)
+    record['log_file'] = str(target)
+    atomic_write_json(metadata, record)
+    return str(target)
+
+
 def resolve_log_path(input_file: str, job_type: str = "gaussian", task_id: int | None = None) -> str:
     """解析计算作业的真实日志路径——query_compute_job 与完成通知统一走这里（GH #20）。
 
@@ -371,13 +541,26 @@ def resolve_log_path(input_file: str, job_type: str = "gaussian", task_id: int |
     guard 会把 calculator stdout 捕获到 ``.cloudra/calc-<id>.out.log`` 并回退解析它，
     实际解析路径记录在 guard state json 的 ``log_file`` 字段。
     远端已有本轮 results 收据时只认收据内的原生日志/捕获，不读取旧本地证据。
-    本地优先 state json 的真实 log_file；无 state 时 Gaussian 优先非空原生日志，
-    其他引擎保留 calc 捕获优先，缺捕获时使用惯例路径。
+    有执行收据时只认其冻结日志；尚未收尾时返回本次 capture。
+    没有执行收据的已有记录仍可由其 state json 定位原来的日志。
     """
     if job_type == 'chem_task':
         return input_file
     if input_file and task_id is not None:
         workdir = Path(input_file).parent
+        receipt = _execution_receipt(input_file, task_id)
+        try:
+            evidence = json.loads((receipt / 'evidence.json').read_text(encoding='utf-8'))
+        except FileNotFoundError:
+            evidence = None
+        if evidence is not None or receipt.is_dir():
+            # An execution receipt never falls back to a later shared output.
+            if (evidence or {}).get('log_file'):
+                return evidence['log_file']
+            native = Path(get_log_path(input_file, job_type))
+            if evidence is not None and native.is_file() and native.stat().st_size:
+                return str(native)
+            return str(workdir / '.cloudra' / f'calc-{task_id}.out.log')
         remote_results = workdir / '.cloudra' / f'remote-{task_id}' / 'results'
         if remote_results.is_dir():
             # A remote execution receipt must never fall back to evidence left

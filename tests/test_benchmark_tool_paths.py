@@ -271,14 +271,16 @@ async def test_relative_source_and_submit_use_same_workspace(core, server_cwd, t
     job = queried.data["jobs"][0]
     assert job["state"] == "done"
     assert job["path"] == str((workspace / "calc" / "input.gjf").resolve())
-    assert job["log_path"] == str((workspace / "calc" / "input.log").resolve())
+    frozen_log = Path(job["log_path"])
+    assert frozen_log.is_relative_to(workspace / "calc" / ".cloudra")
+    assert frozen_log.read_bytes() == (workspace / "calc" / "input.log").read_bytes()
 
     # 相对 log 路径同样走沙箱
     parsed = await _execute(
         executor,
         agent,
         "log_parser",
-        {"log_path": "calc/input.log"},
+        {"log_path": str(frozen_log.relative_to(workspace))},
     )
     assert parsed.is_success, parsed.summary
     assert parsed.data["engine"] == "gaussian"

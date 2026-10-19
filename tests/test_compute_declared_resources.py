@@ -220,3 +220,35 @@ async def test_sequential_gaussian_link1_reserves_each_resource_peak(tmp_path, s
     ), None)
     assert result.is_success, result.message
     assert (records[0]["req_cpus"], records[0]["req_memory_mb"]) == (8, 8192)
+
+
+@pytest.mark.parametrize(("declarations", "expected"), [
+    ('! HF PAL8\n%maxcore 128\n$new_job\n! HF PAL2\n%maxcore 4096\n', (8, 8192)),
+    ('! HF PAL2\n%maxcore 512\n$new_job\n! HF PAL8\n', (8, 4096)),
+    ('! HF PAL8\n%maxcore 128\n$new_job # next job\n%maxcore 1024\n', (8, 8192)),
+])
+@pytest.mark.asyncio
+async def test_sequential_orca_jobs_reserve_each_effective_resource_peak(
+    tmp_path, submit_boundary, declarations, expected,
+):
+    tool, records, _resources, _node = submit_boundary
+    (tmp_path / 'sequential.inp').write_text(declarations)
+    result = await tool.tool_call(submit.SubmitComputeJob_input_schema(
+        input_file='sequential.inp', job_type='orca', is_async=True,
+    ), None)
+    assert result.is_success, result.message
+    assert (records[0]['req_cpus'], records[0]['req_memory_mb']) == expected
+
+
+def test_quoted_new_job_does_not_split_resource_declarations(tmp_path):
+    path = tmp_path / 'he.inp'
+    path.write_text('! HF PAL8\n%method Ext_Params "$new_job" end\n! HF PAL2\n')
+    with pytest.raises(ValueError, match='Conflicting resource declarations'):
+        _read_declared_requirements('orca', str(path))
+
+
+def test_new_job_does_not_hide_unclosed_resource_block(tmp_path):
+    path = tmp_path / 'he.inp'
+    path.write_text('%pal nprocs 8\n$new_job\n%maxcore 1024\n')
+    with pytest.raises(ValueError, match='resource declaration'):
+        _read_declared_requirements('orca', str(path))

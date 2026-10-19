@@ -2,6 +2,39 @@
 from cloudra.tools.core.ts_inputs import TsInput
 
 
+def native_qm_log(engine, symbols, positions, *, optimization=True, normal=True, frequencies=None):
+    """Synthetic native excerpts with explicit, independently testable facts."""
+    if engine == 'gaussian':
+        from cclib.parser.utils import PeriodicTable
+
+        table = PeriodicTable()
+        lines = ['Entering Gaussian System', ' # opt' if optimization is not None else ' # freq',
+            ' Standard orientation:', ' -----', ' Center Atomic Atomic Coordinates',
+            ' Number Number Type X Y Z', ' -----']
+        lines.extend(f' {index} {table.number[symbol]} 0 {point[0]:.8f} {point[1]:.8f} {point[2]:.8f}'
+            for index, (symbol, point) in enumerate(zip(symbols, positions, strict=True), 1))
+        lines.append(' -----')
+        if optimization is not None:
+            lines.append('Optimization completed.' if optimization else 'Optimization stopped.')
+        if frequencies is not None:
+            lines.extend(['Harmonic frequencies', ' Frequencies -- ' + ' '.join(map(str, frequencies))])
+        lines.append('Normal termination' if normal else 'Error termination via Lnk1e')
+    else:
+        lines = ['O   R   C   A', '! Opt' if optimization is not None else '! Freq',
+            'CARTESIAN COORDINATES (ANGSTROEM)', '-----']
+        lines.extend(f'{symbol} {point[0]:.8f} {point[1]:.8f} {point[2]:.8f}'
+            for symbol, point in zip(symbols, positions, strict=True))
+        lines.append('')
+        if optimization is not None:
+            lines.append('THE OPTIMIZATION HAS CONVERGED' if optimization else 'The optimization did not converge')
+        if frequencies is not None:
+            lines.append('VIBRATIONAL FREQUENCIES')
+            lines.extend(f'{index}: {value} cm**-1' for index, value in enumerate(frequencies))
+            lines.append('')
+        lines.append('ORCA TERMINATED NORMALLY' if normal else 'ORCA finished by error termination in FREQ')
+    return '\n'.join(lines) + '\n'
+
+
 def calculation_input(*, reactant_smiles, product_smiles, method, basis_set=None, charge=0,
                       multiplicity=1, engine='orca', keywords='',
                       reaction_center=(), selected_candidate=None, ring_order=(),

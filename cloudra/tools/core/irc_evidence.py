@@ -48,50 +48,32 @@ def irc_start_geometry(path):
 
 
 def frames_for(path):
-    """Return (frames, irc_meta). 两种解析各自隔离：opt+freq 日志没有 IRC 段
-    是正常情况，不能让 extract_irc 的异常把已解析的 frames 一并丢弃。
-
-    IRC meta 已归一化为 dict：gaussian_frames.extract_irc 返回
-    (frames, meta) 二元组，orca_frames.extract_irc 直接返回 meta dict。
-    """
-    engine = qm_engine.detect_qm_engine(str(path))
-    mod = orca_frames if engine == "orca" else gaussian_frames
+    """Parse frames and IRC metadata independently from one native text read."""
     try:
-        frames = mod.extract_frames(str(path))
+        text = Path(path).read_text(errors='replace')
+    except OSError:
+        return [], None
+    engine = qm_engine.detect_qm_engine_from_text(text)
+    mod = orca_frames if engine == 'orca' else gaussian_frames
+    try:
+        frames = (mod.extract_frames_from_text(text, log_path=str(path))
+                  if engine == 'orca' else mod.extract_frames_from_text(text))
     except Exception:
         frames = []
     try:
-        raw_irc = mod.extract_irc(str(path))
+        raw_irc = mod.extract_irc_from_text(text)
     except Exception:
         raw_irc = None
-    if isinstance(raw_irc, tuple):
-        irc_meta = raw_irc[1] if len(raw_irc) == 2 else None
-    else:
-        irc_meta = raw_irc
+    irc_meta = raw_irc[1] if isinstance(raw_irc, tuple) and len(raw_irc) == 2 else raw_irc
     return frames, irc_meta
 
 
-def _last_freqs(frames) -> list[float]:
-    for fr in reversed(frames):
-        if fr.frequencies_cm:
-            return list(fr.frequencies_cm)
-    return []
-
-
 def freqs_for(path, frames) -> list[float]:
-    """末帧频率；cclib 对 ORCA 6.1 日志裸抛 IndexError（帧为空）时回退
-    文本权威 VIBRATIONAL FREQUENCIES 块（统一入口在 orca_frames）。"""
-    freqs = _last_freqs(frames)
-    if freqs:
-        return freqs
-    engine = qm_engine.detect_qm_engine(str(path))
-    if engine == "orca":
-        return orca_frames.frequencies_with_text_fallback(str(path))
-    if engine == 'gaussian':
-        text = Path(path).read_text(errors='replace').rsplit('Harmonic frequencies', 1)[-1]
-        return [float(value) for line in text.splitlines() if 'Frequencies --' in line
-                for value in line.partition('Frequencies --')[2].split()]
-    return []
+    """Signed native frequencies; no frequency calculation is never zero modes."""
+    from cloudra.tools.core.qm_log_facts import read_qm_log
+
+    del frames
+    return read_qm_log(path).frequencies_cm or []
 
 
 def imag_freqs(freqs: list[float]) -> list[float]:
@@ -99,25 +81,11 @@ def imag_freqs(freqs: list[float]) -> list[float]:
 
 
 def last_geometry(path, frames) -> Optional[tuple]:
-    """末帧几何 (symbols, positions)；无坐标帧返回 None。
+    """The final native geometry shared with tools and file evidence."""
+    from cloudra.tools.core.qm_log_facts import read_qm_log
 
-    cclib 对 ORCA 6.1 日志整体崩溃时帧为空——走文本权威
-    CARTESIAN COORDINATES 块回退（同频率的文本回退纪律）。
-    """
-    geometry = None
-    for fr in reversed(frames):
-        if getattr(fr, "xyz", "").strip():
-            geometry = parse_xyz(fr.xyz)
-            break
-    if geometry is None and qm_engine.detect_qm_engine(str(path)) == "orca":
-        geometry = parse_xyz(orca_frames.final_xyz_with_text_fallback(str(path)))
-    if geometry is None and qm_engine.detect_qm_engine(str(path)) == 'gaussian':
-        text = Path(path).read_text(errors='replace')
-        blocks = gaussian_frames.std_orientation_frames(text)
-        rows = blocks[-1] if blocks else gaussian_frames._parse_last_input_orientation(text)
-        if rows:
-            geometry = parse_xyz(gaussian_frames._coords_to_xyz([row[0] for row in rows], [row[1:] for row in rows]))
-    return geometry
+    del frames
+    return read_qm_log(path).geometry
 
 
 def irc_frames_for(path):
@@ -191,8 +159,6 @@ def normal_log(path) -> bool:
     text = path.read_text(errors='replace')
     if parser is None or not parser.normal_termination(text):
         return False
-    if engine == 'orca' and 'ORCA finished by error termination' in text:
-        return False
     return frequency_geometry_matches(path)
 
 
@@ -208,25 +174,21 @@ def frequency_geometry_matches(path) -> bool:
     def geometry(region):
         if engine == 'orca':
             return parse_xyz(orca_frames.final_xyz_from_text(region))
-        blocks = gaussian_frames.std_orientation_frames(region)
-        coords = blocks[-1] if blocks else gaussian_frames._parse_last_input_orientation(region)
-        return parse_xyz(gaussian_frames._coords_to_xyz(
-            [row[0] for row in coords], [row[1:] for row in coords])) if coords else None
+        return parse_xyz(gaussian_frames.final_xyz_from_text(region))
 
     return same_geometry(geometry(text), geometry(text[:frequency_index]))
 
 
 def probe_log(path) -> tuple[Optional[int], Optional[tuple]]:
-    """(虚频数, 末帧几何)。虚频数 None = 无频率块/文件不可解析。
+    """Return native imaginary count and final geometry; missing modes stay None."""
+    from cloudra.tools.core.qm_log_facts import read_qm_log
 
-    只解析 gaussian/orca 原生日志；文件大小不改变科学资格。"""
     p = Path(path)
     if not normal_log(p):
         return None, None
-    frames, _irc_meta = frames_for(p)
-    freqs = freqs_for(p, frames)
-    n_imag = len(imag_freqs(freqs)) if freqs else None
-    return n_imag, last_geometry(p, frames)
+    facts = read_qm_log(p)
+    n_imag = len(imag_freqs(facts.frequencies_cm)) if facts.frequencies_cm is not None else None
+    return n_imag, facts.geometry
 
 
 def irc_endpoint_geometries(path) -> Optional[tuple]:

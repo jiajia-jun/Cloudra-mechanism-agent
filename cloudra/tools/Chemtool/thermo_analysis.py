@@ -10,7 +10,6 @@ from pydantic import BaseModel, Field
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
-from cloudra.tools.Chemtool.log_parser import _extract_gaussian_thermochemistry
 
 _EH_TO_KCAL = 627.5094740631
 _R_J_MOL_K = 8.31446261815324
@@ -35,7 +34,8 @@ _SPC_ENERGY_DIFF_EH = 1e-8
 description = (
     "Aggregate reaction thermochemistry from multiple QM outputs: combine ΔE, ΔH, and ΔG with signed stoichiometric coefficients; "
     "RRHO corrections from a frequency job can be stacked on a higher-level single-point energy. "
-    "The raw_rrho backend uses the log's RRHO thermal corrections as-is; the goodvibes backend calls GoodVibes for quasi-harmonic corrections. "
+    "The raw_rrho backend uses Gaussian/ORCA native thermal corrections as printed, without recomputing their correction model; "
+    "the goodvibes backend calls GoodVibes for quasi-harmonic corrections. "
     "Every result records temperature, standard state, energy source, and backend; missing data or missing GoodVibes is never silently treated as a complete result."
 )
 
@@ -43,7 +43,7 @@ description = (
 class ThermoSpecies(BaseModel):
     name: str = Field(description="Unique species name, used in the table and as an optional reference.")
     log_path: str = Field(
-        description="Path of a Gaussian output that contains frequencies and a thermochemistry summary. "
+        description="Path of a Gaussian or ORCA output that contains frequencies and a thermochemistry summary. "
                     "Absolute path, or relative to the agent process's current working directory; absolute paths are recommended."
     )
     coefficient: float = Field(
@@ -59,7 +59,7 @@ class ThermoAnalysis_input_schema(input_schema):
     species: list[ThermoSpecies] = Field(min_length=1, description="Species in the aggregation, with signed coefficients.")
     backend: Literal["raw_rrho", "goodvibes"] = Field(
         default="raw_rrho",
-        description="raw_rrho: use the log's original RRHO; goodvibes: call external GoodVibes for quasi-harmonic corrections.",
+        description="raw_rrho: use native Gaussian/ORCA thermal corrections as printed; goodvibes: call external GoodVibes for quasi-harmonic corrections.",
     )
     temperature: float = Field(default=298.15, gt=0, description="Thermochemistry temperature (K).")
     standard_state: Literal["gas_1atm", "solution_1m", "solution_custom"] = Field(
@@ -203,40 +203,32 @@ def _render_table(
     return "\n".join(lines)
 
 
-def _count_imaginary_modes(data: object) -> Optional[int]:
-    """cclib ``vibfreqs`` 里负频率个数；日志未提供频率数据时返回 None。"""
-    freqs = getattr(data, "vibfreqs", None)
-    if freqs is None:
-        return None
-    try:
-        return sum(1 for freq in freqs if float(freq) < 0.0)
-    except (TypeError, ValueError):
-        return None
-
-
 def _load_raw_rrho_record(
     species: ThermoSpecies,
     temperature: float,
     standard_state: str,
     concentration_molar: Optional[float],
 ) -> tuple[Optional[dict], Optional[str]]:
-    import cclib
+    from cloudra.tools.core.qm_log_facts import read_qm_log
 
     try:
-        data = cclib.io.ccread(species.log_path)
-    except Exception as exc:
-        # cclib 对版本不兼容的日志会抛裸异常（如 cclib 1.8.1 读 ORCA 6.1.1 全抛
-        # IndexError）；解析失败属于"材料不完整"，归入 inconclusive 通道而非逃逸。
-        return None, f"{species.name}: cclib 解析日志失败（{type(exc).__name__}: {exc}）"
-    if data is None:
-        return None, f"{species.name}: cclib 未解析到数据"
-    n_imag = _count_imaginary_modes(data)
-    if n_imag is not None and n_imag != 0:
+        facts = read_qm_log(species.log_path)
+    except OSError as exc:
+        return None, f"{species.name}: 日志读取失败（{exc}）"
+    if facts.engine not in ("gaussian", "orca"):
+        return None, f"{species.name}: raw_rrho 需要 Gaussian 或 ORCA 原生 thermochemistry 日志"
+    if not facts.normal_termination:
+        return None, f"{species.name}: thermochemistry requires native normal termination"
+    if facts.frequencies_cm is None or not facts.frequencies_cm:
+        return None, f"{species.name}: thermochemistry 缺少频率，不能确认零虚频极小值"
+    n_imag = sum(1 for frequency in facts.frequencies_cm if frequency < 0.0)
+    if n_imag != 0:
         return None, (
             f"{species.name}: frequency job is not a minimum (n_imag={n_imag}); "
             "thermochemistry requires 0 imaginary modes"
         )
-    log_temperature = getattr(data, "temperature", None)
+    thermo = facts.thermochemistry
+    log_temperature = thermo.get("temperature_k")
     if log_temperature is None:
         return None, f"{species.name}: 日志未提供 RRHO 温度，不能确认 thermochemistry 条件"
     if abs(float(log_temperature) - temperature) > 0.05:
@@ -245,19 +237,13 @@ def _load_raw_rrho_record(
             f"不能直接当作 {temperature:g} K；请重跑频率热化学或使用 GoodVibes"
         )
 
-    try:
-        with open(species.log_path, encoding="utf-8", errors="replace") as handle:
-            log_text = handle.read()
-    except OSError as exc:
-        return None, f"{species.name}: 日志读取失败（{exc}）"
-    thermo = _extract_gaussian_thermochemistry(log_text)
     total_h = thermo.get("total_enthalpy_hartree")
     total_g = thermo.get("total_gibbs_free_energy_hartree")
     h_correction = thermo.get("thermal_enthalpy_correction_hartree")
     g_correction = thermo.get("thermal_gibbs_correction_hartree")
     if None in (total_h, total_g, h_correction, g_correction):
         return None, (
-            f"{species.name}: 缺少 Gaussian thermochemistry 的总量或 literal H/G correction"
+            f"{species.name}: 缺少 thermochemistry 的总量或同块 H/G correction"
         )
     freq_e_from_h = float(total_h) - float(h_correction)
     freq_e_from_g = float(total_g) - float(g_correction)
@@ -272,7 +258,7 @@ def _load_raw_rrho_record(
         else freq_e
     )
     state_correction = 0.0
-    log_pressure = getattr(data, "pressure", None)
+    log_pressure = thermo.get("pressure_atm")
     if log_pressure is None:
         return None, f"{species.name}: 日志未提供 RRHO 压力，不能确认标准态"
     pressure = float(log_pressure)
@@ -301,7 +287,7 @@ def _load_raw_rrho_record(
         "energy_source": (
             "supplied_single_point"
             if species.single_point_energy_hartree is not None
-            else "frequency_log_scf"
+            else "frequency_log_electronic"
         ),
         "rrho_temperature_k": float(log_temperature) if log_temperature is not None else None,
         "rrho_pressure_atm": pressure,
@@ -546,7 +532,7 @@ def _records_from_thermo_maps(
             "energy_source": (
                 "supplied_single_point"
                 if species.single_point_energy_hartree is not None
-                else ("goodvibes_spc" if spc_detected else "frequency_log_scf")
+                else ("goodvibes_spc" if spc_detected else "frequency_log_electronic")
             ),
         })
     return records, None
@@ -813,7 +799,7 @@ class ThermoAnalysis(Tool):
             }
             assumptions = [
                 *assumptions,
-                "raw Gaussian RRHO corrections; requested temperature must match the frequency log",
+                "native Gaussian/ORCA thermal corrections as printed; requested temperature must match the frequency log",
             ]
             if concentration is not None:
                 assumptions.append(

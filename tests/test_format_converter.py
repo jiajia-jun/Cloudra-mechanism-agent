@@ -190,12 +190,13 @@ async def test_multimolecule_sdf_reports_first_in_message(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_charged_input_to_gjf_warns_charge_not_written(tmp_path):
-    """F5：带电烯醇盐 mol→gjf 成功，但 message 必须警告电荷不落坐标格式。"""
+async def test_charged_input_to_gjf_preserves_charge_and_discloses_missing_spin(tmp_path):
+    """Native geometry skeletons retain known charge without guessing a spin state."""
     result, out_path = await _convert(tmp_path, "mol", "gjf", _enolate_molfile())
     assert result.is_success, result.message
-    assert "charge" in result.message.lower()
-    assert "coordinate" in result.message.lower() or "coordinates" in result.message.lower()
+    assert '-1 1' in out_path.read_text()
+    assert 'charge -1 is retained' in result.message
+    assert 'Multiplicity was unspecified' in result.message
 
 
 @pytest.mark.asyncio

@@ -31,7 +31,7 @@
 
 `reaction.product_smiles="B.C"` 声明络合物，`reaction.product_smiles=["B", "C"]` 声明分离产物，显示为 `B + C`。二者不是相同的极小值证据对象。
 
-完整 `QmCalculation` 必须明确 `engine`、单一原生 `method` token 和 `basis_set`；无基组的方法也显式填 `basis_set=""`。`method` 不接受方法/基组拼接或整段 route。`keywords` 默认空字符串，`frequency_mode` 默认 `auto`；`orca_blocks` 默认 `null`，仅 ORCA 可用；`end_setting` 默认空字符串，仅 Gaussian 可用。同一命名配置的复用必须明确引用；探索与正式阶段各自选择方法。
+完整 `QmCalculation` 必须明确 `engine`、非空 `method` 和 `basis_set`；无基组的方法也显式填 `basis_set=""`。按原生字段分开填写单一方法 token、基组和额外 `keywords`，避免把整段 route 放进 `method`。`keywords` 默认空字符串，`frequency_mode` 默认 `auto`；`orca_blocks` 默认 `null`，用于 ORCA；`end_setting` 默认空字符串，用于 Gaussian。可原样写出的错误、冲突或未知原生参数保留并返回模型可见 warning，包括跨引擎字段误用；不强补求解器选项。必填结构、文件完整性、资源容量和受信 Benchmark 合同仍独立校验。原生 xTB 仍要求空 `basis_set`，不接受 Gaussian/ORCA 关键词、原生块或频率模式。同一命名配置的复用必须明确引用；探索与正式阶段各自选择方法。
 
 复用示例（理论级别须已获用户授权，此例不构成默认推荐；它只是完整输入中的配置片段）：
 

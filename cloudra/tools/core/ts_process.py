@@ -2052,7 +2052,6 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     几何必须取优化后的末帧，不是当初的 TS 候选——否则频率描述的不是收敛到的那个驻点。
     """
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
-    from cloudra.tools.core import gaussian_frames, orca_frames
     if not record.job_steps:
         return "no TS-optimisation job was submitted, so there is no optimised geometry", ""
     step = next(step for step in reversed(record.job_steps) if step.purpose == 'ts_opt')
@@ -2063,14 +2062,13 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
             "refusing to run frequencies on an unverified geometry",
             "",
         )
-    frames_mod = orca_frames if _step_calculation(record, step).engine == "orca" else gaussian_frames
-    frames = frames_mod.extract_frames(log_path)
-    if not frames:
-        return f"no optimised frame could be extracted from {log_path}", ""
+    xyz, error = _native_optimization_xyz(log_path, _step_calculation(record, step).engine)
+    if error:
+        return f"TS optimization cannot support a frequency follow-up: {error}", ""
 
     # 优化末帧落在作业目录里（不是临时文件）：频率作业用的几何要能复查
     optimized_xyz = os.path.join(job_dir, "optimized.xyz")
-    atomic_write_text(optimized_xyz, frames[-1].xyz)
+    atomic_write_text(optimized_xyz, xyz)
     declaration = record.input.reaction
     calculation = stage_calculation(record, 'frequency')
     if calculation is None:
@@ -2306,30 +2304,34 @@ def _product_reordered_path(record: TsProcessRecord) -> str:
         "product_reordered.xyz",
     )
 
+def _native_optimization_xyz(log_path: str, engine: str) -> tuple[str, str]:
+    """Use independent native convergence and geometry facts for Opt follow-ups."""
+    from cloudra.tools.core.qm_log_facts import read_qm_log
+
+    try:
+        facts = read_qm_log(log_path)
+    except (OSError, ValueError) as exc:
+        return '', f'optimization geometry is unreadable: {exc}'
+    if facts.engine != engine:
+        return '', f'optimization log engine {facts.engine} differs from the bound {engine} job'
+    if not facts.normal_termination or facts.opt_converged is not True or facts.geometry is None:
+        return "", (
+            "optimization did not prove normal termination, convergence and a final geometry; "
+            "normal job termination alone is insufficient"
+        )
+    symbols, positions = facts.geometry
+    xyz = '\n'.join([str(len(symbols)), 'Native converged optimization geometry',
+        *[f'{symbol} {point[0]:.8f} {point[1]:.8f} {point[2]:.8f}'
+          for symbol, point in zip(symbols, positions, strict=True)]]) + '\n'
+    return xyz, ""
+
+
 def _endpoint_opt_frame(record: TsProcessRecord, step: TsJobStep) -> tuple[str, str]:
     """Extract the final geometry only when the endpoint optimization converged."""
-    from cloudra.tools.core import gaussian_frames, orca_frames
-
     log_path = _refinement_log_path(record, step)
     if not os.path.isfile(log_path):
         return "", f"endpoint optimization log is missing at {log_path}"
-    if _step_calculation(record, step).engine == "orca":
-        log_text = Path(log_path).read_text(encoding="utf-8", errors="replace")
-        converged = orca_frames.opt_converged(log_text)
-        xyz = orca_frames.final_xyz_from_text(log_text)
-    else:
-        try:
-            frames = gaussian_frames.extract_frames(log_path)
-        except Exception as exc:
-            return "", f"endpoint optimization geometry is unreadable: {exc}"
-        converged = frames[-1].converged if frames else None
-        xyz = frames[-1].xyz if frames else ""
-    if converged is not True or not xyz.strip():
-        return "", (
-            "endpoint optimization did not prove convergence and a final geometry; "
-            "normal job termination alone is insufficient"
-        )
-    return xyz, ""
+    return _native_optimization_xyz(log_path, _step_calculation(record, step).engine)
 
 
 def _endpoint_seed_atoms(record: TsProcessRecord, role: str, seed):
@@ -2852,8 +2854,8 @@ def _validated_endpoint_minimum(
 ) -> tuple[tuple[list[str], list[list[float]]] | None, str]:
     """Return a converged, zero-imaginary QM endpoint; identity is checked at verdict."""
     from cloudra.dag.evidence_ingest import snapshot_evidence_file, validate_species_minimum
-    from cloudra.tools.core import gaussian_frames, orca_frames
     from cloudra.tools.core.irc_path import parse_xyz, same_geometry
+    from cloudra.tools.core.qm_log_facts import read_qm_log
 
     opt_step = next(
         (step for step in reversed(record.job_steps) if step.purpose == f"{role}_opt"), None,
@@ -2872,6 +2874,13 @@ def _validated_endpoint_minimum(
     freq_log = _refinement_log_path(record, freq_step)
     if not os.path.isfile(freq_log):
         return None, f"{role} endpoint frequency log is missing"
+    try:
+        frequency_facts = read_qm_log(freq_log)
+    except (OSError, ValueError) as exc:
+        return None, f'{role} endpoint frequency geometry is unreadable: {exc}'
+    if (frequency_facts.engine != _step_calculation(record, freq_step).engine
+            or not frequency_facts.normal_termination or frequency_facts.opt_converged is False):
+        return None, f'{role} endpoint frequency log lacks normal termination or reports unconverged optimization'
     snapshot = snapshot_evidence_file(freq_log, workspace_root=record.workspace_dir)
     minimum = validate_species_minimum(
         snapshot.frequencies, snapshot.imaginary_frequencies,
@@ -2883,17 +2892,7 @@ def _validated_endpoint_minimum(
         return None, f"{role} optimized endpoint geometry is missing at {xyz_path}"
     optimized = parse_xyz(opt_xyz)
     saved = parse_xyz(Path(xyz_path).read_text(encoding="utf-8"))
-    if _step_calculation(record, freq_step).engine == "orca":
-        freq_xyz = orca_frames.final_xyz_from_text(
-            Path(freq_log).read_text(encoding="utf-8", errors="replace")
-        )
-    else:
-        try:
-            frames = gaussian_frames.extract_frames(freq_log)
-        except Exception as exc:
-            return None, f"{role} endpoint frequency geometry is unreadable: {exc}"
-        freq_xyz = frames[-1].xyz if frames else ""
-    measured = parse_xyz(freq_xyz) if freq_xyz else None
+    measured = frequency_facts.geometry
 
     if not same_geometry(optimized, saved) or not same_geometry(optimized, measured):
         return None, (

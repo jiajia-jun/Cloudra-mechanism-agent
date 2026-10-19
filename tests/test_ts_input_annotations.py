@@ -7,9 +7,8 @@ import pytest
 from cloudra.benchmark.integrity import scan_evidence_files
 from cloudra.tools.core import ts_process
 from cloudra.tools.core.calculation_intent import inspect_input, native_input_geometry
-from cloudra.tools.core.gaussian_frames import FrameRecord
 from cloudra.tools.core.molecule import read_molecule
-from tests.ts_fixtures import calculation_input
+from tests.ts_fixtures import calculation_input, native_qm_log
 
 _REACTANT = "[F-].CCl"
 _PRODUCT = "CF.[Cl-]"
@@ -54,7 +53,8 @@ def _upstream_step(record, tmp_path, purpose, engine):
     record.job_steps.append(step)
     log = Path(ts_process._refinement_log_path(record, step))
     log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_text("upstream geometry is supplied by the parsed-frame fixture")
+    log.write_text(native_qm_log(engine, [symbol for symbol, _ in _ATOMS],
+        [point for _, point in _ATOMS]))
     (directory / "optimized.xyz").write_text(_XYZ)
 
 
@@ -88,10 +88,6 @@ def test_native_ts_input_and_echo_bind_declared_step_reactant(tmp_path, monkeypa
     directory.mkdir()
     if purpose == "frequency":
         _upstream_step(record, tmp_path, "ts_opt", engine)
-        monkeypatch.setattr(
-            f"cloudra.tools.core.{engine}_frames.extract_frames",
-            lambda _path: [FrameRecord(frame=0, xyz=_XYZ)],
-        )
     elif purpose == "irc":
         _upstream_step(record, tmp_path, "frequency", engine)
     writer = {

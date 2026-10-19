@@ -30,7 +30,7 @@ TS_ENERGY = -93.114020  # IRC 日志中 "Energies reported relative to the TS en
 def test_final_frame_energy_matches_gaussian_hartree_line():
     # cclib stores energies in eV using its own conversion constant.
     frames = extract_frames(str(OPT_FREQ_LOG))
-    assert frames[-1].scf_energy_hartree == pytest.approx(
+    assert frames[-1].electronic_energy_hartree == pytest.approx(
         -74.9659011806, rel=0, abs=1e-7,
     )
 
@@ -92,14 +92,14 @@ def test_irc_frame_count_and_paths():
 def test_irc_energies_match_summary_table():
     frames, meta = extract_irc(str(IRC_LOG))
     # 汇总表首行 (rx=-0.80848) 相对能量 -0.01110，末行 (rx=0.80848) 相对 -0.01565
-    assert frames[0].scf_energy_hartree == pytest.approx(TS_ENERGY - 0.01110, abs=1e-6)
-    assert frames[-1].scf_energy_hartree == pytest.approx(TS_ENERGY - 0.01565, abs=1e-6)
+    assert frames[0].electronic_energy_hartree == pytest.approx(TS_ENERGY - 0.01110, abs=1e-6)
+    assert frames[-1].electronic_energy_hartree == pytest.approx(TS_ENERGY - 0.01565, abs=1e-6)
     # TS 帧：rx=0，能量即 TS 能量
     ts_frame = next(f for f in frames if f.reaction_coordinate == 0.0)
-    assert ts_frame.scf_energy_hartree == pytest.approx(TS_ENERGY, abs=1e-6)
+    assert ts_frame.electronic_energy_hartree == pytest.approx(TS_ENERGY, abs=1e-6)
     assert meta["endpoint_energies_hartree"] == (
-        pytest.approx(frames[0].scf_energy_hartree),
-        pytest.approx(frames[-1].scf_energy_hartree),
+        pytest.approx(frames[0].electronic_energy_hartree),
+        pytest.approx(frames[-1].electronic_energy_hartree),
     )
 
 
@@ -149,7 +149,7 @@ def test_scan_frames():
     assert rx[1] - rx[0] == pytest.approx(0.01)
     # 每帧能量齐全且 xyz 为 H2 双原子
     for f in frames:
-        assert f.scf_energy_hartree is not None
+        assert f.electronic_energy_hartree is not None
         assert int(f.xyz.splitlines()[0]) == 2
 
 
@@ -184,12 +184,12 @@ def test_frames_to_csv_roundtrip(tmp_path):
     assert len(rows) == len(frames)
     assert list(rows[0].keys()) == [
         "frame", "path_number", "reaction_coordinate",
-        "scf_energy_hartree", "scf_energy_ev", "frequencies_cm", "xyz",
+        "electronic_energy_hartree", "electronic_energy_ev", "frequencies_cm", "xyz",
     ]
     # 数值可回读
     assert float(rows[0]["reaction_coordinate"]) == pytest.approx(-0.80848)
-    assert float(rows[0]["scf_energy_hartree"]) == pytest.approx(TS_ENERGY - 0.01110, abs=1e-6)
-    assert float(rows[0]["scf_energy_ev"]) == pytest.approx(
+    assert float(rows[0]["electronic_energy_hartree"]) == pytest.approx(TS_ENERGY - 0.01110, abs=1e-6)
+    assert float(rows[0]["electronic_energy_ev"]) == pytest.approx(
         (TS_ENERGY - 0.01110) * EV_PER_HARTREE, abs=1e-4
     )
     assert int(rows[0]["path_number"]) == 2

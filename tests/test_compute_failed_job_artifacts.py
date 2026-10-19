@@ -116,8 +116,8 @@ async def test_crashed_job_stays_failed_and_geometry_is_still_extractable(isolat
     for frame in frames:
         assert frame.xyz.splitlines()[0].strip().isdigit()
     # 中间帧带各自那一步的能量（来源可追溯），且作业本身仍标记失败
-    assert frames[0].scf_energy_hartree is not None
-    assert frames[1].scf_energy_hartree is not None
+    assert frames[0].electronic_energy_hartree is not None
+    assert frames[1].electronic_energy_hartree is not None
 
     db = ComputeDB().init()
     async with db.aconnect() as con:

@@ -22,7 +22,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from cloudra.benchmark import gen_easy_tasks, selfconsistency
+from cloudra.benchmark import gen_easy_tasks
 from cloudra.benchmark.accuracy import score_accuracy
 from cloudra.benchmark.graph_similarity import GedConfig, mechanism_similarity
 from cloudra.benchmark.integrity import (
@@ -50,7 +50,6 @@ from cloudra.benchmark.schema import (
     TaskSpec,
 )
 from cloudra.benchmark.selfconsistency import audit_self_consistency
-from cloudra.tools.core.gaussian_frames import FrameRecord
 
 
 def _graph(r, p, bc=None, with_ts=True):
@@ -1477,11 +1476,6 @@ def test_selfconsistency_real_fixtures_split_roles(tmp_path):
     assert any("edge E1" in n for n in rep.notes)
 
 
-def _fake_ts_frames(imag_freqs, irc_meta):
-    frames = [FrameRecord(frame=0, frequencies_cm=imag_freqs + [100.0, 200.0])]
-    return frames, irc_meta
-
-
 def _native_selfconsistency(tmp_path, paths, *, ts_files=None):
     graph = GoldMechanismGraph.model_validate({'nodes': [
         {'id': 'R', 'role': 'reactant', 'smiles': [paths['reactant_smiles']]},
@@ -1512,20 +1506,18 @@ def test_selfconsistency_saddle_logic(tmp_path, frequency, extra_imaginary, want
     assert report.passed is want
 
 
-def test_selfconsistency_roles_are_decided_by_content_not_filename(monkeypatch):
+def test_selfconsistency_roles_are_decided_by_content_not_filename(tmp_path):
     """证据可用性按频率块内容判定：harness 日志命名（calc-N.out.log）不携带
     角色信息——含 1 虚频的即一阶鞍点证据，零虚频的即极小值证据。"""
-    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
-    def fake_frames(path):
-        # calc-296 是真 TS 日志（1 虚频），calc-292 是极小值（0 虚频）
-        if "296" in str(path):
-            return _fake_ts_frames([-164.95], None)
-        return _fake_ts_frames([], None)
+    import shutil
 
-    monkeypatch.setattr(selfconsistency, "_frames_for", fake_frames)
+    logs = tmp_path / "runs" / "rc" / ".cloudra"
+    logs.mkdir(parents=True)
+    shutil.copy(FIXTURES / "benchmark_synthetic" / "ts_freq.out", logs / "calc-296.out.log")
+    shutil.copy(FIXTURES / "gaussian" / "water_opt_freq_g16.out", logs / "calc-292.out.log")
     files = [
         EvidenceFile(path="runs/rc/.cloudra/calc-296.out.log", kind="orca"),
-        EvidenceFile(path="runs/rc/.cloudra/calc-292.out.log", kind="orca"),
+        EvidenceFile(path="runs/rc/.cloudra/calc-292.out.log", kind="gaussian"),
     ]
     bindings = [
         NodeBinding(
@@ -1548,7 +1540,7 @@ def test_selfconsistency_roles_are_decided_by_content_not_filename(monkeypatch):
         ),
     ]
     rep = audit_self_consistency(
-        _sc_graph(), bindings, files, Path("."),
+        _sc_graph(), bindings, files, tmp_path,
         SelfConsistencyRubric(irc_connects_endpoints=False),
     )
     by_id = _checks_by_id(rep)
@@ -1569,14 +1561,15 @@ def test_selfconsistency_unbound_failed_attempts_do_not_veto(tmp_path, rdkit_che
     assert report.passed, report.notes
 
 
-def test_selfconsistency_bound_multi_imag_only_fails(monkeypatch):
+def test_selfconsistency_bound_multi_imag_only_fails(tmp_path):
     """绑到 TS 的证据全是多虚频（无一阶鞍点）→ 边不覆盖：any 语义豁免的是
     被取代的残留，不是拿高阶鞍点充数。"""
-    monkeypatch.setattr(selfconsistency, "normal_log", lambda *_, **__: True)
-    monkeypatch.setattr(
-        selfconsistency, "_frames_for",
-        lambda path: _fake_ts_frames([-1492.15, -702.92, -300.0, -50.0], None),
-    )
+    from tests.test_irc_endpoint_optimization import write_lineage_bundle
+
+    paths = write_lineage_bundle(tmp_path)
+    log = tmp_path / "work" / "ts" / ".cloudra" / "calc-315.out.log"
+    log.parent.mkdir(parents=True)
+    log.write_text(paths["ts"].read_text().replace("7: 200.00", "7: -200.00"))
     graph = _sc_graph(R={"accessible": False}, P={"accessible": False})
     files = [EvidenceFile(path="work/ts/.cloudra/calc-315.out.log", kind="orca")]
     bindings = [
@@ -1587,7 +1580,7 @@ def test_selfconsistency_bound_multi_imag_only_fails(monkeypatch):
             quality=1.0,
         ),
     ]
-    rep = audit_self_consistency(graph, bindings, files, Path("."))
+    rep = audit_self_consistency(graph, bindings, files, tmp_path)
     edge = _checks_by_id(rep)["E1"]
     assert not edge.covered
     assert any("first-order saddle" in n for n in edge.notes)
@@ -2673,28 +2666,21 @@ def _sc_task(graph, *, saddle=True, irc=False):
     )
 
 
-def _patch_sc_probe(monkeypatch, freq_by_name, sandbox, files=()):
-    """自洽日志探针替身：按文件名给频率表（负值 = 虚频）。"""
-    from cloudra.benchmark import selfconsistency as sc_mod
+def _write_sc_frequencies(freq_by_name, sandbox, files=()):
+    """Give binding-only synthetic logs explicit native frequency blocks."""
     from cloudra.benchmark.integrity import _smiles_in_text
-    for name in freq_by_name:
+
+    for name, frequencies in freq_by_name.items():
         path = sandbox / name
         identities = _smiles_in_text(path.read_text()) if path.is_file() else next(
             (item.smiles_found for item in files if Path(item.path).name == name), [])
         if identities:
             _annotated_geometry_log(path, identities[0])
-
-
-    monkeypatch.setattr(sc_mod, "_frames_for", lambda path: ([], None))
-    monkeypatch.setattr(
-        sc_mod,
-        "_freqs_for",
-        lambda path, frames: list(freq_by_name.get(Path(path).name, [])),
-    )
-    monkeypatch.setattr(
-        sc_mod, "_imag_freqs", lambda freqs: [f for f in freqs if f < 0]
-    )
-    monkeypatch.setattr(sc_mod, "_last_geometry", lambda path, frames: None)
+        text = path.read_text()
+        block = "VIBRATIONAL FREQUENCIES\n" + "\n".join(
+            f"{index}: {frequency:.8f} cm**-1" for index, frequency in enumerate(frequencies)
+        ) + "\n\n" if frequencies else ""
+        path.write_text(text.replace("ORCA TERMINATED NORMALLY", block + "ORCA TERMINATED NORMALLY"))
 
 
 @pytest.mark.parametrize("logs,want_covered,want_used", [
@@ -2719,7 +2705,7 @@ def test_selfconsistency_complex_requires_whole_minimum(
         _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
     bindings = bind_graph_to_evidence(graph, files, sandbox=tmp_path)
     assert bindings[0].matched is any("." in identity for _, identity, _ in logs)
-    _patch_sc_probe(monkeypatch, {f"{name}.log": freqs for name, smiles, freqs in logs}, tmp_path, files)
+    _write_sc_frequencies({f"{name}.log": freqs for name, smiles, freqs in logs}, tmp_path, files)
 
     report = audit_self_consistency(graph, bindings, files, tmp_path)
 
@@ -2741,7 +2727,7 @@ def test_selfconsistency_separated_species_keeps_protonation_variant_coverage(tm
         _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
     bindings = bind_graph_to_evidence(graph, files, sandbox=tmp_path)
     assert bindings[0].matched and 0 < bindings[0].quality < 1
-    _patch_sc_probe(monkeypatch, {"a.log": [100.0], "b.log": [200.0]}, tmp_path, files)
+    _write_sc_frequencies({"a.log": [100.0], "b.log": [200.0]}, tmp_path, files)
 
     report = audit_self_consistency(graph, bindings, files, tmp_path)
 
@@ -2764,7 +2750,7 @@ def test_separated_species_cannot_hide_an_unverified_member(
     for evidence in files:
         _annotated_geometry_log(tmp_path / evidence.path, evidence.smiles_found[0])
     bindings = bind_graph_to_evidence(graph, files, sandbox=tmp_path)
-    _patch_sc_probe(monkeypatch, {"water.log": water_frequencies, "amine.log": [200.0]}, tmp_path, files)
+    _write_sc_frequencies({"water.log": water_frequencies, "amine.log": [200.0]}, tmp_path, files)
 
     report = audit_self_consistency(graph, bindings, files, tmp_path)
 
@@ -2788,7 +2774,7 @@ def test_runner_separated_minimum_coverage_preserves_matching_settings(tmp_path,
         config.sigmoid_center = -2.0
     (tmp_path / "mechanism_graph.json").write_text(graph.model_dump_json(by_alias=True))
     (tmp_path / "minimum.log").write_text("Gaussian log\n# smiles: CC\n")
-    _patch_sc_probe(monkeypatch, {"minimum.log": [100.0]}, tmp_path)
+    _write_sc_frequencies({"minimum.log": [100.0]}, tmp_path)
     integrity = audit_integrity(tmp_path, task.rubric.integrity, config)
     assert integrity.node_bindings[0].matched
 
@@ -2831,7 +2817,7 @@ def test_extra_edge_sc_failure_zeroes_layer_but_keeps_graph(tmp_path, monkeypatc
 
     task = _sc_task(_graph_with_ts(["C"], ["O"]))
     _extra_edge_delivery(tmp_path)
-    _patch_sc_probe(monkeypatch, {
+    _write_sc_frequencies({
         "r.log": [100.0, 200.0],          # R 验证极小值
         "ts.log": [-500.0, 100.0],        # 主线一阶鞍点 -> 边 E 合格
         "p.log": [100.0],                 # P 验证极小值
@@ -2853,7 +2839,7 @@ def test_all_elements_sc_pass_keeps_bool_and_full_graph(tmp_path, monkeypatch):
 
     task = _sc_task(_graph_with_ts(["C"], ["O"]))
     _extra_edge_delivery(tmp_path)
-    _patch_sc_probe(monkeypatch, {
+    _write_sc_frequencies({
         "r.log": [100.0, 200.0],
         "ts.log": [-500.0, 100.0],
         "p.log": [100.0],

@@ -56,9 +56,6 @@ from cloudra.tools.core.irc_path import (
     pair_label as _pair_label,
 )
 from cloudra.tools.core.irc_path import (
-    parse_xyz as _parse_xyz,
-)
-from cloudra.tools.core.irc_path import (
     perceive_bonds as _perceive_bonds,
 )
 from cloudra.tools.core.molecule import read_molecule, to_ase, to_xyz, total_charge, with_positions
@@ -1197,77 +1194,27 @@ def _assess_imag_mode_alignment(
 
 
 def _parse_freq_log(log_path: str, engine: str) -> dict:
-    """解析频率日志。除频率与收敛性外，尽量返回末帧元素、坐标与 vibdisps。"""
-    with open(log_path, encoding="utf-8", errors="replace") as f:
-        text = f.read()
+    """Read separate native termination, optimization and frequency facts."""
+    from cloudra.tools.core.qm_log_facts import read_qm_log
 
-    vibfreqs: Optional[list[float]] = None
+    facts = read_qm_log(log_path)
+    if facts.engine != engine:
+        raise ValueError(f"Expected {engine} frequency output, detected {facts.engine}: {log_path}")
+    text = facts.text
+    vibfreqs = facts.frequencies_cm
     vibdisps = None
-    converged: Optional[bool] = None
-    symbols: Optional[list[str]] = None
-    positions = None
-
-    try:
-        import cclib
-
-        data = cclib.io.ccread(log_path)
-        if data is not None:
-            vf = getattr(data, "vibfreqs", None)
-            if vf is not None and len(vf) > 0:
-                vibfreqs = [float(v) for v in vf]
-            vd = getattr(data, "vibdisps", None)
-            if vd is not None and len(vd) > 0:
-                import numpy as np
-
-                vibdisps = np.asarray(vd, dtype=float)
-            optdone = getattr(data, "optdone", None)
-            if isinstance(optdone, bool):
-                converged = optdone
-            elif optdone:
-                converged = True
-            atomnos = getattr(data, "atomnos", None)
-            atomcoords = getattr(data, "atomcoords", None)
-            # openbabel 回退解析失败时会给 shape (n,0) 的畸形空 atomcoords：
-            # len(atomcoords)>0（帧数非零）但无原子。必须同时校验 atomnos 与
-            # 末帧原子数非空，否则空 symbols/positions 会挡住标准取向回退。
-            if (
-                atomnos is not None
-                and atomcoords is not None
-                and len(atomnos) > 0
-                and len(atomcoords) > 0
-                and getattr(atomcoords[-1], "size", 0) > 0
-            ):
-                import numpy as np
-                from cclib.parser.utils import PeriodicTable
-
-                pt = PeriodicTable()
-                symbols = [pt.element[int(z)] for z in atomnos]
-                positions = np.asarray(atomcoords[-1], dtype=float)
-    except Exception:
-        pass
-
-    if vibfreqs is None:
-        if engine == "orca":
-            # cclib 1.8.x 解析 ORCA 6.x 日志整体抛 IndexError（实测 ORCA 6.1.1 全灭），
-            # 且 ExtOpt/NumFreq 等外部 MLIP 日志无 SCF 块 cclib 也常失败——文本回退
-            # 走 orca_frames 的 VIBRATIONAL FREQUENCIES 原生解析（Gaussian 的
-            # "Frequencies --" 行在 ORCA 日志里不存在，GH #G2）。
-            vibfreqs = orca_frames.vibfreqs_from_text(text) or None
-        else:
-            # 正则回退：Gaussian "Frequencies --" 行（虚频以负值打印）
-            freqs: list[float] = []
-            for m in gaussian_frames.FREQ_LINE_RE.finditer(text):
-                for tok in m.group(1).split():
-                    try:
-                        freqs.append(float(tok))
-                    except ValueError:
-                        break
-            if freqs:
-                vibfreqs = freqs
-
     if vibfreqs is None:
         raise ValueError(f"Failed to parse vibrational frequencies from the frequency log: {log_path}")
+    # Keep vectors paired with the frequencies and geometry from the same log.
+    data = facts.parser_data
+    if data is not None:
+        vd = getattr(data, 'vibdisps', None)
+        vf = getattr(data, 'vibfreqs', None)
+        if vd is not None and vf is not None and len(vd) == len(vibfreqs) and len(vf) == len(vibfreqs):
+            import numpy as np
 
+            if np.array_equal(np.asarray(vf, dtype=float), np.asarray(vibfreqs, dtype=float)):
+                vibdisps = np.asarray(vd, dtype=float)
     if vibdisps is None and engine == "gaussian":
         vibdisps = gaussian_frames.vibdisps_from_text(text, len(vibfreqs))
     elif vibdisps is None and engine == "orca":
@@ -1279,43 +1226,17 @@ def _parse_freq_log(log_path: str, engine: str) -> dict:
             native_disps = orca_frames.vibdisps_from_text(text, len(native_freqs), n_atoms)
             if native_disps is not None:
                 vibfreqs, vibdisps = native_freqs, native_disps
+    symbols, positions = (None, None)
+    if facts.geometry is not None:
+        import numpy as np
 
-    if converged is None:
-        if engine == "orca":
-            # ORCA 没有 Gaussian 的 "Normal termination" 标记（自报 "ORCA TERMINATED
-            # NORMALLY"），且跑满最大步数未收敛的优化仍会正常终止——收敛状态优先按
-            # ORCA 自己的优化收敛标记判定，非优化作业回退到正常终止标记（GH #G3）。
-            opt_state = orca_frames.opt_converged(text)
-            converged = opt_state if opt_state is not None else orca_frames.normal_termination(text)
-        else:
-            # 文本回退：正常终止且无错误标记视为收敛（含纯 freq 作业沿用已收敛几何的情形）
-            converged = ("Normal termination" in text) and ("Error termination" not in text)
-
-    if positions is None and engine == "gaussian":
-        blocks = gaussian_frames.std_orientation_frames(text)
-        if blocks:
-            import numpy as np
-            from cclib.parser.utils import PeriodicTable
-
-            rows = blocks[-1]
-            pt = PeriodicTable()
-            symbols = [pt.element[int(z)] for z, *_ in rows]
-            positions = np.asarray([[x, y, z] for _, x, y, z in rows], dtype=float)
-    elif positions is None and engine == "orca":
-        # ORCA 末帧几何同样走文本权威坐标块；cclib 对 ORCA 6.1 崩溃时也保留 TS
-        # 几何，供模式方向和 IRC 来源核对使用。
-        ts_xyz = orca_frames.final_xyz_from_text(text)
-        parsed_xyz = _parse_xyz(ts_xyz) if ts_xyz.strip() else None
-        if parsed_xyz is not None:
-            import numpy as np
-
-            symbols = list(parsed_xyz[0])
-            positions = np.asarray(parsed_xyz[1], dtype=float)
-
+        symbols = list(facts.geometry[0])
+        positions = np.asarray(facts.geometry[1], dtype=float)
     return {
         "vibfreqs": vibfreqs,
         "vibdisps": vibdisps,
-        "converged": converged,
+        "normal_termination": facts.normal_termination,
+        "opt_converged": facts.opt_converged,
         "symbols": symbols,
         "positions": positions,
     }
@@ -2409,7 +2330,8 @@ class TsGuess(Tool):
         checks: list[str] = []
         references = {}
         reference_error = None
-        if freq["converged"] and n_imag == 1:
+        frequency_usable = freq['normal_termination'] and freq['opt_converged'] is not False
+        if frequency_usable and n_imag == 1:
             try:
                 references = _reference_molecules(user_input)
             except Exception as exc:
@@ -2445,9 +2367,9 @@ class TsGuess(Tool):
             verdict = "inconclusive: the endpoint reference structures could not be parsed."
             status = "inconclusive"
         elif user_input.strict:
-            if not freq["converged"]:
-                checks.append("The frequency job did not converge normally; the first-order saddle-point premise cannot be established.")
-                verdict = "inconclusive: the frequency job did not converge normally; the available material is insufficient for a strict judgement."
+            if not frequency_usable:
+                checks.append("The frequency job lacks native normal termination or reports an unconverged optimization; the first-order saddle-point premise cannot be established.")
+                verdict = "inconclusive: the frequency job lacks normal termination or optimization convergence; the available material is insufficient for a strict judgement."
                 status = "inconclusive"
             elif n_imag != 1:
                 if n_imag == 0:
@@ -2467,9 +2389,9 @@ class TsGuess(Tool):
                     irc_end_a_path = info["path_a"]
                     irc_end_b_path = info["path_b"]
         else:
-            if not freq["converged"]:
-                checks.append("The frequency job did not converge normally; cannot judge the TS candidate from it.")
-                verdict = "inconclusive: the frequency job did not converge normally."
+            if not frequency_usable:
+                checks.append("The frequency job lacks native normal termination or reports an unconverged optimization; cannot judge the TS candidate from it.")
+                verdict = "inconclusive: the frequency job lacks normal termination or optimization convergence."
                 status = "inconclusive"
             elif n_imag == 0:
                 checks.append("No imaginary frequency: the structure is a minimum, not like a first-order saddle point.")

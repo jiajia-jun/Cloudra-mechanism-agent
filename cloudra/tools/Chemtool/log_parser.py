@@ -1,6 +1,5 @@
 import asyncio
 import os
-import re
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field
@@ -29,7 +28,7 @@ description = (
 
 # 用户可请求的属性名 -> 对应输出字段
 _AVAILABLE_PROPERTIES = {
-    "energy": ["scf_energy_hartree", "scf_energy_ev"],
+    "energy": ["scf_energy_hartree", "scf_energy_ev", "electronic_energy_hartree"],
     "homo_lumo": [
         "homo_ev", "lumo_ev", "homo_lumo_gap_ev",
         "alpha_homo_ev", "alpha_lumo_ev", "beta_homo_ev", "beta_lumo_ev",
@@ -63,46 +62,6 @@ _AVAILABLE_PROPERTIES = {
         "irc_both_directions_converged",
     ],
 }
-
-
-_GAUSSIAN_FLOAT = r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[DdEe][+-]?\d+)?)"
-_THERMO_PATTERNS = {
-    "zero_point_correction_hartree": rf"Zero-point correction=\s*{_GAUSSIAN_FLOAT}",
-    "thermal_energy_correction_hartree": rf"Thermal correction to Energy=\s*{_GAUSSIAN_FLOAT}",
-    "thermal_enthalpy_correction_hartree": rf"Thermal correction to Enthalpy=\s*{_GAUSSIAN_FLOAT}",
-    "thermal_gibbs_correction_hartree": rf"Thermal correction to Gibbs Free Energy=\s*{_GAUSSIAN_FLOAT}",
-    "total_zero_point_energy_hartree": rf"Sum of electronic and zero-point Energies=\s*{_GAUSSIAN_FLOAT}",
-    "total_thermal_energy_hartree": rf"Sum of electronic and thermal Energies=\s*{_GAUSSIAN_FLOAT}",
-    "total_enthalpy_hartree": rf"Sum of electronic and thermal Enthalpies=\s*{_GAUSSIAN_FLOAT}",
-    "total_gibbs_free_energy_hartree": rf"Sum of electronic and thermal Free Energies=\s*{_GAUSSIAN_FLOAT}",
-}
-
-
-def _extract_gaussian_thermochemistry(text: str) -> dict[str, float]:
-    """Extract the last complete Gaussian thermochemistry block without changing units.
-
-    吃日志文本而不是路径：调用方（LogParser._parse_log）已把日志单读一次，
-    不在此处重复 IO。
-    """
-    starts = [match.start() for match in re.finditer(r"Zero-point correction=", text)]
-    chunks = (
-        [text[start:(starts[index + 1] if index + 1 < len(starts) else len(text))]
-         for index, start in enumerate(starts)]
-        if starts else [text]
-    )
-    parsed_blocks: list[dict[str, float]] = []
-    for chunk in chunks:
-        values: dict[str, float] = {}
-        for field, pattern in _THERMO_PATTERNS.items():
-            match = re.search(pattern, chunk)
-            if match:
-                values[field] = float(match.group(1).replace("D", "E").replace("d", "e"))
-        if values:
-            parsed_blocks.append(values)
-    if not parsed_blocks:
-        return {}
-    complete = [block for block in parsed_blocks if len(block) == len(_THERMO_PATTERNS)]
-    return complete[-1] if complete else parsed_blocks[-1]
 
 
 class LogParser_input_schema(input_schema):
@@ -141,8 +100,9 @@ class ScanPeak(BaseModel):
 
 class LogParser_output_schema(output_schema):
     is_success: bool = Field(description="Whether parsing succeeded")
-    scf_energy_hartree: Optional[float] = Field(default=None, description="Final SCF energy (Hartree)")
-    scf_energy_ev: Optional[float] = Field(default=None, description="Final SCF energy (eV)")
+    scf_energy_hartree: Optional[float] = Field(default=None, description="Explicit SCF electronic energy (Hartree), excluding post-HF correlation; None when absent.")
+    scf_energy_ev: Optional[float] = Field(default=None, description="Explicit SCF electronic energy (eV), excluding post-HF correlation; None when absent.")
+    electronic_energy_hartree: Optional[float] = Field(default=None, description="Last explicitly reported native total electronic energy (Hartree), including correlation when reported; distinct from SCF. Native termination and method completion are checked separately.")
     homo_ev: Optional[float] = Field(default=None, description="HOMO energy (eV); open-shell: max of α/β HOMO (highest SOMO)")
     lumo_ev: Optional[float] = Field(default=None, description="LUMO energy (eV); open-shell: min of α/β LUMO")
     homo_lumo_gap_ev: Optional[float] = Field(default=None, description="HOMO-LUMO gap (eV); None when undecidable (open-shell spin crossover)")
@@ -265,54 +225,19 @@ class LogParser(Tool):
     def _parse_log(self, log_path: str, requested: set[str], watch_pairs: Optional[list[list[int]]] = None) -> LogParser_output_schema:
         """同步解析流水线主体（cclib + ORCA/xtb 文本回退）；只经 to_thread 调用。"""
         try:
-            # 2. 引擎嗅探先于 cclib：外部 MLIP（ExtOpt/ProgExt）日志无 SCF 块，
-            # cclib 常整体解析失败或 metadata.success 失真——ORCA 路径把 cclib
-            # 降级为可选数据源，能量/终止判定退回文本权威提取（GH #17）。
-            # xtb 则整体跳过 cclib（与 runtime/monitor.py 一致）：cclib 1.8.1
-            # 已有 xtb parser 但结果错误——opt 日志的 scfenergies[-1] 是最后
-            # 一个 opt cycle 的能量而非 boxed TOTAL ENERGY，hess 日志的热化学
-            # 属性是荒谬值——能量/频率/热化学全走 xtb_frames 文本原语（GH #26）。
-            from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
-            from cloudra.tools.core.qm_engine import detect_qm_engine
-
-            engine = detect_qm_engine(log_path)
-
-            import cclib
             import numpy as np
 
-            data = None
-            cclib_error: Exception | None = None
-            if engine != "xtb":
-                try:
-                    data = cclib.io.ccread(log_path)
-                except Exception as e:
-                    cclib_error = e
+            from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
+            from cloudra.tools.core.qm_log_facts import read_qm_log
 
-            if data is None and engine not in ("orca", "xtb"):
-                if cclib_error is not None:
-                    raise cclib_error
+            facts = read_qm_log(log_path)
+            engine, log_text, data = facts.engine, facts.text, facts.parser_data
+            detected_jobs = facts.job_types
+            if data is None and engine == "unknown":
                 return LogParser_output_schema(
                     is_success=False,
-                    message=f"cclib could not parse any data from: {log_path}. "
-                            "Check that it is a complete computational-chemistry log; "
-                            "if the job failed, inspect the log tail to find the cause."
+                    message=f"No recognized native QM output or parser data in: {log_path}."
                 )
-
-            # 日志文本只读一次：终止判定、能量/频率/偶极回退、热化学、任务
-            # 类型识别与 IRC 提取全部共用这份文本（此前同一日志被整读 5-6 遍）。
-            with open(log_path, encoding="utf-8", errors="replace") as handle:
-                log_text = handle.read()
-
-            # 任务类型全引擎只识别一次（同一份文本）：job_types 字段、
-            # opt_converged 的 cclib 回退门控与 IRC 分支判定共用。
-            if engine == "xtb":
-                # xtb stdout 不回显 CLI 标志，从输出节判定（opt/freq/sp）
-                detected_jobs = xtb_frames.detect_job_types_from_text(log_text)
-            elif engine == "orca":
-                detected_jobs = orca_frames.detect_job_types_from_text(log_text)
-            else:
-                # gaussian 与未知引擎沿用 Gaussian 路由卡/结构标记判据
-                detected_jobs = gaussian_frames.detect_job_types_from_text(log_text)
 
             result: dict[str, Any] = {"is_success": True, "message": "Log parsed successfully.", "engine": engine}
             if data is None:
@@ -323,31 +248,17 @@ class LogParser(Tool):
                     )
                 else:
                     result["message"] = (
-                        "cclib could not parse the log (external-MLIP/ExtOpt logs have no SCF blocks); "
-                        "fell back to text extraction for energy/termination/job-type/IRC fields."
+                        "The optional cclib parser could not read this log; "
+                        "available native output facts were retained."
                     )
 
             # 3. 根据请求填充字段
-            if "scf_energy_hartree" in requested or "scf_energy_ev" in requested:
-                # cclib 的 eV/Hartree 常数与本工具不同，回算会有偏差；
-                # ORCA 最终电子能以原始 Hartree 输出为准。
-                orca_energy = orca_frames.final_energy_hartree(log_text) if engine == "orca" else None
-                if orca_energy is not None:
-                    result["scf_energy_hartree"] = orca_energy
-                    result["scf_energy_ev"] = orca_energy * 27.211386245988
-                elif data is not None and hasattr(data, "scfenergies") and data.scfenergies is not None and len(data.scfenergies) > 0:
-                    # cclib 的 scfenergies 单位为 eV
-                    from cloudra.tools.core.cclib_units import energy_ev_to_hartree
-
-                    ev = float(data.scfenergies[-1])
-                    result["scf_energy_ev"] = ev
-                    result["scf_energy_hartree"] = energy_ev_to_hartree(ev)
-                elif engine == "xtb":
-                    # xtb：最终 TOTAL ENERGY 块 / :: total energy / opt 周期能量行
-                    e_hartree = xtb_frames.final_energy_hartree(log_text)
-                    if e_hartree is not None:
-                        result["scf_energy_hartree"] = e_hartree
-                        result["scf_energy_ev"] = e_hartree * 27.211386245988
+            if {"scf_energy_hartree", "scf_energy_ev"} & requested:
+                if facts.scf_energy_hartree is not None:
+                    result["scf_energy_hartree"] = facts.scf_energy_hartree
+                    result["scf_energy_ev"] = facts.scf_energy_hartree * 27.211386245988
+            if "electronic_energy_hartree" in requested:
+                result["electronic_energy_hartree"] = facts.electronic_energy_hartree
 
             if {
                 "homo_ev", "lumo_ev", "homo_lumo_gap_ev",
@@ -409,16 +320,7 @@ class LogParser(Tool):
                         result["dipole_moment_debye"] = dipole
 
             if {"frequencies_cm", "imaginary_frequencies"} & requested:
-                vibfreqs: list[float] | None = None
-                if hasattr(data, "vibfreqs") and data.vibfreqs is not None and len(data.vibfreqs) > 0:
-                    vibfreqs = [float(f) for f in np.asarray(data.vibfreqs, dtype=float)]
-                elif engine == "orca":
-                    # 外部 MLIP（ExtOpt NumFreq）日志无 SCF 块，cclib 常整体
-                    # 失败——频率从 VIBRATIONAL FREQUENCIES 块文本回退（GH #16）
-                    vibfreqs = orca_frames.vibfreqs_from_text(log_text) or None
-                elif engine == "xtb":
-                    # xtb：projected vibrational frequencies 块的 eigval 行
-                    vibfreqs = xtb_frames.vibfreqs_from_text(log_text) or None
+                vibfreqs = facts.frequencies_cm
                 if vibfreqs is not None:
                     # 虚频保留负号（负值=虚频是 frames 原语与下游 DAG/benchmark
                     # 的原生语义）；frequencies_cm 只存非负实频。
@@ -438,10 +340,8 @@ class LogParser(Tool):
 
             thermo_fields = set(_AVAILABLE_PROPERTIES["thermochemistry"])
             if thermo_fields & requested:
-                if engine == "orca":
-                    thermo = orca_frames.extract_thermochemistry_from_text(log_text)
-                elif engine == "gaussian":
-                    thermo = _extract_gaussian_thermochemistry(log_text)
+                if engine in ("gaussian", "orca"):
+                    thermo = facts.thermochemistry
                 elif engine == "xtb":
                     # xtb：THERMODYNAMIC 块/最终块文本（cclib 热化学对 xtb 是
                     # 荒谬值，永不作为数据源）
@@ -449,24 +349,6 @@ class LogParser(Tool):
                 else:
                     # 未知引擎：无热化学提取路径，留空
                     thermo = {}
-
-                # cclib correctly exposes these as total quantities. Prefer the
-                # literal Gaussian/ORCA/xtb summary when present and use cclib as
-                # fallback — gated per engine: xtb never touches cclib (data is
-                # always None for xtb by construction).
-                if data is not None:
-                    if "total_enthalpy_hartree" not in thermo:
-                        value = getattr(data, "enthalpy", None)
-                        if value is not None:
-                            thermo["total_enthalpy_hartree"] = float(value)
-                    if "total_gibbs_free_energy_hartree" not in thermo:
-                        value = getattr(data, "freeenergy", None)
-                        if value is not None:
-                            thermo["total_gibbs_free_energy_hartree"] = float(value)
-                    if "zero_point_correction_hartree" not in thermo:
-                        value = getattr(data, "zpve", None)
-                        if value is not None:
-                            thermo["zero_point_correction_hartree"] = float(value)
 
                 aliases = {
                     "zero_point_energy_hartree": "zero_point_correction_hartree",
@@ -491,47 +373,9 @@ class LogParser(Tool):
                         }
 
             if "normal_termination" in requested:
-                if engine == "orca":
-                    # 文本标记权威：cclib metadata 对无 SCF 块的外部 MLIP 日志
-                    # 不可靠（GH #17 job17：正常终止却报 success=False）
-                    result["normal_termination"] = orca_frames.normal_termination(log_text)
-                elif engine == "xtb":
-                    # 同款文本权威：normal termination of xtb（GH #26）
-                    result["normal_termination"] = xtb_frames.normal_termination(log_text)
-                elif engine == "gaussian":
-                    result["normal_termination"] = gaussian_frames.normal_termination(log_text)
-                elif hasattr(data, "metadata") and data.metadata is not None:
-                    result["normal_termination"] = bool(data.metadata.get("success", False))
-                elif hasattr(data, "optdone"):
-                    result["normal_termination"] = bool(data.optdone)
-
+                result["normal_termination"] = facts.normal_termination
             if "opt_converged" in requested:
-                # 优化收敛与正常终止语义分开（GH #21）：ORCA 优化跑满最大步数
-                # 未收敛时仍正常终止。ORCA 走文本标记为主、cclib optdone 为辅
-                # （外部 MLIP 日志 cclib 可能解析失败，不能依赖它）。
-                if engine == "orca":
-                    converged = orca_frames.opt_converged(log_text)
-                    if converged is None and data is not None:
-                        optdone = getattr(data, "optdone", None)
-                        if optdone is not None and ({"opt", "ts"} & detected_jobs):
-                            converged = bool(optdone)
-                    result["opt_converged"] = converged
-                elif engine == "xtb":
-                    # xtb 同款语义（GH #26）：FAILED TO CONVERGE 即 False
-                    result["opt_converged"] = xtb_frames.opt_converged(log_text)
-                elif engine == "gaussian":
-                    converged = gaussian_frames.opt_converged(log_text)
-                    if converged is None and {"opt", "ts"} & detected_jobs:
-                        # Gaussian cclib optdone also contains IRC corrector
-                        # steps, which are not independent optimizations.
-                        optdone = getattr(data, "optdone", None)
-                        if optdone is not None:
-                            converged = bool(optdone)
-                    result["opt_converged"] = converged
-                elif data is not None:
-                    optdone = getattr(data, "optdone", None)
-                    if optdone is not None:
-                        result["opt_converged"] = bool(optdone)
+                result["opt_converged"] = facts.opt_converged
 
             # job_type / scan / irc 摘要（Gaussian IRC 逐点解析在 core.gaussian_frames 自写；
             # ORCA 侧由 core.orca_frames.extract_irc 从主输出的 FORWARD/BACKWARD

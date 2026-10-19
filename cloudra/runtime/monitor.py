@@ -13,8 +13,10 @@ from cloudra.infra.compute_utils import (
     build_calculator_cmd,
     calc_lock_path,
     check_job_type,
+    complete_execution_evidence,
     get_log_path,
     guard_lock_path,
+    prepare_execution_evidence,
 )
 from cloudra.infra.flocks import try_acquire_lock
 from cloudra.persistence.database import ComputeDB
@@ -235,78 +237,46 @@ async def _cclib_parse(target: Path) -> tuple[dict, bool] | None:
     return None
 
 
-async def _parse_gaussian_log(target: Path) -> tuple[dict, bool]:
-    """Gaussian 日志解析：终止标记定成败，cclib 只负责提取数据字段。"""
-    from cloudra.tools.core import gaussian_frames
+def _native_log_state(target: Path, engine: str) -> tuple[dict, bool]:
+    """One native read/cclib parse; optional CJSON never replaces native facts."""
+    from cloudra.tools.core.qm_log_facts import parse_qm_log_text
 
     try:
-        text = await asyncio.to_thread(target.read_text, encoding="utf-8", errors="replace")
-    except OSError as e:
-        print(f'读取 Gaussian 日志失败：{e}')
-        return {"is_success": False, "log_file": str(target)}, False
-    is_success = gaussian_frames.normal_termination(text)
-    parsed = await _cclib_parse(target)
-    data_dic = parsed[0] if parsed is not None else {}
-    opt_ok = gaussian_frames.opt_converged(text)
-    if opt_ok is None and {"opt", "ts"} & gaussian_frames.detect_job_types_from_text(text):
-        # cclib also records IRC corrector convergence in optdone; only an
-        # independently declared optimization may use it as a fallback.
-        optdone = data_dic.get("optdone")
-        if optdone is not None:
-            opt_ok = bool(optdone)
-    data_dic["normal_termination"] = is_success
-    data_dic["opt_converged"] = opt_ok
-    data_dic["is_success"] = is_success
-    data_dic["log_file"] = str(target)
-    return data_dic, is_success
+        text = target.read_text(encoding='utf-8', errors='replace')
+    except OSError as exc:
+        return {'is_success': False, 'log_file': str(target), 'error': str(exc)}, False
+    facts = parse_qm_log_text(text, source_path=str(target), engine=engine)
+    data_dic = {}
+    data = facts.parser_data
+    if data is not None and hasattr(data, 'atomcoords') and hasattr(data, 'atomnos'):
+        try:
+            import cclib
+
+            state_str = cclib.io.ccwrite(data, outputtype='cjson')
+            data_dic = cclib.io.cjsonreader.CJSON(io.StringIO(state_str)).parse()
+            data_dic.pop('atomcoords', None)
+        except Exception as exc:
+            print(f'日志可选 CJSON 转换失败：{exc}')
+    data_dic.update(normal_termination=facts.normal_termination, opt_converged=facts.opt_converged,
+                    is_success=facts.normal_termination, log_file=str(target),
+                    electronic_energy_hartree=facts.electronic_energy_hartree,
+                    total_energy_hartree=facts.electronic_energy_hartree,
+                    scf_energy_hartree=facts.scf_energy_hartree)
+    if facts.scf_energy_hartree is not None:
+        from cloudra.tools.core.gaussian_frames import EV_PER_HARTREE
+
+        data_dic['scf_energy_ev'] = facts.scf_energy_hartree * EV_PER_HARTREE
+    else:
+        data_dic['scf_energy_ev'] = None
+    return data_dic, facts.normal_termination
+
+
+async def _parse_gaussian_log(target: Path) -> tuple[dict, bool]:
+    return await asyncio.to_thread(_native_log_state, target, 'gaussian')
 
 
 async def _parse_orca_log(target: Path) -> tuple[dict, bool]:
-    """ORCA 日志解析：终止标记定成败，cclib 只负责提取数据字段。
-
-    成功判据是日志中出现 ``ORCA TERMINATED NORMALLY``（引擎自报正常结束）；
-    标记缺失（error termination、被 kill、崩溃截断）即 failed。cclib 解析失败
-    不等于任务失败：外部 MLIP（ExtOpt/ProgExt）日志无 SCF 块，cclib 常抛
-    "Unexpectedly encountered end of logfile" 或缺 spin multiplicity
-    （GH #17/#18：正常终止的 MACE NumFreq/IRC 作业被误判 failed）。cclib
-    失败时退化为文本提取的最小数据（最终能量 + is_success + log_file）。
-    终止/能量的文本权威判据与 log_parser 共用 tools.core.orca_frames。
-
-    优化收敛单独记录，不改写作业原生终态；科学验收仍要求实际收敛。
-    文本收敛标记为主，cclib optdone 为辅（外部 MLIP 日志 cclib 可能解析失败）。
-    """
-    from cloudra.tools.core import orca_frames
-
-    try:
-        text = await asyncio.to_thread(target.read_text, encoding="utf-8", errors="replace")
-    except OSError as e:
-        print(f'读取 ORCA 日志失败：{e}')
-        return {"is_success": False, "log_file": str(target)}, False
-    is_success = orca_frames.normal_termination(text)
-
-    parsed = await _cclib_parse(target)
-    if parsed is not None:
-        data_dic, _ = parsed
-    else:
-        # 最小数据：cclib 不可用时至少给出最终能量（外部 MLIP 的唯一能量行）
-        data_dic = {"log_file": str(target)}
-        energy = orca_frames.final_energy_hartree(text)
-        if energy is not None:
-            data_dic["total_energy_hartree"] = energy
-            data_dic["scf_energy_hartree"] = energy
-            data_dic["scf_energy_ev"] = energy * 27.211386245988
-
-    opt_ok = orca_frames.opt_converged(text)
-    if opt_ok is None and parsed is not None:
-        # cclib 辅助：文本标记缺失时（如版本差异）看 optdone，仅对 opt/ts 类任务
-        if {"opt", "ts"} & orca_frames.detect_job_types_from_text(text):
-            optdone = data_dic.get("optdone")
-            if optdone is not None:
-                opt_ok = bool(optdone)
-    data_dic["opt_converged"] = opt_ok
-    data_dic["normal_termination"] = is_success
-    data_dic["is_success"] = is_success
-    return data_dic, is_success
+    return await asyncio.to_thread(_native_log_state, target, 'orca')
 
 
 def _parse_xtb_log(log_path: Path, *, task: str | None = None) -> tuple[dict, bool] | None:
@@ -489,6 +459,13 @@ async def _finalize(
         if not is_success:
             data_dic["error"] = f"Shell script exited with code {returncode}"
     else:
+        if job_type in {'gaussian', 'orca'}:
+            receipt = Path(workdir) / '.cloudra' / f'execution-{taskid}' / 'evidence.json'
+            if await asyncio.to_thread(receipt.is_file):
+                row = await aget_compute_job(db, taskid)
+                source = row['path']
+                log_path = Path(await asyncio.to_thread(complete_execution_evidence, source, job_type, taskid))
+                fallback_log_path = None
         data_dic, is_success = await _parse_log(
             log_path, parse_timeout, job_type=job_type,
             fallback_log_path=fallback_log_path, xtb_task=xtb_task,
@@ -621,6 +598,12 @@ async def run_guard(
             await _mark_failed(db, taskid, msg)
             return
 
+        try:
+            await asyncio.to_thread(prepare_execution_evidence, path, job_type, taskid, db)
+        except (OSError, ValueError) as exc:
+            await _mark_failed(db, taskid, str(exc))
+            return
+
         # 启动 calculator；start_new_session 保证 guard 意外退出时 calculator 不被连带杀死。
         from cloudra.infra.compute_utils import (
             allocate_gaussian_scratch,
@@ -732,6 +715,7 @@ async def run_guard(
             # finalization CAS suppresses success; this owner must still ack it.
             row = await aget_compute_job(db, taskid)
             if row is not None and row["state"] == "cancel_requested":
+                await asyncio.to_thread(complete_execution_evidence, path, job_type, taskid)
                 await acancel_compute_job(db, taskid)
                 row = await aget_compute_job(db, taskid)
             if row is not None and row["state"] in {"done", "failed", "cancelled"}:
@@ -779,7 +763,10 @@ async def run_adopt(
             row = await aget_compute_job(db, taskid)
             if row is None:
                 raise RuntimeError(f"compute job {taskid} disappeared before adopt finalization")
+            if row['state'] in {'running', 'cancel_requested'}:
+                await asyncio.to_thread(prepare_execution_evidence, path, job_type, taskid, db)
             if row["state"] == "cancel_requested":
+                await asyncio.to_thread(complete_execution_evidence, path, job_type, taskid)
                 await acancel_compute_job(db, taskid)
                 return
             if row["state"] != "running":

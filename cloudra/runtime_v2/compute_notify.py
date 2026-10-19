@@ -509,8 +509,8 @@ class ComputeNotifyBroker:
         if input_path:
             from pathlib import Path
 
-            log_path = resolve_log_path(input_path, job_type=job_type, task_id=task_id)
-            if log_path and Path(log_path).is_file():
+            log_path = await asyncio.to_thread(resolve_log_path, input_path, job_type=job_type, task_id=task_id)
+            if log_path and await asyncio.to_thread(Path(log_path).is_file):
                 if log_path not in files:
                     files.append(log_path)
             elif log_path:

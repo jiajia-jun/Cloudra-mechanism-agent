@@ -61,22 +61,11 @@ from cloudra.benchmark.schema import (
     SelfConsistencyRubric,
 )
 from cloudra.tools.core.irc_evidence import (
-    frames_for as _frames_for,
-)
-from cloudra.tools.core.irc_evidence import (
-    freqs_for as _freqs_for,
-)
-from cloudra.tools.core.irc_evidence import (
-    imag_freqs as _imag_freqs,
-)
-from cloudra.tools.core.irc_evidence import (
-    last_geometry as _last_geometry,
-)
-from cloudra.tools.core.irc_evidence import (
     normal_log,
     verify_short_irc_direction,
     verify_short_irc_pair,
 )
+from cloudra.tools.core.qm_log_facts import read_qm_log
 
 
 @dataclass
@@ -118,14 +107,15 @@ class _LogProbe:
             if (
                 f is not None
                 and f.kind in ("gaussian", "orca")
-                and normal_log(self._sandbox / rel_path)
             ):
-                path = self._sandbox / rel_path
-                frames, _irc_meta = _frames_for(path)
-                freqs = _freqs_for(path, frames)
-                n_imag = len(_imag_freqs(freqs)) if freqs else None
-                geometry = _last_geometry(path, frames)
-                result = (n_imag, geometry)
+                try:
+                    facts = read_qm_log(self._sandbox / rel_path)
+                except (OSError, ValueError):
+                    facts = None
+                if facts is not None and facts.engine in {'gaussian', 'orca'} and facts.normal_termination:
+                    freqs = facts.frequencies_cm
+                    n_imag = sum(freq < 0 for freq in freqs) if freqs else None
+                    result = (n_imag, facts.geometry)
             self._cache[rel_path] = result
         return self._cache[rel_path]
 

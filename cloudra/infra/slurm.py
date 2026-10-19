@@ -10,7 +10,12 @@ import subprocess
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from cloudra.infra.compute_utils import XtbParams, build_calculator_cmd
+from cloudra.infra.compute_utils import (
+    XtbParams,
+    build_calculator_cmd,
+    complete_execution_evidence,
+    prepare_execution_evidence,
+)
 from cloudra.persistence.database import ComputeDB
 from cloudra.services.compute_store import (
     acancel_compute_job,
@@ -169,7 +174,7 @@ def build_batch_script(
     lines.append("set -euo pipefail")
     lines.extend(scheduler_setup_lines(scheduler))
     lines.append(f"cd {shlex.quote(workdir or str(input_file.parent))}")
-    if job_type.strip().lower() in {"orca", "shell"}:
+    if job_type.strip().lower() in {"gaussian", "orca", "shell"}:
         # Preserve the job output at the same path used by local/SSH execution
         # and result queries. ORCA also needs this stream for termination checks.
         capture = f".cloudra/calc-{task_id}.out.log"
@@ -376,6 +381,7 @@ async def run_slurm_compute(
             latest = get_compute_job(db, task_id)
             if latest is None or latest["state"] != "running":
                 return None
+            prepare_execution_evidence(str(input_file), row['jobtype'], task_id, db)
             return submit_batch(script_path)
 
         scheduler_job_id = await asyncio.to_thread(_write_and_submit)
@@ -432,27 +438,26 @@ async def run_slurm_compute(
         await aupdate_scheduler_state(db, task_id, state)
         if state in SLURM_TERMINAL_SUCCESS | SLURM_TERMINAL_FAILURE:
             if current and current["state"] == "cancel_requested":
+                await asyncio.to_thread(complete_execution_evidence, row['path'], row['jobtype'], task_id)
                 await acancel_compute_job(db, task_id)
                 return 1
             last_error = None if state in SLURM_TERMINAL_SUCCESS else f"Slurm {state} ({exit_code})"
             final = "done" if state in SLURM_TERMINAL_SUCCESS else "failed"
-            if state in SLURM_TERMINAL_SUCCESS:
-                job_type = current["jobtype"] if current else row["jobtype"]
-                if job_type == "shell":
-                    if exit_code != "0:0":
-                        final = "failed"
-                        last_error = f"shell exit code {exit_code or 'unknown'} (Slurm {state})"
-                else:
-                    engine_ok = await asyncio.to_thread(
-                        _engine_success_from_log,
-                        job_type,
-                        current["path"] if current else row["path"],
-                        task_id,
-                    )
-                    if engine_ok is not True:
-                        final = "failed"
-                        last_error = ("native termination log unavailable" if engine_ok is None
-                                      else "engine error termination (Slurm COMPLETED)")
+            job_type = current["jobtype"] if current else row["jobtype"]
+            if job_type == "shell":
+                if state in SLURM_TERMINAL_SUCCESS and exit_code != "0:0":
+                    final = "failed"
+                    last_error = f"shell exit code {exit_code or 'unknown'} (Slurm {state})"
+            elif state in SLURM_TERMINAL_SUCCESS or job_type in {'gaussian', 'orca'}:
+                path = current['path'] if current else row['path']
+                await asyncio.to_thread(complete_execution_evidence, path, job_type, task_id)
+                engine_ok = await asyncio.to_thread(_engine_success_from_log, job_type, path, task_id)
+                final = 'done' if engine_ok is True else 'failed'
+                if engine_ok is True:
+                    last_error = None
+                elif not last_error:
+                    last_error = ('native termination log unavailable' if engine_ok is None
+                                  else 'engine error termination (Slurm COMPLETED)')
             wrote = await afinalize_compute_job(
                 db,
                 task_id,

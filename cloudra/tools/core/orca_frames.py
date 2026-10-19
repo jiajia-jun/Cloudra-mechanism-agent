@@ -38,7 +38,6 @@ from cloudra.tools.core.gaussian_frames import (
     _ccread_from_text,
     _coords_to_xyz,
     _get_vibfreqs,
-    _opt_converged,
     _read_text,
 )
 
@@ -102,15 +101,14 @@ def detect_job_types_from_text(text: str) -> set[str]:
 _FLOAT = r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[DdEe][+-]?\d+)?)"
 
 _ORCA_THERMO_PATTERNS = {
-    # 修正量（加到电子能上）
     "zero_point_correction_hartree": rf"Zero point energy\s+\.\.\.\s+{_FLOAT}\s+Eh",
-    "thermal_energy_correction_hartree": rf"Total thermal correction\s+{_FLOAT}\s+Eh",
-    "thermal_enthalpy_correction_hartree": rf"Thermal Enthalpy correction\s+\.\.\.\s+{_FLOAT}\s+Eh",
-    # 总量（含电子能）
-    "total_zero_point_energy_hartree": None,  # 派生：电子能 + ZPE 修正
+    "thermal_energy_correction_hartree": rf"^\s*Total correction\s+{_FLOAT}\s+Eh",
     "total_thermal_energy_hartree": rf"Total thermal energy\s+{_FLOAT}\s+Eh",
     "total_enthalpy_hartree": rf"Total [Ee]nthalpy\s+\.*\s*\.\.\.\s+{_FLOAT}\s+Eh",
     "total_gibbs_free_energy_hartree": rf"Final Gibbs free (?:enthalpy|energy)\s+\.\.\.\s+{_FLOAT}\s+Eh",
+    "electronic_energy_hartree": rf"^\s*Electronic energy\s+\.\.\.\s+{_FLOAT}\s+Eh",
+    "temperature_k": rf"^\s*Temperature\s+\.\.\.\s+{_FLOAT}\s+K",
+    "pressure_atm": rf"^\s*Pressure\s+\.\.\.\s+{_FLOAT}\s+atm",
 }
 
 
@@ -128,9 +126,18 @@ NORMAL_TERMINATION_MARKER = "ORCA TERMINATED NORMALLY"
 def normal_termination(text: str) -> bool:
     """原生正常终止且没有原生错误终止；历史正常标记不能覆盖后续失败。"""
     return (
-        NORMAL_TERMINATION_MARKER in text
+        text.rfind(NORMAL_TERMINATION_MARKER) >= last_job_start(text)
         and "ORCA finished by error termination" not in text
     )
+
+
+def last_job_start(text: str) -> int:
+    """Native job headers, excluding input-echo lines containing $new_job."""
+    positions = [match.start() for match in re.finditer(
+        r"^[ \t]*(?:[-=*]+[ \t]*)?(?:ORCA[ \t]+)?JOB NUMBER[ \t]+\d+\b|"
+        r"^[ \t*]*O[ \t]{2,}R[ \t]{2,}C[ \t]{2,}A[ \t*]*$|"
+        r"^[ \t]*ORCA VERSION\b", text, re.M)]
+    return positions[-1] if positions else 0
 
 
 # ORCA 优化收敛标记：跑满最大步数未收敛时进程仍正常终止（照常打印
@@ -183,51 +190,41 @@ def final_energy_hartree(text: str) -> float | None:
 
 
 def extract_thermochemistry(log_path: str) -> dict[str, float]:
-    """解析最后一个 THERMOCHEMISTRY 块，字段语义对齐 Gaussian 版。
-
-    与 Gaussian 的差异：
-    - ORCA 的 "Total thermal correction" 不含 ZPE（Gaussian 的
-      "Thermal correction to Energy" 含 ZPE）。此处换算为含 ZPE 口径：
-      thermal_energy_correction = Total thermal correction + ZPE，
-      使 total_zero_point_energy = scf + zpe 等恒等式跨引擎一致。
-    - Gibbs 修正量块内不直接给出，取 G − E(el)。
-    """
+    """Read the last native block with corrections defined relative to its E(el)."""
     return extract_thermochemistry_from_text(_read_text(log_path))
 
 
 def extract_thermochemistry_from_text(text: str) -> dict[str, float]:
-    """extract_thermochemistry 的文本变体：调用方已读过日志时避免重复 IO。"""
-    blocks = re.split(r"-{5,}\s*\n\s*THERMOCHEMISTRY AT\s", text)
-    if len(blocks) < 2:
-        # 无 THERMOCHEMISTRY 标题的频算输出兜底：直接全文匹配
-        target = text
-    else:
-        target = "THERMOCHEMISTRY AT" + blocks[-1]
+    """Keep totals, corrections and conditions in one native thermochemistry block.
 
-    values: dict[str, float] = {}
-    for field, pattern in _ORCA_THERMO_PATTERNS.items():
-        if pattern is None:
-            continue
-        m = re.search(pattern, target)
-        if m:
-            values[field] = float(m.group(1))
-
+    ORCA's ``Thermal Enthalpy correction`` is only RT. The shared enthalpy
+    correction means H − E(el), including ZPE and thermal internal energy.
+    """
+    starts = list(re.finditer(r"^\s*THERMOCHEMISTRY AT\b", text, re.M))
+    target = text[starts[-1].start():] if starts else text
+    end = re.search(
+        r"ORCA TERMINATED NORMALLY|ORCA finished by error termination|"
+        r"FINAL SINGLE POINT ENERGY|^\s*\$new_job\b", target, re.M,
+    )
+    if end:
+        target = target[:end.start()]
+    values = {
+        field: float(match.group(1).replace("D", "E").replace("d", "e"))
+        for field, pattern in _ORCA_THERMO_PATTERNS.items()
+        if (match := re.search(pattern, target, re.M)) is not None
+    }
     zpe = values.get("zero_point_correction_hartree")
-    if zpe is not None:
-        values["thermal_energy_correction_hartree"] = (
-            values.get("thermal_energy_correction_hartree", 0.0) + zpe
-        )
-
-    e_el = final_energy_hartree(text)
+    e_el = values.get("electronic_energy_hartree")
     if e_el is not None:
         if zpe is not None:
             values["total_zero_point_energy_hartree"] = e_el + zpe
-        gibbs = values.get("total_gibbs_free_energy_hartree")
-        if gibbs is not None:
-            values["thermal_gibbs_correction_hartree"] = gibbs - e_el
-        energy_corr = values.get("thermal_energy_correction_hartree")
-        if energy_corr is not None and "total_thermal_energy_hartree" not in values:
-            values["total_thermal_energy_hartree"] = e_el + energy_corr
+        for total, correction in (
+            ("total_thermal_energy_hartree", "thermal_energy_correction_hartree"),
+            ("total_enthalpy_hartree", "thermal_enthalpy_correction_hartree"),
+            ("total_gibbs_free_energy_hartree", "thermal_gibbs_correction_hartree"),
+        ):
+            if total in values and correction not in values:
+                values[correction] = values[total] - e_el
     return values
 
 
@@ -458,7 +455,7 @@ def _extract_opt_frames_native(log_text: str) -> list[FrameRecord]:
         m = _CURRENT_ENERGY_RE.search(segment)
         if m:
             energy = float(m.group(1).replace("D", "E").replace("d", "e"))
-        frames.append(FrameRecord(frame=len(frames), scf_energy_hartree=energy, xyz=xyz))
+        frames.append(FrameRecord(frame=len(frames), electronic_energy_hartree=energy, xyz=xyz))
     if not frames:
         return []
     converged = opt_converged(log_text)
@@ -468,7 +465,7 @@ def _extract_opt_frames_native(log_text: str) -> list[FrameRecord]:
         # 收敛（或后续 freq 段）又打印了一份最终几何：追加为末帧
         frames.append(FrameRecord(
             frame=len(frames),
-            scf_energy_hartree=final_energy_hartree(log_text),
+            electronic_energy_hartree=final_energy_hartree(log_text),
             frequencies_cm=freqs,
             xyz=final_xyz,
             converged=converged,
@@ -486,7 +483,7 @@ def _extract_sp_frames_native(log_text: str) -> list[FrameRecord]:
         return []
     return [FrameRecord(
         frame=0,
-        scf_energy_hartree=final_energy_hartree(log_text),
+        electronic_energy_hartree=final_energy_hartree(log_text),
         frequencies_cm=vibfreqs_from_text(log_text),
         xyz=xyz,
     )]
@@ -506,15 +503,15 @@ def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
         return []
     energies_ev = _as_float_list(energies)
     n = min(len(energies_ev), len(atomcoords))
-    converged = _opt_converged(data)
-    freqs = _get_vibfreqs(data)
+    converged = opt_converged(log_text)
+    freqs = vibfreqs_from_text(log_text) or _get_vibfreqs(data)
 
     frames = []
     for i in range(n):
         is_last = i == n - 1
         frames.append(FrameRecord(
             frame=i,
-            scf_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
+            electronic_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
             frequencies_cm=freqs if (is_last and freqs) else [],
             xyz=_coords_to_xyz(atomnos, atomcoords[i], comment=f"opt step={i}"),
             converged=converged if is_last else None,
@@ -565,7 +562,7 @@ def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
         frames.append(FrameRecord(
             frame=i,
             reaction_coordinate=rx,
-            scf_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
+            electronic_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
             xyz=xyz,
         ))
     return frames
@@ -580,15 +577,15 @@ def _extract_sp_frames(log_text: str) -> list[FrameRecord]:
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)
     if atomcoords is None or atomnos is None or len(atomcoords) == 0:
-        return []
-    energy_hartree = None
-    if energies is not None and len(energies) > 0:
+        return _extract_sp_frames_native(log_text)
+    energy_hartree = final_energy_hartree(log_text)
+    if energy_hartree is None and energies is not None and len(energies) > 0:
         energy_hartree = energy_ev_to_hartree(_as_float_list(energies)[-1])
     return [FrameRecord(
         frame=0,
-        scf_energy_hartree=energy_hartree,
-        frequencies_cm=_get_vibfreqs(data),
-        xyz=_coords_to_xyz(atomnos, atomcoords[-1], comment="single point"),
+        electronic_energy_hartree=energy_hartree,
+        frequencies_cm=vibfreqs_from_text(log_text) or _get_vibfreqs(data),
+        xyz=final_xyz_from_text(log_text) or _coords_to_xyz(atomnos, atomcoords[-1], comment="single point"),
     )]
 
 
@@ -773,7 +770,7 @@ def _neb_image_frames(roots: list[tuple[str, str]]) -> tuple[list[FrameRecord], 
                         energy = None
                     break
             frames.append(FrameRecord(
-                frame=index, scf_energy_hartree=energy, xyz="\n".join(lines) + "\n",
+                frame=index, electronic_energy_hartree=energy, xyz="\n".join(lines) + "\n",
             ))
         # 收敛的鞍点几何单独作为末帧（converged=True）：那是 NEB-TS 真正交出来的东西
         converged = os.path.join(directory, job + _NEB_TS_SUFFIX)
@@ -784,7 +781,7 @@ def _neb_image_frames(roots: list[tuple[str, str]]) -> tuple[list[FrameRecord], 
                 text = ""
             if text:
                 frames.append(FrameRecord(
-                    frame=len(frames), scf_energy_hartree=None, xyz=text, converged=True,
+                    frame=len(frames), electronic_energy_hartree=None, xyz=text, converged=True,
                 ))
         return frames, None
     return [], (
@@ -844,6 +841,27 @@ def _orca_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
     留在父目录里，只按 NAME 字面目录解析会永远找不到。"""
     roots: list[tuple[str, str]] = []
     log_dir = os.path.dirname(os.path.abspath(log_path))
+    remote_results = Path(log_dir).parent if Path(log_dir).name == '.cloudra' else Path(log_dir)
+    remote_map = remote_results.parent / 'path-map.json'
+    if remote_results.name == 'results' and remote_map.is_file():
+        mapping = json.loads(remote_map.read_text())
+        roots.append((str(remote_results), Path(mapping['input_file']).stem))
+        for item in mapping.get('files', []):
+            if item.get('prefix') and item.get('role') != 'dependency':
+                prefix = remote_results / item['staged_path']
+                roots.append((str(prefix.parent), prefix.name))
+        return roots
+    receipt = Path(log_dir).parent / 'evidence.json'
+    if receipt.is_file():
+        # A frozen compute receipt cannot acquire future geometry from the
+        # mutable original NAME directory or from neighboring jobs.
+        record = json.loads(receipt.read_text())
+        names = {Path(log_path).stem, Path(record.get('input_file', log_path)).stem}
+        names.update(record.get('geometry_stems', []))
+        match = _ORCA_NAME_RE.search(text[:200_000])
+        if match:
+            names.add(Path(match.group('path')).stem)
+        return [(log_dir, name) for name in sorted(names)]
     m = _ORCA_NAME_RE.search(text[:200_000])
     if m:
         job = os.path.splitext(m.group("path"))[0]
@@ -995,6 +1013,50 @@ def extract_irc_endpoints(log_path: str) -> dict:
             "converged": converged["FORWARD" if direction == "forward" else "BACKWARD"],
         }
     return result
+
+
+def snapshot_irc_endpoints(log_path: str, directory: Path) -> None:
+    """Preserve the existing IRC archive contract when a compute log is frozen.
+
+    Copy whole native endpoint/trajectory files, preserving their origin and
+    frozen atom binding. Missing endpoint evidence stays missing.
+    """
+    import shutil
+
+    from cloudra.persistence.fs_utils import atomic_write_json
+
+    try:
+        extract_irc(log_path)
+    except ValueError:
+        return
+    endpoints = extract_irc_endpoints(log_path)
+    roots = _orca_sidecar_roots(log_path, _read_text(log_path))
+    # The general reader has a unique-neighbor convenience fallback. A durable
+    # execution archive must only bind this job's actual named sidecars.
+    allowed = {str(Path(directory) / (stem + suffix)) for directory, stem in roots
+               for suffix in ('_IRC_F.xyz', '_IRC_B.xyz', '_IRC_F_trj.xyz', '_IRC_B_trj.xyz')}
+    if _archived_irc_endpoints(log_path) is not None:
+        allowed.update(endpoint['geometry_ref'] for endpoint in endpoints.values() if endpoint.get('geometry_ref'))
+    records = {}
+    for direction, endpoint in endpoints.items():
+        filename = digest = None
+        if endpoint.get('geometry_ref') and endpoint['geometry_ref'] in allowed:
+            source = Path(endpoint['geometry_ref'])
+            with source.open('rb') as stream:
+                digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+            filename = digest[:16] + '_' + source.name
+            if source.parent == directory and source.name.startswith(digest[:16] + '_'):
+                filename = source.name
+            if source != directory / filename:
+                shutil.copy2(source, directory / filename)
+        records[direction] = _ArchivedIrcEndpoint(filename=filename, sha256=digest,
+                                                origin=endpoint.get('origin'),
+                                                converged=endpoint.get('converged'))
+    with Path(log_path).open('rb') as stream:
+        log_digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+    archive = _ArchivedIrcEvidence(log_sha256=log_digest, endpoints=records,
+                                   atom_binding=endpoints['forward'].get('atom_binding'))
+    atomic_write_json(directory / 'irc_endpoints.json', archive.model_dump())
 
 
 def read_endpoint_geometry(endpoint: dict) -> str | None:

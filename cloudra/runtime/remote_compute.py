@@ -36,7 +36,13 @@ import shutil
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-from cloudra.infra.compute_utils import XtbParams, _default_calculator_path, get_log_path
+from cloudra.infra.compute_utils import (
+    ORCA_NEB_GEOMETRY_INPUTS,
+    XtbParams,
+    _default_calculator_path,
+    _orca_geometry_output_paths,
+    get_log_path,
+)
 from cloudra.infra.slurm import (
     SLURM_TERMINAL_FAILURE,
     SLURM_TERMINAL_SUCCESS,
@@ -370,6 +376,7 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
     original_copy.write_bytes(original)
     text = original.decode('utf-8')
     files: dict[str, dict] = {}
+    geometry_outputs = _orca_geometry_output_paths(str(input_file)) if job_type == 'orca' else set()
 
     def relocate(value: str, role: str, *, directory: bool = False, prefix: bool = False) -> str:
         if not value:
@@ -422,7 +429,10 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
                 suffix = child.name[len(local.name):] if child.name.startswith(local.name) else ''
                 if not suffix.startswith(('.', '_')) or not child.is_file():
                     continue
-                if child.resolve() == input_file.resolve() or child.suffix.casefold() in {'.out', '.log'}:
+                if (child.resolve() == input_file.resolve() or child.suffix.casefold() in {'.out', '.log'}
+                        or child.name == 'irc_endpoints.json' or child in geometry_outputs
+                        or child.name.endswith(('_IRC_F.xyz', '_IRC_B.xyz', '_IRC_F_trj.xyz', '_IRC_B_trj.xyz',
+                                                '_NEB-TS_converged.xyz'))):
                     continue  # Logs and the submitted input are not restart data.
                 staged_child = staged.with_name(staged.name + suffix)
                 shutil.copy2(child, staged_child)
@@ -493,6 +503,8 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
                 target_index = index + 1
             elif lowered in {'hess_filename', 'inhessname'} and block in {'irc', 'geom'}:
                 target_index = index + 1
+            elif lowered in ORCA_NEB_GEOMETRY_INPUTS and block == 'neb':
+                target_index = index + 1
             elif (lowered == '*xyzfile' and starts_line) or (
                     lowered == 'xyzfile' and index > 0 and tokens[index - 1][2] == '*'):
                 target_index = index + 3
@@ -521,7 +533,8 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
             if path.is_file() and not path.is_symlink():
                 with path.open('rb') as stream:
                     staged_files[path.relative_to(workdir).as_posix()] = hashlib.file_digest(stream, 'sha256').hexdigest()
-    manifest = {'input_file': str(input_file), 'input_sha256': hashlib.sha256(original).hexdigest(),
+    manifest = {'input_file': str(input_file), 'job_type': job_type,
+                'input_sha256': hashlib.sha256(original).hexdigest(),
                 'files': list(files.values()), 'staged_files': staged_files}
     manifest_text = json.dumps(manifest, indent=2, ensure_ascii=False) + '\n'
     (receipt / 'path-map.json').write_text(manifest_text, encoding='utf-8')
@@ -529,7 +542,8 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
     return stage
 
 
-def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file: Path, task_id: int) -> None:
+def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file: Path, task_id: int,
+                           job_type: str | None = None) -> None:
     """Pull to a receipt first, then publish outputs without replacing the input.
 
     Every downloaded byte stays in results, including the relocated execution
@@ -541,6 +555,20 @@ def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file
     transport.pull_dir(remote_dir, str(results))
     manifest_path = receipt / 'path-map.json'
     manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {'files': []}
+    bundled_files = set()
+    if (job_type or manifest.get('job_type')) == 'orca':
+        from cloudra.tools.core.orca_frames import snapshot_irc_endpoints
+
+        native = results / Path(get_log_path(str(input_file), 'orca')).name
+        captured = results / '.cloudra' / f'calc-{task_id}.out.log'
+        source = native if native.is_file() and native.stat().st_size else captured
+        if source.is_file():
+            snapshot_irc_endpoints(str(source), source.parent)
+        archive = source.parent / 'irc_endpoints.json'
+        if archive.is_file():
+            endpoints = json.loads(archive.read_text())['endpoints']
+            bundled_files = {(archive.parent / item['filename']).relative_to(results).as_posix()
+                             for item in endpoints.values() if item.get('filename')}
     protected = {input_file.resolve()}
     protected.update(Path(item['local_path']).resolve() for item in manifest['files'] if item['role'] == 'dependency')
     staged_files = manifest.get('staged_files', {})
@@ -550,6 +578,10 @@ def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file
     protected.update((workdir / name).resolve() for name in staged_files if Path(name).suffix.casefold() in {'.gjf', '.com', '.inp'})
 
     def publish(source: Path, target: Path) -> None:
+        relative = source.relative_to(results)
+        if (relative in {Path('irc_endpoints.json'), Path('.cloudra/irc_endpoints.json')}
+                or relative.as_posix() in bundled_files):
+            return  # Derived receipt metadata is never a native output to publish.
         if target.resolve() in protected or source.is_symlink():
             return
         if target.is_symlink():
@@ -660,7 +692,11 @@ def _stage_and_submit(
     native_stage = _stage_native_paths(input_file, workdir, task_id, job_type)
     excludes = ('.cloudra/', '.g16_scratch/')
     if native_stage:
-        excludes += (input_file.name, Path(get_log_path(str(input_file), job_type)).name, f'state_{task_id}.json')
+        excludes += (input_file.name, Path(get_log_path(str(input_file), job_type)).name, f'state_{task_id}.json',
+                     'irc_endpoints.json')
+    if job_type == 'orca':
+        excludes += ('*_IRC_F.xyz', '*_IRC_B.xyz', '*_IRC_F_trj.xyz', '*_IRC_B_trj.xyz',
+                     '*_im[0-9]*.xyz', '*_NEB-TS_converged.xyz')
     transport.push_dir(workdir, remote_dir, excludes=excludes)
     transport.push_files([_default_calculator_path()], remote_dir)
     if native_stage:
@@ -800,7 +836,7 @@ async def run_remote_compute(
 
         # 终态：拉回全部产物（有界重试），shell 只认退出码，其余引擎复核日志。
         try:
-            await asyncio.to_thread(_pull_remote_artifacts, transport, remote_dir, workdir, input_file, task_id)
+            await asyncio.to_thread(_pull_remote_artifacts, transport, remote_dir, workdir, input_file, task_id, job_type)
         except (SshError, OSError, ValueError) as exc:
             pull_failures += 1
             if pull_failures < _MAX_PULL_ATTEMPTS:

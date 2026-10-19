@@ -95,40 +95,13 @@ def _resolve_in_sandbox(sandbox: Path, rel_path: str) -> Optional[Path]:
     return candidate
 
 
-def _frames_for(sandbox: Path, rel_path: str):
-    """(引擎, 帧列表)；非 ORCA/Gaussian 或解析失败返回 (engine, [])。"""
-    from cloudra.tools.core import gaussian_frames, orca_frames
-    from cloudra.tools.core.qm_engine import detect_qm_engine
-
-    path = _resolve_in_sandbox(sandbox, rel_path)
-    if path is None:
-        return None, []
-    engine = detect_qm_engine(str(path)) if path.is_file() else None
-    if engine not in _SCORING_ENGINES:
-        return engine, []
-    mod = orca_frames if engine == "orca" else gaussian_frames
-    try:
-        return engine, list(mod.extract_frames(str(path)))
-    except Exception:
-        return engine, []
-
-
-def _last_frequencies(frames) -> list[float]:
-    """末帧携带的频率列表（有符号，负值 = 虚频）；没有频率块返回 []。"""
-    for frame in reversed(frames):
-        if frame.frequencies_cm:
-            return list(frame.frequencies_cm)
-    return []
-
-
 def _engine_energy_kcal(sandbox: Path, rel_path: str) -> tuple[Optional[float], str]:
     """证据日志 → 最终能量（kcal/mol）。(值, 原因) —— 原因非空即不可用。
 
-    ORCA 走文本权威能量行（cclib 对外部势/ExtOpt 日志常失败）；Gaussian 走
-    帧记录的 cclib 能量。两者都不读任何散文。
+    两引擎使用同一原生事实入口的最终方法电子能，独立于 SCF 中间能。
     """
-    from cloudra.tools.core import gaussian_frames, orca_frames
     from cloudra.tools.core.qm_engine import detect_qm_engine
+    from cloudra.tools.core.qm_log_facts import parse_qm_log_text
 
     path = _resolve_in_sandbox(sandbox, rel_path)
     if path is None:
@@ -149,14 +122,7 @@ def _engine_energy_kcal(sandbox: Path, rel_path: str) -> tuple[Optional[float], 
     text = _read_text(path)
     if not text.strip():
         return None, f"{rel_path}: empty log"
-    if engine == "orca":
-        energy = orca_frames.final_energy_hartree(text)
-    else:
-        energy = None
-        for frame in reversed(gaussian_frames.extract_frames(str(path))):
-            if frame.scf_energy_hartree is not None:
-                energy = frame.scf_energy_hartree
-                break
+    energy = parse_qm_log_text(text, source_path=str(path)).electronic_energy_hartree
     if energy is None:
         return None, f"{rel_path}: no final energy in the {engine} log"
     return float(energy) * HARTREE_TO_KCAL_MOL, ""
@@ -167,19 +133,12 @@ def _imaginary_frequency_count(sandbox: Path, rel_path: str) -> Optional[int]:
     path = _resolve_in_sandbox(sandbox, rel_path)
     if path is None or not normal_log(path):
         return None
-    engine, frames = _frames_for(sandbox, rel_path)
-    if engine not in _SCORING_ENGINES:
-        return None
-    if engine == "orca":
-        # cclib 对 ORCA 6.1 日志裸抛 IndexError——走带文本回退的统一入口
-        path = _resolve_in_sandbox(sandbox, rel_path)
-        if path is None or not path.is_file():
-            return None
-        from cloudra.tools.core import orca_frames
+    from cloudra.tools.core.qm_log_facts import read_qm_log
 
-        freqs = orca_frames.frequencies_with_text_fallback(str(path))
-    else:
-        freqs = _last_frequencies(frames)
+    facts = read_qm_log(path)
+    if facts.engine not in _SCORING_ENGINES:
+        return None
+    freqs = facts.frequencies_cm
     if not freqs:
         return None
     return sum(1 for f in freqs if f < 0)

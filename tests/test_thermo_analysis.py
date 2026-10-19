@@ -87,17 +87,13 @@ def test_raw_rrho_uses_literal_gaussian_corrections_not_last_cclib_scf(monkeypat
     assert record["gibbs_free_energy_hartree"] == pytest.approx(-74.993352)
 
 
-def test_raw_rrho_rejects_saddle_frequency_job(monkeypatch):
+def test_raw_rrho_rejects_saddle_frequency_job(tmp_path):
     """n_imag != 0 的频率作业不得给出 complete 热化学。"""
-    fake_data = SimpleNamespace(
-        temperature=298.15,
-        pressure=1.0,
-        vibfreqs=[-412.3, 100.0, 200.0],
-    )
-    monkeypatch.setattr("cclib.io.ccread", lambda _path: fake_data)
+    log = tmp_path / WATER_FREQ.name
+    log.write_text(WATER_FREQ.read_text().replace("Frequencies --   2169.7613", "Frequencies --   -412.3000"))
 
     record, error = thermo_mod._load_raw_rrho_record(
-        ThermoSpecies(name="ts", log_path=str(WATER_FREQ), coefficient=1),
+        ThermoSpecies(name="ts", log_path=str(log), coefficient=1),
         temperature=298.15,
         standard_state="gas_1atm",
         concentration_molar=None,
@@ -107,12 +103,12 @@ def test_raw_rrho_rejects_saddle_frequency_job(monkeypatch):
     assert "n_imag" in error
 
 
-def test_raw_rrho_converts_nonstandard_source_pressure_to_one_atm(monkeypatch):
-    fake_data = SimpleNamespace(temperature=298.15, pressure=2.0)
-    monkeypatch.setattr("cclib.io.ccread", lambda _path: fake_data)
+def test_raw_rrho_converts_nonstandard_source_pressure_to_one_atm(tmp_path):
+    log = tmp_path / WATER_FREQ.name
+    log.write_text(WATER_FREQ.read_text().replace("Pressure   1.00000 Atm.", "Pressure   2.00000 Atm."))
 
     record, error = thermo_mod._load_raw_rrho_record(
-        ThermoSpecies(name="water", log_path=str(WATER_FREQ), coefficient=1),
+        ThermoSpecies(name="water", log_path=str(log), coefficient=1),
         temperature=298.15,
         standard_state="gas_1atm",
         concentration_molar=None,
@@ -126,11 +122,15 @@ def test_raw_rrho_converts_nonstandard_source_pressure_to_one_atm(monkeypatch):
     assert record["standard_state_g_correction_hartree"] == pytest.approx(expected)
 
 
-def test_raw_rrho_missing_log_temperature_or_pressure_is_inconclusive(monkeypatch):
+def test_raw_rrho_missing_log_temperature_or_pressure_is_inconclusive(monkeypatch, tmp_path):
     monkeypatch.setattr("cclib.io.ccread", lambda _path: SimpleNamespace())
+    log = tmp_path / WATER_FREQ.name
+    log.write_text(WATER_FREQ.read_text().replace(
+        "Temperature   298.150 Kelvin.  Pressure   1.00000 Atm.", "Conditions unavailable.",
+    ))
 
     record, error = thermo_mod._load_raw_rrho_record(
-        ThermoSpecies(name="water", log_path=str(WATER_FREQ), coefficient=1),
+        ThermoSpecies(name="water", log_path=str(log), coefficient=1),
         temperature=298.15,
         standard_state="gas_1atm",
         concentration_molar=None,
@@ -454,9 +454,8 @@ async def test_goodvibes_rejects_unsupported_json_schema(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_raw_rrho_cclib_parse_crash_is_inconclusive_not_raised(monkeypatch):
-    """cclib 对不兼容日志（如 cclib 1.8.1 读 ORCA 6.1.1 全抛 IndexError）必须归入
-    inconclusive 通道，裸异常不得逃逸 tool_call。"""
+async def test_raw_rrho_cclib_parse_crash_preserves_complete_native_material(monkeypatch):
+    """Optional cclib failure does not erase native frequencies and conditions."""
 
     def boom(_path):
         raise IndexError("list index out of range")
@@ -469,10 +468,8 @@ async def test_raw_rrho_cclib_parse_crash_is_inconclusive_not_raised(monkeypatch
         standard_state="gas_1atm",
         concentration_molar=None,
     )
-    assert record is None
-    assert error is not None
-    assert "cclib" in error
-    assert "IndexError" in error
+    assert record is not None
+    assert error is None
 
     result = await ThermoAnalysis().tool_call(
         ThermoAnalysis_input_schema(
@@ -482,9 +479,8 @@ async def test_raw_rrho_cclib_parse_crash_is_inconclusive_not_raised(monkeypatch
         session=None,
     )
     assert result.is_success is True
-    assert result.status == "inconclusive"
-    assert result.reaction == {}
-    assert "IndexError" in result.message
+    assert result.status == "complete"
+    assert result.species[0]["rrho_temperature_k"] == 298.15
 
 
 @pytest.mark.asyncio
@@ -492,8 +488,8 @@ async def test_raw_rrho_cclib_parse_crash_is_inconclusive_not_raised(monkeypatch
     ("sp_energy", "expected_source"),
     [
         # GoodVibes 4.x JSON 恒写 sp_energy；与 scf_energy 相同 = 未做 SPC，不能标 goodvibes_spc
-        (-75.0, "frequency_log_scf"),
-        (-75.000000005, "frequency_log_scf"),  # 数值噪声级差异（<1e-8 Eh）不算 SPC
+        (-75.0, "frequency_log_electronic"),
+        (-75.000000005, "frequency_log_electronic"),  # 数值噪声级差异（<1e-8 Eh）不算 SPC
         (-75.2, "goodvibes_spc"),              # 显著不同 = 真做了 SPC
     ],
 )

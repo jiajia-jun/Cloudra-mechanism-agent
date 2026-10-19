@@ -285,7 +285,8 @@ def test_pipeline_gaussian_endpoint_accepts_native_standard_orientation(tmp_path
 
 @pytest.mark.parametrize('change', ['mirror', 'distortion'])
 def test_pipeline_endpoint_rejects_reflection_and_actual_geometry_changes(tmp_path, monkeypatch, change):
-    from cloudra.tools.core import gaussian_frames, ts_process
+    from cloudra.tools.core import ts_process
+    from tests.ts_fixtures import native_qm_log
 
     geometry = (['C', 'F', 'Cl', 'Br', 'H'], [[0., 0., 0.], [1., 1., 1.],
         [-1., -1., 1.], [-1., 1., -1.], [1., -1., -1.]])
@@ -295,7 +296,8 @@ def test_pipeline_endpoint_rejects_reflection_and_actual_geometry_changes(tmp_pa
     else:
         measured[1, 0] += .01
     frequency = tmp_path / 'frequency.log'
-    frequency.write_text('Gaussian\n Normal termination\n')
+    frequency.write_text(native_qm_log('gaussian', geometry[0], measured,
+        optimization=None, frequencies=[100., 200.]))
     (tmp_path / 'optimized.xyz').write_text(xyz_block(*geometry))
     steps = [SimpleNamespace(purpose=purpose, state='done', input_path=str(tmp_path / (purpose + '.gjf')))
              for purpose in ('reactant_opt', 'reactant_frequency')]
@@ -305,8 +307,6 @@ def test_pipeline_endpoint_rejects_reflection_and_actual_geometry_changes(tmp_pa
     monkeypatch.setattr(ts_process, '_step_calculation', lambda *_: SimpleNamespace(engine='gaussian'))
     monkeypatch.setattr('cloudra.dag.evidence_ingest.snapshot_evidence_file',
         lambda *_, **__: SimpleNamespace(frequencies=[100., 200.], imaginary_frequencies=[]))
-    monkeypatch.setattr(gaussian_frames, 'extract_frames',
-        lambda _: [gaussian_frames.FrameRecord(frame=0, xyz=xyz_block(geometry[0], measured))])
 
     minimum, reason = ts_process._validated_endpoint_minimum(record, 'reactant')
 

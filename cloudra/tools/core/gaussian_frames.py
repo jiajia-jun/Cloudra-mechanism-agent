@@ -23,14 +23,75 @@ from cloudra.tools.core.cclib_units import energy_ev_to_hartree
 EV_PER_HARTREE = 27.211386245988
 
 
+_THERMOCHEMISTRY_FLOAT = r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[DdEe][+-]?\d+)?)"
+_THERMOCHEMISTRY_PATTERNS = {
+    "zero_point_correction_hartree": rf"Zero-point correction=\s*{_THERMOCHEMISTRY_FLOAT}",
+    "thermal_energy_correction_hartree": rf"Thermal correction to Energy=\s*{_THERMOCHEMISTRY_FLOAT}",
+    "thermal_enthalpy_correction_hartree": rf"Thermal correction to Enthalpy=\s*{_THERMOCHEMISTRY_FLOAT}",
+    "thermal_gibbs_correction_hartree": rf"Thermal correction to Gibbs Free Energy=\s*{_THERMOCHEMISTRY_FLOAT}",
+    "total_zero_point_energy_hartree": rf"Sum of electronic and zero-point Energies=\s*{_THERMOCHEMISTRY_FLOAT}",
+    "total_thermal_energy_hartree": rf"Sum of electronic and thermal Energies=\s*{_THERMOCHEMISTRY_FLOAT}",
+    "total_enthalpy_hartree": rf"Sum of electronic and thermal Enthalpies=\s*{_THERMOCHEMISTRY_FLOAT}",
+    "total_gibbs_free_energy_hartree": rf"Sum of electronic and thermal Free Energies=\s*{_THERMOCHEMISTRY_FLOAT}",
+    "temperature_k": rf"Temperature\s+{_THERMOCHEMISTRY_FLOAT}\s+Kelvin",
+    "pressure_atm": rf"Pressure\s+{_THERMOCHEMISTRY_FLOAT}\s+Atm",
+}
+
+
+def extract_thermochemistry_from_text(text: str) -> dict[str, float]:
+    """Read only the last native thermochemistry block, including its conditions.
+
+    Partial final blocks stay partial. Electronic energy is inferred from the
+    totals and literal corrections in that block, never from a later SP job.
+    """
+    starts = list(re.finditer(r"^\s*-\s*Thermochemistry\s*-\s*$", text, re.M))
+    if not starts:
+        starts = list(re.finditer(r"^\s*Zero-point correction=", text, re.M))
+    if not starts:
+        return {}
+    target = text[starts[-1].start():]
+    end = re.search(r"Normal termination|Error termination|--Link1--", target)
+    if end:
+        target = target[:end.start()]
+    values = {
+        field: float(match.group(1).replace("D", "E").replace("d", "e"))
+        for field, pattern in _THERMOCHEMISTRY_PATTERNS.items()
+        if (match := re.search(pattern, target)) is not None
+    }
+    electronic = [
+        values[total] - values[correction]
+        for total, correction in (
+            ("total_enthalpy_hartree", "thermal_enthalpy_correction_hartree"),
+            ("total_gibbs_free_energy_hartree", "thermal_gibbs_correction_hartree"),
+        )
+        if total in values and correction in values
+    ]
+    if not electronic:
+        electronic = [
+            values[total] - values[correction]
+            for total, correction in (
+                ("total_zero_point_energy_hartree", "zero_point_correction_hartree"),
+                ("total_thermal_energy_hartree", "thermal_energy_correction_hartree"),
+            )
+            if total in values and correction in values
+        ]
+    if electronic:
+        values["electronic_energy_hartree"] = sum(electronic) / len(electronic)
+    return values
+
+
 @dataclass
 class FrameRecord:
-    """一个关键帧：优化步 / 扫描点 / IRC 路径点 / 单点结构。"""
+    """A geometry frame and its reported electronic energy.
+
+    The energy can be a native total or an available SCF value for that frame;
+    it does not certify the final requested method of the entire log.
+    """
 
     frame: int
     path_number: int | None = None          # IRC 路径号（1=正向 2=反向），其余任务为 None
     reaction_coordinate: float | None = None  # IRC 反应坐标 / 扫描参数值
-    scf_energy_hartree: float | None = None
+    electronic_energy_hartree: float | None = None
     frequencies_cm: list[float] = field(default_factory=list)  # 有符号，负值=虚频
     xyz: str = ""                            # 标准 XYZ 块（原子数行+注释行+坐标行）
     converged: bool | None = None            # 末帧/端点帧的收敛标记，其余为 None
@@ -51,7 +112,15 @@ def normal_termination(text: str) -> bool:
     cclib metadata.success 不是终态权威（缺坐标/ccwrite 失败会丢掉一份
     已经 Normal termination 的日志）。与 ts_guess 同一对标记。
     """
-    return "Normal termination" in text and "Error termination" not in text
+    return (text.rfind("Normal termination") >= last_job_start(text)
+            and "Error termination" not in text)
+
+
+def last_job_start(text: str) -> int:
+    """Last explicitly started Gaussian job, including native Link1 steps."""
+    positions = [match.start() for match in re.finditer(
+        r"^\s*(?:Link1:\s+Proceeding to internal job step number|Entering Gaussian System)", text, re.M)]
+    return positions[-1] if positions else 0
 
 
 def opt_converged(text: str) -> bool | None:
@@ -128,12 +197,10 @@ def detect_job_types_from_text(text: str) -> set[str]:
 
 def _coords_to_xyz(atomnos, coords, comment: str = "") -> str:
     """atomnos + 坐标（Angstrom）生成标准 XYZ 块。"""
-    from cclib.parser.utils import PeriodicTable
-
-    pt = PeriodicTable()
+    from ase.data import chemical_symbols
     lines = [str(len(atomnos)), comment]
     for z, (x, y, zc) in zip(atomnos, coords, strict=True):
-        lines.append(f"{pt.element[int(z)]:<2} {x:>15.8f} {y:>15.8f} {zc:>15.8f}")
+        lines.append(f"{chemical_symbols[int(z)]:<2} {x:>15.8f} {y:>15.8f} {zc:>15.8f}")
     return "\n".join(lines)
 
 
@@ -145,6 +212,44 @@ _FREQ_LINE_RE = re.compile(r"Frequencies --\s+(.*)")
 _ATOM_DISP_HEADER_RE = re.compile(r"^\s*Atom\s+AN\s+X\s+Y\s+Z", re.MULTILINE)
 # 公开别名：跨模块复用（如 ts_guess 的频率文本回退）应走公开名，私有名可能重构
 FREQ_LINE_RE = _FREQ_LINE_RE
+
+_NATIVE_FLOAT = r"([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[DdEe][+-]?\d+)?)"
+_SCF_ENERGY_RE = re.compile(rf"SCF Done:\s+E\([^)]*\)\s*=\s*{_NATIVE_FLOAT}")
+_CORRELATED_ENERGY_RE = re.compile(
+    rf"(?:EUMP[2345]|UMP4\((?:DQ|SDQ|SDTQ)\)|MP5|E\(CORR\)|CCSD\(T\))\s*=\s*{_NATIVE_FLOAT}"
+)
+
+
+def scf_energy_hartree(text: str) -> float | None:
+    """Last explicitly reported SCF energy, without post-HF substitutions."""
+    matches = list(_SCF_ENERGY_RE.finditer(text))
+    return float(matches[-1].group(1).replace('D', 'E').replace('d', 'e')) if matches else None
+
+
+def electronic_energy_hartree(text: str) -> float | None:
+    """Last native SCF or explicitly reported correlated total energy."""
+    matches = [* _SCF_ENERGY_RE.finditer(text), * _CORRELATED_ENERGY_RE.finditer(text)]
+    if not matches:
+        return None
+    match = max(matches, key=lambda item: item.start())
+    return float(match.group(1).replace('D', 'E').replace('d', 'e'))
+
+
+def vibfreqs_from_text(text: str) -> list[float]:
+    """Signed frequencies in the last native harmonic-frequency section."""
+    section = text.rsplit('Harmonic frequencies', 1)[-1]
+    return [float(value.replace('D', 'E').replace('d', 'e'))
+            for match in _FREQ_LINE_RE.finditer(section) for value in match.group(1).split()]
+
+
+def final_xyz_from_text(text: str) -> str:
+    """Last printed Cartesian orientation, never an inferred geometry."""
+    index = max(text.rfind('Standard orientation:'), text.rfind('Input orientation:'))
+    if index < 0:
+        return ''
+    lines = text[index:].splitlines()
+    rows = _parse_coord_block_after(lines, 1, has_type_col=True)
+    return _coords_to_xyz([row[0] for row in rows], [row[1:] for row in rows]) if rows else ''
 
 
 def vibdisps_from_text(text: str, n_freqs: int):
@@ -458,7 +563,7 @@ def _parse_irc(text: str):
             frame=frame_idx,
             path_number=path_no,
             reaction_coordinate=rx,
-            scf_energy_hartree=energy,
+            electronic_energy_hartree=energy,
             xyz=xyz,
             converged=None,
         )
@@ -503,8 +608,8 @@ def _parse_irc(text: str):
         "num_points_backward": len(pts2),
         "rx_coord_range": (min(rx_values), max(rx_values)) if rx_values else None,
         "endpoint_energies_hartree": (
-            frames[0].scf_energy_hartree,
-            frames[-1].scf_energy_hartree,
+            frames[0].electronic_energy_hartree,
+            frames[-1].electronic_energy_hartree,
         ) if frames else None,
         "forward_converged": conv[1],
         "backward_converged": conv[2],
@@ -581,19 +686,10 @@ def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
         frames.append(FrameRecord(
             frame=i,
             reaction_coordinate=rx,
-            scf_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
+            electronic_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
             xyz=xyz,
         ))
     return frames
-
-
-def _opt_converged(data) -> bool | None:
-    optdone = getattr(data, "optdone", None)
-    if isinstance(optdone, bool):
-        return optdone
-    if optdone:  # 部分 cclib 版本中 optdone 是收敛步索引列表
-        return True
-    return None
 
 
 def _get_vibfreqs(data) -> list[float]:
@@ -604,23 +700,26 @@ def _get_vibfreqs(data) -> list[float]:
 
 
 def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
-    data = _ccread_from_text(log_text)
+    try:
+        data = _ccread_from_text(log_text)
+    except Exception:
+        return _native_frames(log_text)
     energies = getattr(data, "scfenergies", None)
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)
     if energies is None or atomcoords is None or atomnos is None:
-        return []
+        return _native_frames(log_text)
     energies_ev = _as_float_list(energies)
     n = min(len(energies_ev), len(atomcoords))
-    converged = _opt_converged(data)
-    freqs = _get_vibfreqs(data)
+    converged = opt_converged(log_text)
+    freqs = vibfreqs_from_text(log_text) or _get_vibfreqs(data)
 
     frames = []
     for i in range(n):
         is_last = i == n - 1
         frames.append(FrameRecord(
             frame=i,
-            scf_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
+            electronic_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
             frequencies_cm=freqs if (is_last and freqs) else [],
             xyz=_coords_to_xyz(atomnos, atomcoords[i], comment=f"opt step={i}"),
             converged=converged if is_last else None,
@@ -629,21 +728,51 @@ def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
 
 
 def _extract_sp_frames(log_text: str) -> list[FrameRecord]:
-    data = _ccread_from_text(log_text)
+    try:
+        data = _ccread_from_text(log_text)
+    except Exception:
+        return _native_sp_frames(log_text)
     energies = getattr(data, "scfenergies", None)
     atomcoords = getattr(data, "atomcoords", None)
     atomnos = getattr(data, "atomnos", None)
     if atomcoords is None or atomnos is None or len(atomcoords) == 0:
-        return []
-    energy_hartree = None
-    if energies is not None and len(energies) > 0:
+        return _native_sp_frames(log_text)
+    energy_hartree = electronic_energy_hartree(log_text)
+    if energy_hartree is None and energies is not None and len(energies) > 0:
         energy_hartree = energy_ev_to_hartree(_as_float_list(energies)[-1])
     return [FrameRecord(
         frame=0,
-        scf_energy_hartree=energy_hartree,
-        frequencies_cm=_get_vibfreqs(data),
-        xyz=_coords_to_xyz(atomnos, atomcoords[-1], comment="single point"),
+        electronic_energy_hartree=energy_hartree,
+        frequencies_cm=vibfreqs_from_text(log_text) or _get_vibfreqs(data),
+        xyz=final_xyz_from_text(log_text) or _coords_to_xyz(atomnos, atomcoords[-1], comment="single point"),
     )]
+
+
+def _native_sp_frames(text: str) -> list[FrameRecord]:
+    xyz = final_xyz_from_text(text)
+    return [FrameRecord(frame=0, electronic_energy_hartree=electronic_energy_hartree(text),
+        frequencies_cm=vibfreqs_from_text(text), xyz=xyz)] if xyz else []
+
+
+def _native_frames(text: str) -> list[FrameRecord]:
+    """Pair explicit SCF steps with their preceding printed orientations."""
+    frames = []
+    for match in _SCF_ENERGY_RE.finditer(text):
+        xyz = final_xyz_from_text(text[:match.start()])
+        if xyz:
+            frames.append(FrameRecord(frame=len(frames),
+                electronic_energy_hartree=float(match.group(1).replace('D', 'E').replace('d', 'e')),
+                xyz=xyz))
+    final_xyz = final_xyz_from_text(text)
+    if not frames and final_xyz:
+        frames.append(FrameRecord(frame=0, electronic_energy_hartree=scf_energy_hartree(text), xyz=final_xyz))
+    elif frames and final_xyz and final_xyz != frames[-1].xyz:
+        frames.append(FrameRecord(frame=len(frames), xyz=final_xyz))
+    if frames:
+        # Frequency output can reprint the final orientation after the SCF step.
+        frames[-1].frequencies_cm = vibfreqs_from_text(text)
+        frames[-1].converged = opt_converged(text)
+    return frames
 
 
 # ---------------------------------------------------------------------------
@@ -677,7 +806,7 @@ def frames_to_csv(frames: list[FrameRecord], output_path: str) -> str:
     """将关键帧写为 CSV（xyz 为多行字段，靠 csv 引号机制，pandas/DictReader 可读）。"""
     columns = [
         "frame", "path_number", "reaction_coordinate",
-        "scf_energy_hartree", "scf_energy_ev", "frequencies_cm", "xyz",
+        "electronic_energy_hartree", "electronic_energy_ev", "frequencies_cm", "xyz",
     ]
     out_dir = os.path.dirname(output_path)
     if out_dir:
@@ -686,13 +815,13 @@ def frames_to_csv(frames: list[FrameRecord], output_path: str) -> str:
         writer = csv.DictWriter(f, fieldnames=columns)
         writer.writeheader()
         for fr in frames:
-            hartree = fr.scf_energy_hartree
+            hartree = fr.electronic_energy_hartree
             writer.writerow({
                 "frame": fr.frame,
                 "path_number": "" if fr.path_number is None else fr.path_number,
                 "reaction_coordinate": "" if fr.reaction_coordinate is None else _fmt_float(fr.reaction_coordinate),
-                "scf_energy_hartree": "" if hartree is None else _fmt_float(hartree),
-                "scf_energy_ev": "" if hartree is None else _fmt_float(hartree * EV_PER_HARTREE),
+                "electronic_energy_hartree": "" if hartree is None else _fmt_float(hartree),
+                "electronic_energy_ev": "" if hartree is None else _fmt_float(hartree * EV_PER_HARTREE),
                 "frequencies_cm": ";".join(_fmt_float(v) for v in fr.frequencies_cm),
                 "xyz": fr.xyz,
             })

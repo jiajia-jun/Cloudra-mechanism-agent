@@ -277,13 +277,12 @@ def _species_minimum_check(smiles, logs, problems, *, parsed=None):
 
 
 def _optimization_converged(path: str, engine: str | None) -> bool | None:
-    text = Path(path).read_text(errors='replace')
-    if engine == 'orca':
-        return orca_frames.opt_converged(text)
+    if engine in {'orca', 'gaussian'}:
+        from cloudra.tools.core.qm_log_facts import read_qm_log
+
+        return read_qm_log(path).opt_converged
     if engine == 'xtb':
-        return xtb_frames.opt_converged(text)
-    if engine == 'gaussian':
-        return gaussian_frames.opt_converged(text)
+        return xtb_frames.opt_converged(Path(path).read_text(errors='replace'))
     return None
 
 

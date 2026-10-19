@@ -50,9 +50,16 @@ def _record_resource(resources: dict[str, int], name: str, value: int) -> None:
 
 def _orca_resources(content: str) -> tuple[Optional[int], Optional[int]]:
     resources: dict[str, int] = {}
+    sections = [resources]
     in_pal = False
     for line in content.splitlines():
         stripped = line.strip()
+        if stripped.partition('#')[0].strip().lower() == '$new_job':
+            if in_pal:
+                raise ValueError('Invalid resource declaration %pal: missing end before $new_job')
+            resources = {}
+            sections.append(resources)
+            continue
         if not in_pal:
             command = stripped.split(maxsplit=1)[0].lower().partition("=")[0].partition("#")[0] if stripped else ""
             if not stripped.startswith("!") and command not in ("%pal", "%maxcore"):
@@ -108,11 +115,21 @@ def _orca_resources(content: str) -> tuple[Optional[int], Optional[int]]:
             index += 1
     if in_pal:
         raise ValueError("Invalid resource declaration %pal: missing end")
-    cpus = resources.get("cpus")
-    maxcore = resources.get("maxcore")
-    # ORCA is serial without a parallel declaration; maxcore is still a real
-    # memory declaration and must be reserved for that one process.
-    return cpus, maxcore * (cpus or 1) if maxcore is not None else None
+    # $new_job carries preceding native settings forward. A declaration in a
+    # later job replaces the inherited resource, while contradictory settings
+    # inside one job still fail through _record_resource above. Jobs execute
+    # sequentially: reserve each resource's peak, not max(cpus)*max(maxcore).
+    effective: dict[str, int] = {}
+    peak_cpus = peak_memory = None
+    for section in sections:
+        effective.update(section)
+        cpus = effective.get('cpus')
+        if cpus is not None:
+            peak_cpus = max(peak_cpus or 0, cpus)
+        maxcore = effective.get('maxcore')
+        if maxcore is not None:
+            peak_memory = max(peak_memory or 0, maxcore * (cpus or 1))
+    return peak_cpus, peak_memory
 
 
 def _gaussian_memory_mb(value: str) -> int:

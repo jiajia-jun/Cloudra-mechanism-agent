@@ -1,5 +1,6 @@
 import asyncio
 import os
+from io import StringIO
 from typing import Any, Literal
 
 from pydantic import Field
@@ -7,7 +8,7 @@ from pydantic import Field
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.tools.core.molecule import _read_gaussian_structure, from_ase, to_ase
+from cloudra.tools.core.molecule import from_ase, read_molecule, to_ase, total_charge
 
 description = (
     "Convert among common computational-chemistry file formats (mol, xyz, gjf, inp (ORCA), pdb, SDF, cif, etc.) via ASE; "
@@ -16,13 +17,16 @@ description = (
     "optimization trajectories, scan curves, and IRC path structures/energies/reaction coordinates for programmatic analysis. "
     "Use for: converting an existing structure file (e.g. xyz→gjf, xyz→inp, cif→pdb) for downstream compute or visualization; "
     "turning IRC/scan logs into CSV for pandas and similar. "
-    "Do not use for: generating an initial 3D structure from SMILES (use smiles_to_mol) or writing a Gaussian/ORCA input (use qm_input_writer)."
+    "Native inputs must contain one explicit Cartesian geometry; external xyzfile and multiple jobs are unsupported. "
+    "Native outputs are geometry skeletons without method, basis or solver settings; use qm_input_writer for production inputs. "
+    "Do not use for: generating an initial 3D structure from SMILES (use smiles_to_mol)."
 )
 
 
 # 用户可见格式名 -> ASE 内部格式名的映射
 _ASE_FORMAT_MAP = {
     "pdb": "proteindatabank",
+    "xyz": "extxyz",
     "gjf": "gaussian-in",
     "poscar": "vasp",
     "vasp": "vasp",
@@ -61,10 +65,6 @@ def _read_rdkit_first(path: str, fmt: str):
     return mols[0], len(mols), f"{len(mols)} molecules"
 
 
-def _mol_total_formal_charge(mol) -> int:
-    return int(sum(a.GetFormalCharge() for a in mol.GetAtoms()))
-
-
 def _mol_block(mol) -> str:
     """V2000 mol block（带键/电荷/立体）。"""
     Chem = _rdkit()
@@ -72,7 +72,11 @@ def _mol_block(mol) -> str:
 
 
 def _sdf_record(mol) -> str:
-    return _mol_block(mol).rstrip("\n") + "\n$$$$\n"
+    buffer = StringIO()
+    writer = _rdkit().SDWriter(buffer)
+    writer.write(mol)
+    writer.close()
+    return buffer.getvalue()
 
 
 def _write_text(path: str, text: str) -> None:
@@ -85,12 +89,15 @@ class FormatConverter_input_schema(input_schema):
         description="Path of the input file: absolute as-is, or relative to the "
                     "Agent working directory."
     )
-    input_format: Literal["mol", "xyz", "gjf", "pdb", "cif", "sdf", "log", "poscar", "vasp"] = Field(
-        description="Input format. log means a Gaussian or ORCA output log (.log/.out); then output must be csv or xyz."
+    input_format: Literal["mol", "xyz", "gjf", "inp", "pdb", "cif", "sdf", "log", "poscar", "vasp"] = Field(
+        description="Input format. gjf/inp require one inline Cartesian Gaussian/ORCA geometry. "
+                    "log means a Gaussian or ORCA output log (.log/.out); then output must be csv or xyz."
     )
     output_format: Literal["mol", "xyz", "gjf", "inp", "pdb", "cif", "sdf", "csv", "poscar", "vasp"] = Field(
-        description="Target output format. 'inp' is an ORCA input (coordinates only, charge 0 / "
-                    "multiplicity 1 — edit method/charge with qm_input_writer instead for production). "
+        description="Target output format. gjf/inp are geometry skeletons without method, basis or solver settings; "
+                    "known molecular charge/multiplicity are retained, absent values use 0/1 with explicit disclosure. "
+                    "XYZ comments and SDF properties retain native molecular-state metadata; "
+                    "formats unable to carry it report that loss. Use qm_input_writer for production inputs. "
                     "When input_format='log', output can be 'csv' (key-frame table) or 'xyz' (final optimized frame)."
     )
     output_path: str = Field(
@@ -121,21 +128,18 @@ class FormatConverter(Tool):
         return _ASE_FORMAT_MAP.get(fmt, fmt)
 
     @staticmethod
-    def _write_orca_inp(atoms, output_path: str) -> None:
-        """写 ORCA 坐标骨架（ASE 的 orca writer 不在 io 注册表中，需直接调用）。
+    def _write_native_skeleton(mol, output_path: str, fmt: str) -> None:
+        """Render only explicit Angstrom coordinates and the known molecular state."""
+        from cloudra.tools.core.molecule import to_xyz
 
-        ASE 只写几何骨架（charge 0 / mult 1，无方法行参数）；生产输入请用
-        qm_input_writer(engine='orca')。
-        """
-        import ase.io.orca
-
-        params = {
-            "orcasimpleinput": "",
-            "orcablocks": "",
-            "charge": 0,
-            "mult": 1,
-        }
-        ase.io.orca.write_orca(output_path, atoms, params)
+        charge = total_charge(mol)
+        multiplicity = int(mol.GetProp('cloudra_multiplicity')) if mol.HasProp('cloudra_multiplicity') else 1
+        rows = '\n'.join(to_xyz(mol).splitlines()[2:])
+        if fmt == 'inp':
+            text = f'!\n# Geometry skeleton: set method and basis with qm_input_writer\n* xyz {charge} {multiplicity}\n{rows}\n*\n'
+        else:
+            text = f'#p\n\nGeometry skeleton: set method and basis with qm_input_writer\n\n{charge} {multiplicity}\n{rows}\n\n'
+        _write_text(output_path, text)
 
     @staticmethod
     def _convert_log(user_input: "FormatConverter_input_schema") -> FormatConverter_output_schema:
@@ -253,12 +257,15 @@ class FormatConverter(Tool):
         # read/write/qm_input_writer 的契约一致。
         user_input.input_path = resolve_tool_path(self, user_input.input_path)
         user_input.output_path = resolve_tool_path(self, user_input.output_path)
-        input_path = user_input.input_path
-        output_path = user_input.output_path
-
         # 0. log 输入或 csv 输出分流（大日志帧提取是同步重活，卸载出事件循环）
         if user_input.input_format == "log" or user_input.output_format == "csv":
             return await asyncio.to_thread(self._convert_log, user_input)
+
+        return await asyncio.to_thread(self._convert_structure, user_input)
+
+    def _convert_structure(self, user_input: FormatConverter_input_schema) -> FormatConverter_output_schema:
+        input_path = user_input.input_path
+        output_path = user_input.output_path
 
         # 1. 校验输入文件是否存在
         if not os.path.isfile(input_path):
@@ -305,14 +312,10 @@ class FormatConverter(Tool):
                         f"Input {user_input.input_format} contains {n_frames} frames/molecules; "
                         "only the first one was converted."
                     )
-            elif user_input.input_format == 'gjf':
-                # ASE's Gaussian reader leaves Units=Bohr numbers unchanged.
-                # Share the native structure reader's section and unit handling.
-                from pathlib import Path
-
-                atoms, _, _, _ = await asyncio.to_thread(
-                    lambda: _read_gaussian_structure(Path(input_path).read_text(encoding='utf-8-sig')),
-                )
+            elif user_input.input_format in {'gjf', 'inp'}:
+                mol = read_molecule(input_path=input_path,
+                    input_format='gaussian-in' if user_input.input_format == 'gjf' else 'orca')
+                atoms = to_ase(mol)
             else:
                 # 单次惰性扫描：只物化第一帧（整条轨迹物化既耗内存也只用首帧），
                 # 帧数仍在同一趟扫描里数出，message 如实披露"取第一帧"。
@@ -334,6 +337,21 @@ class FormatConverter(Tool):
                         f"Input {user_input.input_format} contains {n_frames} coordinate frames; "
                         "only the first one was converted."
                     )
+                mol = from_ase(atoms)
+                mol.SetProp('cloudra_graph_status', 'unresolved')
+                # EXTXYZ carries converter-produced molecular state explicitly;
+                # these are not guessed atomic charges, bonds or multiplicities.
+                for name in ('cloudra_total_charge', 'cloudra_multiplicity', 'cloudra_coordinate_units',
+                             'cloudra_source_coordinate_units'):
+                    if name in atoms.info:
+                        value = str(atoms.info[name])
+                        if name in {'cloudra_total_charge', 'cloudra_multiplicity'}:
+                            value = str(int(value))
+                        if name == 'cloudra_multiplicity' and int(value) <= 0:
+                            raise ValueError('Stored molecular multiplicity must be positive')
+                        if name == 'cloudra_coordinate_units' and value != 'angstrom':
+                            raise ValueError('XYZ molecular-state metadata requires Angstrom coordinates')
+                        mol.SetProp(name, value)
 
             # 4. 确保输出目录存在并写入
             output_dir = os.path.dirname(output_path)
@@ -349,36 +367,47 @@ class FormatConverter(Tool):
                 else:
                     # 坐标面输入（xyz/pdb/cif/gjf...）本身无键/电荷/立体；
                     # 转出 mol/sdf 只有坐标，如实写入并在 message 披露。
-                    out_mol = from_ase(atoms)
+                    out_mol = mol
                     charge_note = (
-                        f"Input {user_input.input_format} carries only coordinates (no bond/charge/"
-                        "stereochemistry), so the MOL/SDF output contains atoms+coordinates only."
+                        f"Input {user_input.input_format} has no declared molecular graph; "
+                        "the MOL/SDF output contains atoms+coordinates only, without inferred bonds, "
+                        "atomic formal charges or stereochemistry."
                     )
                 text = _sdf_record(out_mol) if user_input.output_format == "sdf" else _mol_block(out_mol)
                 _write_text(output_path, text)
             else:
                 # 输出为坐标面格式：几何从 RDKit mol（若输入是化学格式）或 ASE 直出
-                if chem_input:
-                    atoms = to_ase(mol)
-                    charge = _mol_total_formal_charge(mol)
-                    if user_input.output_format in ("gjf", "inp") and charge != 0:
-                        charge_note = (
-                            f"Input carries formal charge {charge:+d}; the {user_input.output_format} "
-                            "output records only coordinates (charge/multiplicity are not written here) — "
-                            "re-declare the charge with qm_input_writer for production inputs."
-                        )
-                    else:
-                        charge_note = ""
+                atoms = to_ase(mol) if chem_input else atoms
+                charge_note = ''
+                if user_input.output_format in {'gjf', 'inp'}:
+                    self._write_native_skeleton(mol, output_path, user_input.output_format)
+                    charge_note = 'Geometry skeleton only: method, basis and solver options were not copied; use qm_input_writer for production.'
+                    if not mol.HasProp('cloudra_multiplicity'):
+                        charge_note += ' Multiplicity was unspecified; the skeleton uses 1.'
+                    if not chem_input and not mol.HasProp('cloudra_total_charge'):
+                        charge_note += ' Molecular charge was unspecified; the skeleton uses 0.'
+                    elif total_charge(mol) != 0:
+                        charge_note += f' Molecular charge {total_charge(mol):+d} is retained in the geometry card.'
                 else:
-                    charge_note = ""
-                if user_input.output_format == "inp":
-                    self._write_orca_inp(atoms, output_path)
-                else:
+                    if user_input.output_format == 'xyz':
+                        for name in ('cloudra_total_charge', 'cloudra_multiplicity', 'cloudra_graph_status',
+                                     'cloudra_coordinate_units', 'cloudra_source_coordinate_units'):
+                            if mol.HasProp(name):
+                                value = mol.GetProp(name)
+                                atoms.info[name] = int(value) if name in {'cloudra_total_charge', 'cloudra_multiplicity'} else value
                     if ase_output_fmt == "vasp" and (atoms.cell is None or atoms.cell.volume == 0):
                         atoms.center(vacuum=10.0)
                     ase.io.write(output_path, atoms, format=ase_output_fmt)
 
-            notes = " ".join(note for note in (frame_note, charge_note) if note)
+            state_note = ''
+            if mol.HasProp('cloudra_multiplicity'):
+                state_note = f'Molecular charge {total_charge(mol):+d}, multiplicity {mol.GetProp("cloudra_multiplicity")}; coordinates are Angstrom.'
+                if mol.HasProp('cloudra_source_coordinate_units'):
+                    state_note += f' Source coordinate units: {mol.GetProp("cloudra_source_coordinate_units")}.'
+                if user_input.output_format not in {'gjf', 'inp', 'xyz', 'sdf'}:
+                    state_note += ' Molecular charge/spin metadata are not retained in this output format; no atomic identity assignment was inferred.'
+
+            notes = " ".join(note for note in (frame_note, charge_note, state_note) if note)
             message = f"Converted {user_input.input_format} to {user_input.output_format}: {output_path}"
             if notes:
                 message += f" NOTE: {notes}"

@@ -127,6 +127,41 @@ def _read_gaussian_structure(text):
     return atoms, charge, multiplicity, source_units
 
 
+def _read_orca_structure(text):
+    """Read exactly one inline ORCA Cartesian molecule without inventing identity."""
+    from cloudra.tools.core.calculation_intent import _orca_code
+    from cloudra.tools.core.native_input_sections import orca_coordinate_units, orca_xyz_sections
+
+    lines = [line.strip() for line in _orca_code(text.lstrip('\ufeff')).splitlines()]
+    if any(line.lower().split()[:1] == ['$new_job'] for line in lines):
+        raise ValueError('ORCA multiple jobs are unsupported; provide the intended single Cartesian geometry or XYZ')
+    headers = [(index, line[1:].split()) for index, line in enumerate(lines) if line.startswith('*') and line != '*']
+    if any(tokens and tokens[0].lower() == 'xyzfile' for _, tokens in headers):
+        raise ValueError('ORCA xyzfile geometry is an external dependency; export the intended geometry to XYZ before converting')
+    if len(headers) != 1 or not headers[0][1] or headers[0][1][0].lower() != 'xyz':
+        raise ValueError('Exactly one explicit ORCA * xyz Cartesian geometry is required; internal, external and multiple geometries are unsupported')
+    index, _ = headers[0]
+    if '*' not in lines[index + 1:]:
+        raise ValueError('ORCA Cartesian geometry is missing its closing * marker')
+    sections = orca_xyz_sections(text)
+    if len(sections) != 1:
+        raise ValueError('ORCA charge and multiplicity must be integers in one * xyz section')
+    (charge, multiplicity), _ = sections[0]
+    end = lines.index('*', index + 1)
+    geometry = [line for line in lines[index + 1:end] if line]
+    if multiplicity <= 0:
+        raise ValueError('ORCA multiplicity must be positive')
+    source_units = orca_coordinate_units(text)
+    if source_units == 'unknown':
+        raise ValueError('ORCA coordinate units are unsupported or conflicting; provide one unambiguous Angstrom or Bohr geometry')
+    atoms = _cartesian_atoms(geometry, source='ORCA')
+    if source_units == 'bohr':
+        from ase.units import Bohr
+
+        atoms.positions *= Bohr
+    return atoms, charge, multiplicity, source_units
+
+
 def _read_xyz_structure(text):
     import ase.io
     from ase.io.extxyz import XYZError
@@ -199,7 +234,9 @@ def read_molecule(input_path=None, input_text=None, input_format="auto", charge=
     if fmt == "auto":
         if input_path:
             fmt = Path(input_path).suffix.lower().lstrip(".")
-            if fmt not in {"mol", "sdf", "xyz"}:
+            if fmt == 'inp':
+                fmt = 'orca'
+            elif fmt not in {"mol", "sdf", "xyz"}:
                 from ase.io.formats import extension2format
 
                 native_format = extension2format.get(fmt)
@@ -211,14 +248,18 @@ def read_molecule(input_path=None, input_text=None, input_format="auto", charge=
                 fmt = "sdf" if any(line.strip() == "$$$$" for line in lines) else "mol"
             elif _looks_like_gaussian(text):
                 fmt = 'gaussian-in'
+            elif any(line.strip().startswith('*') and line.strip()[1:].split()[:1] in (['xyz'], ['xyzfile'])
+                     for line in text.lower().splitlines()):
+                fmt = 'orca'
             elif fmt == 'auto':
                 fmt = "xyz"
     elif fmt == 'xyz' and _looks_like_gaussian(text):
         raise ValueError("Gaussian content does not match input_format='xyz'; use input_format='auto' for a single Cartesian Gaussian input")
-    if fmt == 'gaussian-in':
-        atoms, native_charge, native_multiplicity, native_units = _read_gaussian_structure(text)
+    if fmt in {'gaussian-in', 'orca', 'orca-in', 'inp'}:
+        reader = _read_gaussian_structure if fmt == 'gaussian-in' else _read_orca_structure
+        atoms, native_charge, native_multiplicity, native_units = reader(text)
         if charge is not None and charge != native_charge:
-            raise ValueError(f"Gaussian charge mismatch: declared charge {charge} differs from native charge {native_charge}")
+            raise ValueError(f"{'Gaussian' if fmt == 'gaussian-in' else 'ORCA'} charge mismatch: declared charge {charge} differs from native charge {native_charge}")
         mol = from_ase(atoms)
     elif fmt == "mol":
         mol = Chem.MolFromMolBlock(text, removeHs=False)
@@ -227,7 +268,19 @@ def read_molecule(input_path=None, input_text=None, input_format="auto", charge=
     else:
         import ase.io
 
-        mol = from_ase(_read_xyz_structure(text) if fmt == 'xyz' else ase.io.read(StringIO(text), format=fmt or None))
+        atoms = _read_xyz_structure(text) if fmt == 'xyz' else ase.io.read(StringIO(text), format=fmt or None)
+        mol = from_ase(atoms)
+        if fmt == 'xyz' and 'cloudra_total_charge' in atoms.info:
+            if atoms.info.get('cloudra_coordinate_units', 'angstrom') != 'angstrom':
+                raise ValueError('XYZ molecular-state metadata requires Angstrom coordinates')
+            native_charge = int(str(atoms.info['cloudra_total_charge']))
+            if charge is not None and charge != native_charge:
+                raise ValueError(f'XYZ charge mismatch: declared charge {charge} differs from stored charge {native_charge}')
+            if 'cloudra_multiplicity' in atoms.info:
+                native_multiplicity = int(str(atoms.info['cloudra_multiplicity']))
+                if native_multiplicity <= 0:
+                    raise ValueError('XYZ stored multiplicity must be positive')
+            native_units = atoms.info.get('cloudra_source_coordinate_units', 'angstrom')
     if fmt not in {'mol', 'sdf'}:
         mol.SetIntProp("cloudra_total_charge", native_charge if native_charge is not None else charge if charge is not None else 0)
         mol.SetProp("cloudra_graph_status", "unresolved")
@@ -237,9 +290,9 @@ def read_molecule(input_path=None, input_text=None, input_format="auto", charge=
             mol.SetProp('cloudra_source_coordinate_units', native_units)
     if mol is None:
         raise ValueError(f"Could not parse {fmt.upper()} molecule")
-    if fmt in {"mol", "sdf"} and charge is not None and charge != Chem.GetFormalCharge(mol):
+    if fmt in {"mol", "sdf"} and charge is not None and charge != total_charge(mol):
         raise ValueError(
-            f"Declared charge {charge} differs from the molecule's formal charge {Chem.GetFormalCharge(mol)}; "
+            f"Declared charge {charge} differs from the molecule's stored total or formal charge {total_charge(mol)}; "
             "provide the molecular graph for the intended charge state."
         )
     return mol

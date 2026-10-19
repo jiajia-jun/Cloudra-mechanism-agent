@@ -123,3 +123,37 @@ def orca_xyz_sections(text: str) -> list[tuple[tuple[int, int], list[str]]]:
             end += 1
         sections.append((charge, lines[index + 1:end]))
     return sections
+
+
+def orca_coordinate_units(text: str) -> Literal['angstrom', 'bohr', 'unknown']:
+    """Read inline Cartesian units from simple input or the native %coords block."""
+    from cloudra.tools.core.calculation_intent import _orca_code
+
+    unit_names = {'angs': 'angstrom', 'angstrom': 'angstrom', 'angstroms': 'angstrom',
+                  'bohrs': 'bohr', 'bohr': 'bohr', 'au': 'bohr'}
+    declared = set()
+    in_coords = False
+    for line in _orca_code(text).splitlines():
+        tokens = line.lower().split()
+        if not tokens:
+            continue
+        if tokens[0] == '!':
+            declared.update(unit_names[token] for token in tokens[1:] if token in unit_names)
+        elif tokens[0].startswith('!'):
+            declared.update(unit_names[token] for token in [tokens[0][1:], *tokens[1:]] if token in unit_names)
+        if tokens[0] == '%coords':
+            in_coords = True
+            tokens = tokens[1:]
+        if in_coords:
+            for index, token in enumerate(tokens):
+                if token != 'units':
+                    continue
+                unit = unit_names.get(tokens[index + 1]) if index + 1 < len(tokens) else None
+                if unit is None:
+                    return 'unknown'
+                declared.add(unit)
+            if 'end' in tokens:
+                in_coords = False
+    if len(declared) > 1:
+        return 'unknown'
+    return declared.pop() if declared else 'angstrom'

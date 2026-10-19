@@ -1288,15 +1288,15 @@ async def test_parse_orca_log_converged_opt_stays_done(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_parse_orca_log_unconverged_opt_via_cclib_optdone(tmp_path, monkeypatch):
-    """GH #21 cclib 辅助路径：文本收敛标记缺失（如版本差异）但 cclib 可解析
-    且 optdone=False 的 Opt 日志，记录未收敛但保留原生正常终态。"""
+async def test_parse_orca_log_missing_native_convergence_stays_unknown(tmp_path, monkeypatch):
+    """原生收敛标记缺失时保留未知；cclib optdone不能补造科学判据。"""
+    from types import SimpleNamespace
+
+    import cclib
+
     import cloudra.runtime.monitor as monitor
 
-    async def _fake_cclib(target):
-        return {"log_file": str(target), "optdone": False}, True
-
-    monkeypatch.setattr(monitor, "_cclib_parse", _fake_cclib)
+    monkeypatch.setattr(cclib.io, 'ccread', lambda *_a, **_k: SimpleNamespace(optdone=False))
 
     log = tmp_path / "job.out"
     log.write_text(
@@ -1310,7 +1310,7 @@ async def test_parse_orca_log_unconverged_opt_via_cclib_optdone(tmp_path, monkey
     assert ok is True
     assert data["is_success"] is True
     assert data["normal_termination"] is True
-    assert data["opt_converged"] is False
+    assert data["opt_converged"] is None
 
 
 @pytest.mark.asyncio

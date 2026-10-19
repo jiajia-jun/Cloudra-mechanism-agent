@@ -1888,7 +1888,8 @@ async def test_verify_orca_engine_dispatches_native_irc_endpoints(tmp_path, mock
     monkeypatch.setattr(ts_mod, "_parse_freq_log", lambda path, engine: {
         "vibfreqs": [-512.3, 100.0, 200.0],
         "vibdisps": None,
-        "converged": True,
+        "normal_termination": True,
+        "opt_converged": None,
         "symbols": None,
         "positions": None,
     })
@@ -2049,7 +2050,8 @@ def test_parse_freq_log_orca_real_logs_frequencies_and_convergence(tmp_path):
         assert parsed["vibfreqs"] is not None
         assert len(parsed["vibfreqs"]) == n_modes
         assert all(f >= 0 for f in parsed["vibfreqs"])  # 极小值：0 虚频
-        assert parsed["converged"] is True  # G3：ORCA 标记（非 Gaussian "Normal termination"）
+        assert parsed["normal_termination"] is True
+        assert parsed["opt_converged"] is True
 
 
 @pytest.mark.skipif(not _HAS_TOOLFIX_LOGS, reason="toolfix_verify 真实 ORCA 日志缺失")
@@ -2082,20 +2084,22 @@ def test_parse_freq_log_orca_convergence_dispatched_by_engine_markers(tmp_path):
     )
     converged_log = tmp_path / "conv.out"
     converged_log.write_text(
-        "THE OPTIMIZATION HAS CONVERGED\n" + freq_block + "****ORCA TERMINATED NORMALLY****\n",
+        "O   R   C   A\nTHE OPTIMIZATION HAS CONVERGED\n" + freq_block + "****ORCA TERMINATED NORMALLY****\n",
         encoding="utf-8",
     )
     parsed = ts_mod._parse_freq_log(str(converged_log), "orca")
-    assert parsed["converged"] is True
+    assert parsed["normal_termination"] is True
+    assert parsed["opt_converged"] is True
 
     # 跑满最大步数未收敛的优化仍可能正常终止——收敛判定必须为 False
     unconv_log = tmp_path / "unconv.out"
     unconv_log.write_text(
-        "The optimization did not converge\n" + freq_block + "****ORCA TERMINATED NORMALLY****\n",
+        "O   R   C   A\nThe optimization did not converge\n" + freq_block + "****ORCA TERMINATED NORMALLY****\n",
         encoding="utf-8",
     )
     parsed = ts_mod._parse_freq_log(str(unconv_log), "orca")
-    assert parsed["converged"] is False
+    assert parsed["normal_termination"] is True
+    assert parsed["opt_converged"] is False
 
 
 @pytest.mark.asyncio
@@ -2979,7 +2983,7 @@ def test_parse_freq_log_orca_text_vibdisps_and_orientation(tmp_path, monkeypatch
 
     monkeypatch.setattr(cclib.io, "ccread", _boom)
     log = tmp_path / "calc-10.out.log"
-    log.write_text(_ORCA_FREQ_LOG, encoding="utf-8")
+    log.write_text('O   R   C   A\n' + _ORCA_FREQ_LOG, encoding="utf-8")
 
     freq = _parse_freq_log(str(log), "orca")
     assert len(freq["vibfreqs"]) == 9

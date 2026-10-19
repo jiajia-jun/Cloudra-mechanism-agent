@@ -132,8 +132,10 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     record.job_steps.append(step)
     log = Path(process._refinement_log_path(record, step))
     log.parent.mkdir(parents=True, exist_ok=True)
-    log.write_text('CARTESIAN COORDINATES (ANGSTROEM)\n'
-                   '---------------------------------\nO 0 0 0\nH 1 0 0\nH 0 1 0\n\n')
+    log.write_text('O   R   C   A\nTHE OPTIMIZATION HAS CONVERGED\n'
+                   'FINAL ENERGY EVALUATION AT THE STATIONARY POINT\n'
+                   'CARTESIAN COORDINATES (ANGSTROEM)\n'
+                   '---------------------------------\nO 0 0 0\nH 1 0 0\nH 0 1 0\n\nORCA TERMINATED NORMALLY\n')
     freq_dir = tmp_path / 'freq'
     freq_dir.mkdir()
     error, path = process._write_frequency_input(record, str(freq_dir))

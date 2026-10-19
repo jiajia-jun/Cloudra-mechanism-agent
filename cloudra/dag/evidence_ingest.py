@@ -64,60 +64,20 @@ class SpeciesValidationResult(BaseModel):
 
 
 def _extract_qm_log(path: Path) -> tuple[bool, str | None, list[float] | None, list[float] | None, float | None, list[dict[str, Any]] | None]:
-    """尝试从文件中解析 QM 属性（引擎、虚频、实频、能量）。"""
+    """Extract the same native facts used by tools and TS verification."""
+    from cloudra.tools.core.qm_log_facts import read_qm_log
+
     try:
-        from cloudra.tools.core import orca_frames, xtb_frames
-        from cloudra.tools.core.qm_engine import detect_qm_engine
-    except ImportError:
+        facts = read_qm_log(path)
+    except (OSError, ImportError) as exc:
+        logger.debug("QM facts unavailable for %s: %s", path, exc)
         return False, None, None, None, None, None
-
-    engine = detect_qm_engine(str(path))
-    if engine == "unknown" and path.suffix.lower() not in (".log", ".out", ".txt"):
+    if facts.engine == 'unknown' and facts.parser_data is None:
         return False, None, None, None, None, None
-
-    orca_text: str | None = None
-    xtb_text: str | None = None
-    vibfreqs: list[float] | None = None
-    final_energy: float | None = None
-
-    if engine in ("orca", "xtb"):
-        try:
-            with open(path, encoding="utf-8", errors="replace") as f:
-                content = f.read()
-            if engine == "orca":
-                orca_text = content
-                vibfreqs = orca_frames.vibfreqs_from_text(orca_text) or None
-                final_energy = orca_frames.final_energy_hartree(orca_text)
-            else:
-                xtb_text = content
-                vibfreqs = xtb_frames.vibfreqs_from_text(xtb_text) or None
-                final_energy = xtb_frames.final_energy_hartree(xtb_text)
-        except Exception as exc:
-            logger.debug("Failed reading %s frames for %s: %s", engine, path, exc)
-
-    if vibfreqs is None or final_energy is None:
-        try:
-            import cclib
-            import numpy as np
-
-            data = cclib.io.ccread(str(path))
-            if data is not None:
-                if vibfreqs is None and hasattr(data, "vibfreqs") and data.vibfreqs is not None:
-                    vibfreqs = [float(x) for x in np.asarray(data.vibfreqs, dtype=float)]
-                if final_energy is None and hasattr(data, "scfenergies") and data.scfenergies is not None and len(data.scfenergies) > 0:
-                    ev = float(data.scfenergies[-1])
-                    from cloudra.tools.core.cclib_units import energy_ev_to_hartree
-
-                    final_energy = energy_ev_to_hartree(ev)
-        except Exception as exc:
-            logger.debug("cclib parsing skipped/failed for %s: %s", path, exc)
-
-    if vibfreqs is None and final_energy is None and engine == "unknown":
-        return False, None, None, None, None, None
-
-    imag_freqs = [f for f in vibfreqs if f < 0] if vibfreqs is not None else None
-
-    return True, engine if engine != "unknown" else None, vibfreqs, imag_freqs, final_energy, None
+    freqs = facts.frequencies_cm
+    imaginary = [freq for freq in freqs if freq < 0] if freqs is not None else None
+    return (True, facts.engine if facts.engine != 'unknown' else None,
+            freqs, imaginary, facts.electronic_energy_hartree, None)
 
 
 def snapshot_evidence_file(

@@ -19,7 +19,7 @@ from cloudra.dag.file_science import (
     validate_frequency_geometry,
 )
 from cloudra.persistence.paths import mechanism_graph_path
-from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
+from cloudra.tools.core.qm_log_facts import read_qm_log
 from cloudra.tools.core.species_identity import species_smiles
 
 
@@ -152,16 +152,7 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
                 raise ValueError('Declared TS energy log has no matching converged optimization geometry.')
             if node.role is not NodeRole.TRANSITION_STATE and not _geometry_species(str(path), element.smiles):
                 raise ValueError(f'Declared energy log does not match the whole species {node.id!r}.')
-            text = path.read_text(errors='replace')
-            if snapshot.engine == 'orca':
-                energy = orca_frames.final_energy_hartree(text)
-            elif snapshot.engine == 'xtb':
-                energy = xtb_frames.final_energy_hartree(text)
-            elif snapshot.engine == 'gaussian':
-                energy = next((f.scf_energy_hartree for f in reversed(gaussian_frames.extract_frames(str(path)))
-                               if f.scf_energy_hartree is not None), None)
-            else:
-                energy = None
+            energy = read_qm_log(path).electronic_energy_hartree
             if energy is None:
                 raise ValueError(f'No native final energy in declared log {declared!r}.')
             claimed = node.properties.get('energy_hartree', energy)

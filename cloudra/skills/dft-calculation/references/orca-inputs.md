@@ -95,7 +95,9 @@ The example leaves `MaxIter` unspecified; do not accept an engine default blindl
 
 For each outer frame, use the same agreed model with `task_type=[{"opt":null}]`, no constraints, then check minimum frequencies, identity, and direction. Forward/backward are trajectory labels, not guaranteed reactant/product assignments. `log_parser` reads native ORCA IRC counts/convergence; `ts_guess strict=True` extracts path endpoints from the native `*_IRC_F.xyz` / `*_IRC_B.xyz` final endpoint files (falling back to the last frame of `*_IRC_F_trj.xyz` / `*_IRC_B_trj.xyz`). An unconverged IRC flag or reached step ceiling alone does not require a longer run when the optimized outer frames establish direction and endpoint identity. Extend only the unresolved side if partial geometry cannot establish them. The short IRC alone does not prove a full path or dynamics.
 
-For free energies, read `method-selection.md` §4: `log_parser` supports ORCA thermochemistry fields, but the current `thermo_analysis` raw-RRHO adapter is Gaussian-only. For a requested electronic barrier, use the validated electronic energies directly.
+`Freq` / `AnFreq` declare analytic frequencies and `NumFreq` declares numeric frequencies in native task recognition. An explicit frequency task is preserved when preparing a TS stage; it does not cause an extra `OptTS` task to be added. Questionable native task parameters remain in the input and produce visible warnings.
+
+For free energies, read `method-selection.md` §4: `thermo_analysis backend="raw_rrho"` supports native ORCA and Gaussian thermochemistry at the recorded conditions. Corrections and totals come from the same thermal block; a partial final block does not borrow earlier values or a later SP energy. For a requested electronic barrier, use the validated `electronic_energy_hartree`; SCF fields remain the actual SCF quantity.
 
 ## 4. Relaxed scan example
 

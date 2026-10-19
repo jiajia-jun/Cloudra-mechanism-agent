@@ -39,6 +39,12 @@ def detect_qm_engine(log_path: str) -> str:
         head = _read_head(log_path)
     except OSError:
         return "unknown"
+    return detect_qm_engine_from_text(head)
+
+
+def detect_qm_engine_from_text(text: str) -> str:
+    """Detect the native program from already-read log text."""
+    head = text[:_HEAD_BYTES]
     for marker in _GAUSSIAN_MARKERS:
         if marker in head:
             return "gaussian"

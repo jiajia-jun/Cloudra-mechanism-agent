@@ -92,9 +92,11 @@ def log_parser_facts(payload: dict[str, Any], source_ref: GraphRef) -> list[Evid
             "irc_num_points_backward": result.get("irc_num_points_backward"),
         }))
 
-    if result.get("scf_energy_hartree") is not None:
+    energy = {field: result[field] for field in ('electronic_energy_hartree', 'scf_energy_hartree')
+              if result.get(field) is not None}
+    if energy:
         facts.append(_fact("energy", "supports", source_ref,
-                           {"scf_energy_hartree": result["scf_energy_hartree"]}))
+                           energy))
 
     if (
         result.get("thermal_gibbs_correction_hartree") is not None

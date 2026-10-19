@@ -53,7 +53,7 @@ def test_orca_xtb_optts_short_dipole_block_retains_final_geometry():
     assert len(frames) == 10
     assert frames[-1].converged is True
     assert frames[-1].frequencies_cm == []  # Optimization alone cannot verify a TS.
-    assert frames[-1].scf_energy_hartree == pytest.approx(-11.083861872140)
+    assert frames[-1].electronic_energy_hartree == pytest.approx(-11.083861872140)
     rows = [line.split() for line in frames[-1].xyz.splitlines()[2:]]
     assert [row[0] for row in rows] == ["C", "O", "O", "H", "H"]
     for row, expected in zip(rows, [
@@ -69,7 +69,7 @@ def test_orca_xtb_optts_short_dipole_block_retains_final_geometry():
 def test_final_frame_energy_matches_orca_hartree_line():
     log = ORCA_FIXTURES / "dvb_opt_orca42.out"
     frames = orca_frames.extract_frames(str(log))
-    assert frames[-1].scf_energy_hartree == pytest.approx(
+    assert frames[-1].electronic_energy_hartree == pytest.approx(
         orca_frames.final_energy_hartree(log.read_text()), rel=0, abs=1e-7,
     )
 
@@ -109,8 +109,8 @@ def test_orca_thermochemistry_matches_gaussian_field_semantics():
     assert thermo["zero_point_correction_hartree"] == pytest.approx(0.00684398)
     # 含 ZPE 口径（Total thermal correction 0.00309561 + ZPE 0.00684398）
     assert thermo["thermal_energy_correction_hartree"] == pytest.approx(0.00993959)
-    assert thermo["thermal_enthalpy_correction_hartree"] == pytest.approx(0.00094421)
-    assert thermo["thermal_gibbs_correction_hartree"] == pytest.approx(-0.01495982)
+    assert thermo["thermal_enthalpy_correction_hartree"] == pytest.approx(0.01088379)
+    assert thermo["thermal_gibbs_correction_hartree"] == pytest.approx(-0.01495983)
     # 总量
     assert thermo["total_thermal_energy_hartree"] == pytest.approx(-184.74782658)
     assert thermo["total_enthalpy_hartree"] == pytest.approx(-184.74688237)
@@ -123,7 +123,7 @@ def test_orca_opt_frames_carry_convergence_and_xyz():
     frames = orca_frames.extract_frames(str(ORCA_FIXTURES / "dvb_opt_orca42.out"))
     assert len(frames) == 4
     assert all(f.xyz for f in frames)
-    assert all(f.scf_energy_hartree is not None for f in frames)
+    assert all(f.electronic_energy_hartree is not None for f in frames)
     assert frames[-1].converged is True
 
 
@@ -473,8 +473,8 @@ def test_neb_frames_come_from_the_per_image_side_files():
     frames = orca_frames.extract_frames(str(NEB_FIXTURE))
     assert [f.frame for f in frames] == [0, 4, 8]
     # 真实能量（Eh），来自边文件注释行 `Coordinates from ORCA-job neb_im8 E -93.03...`
-    assert frames[0].scf_energy_hartree == pytest.approx(-93.300300911883, abs=1e-9)
-    assert frames[-1].scf_energy_hartree == pytest.approx(-93.031209778059, abs=1e-9)
+    assert frames[0].electronic_energy_hartree == pytest.approx(-93.300300911883, abs=1e-9)
+    assert frames[-1].electronic_energy_hartree == pytest.approx(-93.031209778059, abs=1e-9)
     for frame in frames:
         assert frame.xyz.splitlines()[0].strip() == "3"
 
@@ -582,8 +582,8 @@ def test_opt_frames_text_fallback_survives_cclib61_crash(monkeypatch):
     monkeypatch.setattr(orca_frames, "_ccread_from_text", _crash_ccread)
     frames = orca_frames.extract_frames_from_text(_ORCA61_OPTTS_LOG)
     assert [f.frame for f in frames] == [0, 1]  # 尾块去重，不重复计帧
-    assert frames[0].scf_energy_hartree == pytest.approx(-100.000001)
-    assert frames[1].scf_energy_hartree == pytest.approx(-100.000002)
+    assert frames[0].electronic_energy_hartree == pytest.approx(-100.000001)
+    assert frames[1].electronic_energy_hartree == pytest.approx(-100.000002)
     assert "1.100000" in frames[0].xyz and "1.200000" in frames[1].xyz
     assert frames[1].converged is True
     assert frames[1].frequencies_cm[1] == -164.95
@@ -604,7 +604,7 @@ def test_opt_frames_fallback_appends_differing_final_block(monkeypatch):
     )
     frames = orca_frames.extract_frames_from_text(log)
     assert [f.frame for f in frames] == [0, 1, 2]
-    assert frames[2].scf_energy_hartree == pytest.approx(-100.0000025)
+    assert frames[2].electronic_energy_hartree == pytest.approx(-100.0000025)
     assert "1.200500" in frames[2].xyz
     assert frames[2].converged is True
 
@@ -618,7 +618,7 @@ def test_sp_frames_text_fallback_survives_cclib61_crash(monkeypatch):
         + "FINAL SINGLE POINT ENERGY     -76.400000000001\n"
     )
     assert len(frames) == 1
-    assert frames[0].scf_energy_hartree == pytest.approx(-76.400000000001)
+    assert frames[0].electronic_energy_hartree == pytest.approx(-76.400000000001)
     assert "1.200000" in frames[0].xyz
 
 

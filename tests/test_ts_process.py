@@ -25,7 +25,7 @@ from cloudra.tools.core.ts_process import (  # noqa: E402
     load_record,
     start,
 )
-from tests.ts_fixtures import calculation_input
+from tests.ts_fixtures import calculation_input, native_qm_log
 
 
 @pytest.fixture(autouse=True)
@@ -485,11 +485,13 @@ def test_ts_frequency_input_keeps_declared_solvation(tmp_path):
     log_path = Path(_refinement_log_path(record, record.job_steps[-1]))
     log_path.parent.mkdir(parents=True, exist_ok=True)
     log_path.write_text(
+        "O   R   C   A\nTHE OPTIMIZATION HAS CONVERGED\n"
+        "FINAL ENERGY EVALUATION AT THE STATIONARY POINT\n"
         "CARTESIAN COORDINATES (ANGSTROEM)\n"
         "---------------------------------\n"
         "O 0.000000 0.000000 0.000000\n"
         "H 0.960000 0.000000 0.000000\n"
-        "H -0.240000 0.930000 0.000000\n\n",
+        "H -0.240000 0.930000 0.000000\n\nORCA TERMINATED NORMALLY\n",
     )
     job_dir = Path(record.run_dir) / "jobs" / "job_0002"
     job_dir.mkdir()
@@ -651,14 +653,14 @@ def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, 
                 reactant[2] if purpose.startswith("reactant") else product_path
             )
             opt_log.write_text(
-                "GEOMETRY OPTIMIZATION CYCLE\n"
+                "O   R   C   A\nGEOMETRY OPTIMIZATION CYCLE\n"
                 "CARTESIAN COORDINATES (ANGSTROEM)\n"
                 "---------------------------------\n"
                 + "\n".join(
                     f"{symbol} {x + 0.2:.8f} {y:.8f} {z:.8f}"
                     for symbol, (x, y, z) in final_atoms
                 )
-                + "\n\nTHE OPTIMIZATION HAS CONVERGED\n",
+                + "\n\nTHE OPTIMIZATION HAS CONVERGED\nORCA TERMINATED NORMALLY\n",
                 encoding="utf-8",
             )
         else:
@@ -668,13 +670,13 @@ def test_refine_endpoint_jobs_survive_reload_and_use_optimized_frames(tmp_path, 
             freq_log.parent.mkdir(parents=True, exist_ok=True)
             optimized_atoms = read_xyz_atoms(str(optimized))
             freq_log.write_text(
-                "CARTESIAN COORDINATES (ANGSTROEM)\n"
+                "O   R   C   A\nCARTESIAN COORDINATES (ANGSTROEM)\n"
                 "---------------------------------\n"
                 + "\n".join(
                     f"{symbol} {x:.8f} {y:.8f} {z:.8f}"
                     for symbol, (x, y, z) in optimized_atoms
                 )
-                + "\n\nfrequency evidence\n",
+                + "\n\nORCA TERMINATED NORMALLY\n",
                 encoding="utf-8",
             )
             source = reactant[2] if purpose.startswith("reactant") else product_path
@@ -877,8 +879,6 @@ def test_gaussian_refinement_input_merges_keywords_without_duplicate_opt(tmp_pat
 
 def test_gaussian_frequency_input_merges_keywords_without_duplicate_freq(tmp_path, monkeypatch):
     """Gaussian 频率作业正确合并用户声明的 freq 关键词，避免重复 freq。"""
-    from cloudra.tools.core import gaussian_frames
-    from cloudra.tools.core.gaussian_frames import FrameRecord
     from cloudra.tools.core.ts_process import TsJobStep, _write_frequency_input
 
     record = _start(tmp_path, engine="gaussian", keywords="freq=noraman nosymm")
@@ -886,17 +886,13 @@ def test_gaussian_frequency_input_merges_keywords_without_duplicate_freq(tmp_pat
     job1.mkdir(parents=True, exist_ok=True)
     xyz_content = "3\noptimised\nO 0.0 0.0 0.0\nH 0.96 0.0 0.0\nH -0.24 0.93 0.0\n"
     (job1 / "optimized.xyz").write_text(xyz_content, encoding="utf-8")
-    (job1 / "refinement.log").write_text("Normal termination of Gaussian\n", encoding="utf-8")
+    (job1 / "refinement.log").write_text(native_qm_log('gaussian', ['O', 'H', 'H'],
+        [[0., 0., 0.], [.96, 0., 0.], [-.24, .93, 0.]]), encoding="utf-8")
     opt_input = job1 / "refinement.gjf"
     opt_input.write_text("#p opt=ts\n", encoding="utf-8")
     record.job_steps.append(TsJobStep(
         purpose="ts_opt", job_id=9001, input_path=str(opt_input), state="done",
     ))
-    monkeypatch.setattr(
-        gaussian_frames,
-        "extract_frames",
-        lambda _path: [FrameRecord(frame=0, xyz=xyz_content)],
-    )
     job2 = Path(record.run_dir) / "jobs" / "job_0002"
     job2.mkdir(parents=True, exist_ok=True)
 
@@ -1412,6 +1408,7 @@ def _install_endpoint_minimum_jobs(record, monkeypatch, symbols, reactant, produ
                     role != "reactant" or reactant_opt_converged
                 ) else "The optimization did not converge\n"
             )
+            + "FINAL ENERGY EVALUATION AT THE STATIONARY POINT\n"
             + "CARTESIAN COORDINATES (ANGSTROEM)\n"
             "---------------------------------\n"
             f"{coordinate_rows}\n\n"
@@ -1419,9 +1416,9 @@ def _install_endpoint_minimum_jobs(record, monkeypatch, symbols, reactant, produ
             encoding="utf-8",
         )
         Path(_refinement_log_path(record, freq_step)).write_text(
-            "CARTESIAN COORDINATES (ANGSTROEM)\n"
+            "O   R   C   A\nCARTESIAN COORDINATES (ANGSTROEM)\n"
             "---------------------------------\n"
-            + coordinate_rows + "\n\nfrequency evidence\n",
+            + coordinate_rows + "\n\nORCA TERMINATED NORMALLY\n",
             encoding="utf-8",
         )
 
@@ -1896,7 +1893,7 @@ def test_refine_unconverged_endpoint_opt_is_candidate_not_unfixable_block(
     record.waiting_for = "job:9011"
     opt_log = Path(process._refinement_log_path(record, step))
     opt_log.parent.mkdir(parents=True, exist_ok=True)
-    opt_log.write_text("The optimization did not converge\n", encoding="utf-8")
+    opt_log.write_text("O   R   C   A\nThe optimization did not converge\nORCA TERMINATED NORMALLY\n", encoding="utf-8")
     monkeypatch.setattr(process, "_read_job_state", lambda _record, _job_id: "done")
 
     result = process._refine(record)
@@ -1909,8 +1906,9 @@ def test_unreadable_gaussian_endpoint_opt_log_finishes_candidate_only(
     tmp_path, monkeypatch,
 ):
     """Parser failure after a completed compute job must not strand a waiting run."""
+    import cclib
+
     import cloudra.tools.core.ts_process as process
-    from cloudra.tools.core import gaussian_frames
     from cloudra.tools.core.ts_process import TsJobStep
 
     record = _start(tmp_path, engine="gaussian")
@@ -1927,17 +1925,15 @@ def test_unreadable_gaussian_endpoint_opt_log_finishes_candidate_only(
     record.waiting_for = "job:9011"
     opt_log = Path(process._refinement_log_path(record, step))
     opt_log.parent.mkdir(parents=True, exist_ok=True)
-    opt_log.write_text("Normal termination of Gaussian\n", encoding="utf-8")
+    opt_log.write_text(native_qm_log('gaussian', ['O', 'H', 'H'],
+        [[0., 0., 0.], [.96, 0., 0.], [-.24, .93, 0.]]).replace('0.96000000', 'unreadable'), encoding='utf-8')
     monkeypatch.setattr(process, "_read_job_state", lambda _record, _job_id: "done")
-    monkeypatch.setattr(
-        gaussian_frames, "extract_frames",
-        lambda _path: (_ for _ in ()).throw(ValueError("unreadable geometry")),
-    )
+    monkeypatch.setattr(cclib.io, 'ccread', lambda *_a, **_k: None)
 
     result = process._refine(record)
     assert result.terminal == "candidate_only"
     assert result.blocked is None
-    assert "unreadable" in result.stage_record("verdict").detail.lower()
+    assert "geometry" in result.stage_record("verdict").detail.lower()
 
 
 def test_verdict_accepts_actual_outer_frame_minima_when_interval_fails(tmp_path, monkeypatch):

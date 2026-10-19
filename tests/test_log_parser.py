@@ -5,9 +5,9 @@ import pytest
 from cloudra.tools.Chemtool.log_parser import (
     LogParser,
     LogParser_input_schema,
-    _extract_gaussian_thermochemistry,
     derive_delivery_changes,
 )
+from cloudra.tools.core.gaussian_frames import extract_thermochemistry_from_text
 
 FIXTURE = Path(__file__).parent / "fixtures" / "gaussian" / "water_opt_freq_g16.out"
 
@@ -63,11 +63,11 @@ Thermal correction to Energy= 0.120000
         encoding="utf-8",
     )
 
-    values = _extract_gaussian_thermochemistry(log.read_text(encoding="utf-8"))
+    values = extract_thermochemistry_from_text(log.read_text(encoding="utf-8"))
 
-    assert values["zero_point_correction_hartree"] == pytest.approx(0.010000)
-    assert values["thermal_energy_correction_hartree"] == pytest.approx(0.020000)
-    assert values["total_gibbs_free_energy_hartree"] == pytest.approx(-9.960000)
+    assert values["zero_point_correction_hartree"] == pytest.approx(0.110000)
+    assert values["thermal_energy_correction_hartree"] == pytest.approx(0.120000)
+    assert "total_gibbs_free_energy_hartree" not in values
 
 
 ORCA_FIXTURE = Path(__file__).parent / "fixtures" / "orca" / "co2_freq_orca42.out"
@@ -91,8 +91,8 @@ async def test_orca_log_full_parse_matches_gaussian_field_semantics():
     assert result.total_gibbs_free_energy_hartree == pytest.approx(-184.77272599)
     assert result.imaginary_frequencies == []
     assert result.mulliken_charges is not None
-    # cclib 可用时频率仍走 cclib（文本回退不得改变既有行为，GH #16 回归）
-    assert result.frequencies_cm == pytest.approx([289.50, 458.10, 1114.50, 1142.05])
+    # Native mode numbering stays identical when the optional parser fails.
+    assert result.frequencies_cm == pytest.approx([0.] * 5 + [289.50, 458.10, 1114.50, 1142.05])
 
 
 @pytest.mark.asyncio
@@ -121,7 +121,8 @@ async def test_orca_energy_uses_final_output_when_cclib_conversion_factor_differ
     )
 
     assert result.is_success is True
-    assert result.scf_energy_hartree == pytest.approx(-79.712000771473, abs=1e-10)
+    assert result.electronic_energy_hartree == pytest.approx(-79.712000771473, abs=1e-10)
+    assert result.scf_energy_hartree is None  # No native SCF label in this excerpt.
 
 
 @pytest.mark.asyncio
@@ -163,7 +164,8 @@ async def test_orca_extopt_energy_and_termination_from_text_when_cclib_fails(mon
     assert result.is_success is True
     assert result.engine == "orca"
     assert result.normal_termination is True
-    assert result.scf_energy_hartree == pytest.approx(-234.506295105500)
+    assert result.scf_energy_hartree is None  # External potential has no SCF energy.
+    assert result.electronic_energy_hartree == pytest.approx(-234.506295105500)
 
 
 @pytest.mark.asyncio
@@ -185,7 +187,8 @@ async def test_orca_normal_termination_marker_overrides_cclib_metadata(monkeypat
     )
     assert result.is_success is True
     assert result.normal_termination is True
-    assert result.scf_energy_hartree == pytest.approx(-234.506295105500)
+    assert result.scf_energy_hartree is None
+    assert result.electronic_energy_hartree == pytest.approx(-234.506295105500)
 
 
 @pytest.mark.asyncio
@@ -208,7 +211,8 @@ async def test_orca_extopt_abnormal_termination_reported_false(tmp_path, monkeyp
     )
     assert result.is_success is True
     assert result.normal_termination is False
-    assert result.scf_energy_hartree == pytest.approx(-234.5)
+    assert result.scf_energy_hartree is None
+    assert result.electronic_energy_hartree == pytest.approx(-234.5)
 
 
 # GH #21：未收敛的 MACE ExtOpt Opt 日志片段（GH #21/#22 真实样本，原日志已随工作区清理删除）
@@ -296,7 +300,8 @@ async def test_orca_opt_converged_exposed_separately_from_normal_termination(tmp
     assert result.is_success is True
     assert result.normal_termination is True
     assert result.opt_converged is False
-    assert result.scf_energy_hartree == pytest.approx(-383.544742265)
+    assert result.scf_energy_hartree is None
+    assert result.electronic_energy_hartree == pytest.approx(-383.544742265)
 
 
 @pytest.mark.asyncio

@@ -36,6 +36,7 @@ _WRITER_KEY_CANONICAL = {"sp": "single_point"}
 _GAUSSIAN_ONLY_OPT_SUBOPTIONS = {"calcfc", "noeigen", "calcall", "qst2", "qst3"}
 
 _FREQ_NUMERIC_ALIASES = {"num", "numer", "numeric", "numfreq"}
+_ORCA_FREQUENCY_MODES = {'freq': 'analytic', 'anfreq': 'analytic', 'numfreq': 'numeric'}
 
 # Native tasks outside Cloudra's canonical task vocabulary remain unclassified.
 # Recognizing them prevents a workflow default from adding an unrelated task.
@@ -77,6 +78,11 @@ def _gaussian_keyword(token: str) -> tuple[str, str]:
         return head.removesuffix('='), options.removesuffix(')')
     key, _, value = token.partition('=')
     return key, value
+
+
+def _orca_task_head(token: str) -> str:
+    """Classify a simple native task while retaining any supplied parameters."""
+    return token.partition('=')[0].partition('(')[0].strip()
 
 
 def _gaussian_tasks(tokens: list[str]) -> set[str]:
@@ -135,8 +141,8 @@ def declared_native_tasks(arguments: Mapping[str, Any]) -> tuple[set[str], list[
             key_l = str(key).lower()
             params = str(value).lower() if value is not None else ""
             if key_l not in _WRITER_TASK_KEYS:
-                if engine == 'orca' and key_l in _ORCA_SIMPLE_TASK_TOKENS:
-                    tasks.add(_ORCA_SIMPLE_TASK_TOKENS[key_l])
+                if engine == 'orca' and _orca_task_head(key_l) in _ORCA_SIMPLE_TASK_TOKENS:
+                    tasks.add(_ORCA_SIMPLE_TASK_TOKENS[_orca_task_head(key_l)])
                 else:
                     unknown.append(key_l)
                 continue
@@ -167,7 +173,8 @@ def declared_native_tasks(arguments: Mapping[str, Any]) -> tuple[set[str], list[
                 tasks.remove('minimum_opt')
                 tasks.add('relaxed_scan')
         elif engine == 'orca':
-            tasks.update(_ORCA_SIMPLE_TASK_TOKENS[token] for token in tokens if token in _ORCA_SIMPLE_TASK_TOKENS)
+            tasks.update(_ORCA_SIMPLE_TASK_TOKENS[_orca_task_head(token)] for token in tokens
+                         if _orca_task_head(token) in _ORCA_SIMPLE_TASK_TOKENS)
             geom = orca_directives(str(arguments.get('orca_blocks') or ''))[1].get('geom', [])
             if 'scan' in geom:
                 tasks.discard('minimum_opt')
@@ -187,7 +194,13 @@ def _frequency_declarations(arguments: dict[str, Any]) -> list[tuple[str, str]]:
     for task in arguments.get('task_type') or []:
         if isinstance(task, dict):
             for key, value in task.items():
-                if str(key).lower() == 'freq' and value is not None:
+                key_l = str(key).lower()
+                if str(arguments.get('engine') or 'gaussian').lower() == 'orca':
+                    key_l = _orca_task_head(key_l)
+                if (str(arguments.get('engine') or 'gaussian').lower() == 'orca'
+                        and key_l in _ORCA_FREQUENCY_MODES and key_l != 'freq'):
+                    declarations.append(('task_type', _ORCA_FREQUENCY_MODES[key_l]))
+                if key_l == 'freq' and value is not None:
                     for option in str(value).strip(' ()').lower().split(','):
                         if option in _FREQ_NUMERIC_ALIASES or option == 'analytic':
                             declarations.append(('task_type', 'numeric' if option in _FREQ_NUMERIC_ALIASES else 'analytic'))
@@ -198,8 +211,8 @@ def _frequency_declarations(arguments: dict[str, Any]) -> list[tuple[str, str]]:
                 options = set(value.strip('()').split(','))
                 declarations.append(('keywords', 'numeric' if options & _FREQ_NUMERIC_ALIASES else 'analytic'))
     else:
-        declarations.extend(('keywords', 'numeric' if token == 'numfreq' else 'analytic')
-                            for token in tokens if token in {'numfreq', 'freq'})
+        declarations.extend(('keywords', _ORCA_FREQUENCY_MODES[_orca_task_head(token)])
+                            for token in tokens if _orca_task_head(token) in _ORCA_FREQUENCY_MODES)
     return declarations
 
 
@@ -292,7 +305,7 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
                 native_tokens(str(key) + ('=' + str(value) if value is not None else ''))
             except ValueError as exc:
                 entries.append(_entry('malformed_native_task', 'task_type', str(exc)))
-            if key_l not in _WRITER_TASK_KEYS and not (engine == 'orca' and key_l in _ORCA_SIMPLE_TASK_TOKENS):
+            if key_l not in _WRITER_TASK_KEYS and not (engine == 'orca' and _orca_task_head(key_l) in _ORCA_SIMPLE_TASK_TOKENS):
                 entries.append(_entry(
                     "unknown_task_key", "task_type",
                     f"Task {key!r} is outside Cloudra's task classification; its native spelling "
@@ -329,8 +342,8 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
         if 'opt' in seen:
             opt_tasks.update(_gaussian_tasks(['opt=' + str(seen['opt'] or '').lower()]))
     else:
-        opt_tasks = {_ORCA_SIMPLE_TASK_TOKENS[token] for token in tokens
-                     if token in _ORCA_SIMPLE_TASK_TOKENS} & {'minimum_opt', 'ts_opt'}
+        opt_tasks = {_ORCA_SIMPLE_TASK_TOKENS[_orca_task_head(token)] for token in tokens
+                     if _orca_task_head(token) in _ORCA_SIMPLE_TASK_TOKENS} & {'minimum_opt', 'ts_opt'}
         if 'opt' in seen:
             opt_tasks.add('ts_opt' if 'ts' in str(seen['opt']).lower().split(',') else 'minimum_opt')
     if len(opt_tasks) > 1:
@@ -350,6 +363,11 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
         ))
 
     if engine == "orca":
+        for token in tokens:
+            head = _orca_task_head(token)
+            if head in _ORCA_SIMPLE_TASK_TOKENS and token != head:
+                entries.append(_entry('native_task_parameters', 'keywords',
+                    f'ORCA simple task {head!r} was given parameters in {token!r}; the original text is preserved. Check native keyword/% block syntax.'))
         try:
             raw_blocks = str(arguments.get('orca_blocks') or '')
             block_tokens = native_tokens(raw_blocks)
@@ -371,6 +389,10 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
                 "The declared native text is preserved; a task label alone does not define a scan.",
             ))
         for key, value in seen.items():
+            if (_orca_task_head(key) in _ORCA_SIMPLE_TASK_TOKENS and key not in _WRITER_TASK_KEYS
+                    and (value is not None or key != _orca_task_head(key))):
+                entries.append(_entry('native_task_parameters', 'task_type',
+                    f'ORCA simple task {key!r} was given parameters {value!r}; the original text is preserved. Check native keyword/% block syntax.'))
             params = {p.strip() for p in str(value).lower().split(",") if p.strip()} if value is not None else set()
             if key == "opt":
                 bad = sorted(params & _GAUSSIAN_ONLY_OPT_SUBOPTIONS)
@@ -447,8 +469,7 @@ _ORCA_SIMPLE_TASK_TOKENS = {
     "tight-neb-ts": "ts_opt",
     "fast-neb-ts": "ts_opt",
     "zoom-neb-ts": "ts_opt",
-    "freq": "frequency",
-    "numfreq": "frequency",
+    **dict.fromkeys(_ORCA_FREQUENCY_MODES, 'frequency'),
     "irc": "irc",
 }
 
@@ -560,7 +581,8 @@ def _native_charges(text: str, engine: str) -> list[tuple[int, int]]:
 
 def _inspect_orca(text: str) -> CalculationIntent:
     tokens, blocks = orca_directives(text)
-    tasks = {_ORCA_SIMPLE_TASK_TOKENS[t] for t in tokens if t in _ORCA_SIMPLE_TASK_TOKENS}
+    task_heads = {_orca_task_head(token) for token in tokens}
+    tasks = {_ORCA_SIMPLE_TASK_TOKENS[head] for head in task_heads if head in _ORCA_SIMPLE_TASK_TOKENS}
     geom = blocks.get("geom", [])
     neb = blocks.get("neb", [])
     for i, token in enumerate(neb):
@@ -582,7 +604,8 @@ def _inspect_orca(text: str) -> CalculationIntent:
             provider = Path(method_tokens[pos + 1].strip("\"'")).name.lower()
     charges = _native_charges(text, "orca")
     return CalculationIntent(engine="orca", provider=provider, tasks=tasks,
-        frequency_mode="numeric" if "numfreq" in tokens else "analytic" if "freq" in tokens else "auto",
+        frequency_mode=('numeric' if 'numfreq' in task_heads else
+                        'analytic' if task_heads & _ORCA_FREQUENCY_MODES.keys() else 'auto'),
         constraints=constraints, charge=charges[0][0] if charges else None,
         multiplicity=charges[0][1] if charges else None,
         method_signature=f"external:{provider}" if provider else None,
@@ -731,8 +754,8 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
         if engine == "orca":
             tokens, blocks = orca_directives(content)
             native_cards = [tokens]
-            cards = [[t for t in tokens if t not in _ORCA_SIMPLE_TASK_TOKENS and t not in {"sp"}]]
-            declared_tasks = [t for t in want_keywords if t in _ORCA_SIMPLE_TASK_TOKENS or t == 'sp']
+            cards = [[t for t in tokens if _orca_task_head(t) not in _ORCA_SIMPLE_TASK_TOKENS]]
+            declared_tasks = [t for t in want_keywords if _orca_task_head(t) in _ORCA_SIMPLE_TASK_TOKENS]
             expected_blocks = orca_directives(str(expected.get("orca_blocks") or ""))[1]
             # These blocks are generated by the writer for the requested task;
             # other blocks must exactly match the explicit native declaration.
@@ -822,16 +845,12 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
 
 def native_input_geometry(content: str, *, engine: str) -> list[tuple[str, tuple[float, float, float]]]:
     """Read one explicit Cartesian geometry in Angstrom, preserving atom order."""
-    from cloudra.tools.core.molecule import _cartesian_atoms, _read_gaussian_structure
-    from cloudra.tools.core.native_input_sections import orca_xyz_sections
+    from cloudra.tools.core.molecule import _read_gaussian_structure, _read_orca_structure
 
     if engine.lower() == 'gaussian':
         atoms, _, _, _ = _read_gaussian_structure(content)
     elif engine.lower() == 'orca':
-        sections = orca_xyz_sections(content)
-        if len(sections) != 1:
-            raise ValueError("Exactly one explicit Cartesian input geometry is required")
-        atoms = _cartesian_atoms(sections[0][1], source='ORCA')
+        atoms, _, _, _ = _read_orca_structure(content)
     else:
         raise ValueError(f"Unsupported native geometry engine: {engine}")
     return [(symbol, tuple(map(float, point))) for symbol, point in zip(
