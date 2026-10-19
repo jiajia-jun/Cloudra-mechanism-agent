@@ -503,10 +503,13 @@ def complete_execution_evidence(input_file: str, job_type: str, task_id: int) ->
     """Freeze this execution's selected log and its native IRC endpoint bundle."""
     if job_type not in {'gaussian', 'orca'}:
         return resolve_log_path(input_file, job_type, task_id)
+    from cloudra.tools.core.irc_endpoint_artifacts import write_irc_endpoint_artifacts
+
     receipt = _execution_receipt(input_file, task_id)
     metadata = receipt / 'evidence.json'
     record = json.loads(metadata.read_text()) if metadata.exists() else {}
     if record.get('log_file'):
+        write_irc_endpoint_artifacts(record['log_file'])
         return record['log_file']
     native = Path(get_log_path(input_file, job_type))
     captured = Path(input_file).parent / '.cloudra' / f'calc-{task_id}.out.log'
@@ -528,6 +531,7 @@ def complete_execution_evidence(input_file: str, job_type: str, task_id: int) ->
             from cloudra.tools.core.orca_frames import snapshot_irc_endpoints
 
             snapshot_irc_endpoints(str(target), results)
+        write_irc_endpoint_artifacts(target)
     record['log_file'] = str(target)
     atomic_write_json(metadata, record)
     return str(target)

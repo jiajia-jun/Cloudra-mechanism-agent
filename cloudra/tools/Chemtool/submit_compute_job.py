@@ -39,7 +39,8 @@ description = (
     "omitting them keeps the ordinary one-CPU and default memory reservation. "
     "Under-declaring oversubscribes the node; over-declaring wastes queue time. "
     "Use query_compute_queue to check node capacity and queue length before choosing how much to request. "
-    "Manual TS/IRC inputs are accepted. Use ts_prepare/ts_resume when you want the durable TS workflow."
+    "Use ts_prepare/ts_resume for formal TS solving and complete verification. Direct TS/IRC submissions "
+    "are for exploratory trials or capability probes only; inspect and revise a blocked workflow rather than bypassing it."
 )
 
 
@@ -152,8 +153,8 @@ class SubmitComputeJob(Tool):
         "with is_async=false wait for completion. Provide the prepared input path; "
         "CPU and memory reservations are inferred from chemistry input declarations when omitted. "
         "Shell scripts run in their own directory, manage their own environment, and use declared resources "
-        "(default 1 CPU and the node's ordinary memory reservation). Manual TS/IRC inputs are accepted; "
-        "ts_prepare/ts_resume provides the durable TS workflow."
+        "(default 1 CPU and the node's ordinary memory reservation). Use ts_prepare/ts_resume for formal TS "
+        "solving and complete verification. Direct TS/IRC submissions are for exploratory trials or capability probes only."
     )
     input_schema: Any = SubmitComputeJob_input_schema
     output_schema: Any = SubmitComputeJob_output_schema

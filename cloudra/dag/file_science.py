@@ -16,6 +16,7 @@ from cloudra.dag.store import InvalidGraphReference
 from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
 from cloudra.tools.core.irc_evidence import (
     frames_for,
+    irc_endpoint_recovery_hint,
     last_geometry,
     normal_log,
     verify_short_irc_direction,
@@ -77,10 +78,13 @@ def _science_cache_key(store, graph, target_id, *, irc_files, workspace_root, ev
         paths = [snap.snapshot_path, *[item['snapshot_path'] for item in snap.metadata.get('irc_sidecars', [])]]
         if snap.metadata.get('irc_manifest'):
             paths.append(snap.metadata['irc_manifest']['snapshot_path'])
+        recovery_paths = {snap.metadata[key] for key in ('irc_end_a_path', 'irc_end_b_path')
+                          if snap.metadata.get(key)}
+        paths.extend(recovery_paths)
         for raw in paths:
             path = Path(raw)
             try:
-                stat = path.stat()
+                stat = path.lstat() if raw in recovery_paths else path.stat()
             except OSError:
                 versions[str(path)] = None
             else:
@@ -409,6 +413,7 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
             if molecule is not None:
                 charge = Chem.GetFormalCharge(molecule)
         details = list(problems)
+        recovery = []
         irc_passed = False
         for path in logs:
             try:
@@ -426,6 +431,10 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
                     charge=charge, atom_bindings=atom_bindings, product_smiles=target.smiles if target else None,
                     reactant_smiles=source.smiles if source else None)
                 details.extend(reason)
+                if not irc_passed:
+                    hint = irc_endpoint_recovery_hint(path)
+                    if hint:
+                        recovery.append(hint)
             except Exception as exc:
                 details.append(f'IRC direction proof could not be evaluated: {exc}')
             if irc_passed:
@@ -441,5 +450,6 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
                 details = reason if irc_passed else [*details, *reason]
         checks['short_irc'] = ScientificCheck(status='passed' if irc_passed else 'incomplete',
             detail=' '.join(details) or ('Native IRC outer-frame optimization to the declared verified minima passed.' if irc_passed else 'No usable bound bidirectional IRC evidence.'),
-            next_action='' if irc_passed else 'Submit same-TS bidirectional IRC and native Opt/Freq logs connecting each outer frame to its declared minimum; geometric interval checks are advisory. Separated products need each declared species minimum. Full IRC convergence is not required.')
+            next_action='' if irc_passed else 'Submit same-TS bidirectional IRC and native Opt/Freq logs connecting each outer frame to its declared minimum; geometric interval checks are advisory. Separated products need each declared species minimum. Full IRC convergence is not required.'
+                + (' ' + ' '.join(dict.fromkeys(recovery)) if recovery else ''))
     return {stage: check.model_dump() for stage, check in checks.items()}

@@ -1,0 +1,311 @@
+{
+  "source_calc_dir": "/tmp/cloudra-e1-evidence-x42s7_p4/evidence/e1-irc-20261019/calc",
+  "temporary_workspace": "/tmp/cloudra-e1-direct-recovery-fbitfnld",
+  "qm_submitted": false,
+  "qm_outputs_fabricated": false,
+  "limitation": "Prepared inputs only. New Opt/Freq jobs and scientific acceptance have not been performed.",
+  "copied_native_hashes": {
+    "endpoint_fwd5.gjf": "869b71d27983e4ba7f43a73421ac94c9b2ad5529debebcb7d28f7f0234449c9f",
+    "endpoint_fwd5.log": "52fc0174d3f24415ef25edb738df377071fed69706f4e8521e748b5efd61cf71",
+    "endpoint_fwd6.gjf": "742213a28d8fdc88fde8ded32c126345b266a846705e49b6359a99518f8e086d",
+    "endpoint_fwd6.log": "2a37b8b5164a3a39ea75812c425391e2f2a9ecef0357e62c00f7bffdc7bc1ce0",
+    "endpoint_rev5.gjf": "08518709dd72fcbb9737b2f5f57d9a84f519e56641d40431e60c6b549ce8e7c5",
+    "endpoint_rev5.log": "7956d43624dffec35184caa5b5c5689d7a6ba31380fb88f5a5e3e116ffc3e7ea",
+    "endpoint_rev6.gjf": "6acc61cffe72241e7dc1b13aa30e473f5362fc9cb182bbbd2143fb36c72b8eaa",
+    "endpoint_rev6.log": "15e54bdf51763c62c28fff3ad18284067dc960f1e8bd83a060754ba0b0f55a4e",
+    "irc1.gjf": "8924cd9668bd4c3e3af5c1ead3262cbf22878ddc0f065c720702d877c647a2a2",
+    "irc1.log": "0bf7c83d22db16c9c72564bdec8975c44b9b808ba9ab7c28cced46031f8562b2",
+    "irc2.gjf": "60781e4c1a2db691fed546594c0c158857e37cf8ccf421c14525e4822f7d72bb",
+    "irc2.log": "87269e7f3d68a5132704b4d70eeda8e32d6772744c5203cea90810451faa4a4d",
+    "irc3.gjf": "84b770b870c138ada89a44fbc8fcd18631b068f54a43b9c244b0c9ba3a75cf54",
+    "irc3.log": "5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f",
+    "irc4_fwd.gjf": "5706644dfc10ab3ba7f7b58b2b93260f404a367178f2477f7d49b2909af05022",
+    "irc4_fwd.log": "3a55332fc3730cd80438a3703b23d2baf073007422d9fb30efa60b29875c7a25",
+    "irc4_rev.gjf": "71af5af4a34fec685b54013fc274cef12dd05ad8062623b0e6bae7671fcb04d0",
+    "irc4_rev.log": "7c06e24b4509e31e97416530516d533ebfe3bef3f55766d9f5dc01a9a7a66090",
+    "rc2.gjf": "daf317f956e5e9e97bdcea635709501ef958997186cb89a166497d007ed143ac",
+    "rc2.log": "cff1eff0ddbcf420f0c58b7592986162b47583e77a7839f5687cf13153d8a30e",
+    "ts1.gjf": "da02214b81fd292a60c7b1a3cf2c41ec7c697407e870d3c0554133b77b018efd",
+    "ts1.log": "d3b57587ec8fa3ed0c4c46f29f64abd9c5c46f4fabdf2bc2600945b76299eacb"
+  },
+  "original_hashes_unchanged": true,
+  "copied_native_hashes_unchanged": true,
+  "verified_original_inputs": {
+    "endpoint_rev5.gjf": {
+      "path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/calc/endpoint_rev5.gjf",
+      "sha256": "08518709dd72fcbb9737b2f5f57d9a84f519e56641d40431e60c6b549ce8e7c5",
+      "route": [
+        "opt=(maxcycle=200)",
+        "freq",
+        "b3lyp/def2svp",
+        "empiricaldispersion=gd3bj",
+        "int=ultrafine"
+      ],
+      "molecular_state": [
+        -1,
+        1
+      ],
+      "link0": {
+        "%chk": "endr5.chk",
+        "%mem": "8GB",
+        "%nprocshared": "8"
+      },
+      "declared_smiles": "[F-].CCCl",
+      "full_settings_match": true
+    },
+    "endpoint_fwd5.gjf": {
+      "path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/calc/endpoint_fwd5.gjf",
+      "sha256": "869b71d27983e4ba7f43a73421ac94c9b2ad5529debebcb7d28f7f0234449c9f",
+      "route": [
+        "opt=(maxcycle=200)",
+        "freq",
+        "b3lyp/def2svp",
+        "empiricaldispersion=gd3bj",
+        "int=ultrafine"
+      ],
+      "molecular_state": [
+        -1,
+        1
+      ],
+      "link0": {
+        "%chk": "endf5.chk",
+        "%mem": "8GB",
+        "%nprocshared": "8"
+      },
+      "declared_smiles": "C=C.F.[Cl-]",
+      "full_settings_match": true
+    }
+  },
+  "reused_writer_settings": {
+    "engine": "gaussian",
+    "method": "B3LYP",
+    "basis_set": "def2SVP",
+    "keywords": "EmpiricalDispersion=GD3BJ int=ultrafine",
+    "task_type": [
+      {
+        "opt": "(maxcycle=200)"
+      },
+      {
+        "freq": null
+      }
+    ],
+    "charge": -1,
+    "multiplicity": 1,
+    "nproc": 8,
+    "mem": "8GB"
+  },
+  "checkpoint_policy": "New checkpoint paths stay with the new /tmp inputs; no old checkpoint is read.",
+  "dag_snapshot": {
+    "original_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/calc/irc3.log",
+    "snapshot_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/5bd0ec68af6e3b99_irc3.log",
+    "sha256": "5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f",
+    "file_size": 3626535,
+    "is_qm_log": true,
+    "engine": "gaussian",
+    "frequencies": null,
+    "imaginary_frequencies": null,
+    "normal_modes": null,
+    "final_energy_hartree": -639.003404154,
+    "metadata": {
+      "filename": "irc3.log",
+      "irc_sidecars": [],
+      "irc_manifest": {
+        "snapshot_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc_endpoints.json",
+        "sha256": "3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9"
+      },
+      "irc_end_a_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc-5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f.end-a.xyz",
+      "irc_end_b_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc-5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f.end-b.xyz"
+    }
+  },
+  "exported_endpoints": {
+    "irc_end_a_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc-5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f.end-a.xyz",
+    "irc_end_b_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc-5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f.end-b.xyz"
+  },
+  "canonical_xyz_matches_native": {
+    "a": true,
+    "b": true
+  },
+  "original_evidence_verifier": {
+    "passed": false,
+    "details": [
+      "The actual IRC outer frames are not connected to both declared zero-imaginary minima by converged optimization logs; geometric interval agreement alone is not direction proof.",
+      "SOURCE/reactant Opt /tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/calc/endpoint_rev5.log: native starting geometry matches neither actual IRC outer frame. Recompute this Opt from the exported canonical outer frame, then rerun its Freq at the converged geometry; keep the original logs as unmatched source evidence.",
+      "TARGET/product Opt /tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/calc/endpoint_fwd5.log: native starting geometry matches neither actual IRC outer frame. Recompute this Opt from the exported canonical outer frame, then rerun its Freq at the converged geometry; keep the original logs as unmatched source evidence.",
+      "Canonical outer frames for IRC /tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/5bd0ec68af6e3b99_irc3.log: irc_end_a_path=/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc-5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f.end-a.xyz; irc_end_b_path=/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc-5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f.end-b.xyz. Use these XYZ files directly for unconstrained endpoint Opt, then Freq at each converged Opt geometry. A/B label native sides, not reactant/product identities; verify the optimized species. Recompute an Opt whose native starting geometry matches neither outer frame and its following Freq; new metadata cannot repair that calculation."
+    ]
+  },
+  "prepared_inputs": {
+    "a": {
+      "writer_request": {
+        "charge": -1,
+        "multiplicity": 1,
+        "electronic_character": null,
+        "nproc": 8,
+        "mem": "8GB",
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ int=ultrafine",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": "",
+        "source_type": "xyz_file",
+        "source_value": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc-5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f.end-a.xyz",
+        "external_program": null,
+        "external_params": null,
+        "task_type": [
+          {
+            "opt": "(maxcycle=200)"
+          },
+          {
+            "freq": null
+          }
+        ],
+        "title": "E1 canonical IRC side A; Opt/Freq pending; identity unassigned",
+        "output_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/ready_for_recalculation/irc_end_a_opt_freq.gjf",
+        "artifact_dir": "/tmp/cloudra-e1-direct-recovery-fbitfnld/ready_for_recalculation/structure_build/irc_end_a_opt_freq",
+        "chk_name": "/tmp/cloudra-e1-direct-recovery-fbitfnld/ready_for_recalculation/irc_end_a_opt_freq.chk",
+        "rwf_name": null,
+        "fchk_name": null
+      },
+      "writer_result": {
+        "is_success": true,
+        "input_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/ready_for_recalculation/irc_end_a_opt_freq.gjf",
+        "message": "Gaussian input file generated successfully.",
+        "calculation": {
+          "engine": "gaussian",
+          "method": "B3LYP",
+          "basis_set": "def2SVP",
+          "keywords": "opt=(maxcycle=200) freq EmpiricalDispersion=GD3BJ int=ultrafine",
+          "frequency_mode": "analytic",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "interpreted_intent": {
+          "engine": "gaussian",
+          "engine_version": null,
+          "provider": null,
+          "tasks": [
+            "frequency",
+            "minimum_opt"
+          ],
+          "frequency_mode": "analytic",
+          "constraints": [],
+          "charge": -1,
+          "multiplicity": 1,
+          "method_signature": null,
+          "geometry_hash": null,
+          "certainty": "known"
+        },
+        "unapplied_options": [],
+        "generation_path": "gaussian:route",
+        "warnings": []
+      },
+      "native_intent": {
+        "engine": "gaussian",
+        "engine_version": null,
+        "provider": null,
+        "tasks": [
+          "frequency",
+          "minimum_opt"
+        ],
+        "frequency_mode": "analytic",
+        "constraints": [],
+        "charge": -1,
+        "multiplicity": 1,
+        "method_signature": null,
+        "geometry_hash": null,
+        "certainty": "known"
+      },
+      "canonical_identity_match": true,
+      "original_scientific_settings_match": true,
+      "sha256": "09ddfa22b6209a5a0ccf4ae0f37c7258cdbddab63a74a76cc79644d27bc8fe90"
+    },
+    "b": {
+      "writer_request": {
+        "charge": -1,
+        "multiplicity": 1,
+        "electronic_character": null,
+        "nproc": 8,
+        "mem": "8GB",
+        "engine": "gaussian",
+        "method": "B3LYP",
+        "basis_set": "def2SVP",
+        "keywords": "EmpiricalDispersion=GD3BJ int=ultrafine",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": "",
+        "source_type": "xyz_file",
+        "source_value": "/tmp/cloudra-e1-direct-recovery-fbitfnld/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/irc-5bd0ec68af6e3b99d9f5fc04dd8b4d5d3202c672145abffa6d0579e2af0dc74f.end-b.xyz",
+        "external_program": null,
+        "external_params": null,
+        "task_type": [
+          {
+            "opt": "(maxcycle=200)"
+          },
+          {
+            "freq": null
+          }
+        ],
+        "title": "E1 canonical IRC side B; Opt/Freq pending; identity unassigned",
+        "output_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/ready_for_recalculation/irc_end_b_opt_freq.gjf",
+        "artifact_dir": "/tmp/cloudra-e1-direct-recovery-fbitfnld/ready_for_recalculation/structure_build/irc_end_b_opt_freq",
+        "chk_name": "/tmp/cloudra-e1-direct-recovery-fbitfnld/ready_for_recalculation/irc_end_b_opt_freq.chk",
+        "rwf_name": null,
+        "fchk_name": null
+      },
+      "writer_result": {
+        "is_success": true,
+        "input_path": "/tmp/cloudra-e1-direct-recovery-fbitfnld/ready_for_recalculation/irc_end_b_opt_freq.gjf",
+        "message": "Gaussian input file generated successfully.",
+        "calculation": {
+          "engine": "gaussian",
+          "method": "B3LYP",
+          "basis_set": "def2SVP",
+          "keywords": "opt=(maxcycle=200) freq EmpiricalDispersion=GD3BJ int=ultrafine",
+          "frequency_mode": "analytic",
+          "orca_blocks": null,
+          "end_setting": ""
+        },
+        "interpreted_intent": {
+          "engine": "gaussian",
+          "engine_version": null,
+          "provider": null,
+          "tasks": [
+            "frequency",
+            "minimum_opt"
+          ],
+          "frequency_mode": "analytic",
+          "constraints": [],
+          "charge": -1,
+          "multiplicity": 1,
+          "method_signature": null,
+          "geometry_hash": null,
+          "certainty": "known"
+        },
+        "unapplied_options": [],
+        "generation_path": "gaussian:route",
+        "warnings": []
+      },
+      "native_intent": {
+        "engine": "gaussian",
+        "engine_version": null,
+        "provider": null,
+        "tasks": [
+          "frequency",
+          "minimum_opt"
+        ],
+        "frequency_mode": "analytic",
+        "constraints": [],
+        "charge": -1,
+        "multiplicity": 1,
+        "method_signature": null,
+        "geometry_hash": null,
+        "certainty": "known"
+      },
+      "canonical_identity_match": true,
+      "original_scientific_settings_match": true,
+      "sha256": "e9e41a0949aebc71190f9b66b147139e1fd1aa57a31836fea5ccf84169d01bc0"
+    }
+  }
+}

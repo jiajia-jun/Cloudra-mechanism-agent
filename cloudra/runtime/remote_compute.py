@@ -643,6 +643,16 @@ def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file
         elif source.is_file() and not source.is_symlink():
             publish(source, target)
 
+    if (job_type or manifest.get('job_type')) in {'gaussian', 'orca'}:
+        from cloudra.tools.core.irc_endpoint_artifacts import write_irc_endpoint_artifacts
+
+        engine = job_type or manifest['job_type']
+        native = results / Path(get_log_path(str(input_file), engine)).name
+        captured = results / '.cloudra' / f'calc-{task_id}.out.log'
+        selected = native if native.is_file() and native.stat().st_size else captured
+        if selected.is_file():
+            write_irc_endpoint_artifacts(selected)
+
 
 def _stage_and_submit(
     transport,

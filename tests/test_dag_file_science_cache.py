@@ -201,6 +201,39 @@ def test_science_cache_is_bounded_and_returned_results_do_not_share_mutable_stat
     assert not file_science._SCIENCE_CACHE
 
 
+@pytest.mark.parametrize('damage', ['delete', 'rewrite', 'symlink'])
+def test_cached_irc_recovery_paths_expire_without_revoking_native_science(tmp_path, damage):
+    store, graph, snapshots = _bound_irc_graph(tmp_path)
+    path = Path(snapshots['irc'].metadata['irc_end_a_path'])
+    incomplete = graph.model_copy(update={'nodes': [
+        graph.nodes[0].model_copy(update={'refs': []}), graph.nodes[1],
+    ]})
+
+    def check(current):
+        return file_science.file_scientific_checks(store, current, 'step',
+            workspace_root=tmp_path, use_cache=True)
+
+    first = check(incomplete)
+    assert first['short_irc']['status'] == 'incomplete'
+    assert str(path) in first['short_irc']['next_action']
+    assert check(graph)['short_irc']['status'] == 'passed'
+    if damage == 'delete':
+        path.unlink()
+    elif damage == 'rewrite':
+        path.write_text('edited XYZ\n')
+    else:
+        original = path.with_suffix('.original')
+        path.rename(original)
+        path.symlink_to(original)
+
+    current = check(incomplete)
+    assert current['short_irc']['status'] == 'incomplete'
+    assert str(path) not in current['short_irc']['next_action']
+    assert current['frequency'] == first['frequency']
+    assert current['ts_opt'] == first['ts_opt']
+    assert check(graph)['short_irc']['status'] == 'passed'
+
+
 @pytest.mark.parametrize("endpoint", ["source", "target"])
 def test_prompt_cache_tracks_explicit_endpoint_refs_when_nodes_have_no_files(tmp_path, endpoint):
     store, graph, snapshots = _bound_irc_graph(tmp_path)

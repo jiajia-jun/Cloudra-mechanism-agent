@@ -1,6 +1,6 @@
 # 机理计算 SOP
 
-**当前提交入口：** 可用 `ts_prepare` / `ts_resume` 管理持久化 TS 流程，也可把准备好的手动 TS/IRC 输入交给 `submit_compute_job`。提交成功不等于科学通过；两条路径均须核对原生日志、频率和真实 IRC 端点证据，并完成 DAG 绑定。普通探索扫描仍可独立执行。
+**当前提交入口：** 正式 TS 求解与完整验证优先走 `ts_prepare` / `ts_resume`；直接 `submit_compute_job` 提交 TS/IRC 仅用于探索性试算或能力探针。候选用 `guess={kind:"provided",xyz_path,evidence_refs}` 接回流程；符合来源校验的已有 IRC 用 `verification.irc_log`，分离产物日志用 `verification.product_endpoint.component_logs`。阻塞时先 `ts_inspect` 并修订点名声明，不绕过流程。提交成功不等于科学通过，仍须核对原生证据并完成 DAG 绑定；普通探索扫描、物种优化和频率计算保持可用。
 
 本流程回答四个问题：现在缺什么证据、下一次计算解决什么、什么结果才算成功、失败后是否值得继续。引擎参数分别见 `orca-inputs.md` / `gaussian-inputs.md`；方法知识见 `method-selection.md`。具体反应的坐标选择查 `reaction-class-geometry.md`，再读对应领域文件。
 
@@ -58,7 +58,7 @@
 
 **首选 TS 状态机**：同一路径只 `ts_prepare` 一次，`input` 分为 reaction / conformers / guess / ts_optimization / verification / execution。构象来源显式指定；`kind="file"` 直接使用外部几何，`optimization` 省略或为 `null` 时不做额外的 build 预优化。探索扫描、正式 TS 与各项验证方法分别声明，缺少当前阶段必需输入时才停在点名字段的 checkpoint。清除旧预优化只需 `ts_resume` 局部提交 `changes:{conformers:{product:{optimization:null}}}`（或 reactant）；省略的源字段保留，`null` 清除可选设置。成功作业由系统自动续接。用 `ts_inspect` 读取状态、实际方法和证据；用带 run_id/changes/reason 的 `ts_resume` 修订同一个 run；失败后可直接修订或重试，保留失败历史并重新执行科学验证。在途作业不允许修订。全原子对应由程序维护，唯一完整映射自动采用；真实歧义先用 `ts_inspect` 查看，再用 `reaction.selected_candidate` 或 `reaction_mapping(run_id, selected_candidate)` 选择，不搬运映射数组。结构编号 1-based，ORCA 原生扫描编号 0-based。元素排列通过不能消除具体结构身份或对称绑定歧义；须保留实际结构图、坐标与输入版本。扫描峰仅是候选，正式 TS 无约束精修与频率/双向 IRC/两端 Opt/Freq 仍必需。QST2/QST3 禁令及既有科学验收规则不变。
 
-已有 run 的 `ts_guess(mode="xtb_path"/"scan")` 通过既有修订事务更新初猜意图，由自动队列提交计算；不另开执行通道，缺少当前研究必需的方法、坐标或约束时如实点名。`mode="interpolate"` 只生成几何图像，再作为 provided 初猜交回同一修订流程；`mode="provided"` 需候选路径及来源证据。普通探索扫描、扫描解析和频率/IRC 验证可继续独立运行。xTB 失败保留原始诊断；缺失引擎时显式回退插值，并复用已经换序的两端，不二次映射。
+已有 run 的 `ts_guess(mode="xtb_path"/"scan")` 通过既有修订事务更新初猜意图，由自动队列提交计算；不另开执行通道，缺少当前研究必需的方法、坐标或约束时如实点名。`mode="interpolate"` 只生成几何图像，再作为 provided 初猜交回同一修订流程；`mode="provided"` 需候选路径及来源证据。普通探索扫描、扫描解析和已有频率/IRC 证据的诊断检查可继续独立运行。xTB 失败保留原始诊断；缺失引擎时显式回退插值，并复用已经换序的两端，不二次映射。
 
 | 已知信息 | 主路线 | 检查什么 |
 | --- | --- | --- |
@@ -73,7 +73,7 @@ ORCA 的 `ts_guess scan_prepare` 支持一条扫描坐标，或两条 typed 坐�
 
 ### 2.3 从初猜精修为无约束 TS
 
-从扫描峰附近或可信路径候选提取 XYZ，建立**新作业**，清除扫描和冻结约束。用引擎对应的 TS 优化与合适 Hessian：ORCA `OptTS`，Gaussian `Opt=TS`；详细参数见引擎参考。跟踪反应中心与梯度，判断是否仍在目标鞍点区域。
+从扫描峰附近或可信路径候选提取 XYZ，以 `guess.kind="provided"` 接回同一 TS 流程，建立清除扫描和冻结约束的**新精修作业**。用引擎对应的 TS 优化与合适 Hessian：ORCA `OptTS`，Gaussian `Opt=TS`；详细参数见引擎参考。跟踪反应中心与梯度，判断是否仍在目标鞍点区域。
 
 验收同时检查：
 

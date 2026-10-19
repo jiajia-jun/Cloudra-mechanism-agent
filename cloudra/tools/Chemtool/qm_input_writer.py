@@ -52,8 +52,9 @@ description = (
     "coordinates are generated from a file or SMILES and never appear in the return value. "
     "External MLIP potentials (e.g. MACE) are supported via external_program/external_params "
     "(ORCA '! ExtOpt' + %method ProgExt block; Gaussian external=\"...\" route). "
-    "Use for: preparing Gaussian/ORCA inputs (opt, freq, TS search, etc.) to submit with submit_compute_job "
-    "(job_type='gaussian' or 'orca', matching `engine`). "
+    "Use for: preparing ordinary Gaussian/ORCA inputs (opt, freq, single point) and exploratory TS/IRC trials "
+    "or capability probes for submit_compute_job (job_type='gaussian' or 'orca', matching `engine`). "
+    "Use ts_prepare/ts_resume for formal TS solving and complete verification. "
     "Do not use for: parsing results (use log_parser) or converting an existing structure file (use format_converter)."
 )
 

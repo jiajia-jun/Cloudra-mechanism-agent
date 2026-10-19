@@ -425,6 +425,16 @@ class ComputeNotifyBroker:
         elif state == 'done':
             lines.append('Physical Reality: Calculation finished; scientific verification is not implied.')
             next_action = 'Use log_parser on the native log to inspect energy, convergence and frequencies.'
+            if job_type in {'gaussian', 'orca'} and log_path:
+                from cloudra.tools.core.irc_endpoint_artifacts import read_irc_endpoint_artifacts
+
+                endpoints = await asyncio.to_thread(read_irc_endpoint_artifacts, log_path)
+                if endpoints:
+                    evidence.extend((f"IRC endpoint A: {endpoints['irc_end_a_path']}",
+                                     f"IRC endpoint B: {endpoints['irc_end_b_path']}"))
+                    next_action = ('Run unconstrained Opt from each canonical IRC endpoint XYZ, then Freq '
+                        'at the agreed model; verify zero-imaginary minima and their identities. '
+                        'A/B are path labels, not reactant/product assignments. Keep the native IRC and Opt/Freq logs.')
         else:
             if state != 'cancelled' and fail_reason:
                 lines.append(f"Physical Reality: {fail_reason}")
@@ -497,11 +507,13 @@ class ComputeNotifyBroker:
 
         input_path = ""
         job_type = "gaussian"
+        state = ""
         try:
             row = await aget_compute_job(ComputeDB(), task_id)
             if row:
                 input_path = row["path"] or ""
                 job_type = row["jobtype"] or job_type
+                state = row['state']
         except Exception:
             return [], ""
         files = [input_path] if input_path else []
@@ -513,6 +525,11 @@ class ComputeNotifyBroker:
             if log_path and await asyncio.to_thread(Path(log_path).is_file):
                 if log_path not in files:
                     files.append(log_path)
+                if state == 'done' and job_type in {'gaussian', 'orca'}:
+                    from cloudra.tools.core.irc_endpoint_artifacts import read_irc_endpoint_artifacts
+
+                    endpoints = await asyncio.to_thread(read_irc_endpoint_artifacts, log_path)
+                    files.extend(path for path in endpoints.values() if path not in files)
             elif log_path:
                 missing_log = log_path
         return files, missing_log

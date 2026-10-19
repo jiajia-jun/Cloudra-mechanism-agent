@@ -60,11 +60,15 @@ class ComputeJobRecord(TypedDict):
     task: NotRequired[str]
     solvent: NotRequired[str]
     cpus: NotRequired[int]
+    irc_end_a_path: NotRequired[str]
+    irc_end_b_path: NotRequired[str]
 
 
 class QueryComputeJob_output_schema(output_schema):
     is_success: bool = Field(description="Whether the query succeeded")
-    jobs: list[ComputeJobRecord] = Field(default_factory=list, description="Compute ledger records; a successful query does not imply job completion or scientific verification")
+    jobs: list[ComputeJobRecord] = Field(default_factory=list, description=(
+        "Compute ledger records; a successful query does not imply job completion or scientific verification. "
+        "Available IRC A/B paths are native outer frames for independent Opt/Freq, not reactant/product assignments."))
     message: str = Field(default="", description="Status or error message")
 
 
@@ -103,6 +107,10 @@ def _row_to_dict(row: Dict[str, Any]) -> ComputeJobRecord:
         "last_error": row["last_error"] or "",
         "attempt_count": row["attempt_count"] or 0,
     }
+    if row['state'] == 'done' and row['jobtype'] in {'gaussian', 'orca'} and log_path:
+        from cloudra.tools.core.irc_endpoint_artifacts import read_irc_endpoint_artifacts
+
+        out.update(read_irc_endpoint_artifacts(log_path))
     if row["jobtype"] == "xtb":
         # xtb 显式任务参数（--chrg/--uhf/multiplicity、运行级别、溶剂、并行核数）
         out["charge"] = row["charge"] if row["charge"] is not None else 0

@@ -195,6 +195,10 @@ def snapshot_evidence_file(
         raise ValueError('Evidence file changed during snapshot; submit the settled file again.')
     # Parse the archived bytes rather than mutable source contents.
     is_qm, engine, freqs, imag_freqs, energy, normal_modes = _extract_qm_log(snapshot_path)
+    if irc_endpoints is not None:
+        from cloudra.tools.core.irc_endpoint_artifacts import write_irc_endpoint_artifacts
+
+        metadata.update(write_irc_endpoint_artifacts(snapshot_path))
 
     return FileEvidenceSnapshot(
         original_path=str(resolved),

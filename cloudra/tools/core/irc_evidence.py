@@ -204,6 +204,21 @@ def irc_endpoint_geometries(path) -> Optional[tuple]:
     return None
 
 
+def irc_endpoint_recovery_hint(path) -> str:
+    """Point to already exported native frames without mutating scientific evidence."""
+    from cloudra.tools.core.irc_endpoint_artifacts import read_irc_endpoint_artifacts
+
+    paths = read_irc_endpoint_artifacts(path)
+    if not paths:
+        return ''
+    return (f'Canonical outer frames for IRC {path}: '
+            + '; '.join(f'{key}={value}' for key, value in paths.items())
+            + '. Use these XYZ files directly for unconstrained endpoint Opt, then Freq at each '
+              'converged Opt geometry. A/B label native sides, not reactant/product identities; '
+              'verify the optimized species. Recompute an Opt whose native starting geometry '
+              'matches neither outer frame and its following Freq; new metadata cannot repair that calculation.')
+
+
 def _ordered_graph_matches(geometry, mol_block: str, charge: int) -> bool:
     """Associate an independent minimum by its full graph, including H parents."""
     from rdkit import Chem
@@ -475,6 +490,12 @@ def _endpoint_optimization_proof(ends, ts_geometry, source_logs, target_logs, *,
         charge=charge, details=details)
     target = _optimized_minima(target_logs, smiles=product_smiles, side='TARGET/product',
         charge=charge, details=details)
+    for role, candidates in (('SOURCE/reactant', source), ('TARGET/product', target)):
+        for start, _minimum, path in candidates:
+            if not any(same_geometry(start, end) for end in ends):
+                details.append(f'{role} Opt {path}: native starting geometry matches neither actual IRC '
+                               'outer frame. Recompute this Opt from the exported canonical outer frame, '
+                               'then rerun its Freq at the converged geometry; keep the original logs as unmatched source evidence.')
     for name, source_end, target_end in (('direct', ends[0], ends[1]), ('swapped', ends[1], ends[0])):
         for source_start, source_minimum, source_log in source:
             if not same_geometry(source_start, source_end):
@@ -603,6 +624,9 @@ def verify_short_irc_direction(
             if verdict["is_match"]:
                 return True, verdict["details"]
             details.extend(verdict["details"])
+    hint = irc_endpoint_recovery_hint(irc_log)
+    if hint:
+        details.append(hint)
     return False, list(dict.fromkeys(details))
 
 

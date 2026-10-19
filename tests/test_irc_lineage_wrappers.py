@@ -142,6 +142,8 @@ async def test_direct_gaussian_dag_submission_needs_native_endpoint_optimization
     if missing_optimization:
         assert checks['short_irc']['next_action']
         assert 'supply a normally converged Opt log' in checks['short_irc']['detail']
+        assert 'irc_end_a_path=' in checks['short_irc']['next_action']
+        assert 'irc_end_b_path=' in checks['short_irc']['next_action']
 
     def persisted_evidence():
         store = DagStore(ConversationDB(project_id))
@@ -153,6 +155,12 @@ async def test_direct_gaussian_dag_submission_needs_native_endpoint_optimization
     request, irc = await asyncio.to_thread(persisted_evidence)
     assert request.proposal['scientific_checks'] == checks
     assert 'atom_binding' not in irc['metadata']
+    from cloudra.tools.core.irc_evidence import irc_endpoint_geometries
+    from cloudra.tools.core.irc_path import parse_xyz, same_geometry
+    exported = [irc['metadata'][key] for key in ('irc_end_a_path', 'irc_end_b_path')]
+    canonical = await asyncio.to_thread(irc_endpoint_geometries, irc['snapshot_path'])
+    for path, geometry in zip(exported, canonical, strict=True):
+        assert same_geometry(parse_xyz(await asyncio.to_thread(Path(path).read_text)), geometry)
     assert await asyncio.to_thread(Path(irc['snapshot_path']).read_bytes) == original_bytes[bundle['irc']]
     assert not await asyncio.to_thread(manifest.exists)
     assert await asyncio.to_thread(

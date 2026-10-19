@@ -161,6 +161,21 @@ def test_benchmark_failure_retains_candidate_paths_and_native_verifier_reason(tm
     assert 'supply a normally converged Opt log' in notes
 
 
+def test_wrong_endpoint_start_names_the_opt_that_must_be_recomputed(tmp_path, rdkit_chemistry):
+    bundle = _bundle(tmp_path)
+    path = bundle['reactant_opt']
+    path.write_text(path.read_text().replace('0.480862000000', '0.580862000000', 1))
+
+    passed, details = irc_evidence.verify_short_irc_direction(bundle['irc'], [bundle['ts']],
+        [bundle['product_opt'], bundle['product_freq']],
+        [bundle['reactant_opt'], bundle['reactant_freq']],
+        reactant_smiles='C#N', product_smiles='[C-]#[NH+]')
+
+    assert not passed
+    assert any(str(path) in detail and 'starting geometry' in detail
+               and 'neither' in detail for detail in details), details
+
+
 def test_missing_unrelated_qm_file_does_not_abort_valid_irc_proof(tmp_path, rdkit_chemistry):
     bundle = _bundle(tmp_path)
 

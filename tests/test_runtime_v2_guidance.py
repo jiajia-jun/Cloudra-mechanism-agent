@@ -334,7 +334,7 @@ def test_engineering_overlay_keeps_the_recorded_scientific_reflection(tmp_path, 
 
     state = {
         "run_id": "ts_observed", "run_dir": str(tmp_path / "attempt"), "revision": 1,
-        "format_version": 6, "stage": "verdict", "terminal": "candidate_only",
+        "format_version": 7, "stage": "verdict", "terminal": "candidate_only",
         "stage_records": [{"stage": "verdict", "status": "done", "detail": "Recorded TS outcome"}],
         "evidence_candidates": [str(tmp_path / "attempt/irc.out")],
     }
@@ -347,16 +347,12 @@ def test_engineering_overlay_keeps_the_recorded_scientific_reflection(tmp_path, 
     sequence = notices._local_seqs["as_g"]
     assert recorded
 
-    if failure_class == "canonical_structure_unavailable":
-        state["structures"] = {"reactant": {"normalization": {
-            "status": "applied", "paths": {"xyz": str(tmp_path / "missing.xyz")},
-            "canonical_hashes": {"xyz": "recorded-source-hash"},
-        }}}
-    else:
-        state.update(
-            terminal=None, source_rewrite_recovery_blocked=True,
-            blocked={"failure_class": failure_class, "stage": "verdict", "message": "Repair current source"},
-        )
+    # Current views project the recorded engineering checkpoint. Legacy file
+    # normalization is no longer the source of owned molecular structures.
+    state.update(
+        terminal=None,
+        blocked={"failure_class": failure_class, "stage": "verdict", "message": "Repair current source"},
+    )
     overlay = build_process_view(state, [], can_write=True)
     assert overlay.status == "blocked" and overlay.result is None
     assert overlay.blocked["failure_class"] == failure_class

@@ -148,7 +148,7 @@ async def revise_run(tool, run_id, changes, reason, session, *, expected_revisio
 class TsPrepare(Tool):
     tool_id: str = 't-59'
     tool_name: str = 'ts_prepare'
-    tool_description: str = 'Create one durable TS path with grouped explicit scientific inputs. Successful jobs automatically advance. Missing inputs or failed evidence stop at an inspectable checkpoint. Use ts_resume for future revisions on this run; ts_inspect reads state without advancing.'
+    tool_description: str = 'Preferred entrypoint for formal TS solving and complete verification: create one durable path with grouped scientific inputs. Existing candidates use guess={kind:"provided",xyz_path,evidence_refs}; eligible completed IRC evidence uses verification.irc_log with its provenance checks. Successful jobs automatically advance. If blocked, use ts_inspect and revise the named input with ts_resume on this run rather than manually chaining formal jobs.'
     input_schema: Any = TsPrepare_input_schema
     output_schema: Any = TsProcess_output_schema
 

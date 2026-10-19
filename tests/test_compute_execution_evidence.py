@@ -200,6 +200,69 @@ async def test_frozen_orca_irc_keeps_full_endpoint_trajectory_and_archive_bindin
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('engine', ['gaussian', 'orca'])
+async def test_completed_irc_exports_canonical_endpoints_and_repairs_old_receipt(tmp_path, engine):
+    from cloudra.tools.core.irc_endpoint_artifacts import read_irc_endpoint_artifacts
+
+    db, job, source = await _running(tmp_path, engine)
+    prepare_execution_evidence(str(source), engine, job, db)
+    native = source.with_suffix('.log' if engine == 'gaussian' else '.out')
+    fixtures = Path(__file__).parent / 'fixtures'
+    fixture = fixtures / ('gaussian/hcn_ts_irc_g16.log' if engine == 'gaussian' else 'benchmark_nu3/ts2_irc/irc.out')
+    native.write_bytes(fixture.read_bytes())
+    if engine == 'orca':
+        for suffix in ('_IRC_F.xyz', '_IRC_B.xyz'):
+            (tmp_path / ('mol' + suffix)).write_bytes((fixture.parent / ('irc' + suffix)).read_bytes())
+    original = {path: path.read_bytes() for path in (source, native)}
+
+    selected = complete_execution_evidence(str(source), engine, job)
+    exported = read_irc_endpoint_artifacts(selected)
+
+    assert set(exported) == {'irc_end_a_path', 'irc_end_b_path'}
+    assert all(Path(path).parent == Path(selected).parent for path in exported.values())
+    # An execution frozen by an older version can be upgraded without replacing its log.
+    for path in exported.values():
+        Path(path).unlink()
+    assert complete_execution_evidence(str(source), engine, job) == selected
+    assert read_irc_endpoint_artifacts(selected) == exported
+    assert all(path.read_bytes() == contents for path, contents in original.items())
+
+
+@pytest.mark.parametrize('engine', ['gaussian', 'orca'])
+@pytest.mark.parametrize('capture_only', [False, True])
+def test_remote_completed_irc_exports_inside_receipt_without_touching_input(tmp_path, engine, capture_only):
+    from cloudra.runtime.remote_compute import _pull_remote_artifacts, _stage_and_submit
+    from cloudra.tools.core.irc_endpoint_artifacts import read_irc_endpoint_artifacts
+    from tests.test_compute_transport_paths import DirectoryTransport
+
+    local = tmp_path / 'local'
+    local.mkdir()
+    source = local / ('mol.gjf' if engine == 'gaussian' else 'mol.inp')
+    source.write_text('# IRC HF/STO-3G\n' if engine == 'gaussian' else '! IRC HF STO-3G\n')
+    original = source.read_bytes()
+    remote = tmp_path / 'remote'
+    transport = DirectoryTransport(remote)
+    _stage_and_submit(transport, 'ssh_local', 7, source, local, '/remote/job', engine, {}, {})
+    output = remote / '.cloudra/calc-7.out.log' if capture_only else remote / ('mol.log' if engine == 'gaussian' else 'mol.out')
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fixtures = Path(__file__).parent / 'fixtures'
+    fixture = fixtures / ('gaussian/hcn_ts_irc_g16.log' if engine == 'gaussian' else 'benchmark_nu3/ts2_irc/irc.out')
+    output.write_bytes(fixture.read_bytes())
+    if engine == 'orca':
+        for suffix in ('_IRC_F.xyz', '_IRC_B.xyz'):
+            (remote / ('mol' + suffix)).write_bytes((fixture.parent / ('irc' + suffix)).read_bytes())
+
+    _pull_remote_artifacts(transport, '/remote/job', local, source, 7, engine)
+
+    selected = resolve_log_path(str(source), engine, 7)
+    exported = read_irc_endpoint_artifacts(selected)
+    assert set(exported) == {'irc_end_a_path', 'irc_end_b_path'}
+    assert all(Path(path).is_relative_to(local / '.cloudra/remote-7/results') for path in exported.values())
+    assert source.read_bytes() == original
+    assert not list(local.glob('*end-a.xyz'))
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize('engine,fixture', [
     ('gaussian', 'gaussian/water_opt_freq_g16.out'), ('orca', 'orca/co2_freq_orca42.out'),
 ])

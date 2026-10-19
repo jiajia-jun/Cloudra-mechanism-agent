@@ -1,6 +1,6 @@
 # TS 状态机使用与验收
 
-2026-10-18 更新。本文描述当前格式 7 的实际工具接口；输入定义见 `cloudra/tools/core/ts_inputs.py`，工具入口见 `cloudra/tools/Chemtool/ts_search_process.py`。旧设计稿留在 `superpowers/specs/`，不能代替当前 schema。工程回归、计算作业完成和科学验收分别记录。
+2026-10-19 更新。本文描述当前格式 7 的实际工具接口；输入定义见 `cloudra/tools/core/ts_inputs.py`，工具入口见 `cloudra/tools/Chemtool/ts_search_process.py`。旧设计稿留在 `superpowers/specs/`，不能代替当前 schema。工程回归、计算作业完成和科学验收分别记录。
 
 ## 入口与推进
 
@@ -13,7 +13,9 @@
 
 并发版本、调用重放键和摘要均由运行时维护，模型不填写。`ts_prepare` 成功后不要重复创建同一路径；正常链无需反复调用 `ts_resume`。同项目有写权限的 Agent 可接手 run，程序记录 owner 转移；只读角色只能检查状态。
 
-**手动 TS/IRC 当前可以通过 `submit_compute_job` 入队**，与普通 Opt/Freq、单点和探索扫描使用同一计算队列。需要持久化修订、自动续接和统一结果投影时使用 `ts_prepare` / `ts_resume`。直接提交只表示作业入队，仍须检查原生日志、频率、真实 IRC 与端点证据；不能因提交成功就称 TS 已确证。实现依据：`cloudra/tools/Chemtool/submit_compute_job.py`；回归场景见 `tests/test_manual_ts_submission.py`。
+**正式 TS 求解与完整验证优先走 `ts_prepare` / `ts_resume`**；直接 `submit_compute_job` 提交 TS/IRC 仅用于探索性试算或能力探针。普通物种 Opt/Freq、单点和探索扫描仍使用计算队列。候选以 `guess.kind="provided"`、`guess.xyz_path` 和 `guess.evidence_refs` 接回流程，符合来源校验的已有 IRC 可用 `verification.irc_log`；这不是任意 TS/Freq 日志的通用导入接口。阻塞时先 `ts_inspect` 并修订点名声明，不以手动串联替代正式流程。提交成功不代表 TS 已确证或已绑定 DAG。队列兼容回归见 `tests/test_manual_ts_submission.py`。
+
+直接以 `job_type="gaussian"` / `"orca"` 提交的 IRC 在完成冻结后，正常终止且真实双侧可得时自动导出规范 XYZ；完成通知给出两条路径，`query_compute_job` 以 `irc_end_a_path` / `irc_end_b_path` 返回。A/B 不代表反应物/产物，仍须分别无约束 Opt/Freq 并核对身份与方向。若 QM 由 shell 脚本内部启动，shell 回执不解析内部 QM；将原生日志提交 DAG 后，入库快照才生成恢复文件，断链诊断给出具体 Opt 与规范端点路径。程序不修改原生日志或输入，也不放宽几何同一性判据。
 
 ## 输入分组
 

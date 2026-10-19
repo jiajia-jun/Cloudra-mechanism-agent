@@ -364,6 +364,72 @@ async def test_terminal_job_snapshots_core_evidence_before_notify(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('engine', ['gaussian', 'orca'])
+async def test_independent_irc_notice_delivers_query_endpoints_and_snapshots_them(tmp_path, monkeypatch, engine):
+    import threading
+    from types import SimpleNamespace
+
+    from cloudra.persistence.artifacts import ArtifactService
+    from cloudra.tools.Chemtool.query_compute_job import QueryComputeJob, QueryComputeJob_input_schema
+    from cloudra.tools.core import irc_endpoint_artifacts
+    from tests.test_query_compute_job import _freeze_native_irc
+
+    core, project, coordinator = await _setup_core()
+    path = tmp_path / ('irc.gjf' if engine == 'gaussian' else 'irc.inp')
+    path.write_text('#p hf/3-21g IRC\n' if engine == 'gaussian' else '! HF STO-3G IRC\n')
+    job = await asyncio.to_thread(_insert_terminal_job, project.id,
+        session_id=coordinator.id, path=str(path), jobtype=engine)
+    await asyncio.to_thread(_freeze_native_irc, path, engine, job)
+
+    loop_thread = threading.get_ident()
+    reader_threads = []
+    original_read = irc_endpoint_artifacts.read_irc_endpoint_artifacts
+
+    def tracked_read(log_path):
+        reader_threads.append(threading.get_ident())
+        return original_read(log_path)
+
+    monkeypatch.setattr(irc_endpoint_artifacts, 'read_irc_endpoint_artifacts', tracked_read)
+    query = QueryComputeJob(subagent=SimpleNamespace(conversation_id=project.id))
+    result = await query.tool_call(QueryComputeJob_input_schema(job_id=job), None)
+    assert result.is_success, result.message
+    endpoints = {result.jobs[0]['irc_end_a_path'], result.jobs[0]['irc_end_b_path']}
+
+    await ComputeNotifyBroker(core)._poll_project(project.id)
+    content = _delivered_content(core, coordinator.id)
+    assert all(path in content for path in endpoints)
+    assert 'Opt' in content and 'Freq' in content
+    assert 'A/B' in content and 'reactant/product' in content
+    assert 'scientific verification is not implied' in content
+    snapshots = await asyncio.to_thread(ArtifactService().list, project.id)
+    assert endpoints <= {artifact.source_path for artifact in snapshots}
+    assert reader_threads and all(thread != loop_thread for thread in reader_threads)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('state', ['failed', 'cancelled'])
+async def test_non_done_native_notice_does_not_offer_irc_continuation(tmp_path, monkeypatch, state):
+    from cloudra.tools.core import irc_endpoint_artifacts
+
+    def unexpected_read(_):
+        pytest.fail('Failed or cancelled jobs must not advertise continuation artifacts')
+
+    monkeypatch.setattr(irc_endpoint_artifacts, 'read_irc_endpoint_artifacts', unexpected_read)
+    core, project, coordinator = await _setup_core()
+    path = tmp_path / 'irc.gjf'
+    path.write_text('#p hf/3-21g IRC\n')
+    path.with_suffix('.log').write_text('Abnormal native IRC output\n')
+    await asyncio.to_thread(_insert_terminal_job, project.id, session_id=coordinator.id,
+        path=str(path), state=state)
+    broker = ComputeNotifyBroker(core)
+    await broker._poll_project(project.id)
+    content = _delivered_content(core, coordinator.id)
+    assert f'state={state}' in content
+    assert 'IRC endpoint A:' not in content and 'IRC endpoint B:' not in content
+    assert 'Run unconstrained Opt' not in content
+
+
+@pytest.mark.asyncio
 async def test_unavailable_evidence_retried_without_resending(tmp_path):
     """核心文件暂不可读：通知照常投递并标 evidence_unavailable（不丢消息、
     不落 fake 可复查）；文件到位后静默重试，收齐一次性补发。"""
