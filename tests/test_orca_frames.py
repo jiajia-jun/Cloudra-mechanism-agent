@@ -676,3 +676,50 @@ async def test_format_converter_log_to_xyz_end_to_end_on_cclib61_crash(tmp_path,
     )
     assert result.is_success is True, result.message
     assert "1.200000" in out.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize('base_exists', [True, False])
+def test_irc_explicit_echo_base_uses_only_exact_sidecars(tmp_path, base_exists):
+    log = _write_synthetic_irc_log(tmp_path, 'input')
+    log.write_text('O   R   C   A\nINPUT FILE\nNAME = input.inp\n|  1> ! IRC\n'
+                   '|  2> %base "native"\n|  3> * xyz 0 1\n'
+                   + log.read_text())
+    for direction in ('F', 'B'):
+        for stem in ('foreign', 'input', log.stem):
+            (tmp_path / f'{stem}_IRC_{direction}.xyz').write_text(_IRC_ENDPOINT_XYZ)
+        if base_exists:
+            (tmp_path / f'native_IRC_{direction}.xyz').write_text(_IRC_ENDPOINT_XYZ)
+    result = orca_frames.extract_irc_endpoints(str(log))
+    for name, direction in [('forward', 'F'), ('backward', 'B')]:
+        expected = str(tmp_path / f'native_IRC_{direction}.xyz') if base_exists else None
+        assert result[name]['geometry_ref'] == expected
+
+
+@pytest.mark.parametrize('capture', [False, True])
+def test_explicit_base_endpoints_survive_dag_snapshot(tmp_path, capture):
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+
+    log = _write_synthetic_irc_log(tmp_path, 'input')
+    log.write_text('O   R   C   A\n|  1> %base "native"\n' + log.read_text())
+    if capture:
+        capture_dir = tmp_path / '.cloudra'
+        capture_dir.mkdir()
+        log = log.rename(capture_dir / 'calc-123.out.log')
+    for direction in ('F', 'B'):
+        (tmp_path / f'native_IRC_{direction}.xyz').write_text(_IRC_ENDPOINT_XYZ)
+    snapshot = snapshot_evidence_file(log, tmp_path)
+    for direction in ('F', 'B'):
+        (tmp_path / f'native_IRC_{direction}.xyz').unlink()
+    endpoints = orca_frames.extract_irc_endpoints(snapshot.snapshot_path)
+    assert all(orca_frames.read_endpoint_geometry(endpoint) == _IRC_ENDPOINT_XYZ
+               for endpoint in endpoints.values())
+
+
+@pytest.mark.parametrize('directive', ['%base "foreign"', '|  2> # %base "foreign"'])
+def test_base_outside_native_directive_does_not_authorize_foreign_endpoints(tmp_path, directive):
+    log = _write_synthetic_irc_log(tmp_path)
+    log.write_text(directive + '\n' + log.read_text())
+    for direction in ('F', 'B'):
+        (tmp_path / f'foreign_IRC_{direction}.xyz').write_text(_IRC_ENDPOINT_XYZ)
+    assert all(endpoint['geometry_ref'] is None
+               for endpoint in orca_frames.extract_irc_endpoints(str(log)).values())

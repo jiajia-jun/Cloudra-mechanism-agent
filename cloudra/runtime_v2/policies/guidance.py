@@ -171,9 +171,10 @@ class GuidanceStage:
             self._guide_bash(ctx, call, notices)
 
         operation = {}
+        job_type = call.arguments.get('job_type', 'gaussian')
         if call.name in {"qm_input_writer", "write", "edit", "bash", "submit_compute_job"} and not (
-                call.name == "submit_compute_job" and call.arguments.get('job_type', 'gaussian')
-                not in {'gaussian', 'orca', 'shell'}):
+                call.name == "submit_compute_job" and (not isinstance(job_type, str)
+                or job_type not in {'gaussian', 'orca', 'shell'})):
             operation = await asyncio.to_thread(inspect_ts_operation, call.name, call.arguments, ctx.workspace_dir)
         native_ts = bool(operation.get('ts_inputs'))
         known_ts = notices is not None and notices.pin_content(ctx.agent.id, _PIN_TS_SOP) is not None

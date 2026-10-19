@@ -415,7 +415,11 @@ def bind_graph_to_evidence(
     verified = []
     for evidence in files:
         identities = []
-        if evidence.kind == 'xyz' or normal_log(sandbox / evidence.path):
+        try:
+            usable = evidence.kind == 'xyz' or normal_log(sandbox / evidence.path)
+        except (OSError, ValueError):
+            usable = False  # An unrelated malformed candidate is not usable evidence.
+        if usable:
             for identity in evidence.smiles_found:
                 try:
                     if _geometry_species(str(sandbox / evidence.path), identity):

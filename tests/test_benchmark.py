@@ -3971,3 +3971,56 @@ def test_backend_installs_trusted_task_policy_before_agent_runs(tmp_path, role):
     assert project.settings.method_policy==task.method_policy
     created=next(e for e in backend.last_core.event_log if e.type=='project.created')
     assert created.data['settings']['method_policy']==task.method_policy.model_dump(mode='json')
+
+
+def _write_malformed_candidate(sandbox):
+    path = sandbox / 'broken.log'
+    path.write_text(' Entering Gaussian System\n Standard orientation:\n'
+        ' ---------------------------------------------------------------------\n'
+        ' Center     Atomic      Atomic             Coordinates (Angstroms)\n'
+        ' Number     Number       Type             X           Y           Z\n'
+        ' ---------------------------------------------------------------------\n'
+        '      1          8           0        ********    0.000000    0.000000\n'
+        ' ---------------------------------------------------------------------\n'
+        ' Frequencies -- 100.0 200.0 300.0\n Normal termination of Gaussian 16\n')
+    return path
+
+
+@pytest.mark.parametrize('bound', [False, True])
+def test_malformed_candidate_does_not_crash_sandbox_scoring(tmp_path, bound):
+    from cloudra.benchmark.runner import BenchmarkRunner
+
+    sandbox = tmp_path / 'delivery'
+    _write_delivery(sandbox, declared=None)
+    derived = _derived_barrier(sandbox)
+    _write_delivery(sandbox, declared=derived)
+    runner = BenchmarkRunner(tmp_path / 'bench')
+    task = _delivery_task(derived)
+    task.rubric.self_consistency.ts_first_order_saddle = True
+    baseline = runner.score_sandbox(task, sandbox)
+    assert baseline.final_score == pytest.approx(1.0)
+    broken = _write_malformed_candidate(sandbox)
+    if bound:
+        path = sandbox / 'mechanism_graph.json'
+        graph = json.loads(path.read_text())
+        graph['nodes'][0]['properties']['evidence_log'] = broken.name
+        path.write_text(json.dumps(graph))
+    result = runner.score_sandbox(task, sandbox)
+    if bound:
+        assert not result.selfconsistency_passed
+        assert result.final_score < baseline.final_score
+        assert any('unbound nodes' in note and 'R' in note for note in result.notes)
+    else:
+        assert result.final_score == baseline.final_score
+        assert result.selfconsistency_passed
+
+
+def test_malformed_candidate_isolated_in_strict_irc_scan(tmp_path):
+    from cloudra.benchmark.integrity import EvidenceFile
+    from cloudra.benchmark.selfconsistency import _LogProbe, _strict_irc_proof
+
+    broken = _write_malformed_candidate(tmp_path)
+    probe = _LogProbe(tmp_path, {broken.name: EvidenceFile(path=broken.name, kind='gaussian')})
+    details = []
+    assert _strict_irc_proof(probe, [broken.name], [], [], details=details) is None
+    assert any(broken.name in note and 'unusable' in note for note in details)

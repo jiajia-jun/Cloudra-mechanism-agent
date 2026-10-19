@@ -328,3 +328,12 @@ def test_pipeline_endpoint_rejects_reflection_and_actual_geometry_changes(tmp_pa
     assert minimum is None
     assert 'geometry' in reason
 
+
+
+def test_malformed_unbound_candidate_does_not_abort_valid_irc_proof(tmp_path, rdkit_chemistry):
+    from tests.test_benchmark import _write_malformed_candidate
+
+    bundle = _bundle(tmp_path)
+    broken = _write_malformed_candidate(tmp_path)
+    report = _audit(tmp_path, bundle, extra_files=[EvidenceFile(path=broken.name, kind='gaussian')])
+    assert report.passed, report.notes
