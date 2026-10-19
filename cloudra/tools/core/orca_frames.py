@@ -926,6 +926,36 @@ class _ArchivedIrcEvidence(BaseModel):
     atom_binding: dict | None = None
 
 
+def _archived_irc_endpoints(log_path: str) -> dict | None:
+    """Read the existing IRC archive, including Gaussian's native-log binding."""
+    archive = Path(log_path).parent / "irc_endpoints.json"
+    if archive.is_file():
+        from cloudra.tools.core.qm_engine import detect_qm_engine
+
+        manifest = _ArchivedIrcEvidence.model_validate(json.loads(archive.read_text()))
+        if hashlib.sha256(Path(log_path).read_bytes()).hexdigest() != manifest.log_sha256:
+            raise ValueError("Archived IRC log hash mismatch")
+        if set(manifest.endpoints) != {"forward", "backward"}:
+            raise ValueError("Archived IRC requires both direction records")
+        result = {}
+        for direction, endpoint in manifest.endpoints.items():
+            geometry = None
+            if endpoint.filename is not None:
+                if detect_qm_engine(log_path) == 'gaussian':
+                    raise ValueError('Archived Gaussian IRC geometries must come from the native log')
+                if Path(endpoint.filename).name != endpoint.filename:
+                    raise ValueError("Archived IRC endpoint must be a local filename")
+                path = archive.parent / endpoint.filename
+                if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != endpoint.sha256:
+                    raise ValueError("Archived IRC endpoint missing or hash mismatch")
+                geometry = str(path)
+            result[direction] = {"geometry_ref": geometry, "origin": endpoint.origin,
+                                 "availability": "available" if geometry else "unavailable",
+                                 "converged": endpoint.converged, "atom_binding": manifest.atom_binding}
+        return result
+    return None
+
+
 def extract_irc_endpoints(log_path: str) -> dict:
     """定位 ORCA IRC forward/backward 端点几何（不命名 reactant/product）。
 
@@ -939,27 +969,9 @@ def extract_irc_endpoints(log_path: str) -> dict:
       不是闸门——未收敛方向的轨迹末帧同样是合法的部分端点，方向是否成立
       由调用方的几何区间证明判定。
     """
-    archive = Path(log_path).parent / "irc_endpoints.json"
-    if archive.is_file():
-        manifest = _ArchivedIrcEvidence.model_validate(json.loads(archive.read_text()))
-        if hashlib.sha256(Path(log_path).read_bytes()).hexdigest() != manifest.log_sha256:
-            raise ValueError("Archived IRC log hash mismatch")
-        if set(manifest.endpoints) != {"forward", "backward"}:
-            raise ValueError("Archived IRC requires both direction records")
-        result = {}
-        for direction, endpoint in manifest.endpoints.items():
-            geometry = None
-            if endpoint.filename is not None:
-                if Path(endpoint.filename).name != endpoint.filename:
-                    raise ValueError("Archived IRC endpoint must be a local filename")
-                path = archive.parent / endpoint.filename
-                if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != endpoint.sha256:
-                    raise ValueError("Archived IRC endpoint missing or hash mismatch")
-                geometry = str(path)
-            result[direction] = {"geometry_ref": geometry, "origin": endpoint.origin,
-                                 "availability": "available" if geometry else "unavailable",
-                                 "converged": endpoint.converged, "atom_binding": manifest.atom_binding}
-        return result
+    archived = _archived_irc_endpoints(log_path)
+    if archived is not None:
+        return archived
     text = _read_text(log_path)
     roots = _orca_sidecar_roots(log_path, text)
     converged: dict[str, bool | None] = {"FORWARD": None, "BACKWARD": None}

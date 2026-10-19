@@ -31,6 +31,7 @@ from cloudra.dag.models import (
     UpdateNode,
     parse_graph_operation,
 )
+from cloudra.dag.store import SpeciesConflictError
 from cloudra.infra.tool_errors import validation_feedback
 
 
@@ -256,7 +257,7 @@ class DraftsMixin:
                 raise RuntimeError("species name cannot be empty")
             name = str(raw_name).strip()
             if name in seen_species_names or name in name_to_node_ids:
-                raise RuntimeError(f"duplicate species name: {name!r}")
+                raise SpeciesConflictError(f"duplicate species name: {name!r}")
             seen_species_names.add(name)
             node_id = f"sp_{uuid.uuid4().hex[:8]}"
             name_to_node_ids[name] = {node_id}

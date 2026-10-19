@@ -332,7 +332,19 @@ def _parse_irc_summary_table(text: str):
     m_ts = _TS_ENERGY_RE.search(text)
     m_tab = _SUMMARY_TABLE_RE.search(text)
     if not m_ts or not m_tab:
-        raise ValueError("IRC 日志缺少 'Summary of reaction path following' 汇总表，无法提取反应坐标与能量。")
+        if "Error termination" in text:
+            state = "native error termination; inspect the calculation failure before resubmitting"
+        elif normal_termination(text):
+            state = "normally terminated but IRC evidence is incomplete; inspect the full native output"
+        else:
+            state = (
+                "native normal termination is absent; the calculation may still be running or the output "
+                "may be truncated; check the registered job state before retrying"
+            )
+        raise ValueError(
+            "Gaussian IRC: " + state + ". Missing 'Summary of reaction path following' "
+            "or its TS energy reference; reaction coordinates and energies cannot be extracted."
+        )
     rows = []
     for line in m_tab.group(1).splitlines():
         parts = line.split()

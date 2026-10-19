@@ -259,8 +259,8 @@ async def test_watcher_resumes_parked_run_once_notice_is_ready(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_parked_run_resumes_once_when_peers_finish_without_new_notice(tmp_path):
-    """A first-final child report may precede the peer's last supervised run."""
+async def test_drained_parked_run_retries_then_cancels_if_reconciliation_cannot_wake(tmp_path):
+    """GH #203: a no-op reconciliation cannot turn an empty wait into eternity."""
     from types import SimpleNamespace
 
     core, _project, parent, sibling = await _core_with_agents(tmp_path)
@@ -278,10 +278,9 @@ async def test_parked_run_resumes_once_when_peers_finish_without_new_notice(tmp_
 
     core.runner = SimpleNamespace(maybe_wake_parked_delivery=reconcile)
 
-    stop = asyncio.Event()
     watcher = _watcher(
         pending_background=lambda: asyncio.sleep(0, result=False),
-        stop_event=stop,
+        stuck_grace_s=0.03,
     )
     assert (await watcher.decide(core, parent)).kind == "continue"
     await _terminal(core, sibling, AgentState.SUCCEEDED, "done")
@@ -290,15 +289,300 @@ async def test_parked_run_resumes_once_when_peers_finish_without_new_notice(tmp_
     async def cancel(reason):
         reasons.append(reason)
 
-    wait_task = asyncio.create_task(watcher.wait(core, parent, cancel))
+    reason = await asyncio.wait_for(watcher.wait(core, parent, cancel), timeout=1.0)
+    assert reason is not None and "wait_background" in reason
+    assert "no pending background work" in reason
+    assert len(reconciled) > 1
+    assert reasons == [reason]
+    assert parent.state is AgentState.SUCCEEDED  # callback decides how to record cancellation
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("persisted_marker", [False, True], ids=["new-notice", "interrupted-notice"])
+async def test_scenario_watcher_retries_quiescence_and_consumes_exactly_one_notice(
+    tmp_path, monkeypatch, persisted_marker,
+):
+    """Real runner/dispatcher/context trajectory: retry a lost wake before scoring."""
+    from cloudra.runtime_v2.effects import EventDraft
+    from tests.agent_scenarios import ScenarioHarness, ScriptedProvider, Step
+
+    harness = await ScenarioHarness.start(
+        tmp_path, provider=ScriptedProvider(default=[Step(text="rechecked delivery", stop=True)]),
+    )
+    core = harness.core
+    parent = await _spawn_quiet(core, harness.bus, harness.project.id, "coordinator")
+    parked_run = await core.agent_host.start_run(parent)
+    await core.event_writer.commit(EventDraft(
+        "agent.completion_gate", stream="agent", project_id=parent.project_id,
+        session_id=parent.id, run_id=parked_run,
+        data={"action": "wait_background", "basis": "background_wait", "source": "dag"},
+    ))
+    await core.agent_host.finish_run(parent, outcome="succeeded")
+    if persisted_marker:
+        # Durable-before-enqueue interruption: recovery must reuse this id.
+        await core.event_writer.commit(EventDraft(
+            "agent.message_injected", stream="project", project_id=parent.project_id,
+            session_id=parent.id,
+            data={"message_id": "interrupted-quiescence", "sender": "background_quiescence",
+                  "content": "[Background work settled] Recheck delivery.",
+                  "manifest": {"kind": "background_quiescence", "parked_run_id": parked_run}},
+        ))
+    reconcile = harness.runner.maybe_wake_parked_delivery
+    attempts = 0
+
+    async def transient_noop(project_id):
+        nonlocal attempts
+        attempts += 1
+        if attempts > 1:
+            await reconcile(project_id)
+
+    monkeypatch.setattr(harness.runner, "maybe_wake_parked_delivery", transient_noop)
+    cancelled = []
+
+    async def cancel(reason):
+        cancelled.append(reason)
+
+    async def resume():
+        await core.agent_host.wake(parent, runner=harness.runner)
+
+    watcher = _watcher(
+        pending_background=lambda: asyncio.sleep(0, result=False),
+        resume_background=resume, stuck_grace_s=0.3,
+    )
     try:
-        await asyncio.sleep(0.05)
-        assert reconciled == [parent.project_id]
+        assert await asyncio.wait_for(watcher.wait(core, parent, cancel), timeout=2.0) is None
+        notices = [event for event in harness.events(parent)
+                   if (event.data.get("manifest") or {}).get("kind") == "background_quiescence"]
+        assert len(notices) == 1
+        assert notices[0].data["manifest"]["parked_run_id"] == parked_run
+        if persisted_marker:
+            assert notices[0].data["message_id"] == "interrupted-quiescence"
+        consumed = [message for message in core.contexts.current_messages(parent.id)
+                    if message.get("message_id") == notices[0].data["message_id"]]
+        assert len(consumed) == 1
+        assert len(harness.run_rows(parent)) == 2
+        gates = [event for event in harness.events(parent) if event.type == "agent.completion_gate"]
+        assert gates[-1].data["action"] == "allow_final"
+        assert gates[-1].run_id != parked_run
+        assert cancelled == []
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_scenario_recovered_guided_delivery_keeps_missing_evidence_open(tmp_path, monkeypatch):
+    """A real DAG background gate must re-audit missing evidence after the wake."""
+    from tests.agent_scenarios import ScenarioHarness, ScriptedProvider, Step
+
+    hold = asyncio.Event()
+    provider = ScriptedProvider(by_role={"coordinator": [
+        Step(tools=[("stop", {"delivery_disposition": "complete"})]),
+        Step(tools=[("stop", {"delivery_disposition": "complete"})]),
+        Step(wait_for=hold),
+    ]})
+    harness = await ScenarioHarness.start(tmp_path, provider=provider, workspace_dir=tmp_path)
+    stop = asyncio.Event()
+    wait_task = None
+    try:
+        peer = await harness.spawn("explorer", query="")
+        parent = await harness.spawn(
+            "coordinator", protocol="traditional", orchestration_mode="dag_guided",
+        )
+        await harness.wait_for(
+            lambda: parent.state is AgentState.SUCCEEDED and harness.runner.task_for(parent.id) is None,
+            "DAG coordinator parked behind the queued explorer",
+        )
+        gates = [event for event in harness.events(parent) if event.type == "agent.completion_gate"]
+        assert gates[-1].data["action"] == "wait_background"
+        assert gates[-1].data["source"] == "dag"
+        parked_run = gates[-1].run_id
+        await _terminal(harness.core, peer, AgentState.CANCELLED, "cancel")
+        reconcile = harness.runner.maybe_wake_parked_delivery
+        attempts = 0
+
+        async def transient_noop(project_id):
+            nonlocal attempts
+            attempts += 1
+            if attempts > 1:
+                await reconcile(project_id)
+
+        monkeypatch.setattr(harness.runner, "maybe_wake_parked_delivery", transient_noop)
+        cancelled = []
+
+        async def cancel(reason):
+            cancelled.append(reason)
+
+        watcher = _watcher(
+            pending_background=lambda: asyncio.sleep(0, result=False),
+            stop_event=stop, stuck_grace_s=0.3,
+        )
+        wait_task = asyncio.create_task(watcher.wait(harness.core, parent, cancel))
+        await harness.wait_for(
+            lambda: provider.call_count("coordinator") == 3,
+            "resumed DAG audit rejects complete and returns to the provider",
+        )
+        gates = [event for event in harness.events(parent) if event.type == "agent.completion_gate"]
+        assert gates[-1].data["action"] == "continue_work"
+        assert gates[-1].data["source"] == "dag"
+        assert gates[-1].run_id != parked_run
+        assert parent.state is AgentState.RUNNING
         assert not wait_task.done()
-        assert reasons == []
+        assert cancelled == []
+        notices = [event for event in harness.events(parent)
+                   if (event.data.get("manifest") or {}).get("kind") == "background_quiescence"]
+        assert len(notices) == 1
+        assert any(message.get("message_id") == notices[0].data["message_id"]
+                   for message in harness.core.contexts.current_messages(parent.id))
+        assert not any(event.type == "run.finished" and event.run_id == gates[-1].run_id
+                       for event in harness.events(parent))
     finally:
         stop.set()
-        assert await asyncio.wait_for(wait_task, timeout=1.0) == "benchmark batch stopped"
+        if wait_task is not None:
+            assert await asyncio.wait_for(wait_task, timeout=1.0) == "benchmark batch stopped"
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_unconsumed_notice_with_noop_resume_cancels_instead_of_resetting_grace(tmp_path):
+    from cloudra.runtime_v2.dispatcher import WakePolicy
+
+    core, _project, parent, peer = await _core_with_agents(tmp_path)
+    await _terminal(core, peer, AgentState.CANCELLED, "cancel")
+    run_id = await core.agent_host.start_run(parent)
+    core.event_log.append(
+        "agent.completion_gate", stream="agent", project_id=parent.project_id,
+        session_id=parent.id, run_id=run_id,
+        data={"action": "wait_background", "basis": "background_wait"},
+    )
+    await core.agent_host.finish_run(parent, outcome="succeeded")
+    await core.dispatcher.commit_and_deliver(
+        to_session_id=parent.id, project_id=parent.project_id,
+        content="read the completed result", sender="system", wake=WakePolicy.NEVER,
+    )
+    attempts, cancelled = [], []
+
+    async def resume():
+        attempts.append(True)
+
+    async def cancel(reason):
+        cancelled.append(reason)
+
+    watcher = _watcher(resume_background=resume, stuck_grace_s=0.03)
+    reason = await asyncio.wait_for(watcher.wait(core, parent, cancel), timeout=1.0)
+    assert reason is not None and run_id in reason
+    assert len(attempts) > 1
+    assert cancelled == [reason]
+    assert core.mailbox.inbox(parent.id).qsize() == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("replacement", ["state", "run", "same_run"])
+async def test_grace_verification_does_not_cancel_a_replacement_wait(tmp_path, monkeypatch, replacement):
+    """The expiry probe may observe a different unanswered wait with its own grace."""
+    from types import SimpleNamespace
+
+    import cloudra.benchmark.watch as watch_module
+
+    core, _project, parent, peer = await _core_with_agents(tmp_path)
+    await _terminal(core, peer, AgentState.CANCELLED, "cancel")
+    await core.agent_host.start_run(parent)
+    await _set(core, parent, AgentState.WAITING_INPUT, "first question")
+    now = 0.0
+    monkeypatch.setattr(watch_module, "asyncio", SimpleNamespace(
+        get_running_loop=lambda: SimpleNamespace(time=lambda: now), to_thread=asyncio.to_thread,
+    ))
+    watcher = _watcher(stuck_grace_s=5.0)
+    decide = watcher.decide
+    calls = 0
+
+    async def replace_wait_at_expiry(runtime, agent):
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            await _set(core, parent, AgentState.RUNNING, "first question answered")
+            if replacement == "run":
+                await core.agent_host.finish_run(parent, outcome="succeeded")
+                await core.agent_host.start_run(parent)
+            await _set(
+                core, parent,
+                AgentState.WAITING_APPROVAL if replacement == "state" else AgentState.WAITING_INPUT,
+                "a different unanswered request",
+            )
+        return await decide(runtime, agent)
+
+    async def advance():
+        nonlocal now
+        now += 10.0
+
+    monkeypatch.setattr(watcher, "decide", replace_wait_at_expiry)
+    monkeypatch.setattr(watcher, "_poll_delay", advance)
+    cancelled = []
+
+    async def cancel(reason):
+        cancelled.append((now, reason))
+
+    reason = await watcher.wait(core, parent, cancel)
+    assert cancelled[0][0] >= 20.0
+    assert ("waiting_approval" if replacement == "state" else "waiting_input") in reason
+
+
+@pytest.mark.asyncio
+async def test_succeeded_waits_for_its_own_completion_task(tmp_path, monkeypatch):
+    from tests.agent_scenarios import ScenarioHarness
+
+    harness = await ScenarioHarness.start(tmp_path)
+    entered, release = asyncio.Event(), asyncio.Event()
+    deliver = harness.runner._deliver_completion
+
+    async def held_delivery(agent):
+        entered.set()
+        await release.wait()
+        await deliver(agent)
+
+    monkeypatch.setattr(harness.runner, "_deliver_completion", held_delivery)
+    try:
+        parent = await harness.spawn("coordinator")
+        await asyncio.wait_for(entered.wait(), timeout=1.0)
+        assert parent.state is AgentState.SUCCEEDED
+        assert (await _watcher().decide(harness.core, parent)).kind == "continue"
+        release.set()
+        await asyncio.wait_for(harness.runner.task_for(parent.id), timeout=1.0)
+        assert (await _watcher().decide(harness.core, parent)).kind == "done"
+    finally:
+        release.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_success_projection_with_unclosed_run_cannot_be_scored(tmp_path):
+    core, _project, parent, sibling = await _core_with_agents(tmp_path)
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    await core.agent_host.start_run(parent)
+    # A partial finish can persist SUCCEEDED before run.finished is durable.
+    await _set(core, parent, AgentState.SUCCEEDED, "succeeded")
+    assert parent.current_run is not None
+    decision = await _watcher().decide(core, parent)
+    assert decision.kind == "cancel"
+    assert "unfinished run" in decision.reason
+
+
+@pytest.mark.asyncio
+async def test_queued_launch_group_without_child_is_pending_background(tmp_path):
+    from cloudra.runtime_v2.apply import apply_event
+    from cloudra.runtime_v2.effects import EventDraft
+
+    core, project, parent, sibling = await _core_with_agents(tmp_path)
+    await _terminal(core, sibling, AgentState.CANCELLED, "cancel")
+    await core.agent_host.start_run(parent)
+    await core.agent_host.finish_run(parent, outcome="succeeded")
+    event = await core.event_writer.commit(EventDraft(
+        "launch_group.created", stream="project", project_id=project.id,
+        session_id=parent.id,
+        data={"group_id": "unadmitted", "parent_session_id": parent.id,
+              "max_concurrency": 1, "items": [{"item_id": "queued", "query": "work"}]},
+    ))
+    apply_event(core, event)
+    assert (await _watcher().decide(core, parent)).kind == "continue"
 
 
 @pytest.mark.asyncio

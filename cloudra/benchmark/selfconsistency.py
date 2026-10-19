@@ -155,14 +155,12 @@ class _LogProbe:
 
     def irc_atom_binding(self, rel_path: str):
         evidence = self._files.get(rel_path)
-        if evidence is None or evidence.kind != 'orca':
+        if evidence is None or evidence.kind not in {'gaussian', 'orca'}:
             return None
-        path = self._sandbox / rel_path
-        if not (path.parent / 'irc_endpoints.json').is_file():
-            return None
-        from cloudra.tools.core.orca_frames import extract_irc_endpoints
+        from cloudra.tools.core.orca_frames import _archived_irc_endpoints
 
-        return extract_irc_endpoints(str(path))['forward'].get('atom_binding')
+        endpoints = _archived_irc_endpoints(str(self._sandbox / rel_path))
+        return endpoints['forward'].get('atom_binding') if endpoints is not None else None
 
 
 def _strict_irc_proof(
@@ -172,9 +170,10 @@ def _strict_irc_proof(
     to_files: list[str],
     charge: int = 0,
     *, ts_files: list[str] | None = None, product_smiles: list[str] | None = None,
-    reactant_smiles: list[str] | None = None,
+    reactant_smiles: list[str] | None = None, details: list[str] | None = None,
 ) -> Optional[tuple[list[str], list[str]]]:
     """Reconstruct the same native IRC→Opt→Freq proof used by DAG and tools."""
+    from cloudra.tools.core import gaussian_frames, orca_frames
     from cloudra.tools.core.irc_evidence import irc_start_geometry
     from cloudra.tools.core.irc_path import same_geometry
 
@@ -195,11 +194,46 @@ def _strict_irc_proof(
 
     source = endpoint_candidates(from_files)
     target = endpoint_candidates(to_files)
-    if not (ts_candidates and source and target):
+    failures = [
+        f"IRC proof TS candidates (anchor, frequency witness): {ts_candidates or ts_files}; "
+        f"SOURCE endpoint evidence: {source or from_files}; TARGET endpoint evidence: {target or to_files}."
+    ]
+
+    def failed():
+        if details is not None:
+            details.extend(dict.fromkeys(failures))
         return None
-    irc_logs = [path for path in sorted(pool)
-                if normal_log(probe._sandbox / path)
-                and irc_start_geometry(probe._sandbox / path) is not None]
+
+    irc_logs = []
+    for path in sorted(pool):
+        native = probe._sandbox / path
+        if normal_log(native) and irc_start_geometry(native) is not None:
+            irc_logs.append(path)
+            continue
+        evidence = probe._files.get(path)
+        if evidence is None or evidence.kind not in {'gaussian', 'orca'}:
+            continue
+        parser = gaussian_frames if evidence.kind == 'gaussian' else orca_frames
+        try:
+            jobs = parser.detect_job_types(str(native))
+        except OSError as exc:
+            failures.append(f'QM evidence candidate {path} could not be read: {exc}')
+            continue
+        if 'irc' not in jobs:
+            continue
+        try:
+            parser.extract_irc(str(native))
+        except ValueError as exc:
+            failures.append(f'IRC candidate {path} is unusable: {exc}')
+        if not normal_log(native):
+            failures.append(f'IRC candidate {path} lacks normally terminated native evidence.')
+        elif irc_start_geometry(native) is None:
+            failures.append(f'IRC candidate {path} has no usable native starting saddle.')
+    if not irc_logs:
+        failures.append('No normally terminated IRC candidate supplies a native starting saddle.')
+    if not (ts_candidates and source and target):
+        failures.append('IRC proof requires a same-geometry first-order saddle witness and verified minima for both endpoints.')
+        return failed()
 
     def absolute(paths):
         return [probe._sandbox / path for path in paths]
@@ -211,20 +245,26 @@ def _strict_irc_proof(
             if binding and hashlib.sha256((probe._sandbox / frequency_path).read_bytes()).hexdigest() == binding.get('ts_log_sha256'):
                 bindings[str(probe._sandbox / path)] = binding
                 bindings[str(probe._sandbox / frequency_path)] = binding
+                binding_status = 'verified for the selected frequency witness'
+            else:
+                binding_status = 'absent' if not binding else 'not associated with the selected frequency witness'
+            failures.append(f'IRC candidate {path}, TS {ts_path}, frequency witness {frequency_path}: atom binding {binding_status}.')
         options = dict(atom_bindings=bindings, product_smiles=product_smiles,
                        reactant_smiles=reactant_smiles)
         for path in irc_logs:
-            passed, details = verify_short_irc_direction(probe._sandbox / path,
+            passed, proof_details = verify_short_irc_direction(probe._sandbox / path,
                 absolute([frequency_path]), absolute(target), absolute(source),
                 charge=charge, **options)
             if passed:
-                return list(dict.fromkeys([ts_path, frequency_path, path, *source, *target])), details
+                return list(dict.fromkeys([ts_path, frequency_path, path, *source, *target])), proof_details
+            failures.extend(f'IRC {path}, TS {frequency_path}: {item}' for item in proof_details)
         for forward, reverse in combinations(irc_logs, 2):
-            passed, details = verify_short_irc_pair(probe._sandbox / forward, probe._sandbox / reverse,
+            passed, proof_details = verify_short_irc_pair(probe._sandbox / forward, probe._sandbox / reverse,
                 absolute([frequency_path]), absolute(target), absolute(source), charge=charge, **options)
             if passed:
-                return list(dict.fromkeys([ts_path, frequency_path, forward, reverse, *source, *target])), details
-    return None
+                return list(dict.fromkeys([ts_path, frequency_path, forward, reverse, *source, *target])), proof_details
+            failures.extend(f'IRC pair {forward}; {reverse}, TS {frequency_path}: {item}' for item in proof_details)
+    return failed()
 
 
 def audit_self_consistency(
@@ -373,6 +413,7 @@ def audit_self_consistency(
             )
             proof = _strict_irc_proof(probe, sorted(pool), from_files, to_files, charge,
                 ts_files=ts_files,
+                details=chk.notes,
                 product_smiles=next(node.smiles for node in graph.nodes if node.id == edge.to_node),
                 reactant_smiles=next(node.smiles for node in graph.nodes if node.id == edge.from_node))
             if proof is not None:

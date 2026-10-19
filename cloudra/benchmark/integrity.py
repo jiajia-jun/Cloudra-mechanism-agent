@@ -239,6 +239,42 @@ def _smiles_in_text(text: str) -> list[str]:
     return found
 
 
+def _smiles_in_native_log(lines, kind: str):
+    archive_prefix: str | None = None
+    archive_title: list[str] | None = None
+    archive_tail = ""
+    for line in lines:
+        if kind == "gaussian" and line.lstrip().startswith(r"1\1\GINC-"):
+            archive_prefix, archive_title, archive_tail = "", None, ""
+        if archive_prefix is not None:
+            if not line.strip():
+                archive_prefix, archive_title, archive_tail = None, None, ""
+                continue
+            # Gaussian wraps archive records with one formatting space per
+            # physical line. Decode their fields before parsing the title:
+            # double backslashes separate route/title/charge+geometry, whereas
+            # a single backslash inside a stereochemical SMILES is data.
+            fragment = line.rstrip("\r\n").removeprefix(" ")
+            if archive_title is None:
+                archive_prefix += fragment
+                fields = archive_prefix.split(r"\\", 3)
+                if len(fields) == 4:
+                    archive_title = _smiles_in_text(fields[2])
+                    # The remaining archive may contain a quadratic-size
+                    # Hessian. Retain no coordinates or numerical body.
+                    archive_prefix = ""
+                    del fields
+            archive_tail = (archive_tail + fragment)[-3:]
+            if archive_tail != r"\\@":
+                continue
+            archive_prefix = None
+            if archive_title is not None:
+                yield from archive_title
+            continue
+        if "smiles" in line.lower():
+            yield from _smiles_in_text(line)
+
+
 def scan_evidence_files(sandbox: Path, exclude: Optional[Path] = None) -> list[EvidenceFile]:
     files: list[EvidenceFile] = []
     for p in sorted(sandbox.rglob("*")):
@@ -263,8 +299,7 @@ def scan_evidence_files(sandbox: Path, exclude: Optional[Path] = None) -> list[E
                 # Native logs are not JSON. Discover annotations one line at a
                 # time instead of making a second full-size in-memory copy.
                 with p.open(encoding='utf-8', errors='replace') as stream:
-                    smiles = list(dict.fromkeys(identity for line in stream
-                        if 'smiles' in line.lower() for identity in _smiles_in_text(line)))
+                    smiles = list(dict.fromkeys(_smiles_in_native_log(stream, kind)))
                 text = ''
             elif size > MAX_METADATA_BYTES:
                 text, smiles = '', []

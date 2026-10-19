@@ -1789,7 +1789,8 @@ def test_verdict_rejects_endpoint_xyz_unrelated_to_optimization_log(
     )
     _install_endpoint_minimum_jobs(record, monkeypatch, symbols, a, b)
     stale = Path(next(s for s in record.job_steps if s.purpose=="reactant_frequency").input_path).parent / "optimized.xyz"
-    shifted = [[x + 0.01, y, z] for x, y, z in a]
+    shifted = [list(row) for row in a]
+    shifted[0][0] += 0.01
     stale.write_text(_xyz_text(symbols, shifted, "stale"), encoding="utf-8")
 
     result = _verdict(record)

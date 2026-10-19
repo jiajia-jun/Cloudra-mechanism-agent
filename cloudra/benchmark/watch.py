@@ -16,9 +16,9 @@ old benchmark loop misread:
 
 Decisions read durable state (``core.agents``, the event log, compute.db) and
 live runner tasks whose terminal completion reports may still be in flight.
-The watcher remembers which parked runs it has resumed after their background
-peers drained, preventing a missing notice from causing a resume loop. That
-per-run memory is only needed for this benchmark process.
+An empty background wait is reconciled through the runner's durable per-run
+notice. Repeated attempts without a live task or a new run use the stuck grace
+and fail the benchmark instead of silently scoring an unfinished delivery.
 """
 
 from __future__ import annotations
@@ -51,11 +51,17 @@ _UNANSWERED_STATES = frozenset({AgentState.WAITING_INPUT, AgentState.WAITING_APP
 
 @dataclass(frozen=True)
 class WaitDecision:
-    """One poll of the watcher: wait, resume a parked run, finish, or cancel."""
+    """One poll: wait, resume/reconcile a parked run, finish, or cancel."""
 
-    kind: Literal["continue", "resume", "done", "cancel"]
+    kind: Literal["continue", "resume", "reconcile", "done", "cancel"]
     reason: str = ""
-    drained_run_id: str | None = None
+    parked_run_id: str | None = None
+
+
+def _has_live_task(core, session_id: str) -> bool:
+    task_for = getattr(getattr(core, "runner", None), "task_for", None)
+    task = task_for(session_id) if task_for is not None else None
+    return task is not None and not task.done()
 
 
 def has_live_supervisor(core, project_id: str) -> bool:
@@ -100,7 +106,13 @@ def has_running_peers(core, agent, *, final_cache: dict | None = None, peers=Non
                 final_cache[peer.id] = ((peer.state, peer.updated_at), final)
             if not final:
                 return True
-    return False
+    # A capped launch group may still have queued items without child sessions.
+    return any(
+        group.project_id == agent.project_id
+        and group.state == "running"
+        and (group.pending_count or group.running_count)
+        for group in core.launch_groups.groups()
+    )
 
 
 class RunWatcher:
@@ -126,7 +138,6 @@ class RunWatcher:
         self.stop_event = stop_event
         self._gate_cache: tuple[tuple[str, object], str | None] | None = None
         self._peer_final_cache: dict[str, tuple[object, bool]] = {}
-        self._drained_resumes: set[tuple[str, str]] = set()
 
     def _parked_for_background(self, core, agent) -> str | None:
         """Return the current parked run id, if its gate is wait_background."""
@@ -161,7 +172,7 @@ class RunWatcher:
         )
 
     async def decide(self, core, agent) -> WaitDecision:
-        """纯投影判定一步：done / cancel（给出理由）/ continue。"""
+        """判定一步：continue / resume / reconcile / done / cancel（给出理由）。"""
         snapshot = (
             agent.state, agent.updated_at,
             agent.current_run.run_id if agent.current_run is not None else None,
@@ -171,6 +182,9 @@ class RunWatcher:
         if state in _TERMINAL_STATES:
             return WaitDecision("done")
         if state is AgentState.SUCCEEDED:
+            # SUCCEEDED can precede this runner's completion delivery/flush.
+            if _has_live_task(core, agent.id):
+                return WaitDecision("continue", "agent completion task is still running")
             # wait_background 收尾 = 当前 run 休眠等唤醒，不是交付（GH #30/C1）。
             if await self._background_pending(core, agent):
                 return WaitDecision("continue")
@@ -189,20 +203,20 @@ class RunWatcher:
             )
             if current != snapshot or core.event_log.high_watermarks.get(agent.project_id, 0) != history_boundary:
                 return WaitDecision("continue", "agent changed during history probe")
+            if _has_live_task(core, agent.id):
+                return WaitDecision("continue", "agent completion task is still running")
+            if agent.current_run is not None:
+                return WaitDecision("cancel", "succeeded agent has an unfinished run with no live runner task")
             if parked_run_id:
                 inbox = core.mailbox.inbox(agent.id)
                 if inbox is not None and not inbox.empty():
-                    return WaitDecision("resume", "background notice awaits this agent")
-                if (agent.id, parked_run_id) not in self._drained_resumes:
-                    # A peer may finish after its first final report was sent.
-                    # Its later terminal transition clears the background
-                    # work without producing another inbox message. Recheck
-                    # the coordinator gate once when that happens.
                     return WaitDecision(
-                        "resume", "background work drained without a new notice",
-                        drained_run_id=parked_run_id,
+                        "resume", "background notice awaits this agent", parked_run_id=parked_run_id,
                     )
-                return WaitDecision("continue", "waiting for background notice")
+                return WaitDecision(
+                    "reconcile", "background work drained without a new notice",
+                    parked_run_id=parked_run_id,
+                )
             return WaitDecision("done")
         if state in _UNANSWERED_STATES:
             reason = await asyncio.to_thread(latest_state_reason, core, agent.id)
@@ -241,6 +255,7 @@ class RunWatcher:
         """
         loop = asyncio.get_running_loop()
         stuck_since: float | None = None
+        stuck_key: object = None
         while True:
             if self.stop_event is not None and self.stop_event.is_set():
                 return "benchmark batch stopped"
@@ -248,8 +263,10 @@ class RunWatcher:
             decision = await self.decide(core, agent)
             if decision.kind == "done":
                 return None
-            if decision.kind == "resume":
-                if decision.drained_run_id is not None:
+            retry = decision
+            if decision.kind in {"resume", "reconcile"}:
+                before = (agent.state, agent.updated_at, agent.current_run)
+                if decision.kind == "reconcile":
                     # The live runner owns the durable, per-run quiescence
                     # notice. Let it recheck the project and deliver that
                     # message before scheduling a new run; a bare wake would
@@ -259,24 +276,50 @@ class RunWatcher:
                     )
                     if reconcile is not None:
                         await reconcile(agent.project_id)
-                        self._drained_resumes.add((agent.id, decision.drained_run_id))
-                        stuck_since = None
+                elif self.resume_background is not None:
+                    await self.resume_background()
+                after = (agent.state, agent.updated_at, agent.current_run)
+                if after != before or _has_live_task(core, agent.id):
+                    stuck_since = None
+                    stuck_key = None
+                    await self._poll_delay()
+                    continue
+                # A no-op callback is not progress. Keep retrying the durable
+                # notice/wake, but never interpret this parked run as delivery.
+                decision = WaitDecision(
+                    "cancel",
+                    f"agent parked in wait_background run {decision.parked_run_id}: "
+                    "no pending background work and recovery could not resume delivery",
+                    parked_run_id=decision.parked_run_id,
+                )
+            if decision.kind == "cancel":
+                key = (agent.state, decision.parked_run_id or (
+                    agent.current_run.run_id if agent.current_run is not None else None,
+                    agent.updated_at,
+                ))
+                if stuck_since is None or stuck_key != key:
+                    stuck_since = now
+                    stuck_key = key
+                if loop.time() - stuck_since > self.stuck_grace_s:
+                    # Recovery awaited external probes. Recheck immediately
+                    # before cancelling so a newly pending job, notice or run
+                    # gets its normal wait/resume path on the next poll.
+                    verified = await self.decide(core, agent)
+                    verified_key = (agent.state, verified.parked_run_id or (
+                        agent.current_run.run_id if agent.current_run is not None else None,
+                        agent.updated_at,
+                    ))
+                    if verified.kind != retry.kind or verified_key != key:
+                        if verified.kind == "continue" or verified_key != key:
+                            stuck_since = None
+                            stuck_key = None
                         await self._poll_delay()
                         continue
-                    self._drained_resumes.add((agent.id, decision.drained_run_id))
-                if self.resume_background is not None:
-                    await self.resume_background()
-                stuck_since = None
-                await self._poll_delay()
-                continue
-            if decision.kind == "cancel":
-                if stuck_since is None:
-                    stuck_since = now
-                if now - stuck_since > self.stuck_grace_s:
                     await cancel(decision.reason)
                     return decision.reason
             else:
                 stuck_since = None
+                stuck_key = None
             await self._poll_delay()
 
     async def _poll_delay(self) -> None:

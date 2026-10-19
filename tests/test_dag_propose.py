@@ -108,6 +108,78 @@ async def test_proposal_and_graph_are_one_durable_change(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["dag_record", "dag_guided"])
+@pytest.mark.parametrize("existing_species", [False, True])
+@pytest.mark.parametrize("name", ["RC", "TS1"])
+async def test_duplicate_species_is_a_tool_failure_without_traceback_or_graph_changes(
+    tmp_path, caplog, mode, existing_species, name,
+):
+    from cloudra.runtime_v2.adapters import LegacyToolExecutor
+    from cloudra.runtime_v2.policies.base import ToolCall
+    from tests.dag_identity import make_session
+
+    agent, session, db = _setup(tmp_path, "propose-duplicate-species", mode)
+    source = name if existing_species else "R"
+    initial = await _call(
+        DagProposeMechanism, agent, session,
+        rationale="establish the current delivery",
+        species=[{"name": source}, {"name": "P"}],
+        steps=[{"name": "step1", "from": source, "to": "P"}],
+        delivery_targets=["step1"],
+    )
+    assert initial.is_success
+    before = _graph(db).model_dump(mode="json")
+    with db.connect() as con:
+        draft_count = con.execute("SELECT COUNT(*) FROM dag_drafts").fetchone()[0]
+        mutation_count = con.execute("SELECT COUNT(*) FROM dag_mutations").fetchone()[0]
+    caplog.clear()
+    species = [{"name": "new-before-rejection"}, {"name": name}]
+    if not existing_species:
+        species.append({"name": f" {name} "})
+    runtime_agent = make_session(
+        db.conversation_id, "coordinator", orchestration_mode=mode, session_id=session.id,
+    )
+    executor = LegacyToolExecutor(SimpleNamespace(
+        require_project=lambda _: SimpleNamespace(workspace_dir=str(tmp_path)),
+        event_log=None,
+    ))
+
+    result = await executor.execute(runtime_agent, ToolCall(
+        id="duplicate-species", name="dag_propose_mechanism",
+        arguments={"rationale": "extend the mechanism", "species": species},
+    ))
+
+    assert result.is_success is False
+    assert result.error is None
+    assert result.data["accepted"] is False
+    assert result.data["error"] == f"duplicate species name: {name!r}"
+    assert _graph(db).model_dump(mode="json") == before
+    with db.connect() as con:
+        assert con.execute("SELECT COUNT(*) FROM dag_drafts").fetchone()[0] == draft_count
+        assert con.execute("SELECT COUNT(*) FROM dag_mutations").fetchone()[0] == mutation_count
+    assert not any(record.exc_info for record in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_unexpected_proposal_error_retains_internal_traceback(tmp_path, monkeypatch, caplog):
+    from cloudra.dag.controller import DagController
+
+    agent, session, db = _setup(tmp_path, "propose-internal-error", "dag_record")
+
+    def fail_assembly(*args):
+        raise RuntimeError("unexpected assembly failure")
+
+    monkeypatch.setattr(DagController, "_assemble_declarative_proposal", fail_assembly)
+
+    result = await _propose(agent, session)
+
+    assert result.is_success is False
+    assert result.error == "unexpected assembly failure"
+    assert _graph(db).delivery.nodes == []
+    assert any(record.exc_info for record in caplog.records)
+
+
+@pytest.mark.asyncio
 async def test_public_proposal_selects_delivery_step_without_exploration_debt(tmp_path):
     agent, session, db = _setup(tmp_path, "propose-scope", "dag_guided")
     proposed = await _call(

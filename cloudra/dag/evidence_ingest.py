@@ -175,6 +175,22 @@ def snapshot_evidence_file(
                     sidecar = Path(endpoint["geometry_ref"]).resolve(strict=True)
                     sidecar.relative_to(root)
                     sidecars.append((sidecar, hashlib.sha256(sidecar.read_bytes()).hexdigest()))
+    elif engine == "gaussian":
+        from cloudra.tools.core import gaussian_frames, orca_frames
+
+        try:
+            _, irc_meta = gaussian_frames.extract_irc(str(resolved))
+        except ValueError:
+            pass
+        else:
+            archived = orca_frames._archived_irc_endpoints(str(resolved))
+            # Gaussian's real outer frames live in the hashed native log;
+            # the shared archive retains binding without inventing XYZ files.
+            irc_endpoints = archived or {
+                direction: {"geometry_ref": None, "origin": "native_log",
+                            "converged": irc_meta.get(f"{direction}_converged")}
+                for direction in ("forward", "backward")
+            }
     metadata = {}
     from cloudra.services.ts_pipeline_context import pipeline_database
     from cloudra.services.ts_pipeline_store import atom_binding_for_log

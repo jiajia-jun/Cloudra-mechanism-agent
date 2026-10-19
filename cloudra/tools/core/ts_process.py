@@ -2920,11 +2920,9 @@ def _validated_endpoint_minimum(
     record: TsProcessRecord, role: Literal["reactant", "product"],
 ) -> tuple[tuple[list[str], list[list[float]]] | None, str]:
     """Return a converged, zero-imaginary QM endpoint; identity is checked at verdict."""
-    import math
-
     from cloudra.dag.evidence_ingest import snapshot_evidence_file, validate_species_minimum
     from cloudra.tools.core import gaussian_frames, orca_frames
-    from cloudra.tools.core.irc_path import parse_xyz
+    from cloudra.tools.core.irc_path import parse_xyz, same_geometry
 
     opt_step = next(
         (step for step in reversed(record.job_steps) if step.purpose == f"{role}_opt"), None,
@@ -2965,17 +2963,6 @@ def _validated_endpoint_minimum(
             return None, f"{role} endpoint frequency geometry is unreadable: {exc}"
         freq_xyz = frames[-1].xyz if frames else ""
     measured = parse_xyz(freq_xyz) if freq_xyz else None
-
-    def same_geometry(left, right) -> bool:
-        return bool(
-            left is not None and right is not None
-            and left[0] == right[0]
-            and len(left[1]) == len(right[1])
-            and all(
-                math.dist(a, b) <= 1e-4
-                for a, b in zip(left[1], right[1], strict=True)
-            )
-        )
 
     if not same_geometry(optimized, saved) or not same_geometry(optimized, measured):
         return None, (

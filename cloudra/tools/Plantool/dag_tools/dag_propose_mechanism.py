@@ -11,6 +11,7 @@ from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
 from cloudra.dag.controller import DagController
 from cloudra.dag.models import OrchestrationMode
+from cloudra.dag.store import SpeciesConflictError
 from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail
 from cloudra.tools.Plantool.dag_tools.proposal_inputs import (
     ProposalSpeciesInput,
@@ -89,6 +90,8 @@ class DagProposeMechanism(DagToolBase):
                 delivery_targets=user_input.delivery_targets,
                 actor_id=self._actor_id(),
             )
+        except SpeciesConflictError as exc:
+            return fail("dag_propose_mechanism", str(exc), accepted=False)
         except Exception as exc:
             import logging
 
