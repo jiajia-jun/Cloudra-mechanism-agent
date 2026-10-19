@@ -441,17 +441,34 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
             entries.append(_entry('gaussian_scan_semantics', 'task_type',
                 "Gaussian scan is RIGID; RELAXED scans use opt=modredundant and trailing coordinates. "
                 "The original task and parameters are preserved."))
-        hessian_options = {'calcfc', 'calcall', 'readfc', 'rcfc'}
+        opt_hessian_options = {'calcfc', 'calcall', 'readfc', 'rcfc', 'modredundant'}
+        irc_hessian_options = {'calcfc', 'calcall', 'readfc', 'rcfc', 'readcartesianfc', 'fccards'}
         task_tokens = [str(key) + '=' + str(value or '').lower() for key, value in seen.items() if key in {'opt', 'irc'}]
         for token in tokens + task_tokens:
             key, value = _gaussian_keyword(token)
             options = set(value.strip('()').replace(' ', '').split(','))
-            if key == 'opt' and 'ts' in options and not options & hessian_options:
-                entries.append(_entry('initial_hessian_unspecified', 'task_type' if 'opt' in seen else 'keywords',
-                    'Gaussian TS optimization has no explicit initial-Hessian setting; review the native engine defaults for this calculation. No solver option was added.'))
-            elif key == 'irc' and not options & hessian_options:
-                entries.append(_entry('initial_hessian_unspecified', 'keywords',
-                    'Gaussian IRC has no explicit initial-Hessian setting; review the native engine defaults for this calculation. No solver option was added.'))
+            if key == 'opt' and 'ts' in options and not options & opt_hessian_options:
+                from_task_type = 'opt' in seen
+                entries.append(_entry('initial_hessian_unspecified', 'task_type' if from_task_type else 'keywords',
+                    'Gaussian Opt=TS needs force constants or a ModRedundant reaction coordinate: without either '
+                    'it terminates in l1 with "Opt=TS requires force constants or ModRedundant". Add the needed '
+                    'option inside the Opt declaration that produced this warning '
+                    + ('(the task_type entry)' if from_task_type else '(the existing opt=(…) in keywords)')
+                    + ', keeping its current options, other tasks such as freq, and unrelated keywords; do not '
+                    'write a second opt= into the other field, and do not write a bare CalcFC (Gaussian rejects '
+                    'it as a syntax error). No solver option was added.'))
+            elif key == 'irc' and not options & irc_hessian_options:
+                from_task_type = 'irc' in seen
+                entries.append(_entry('initial_hessian_unspecified',
+                    'task_type' if from_task_type else 'keywords',
+                    'Gaussian IRC needs force constants: without them it terminates in l1 with "You must use '
+                    'ReadCartesianFC, FCCards, or CalcFC with IRC". Add the needed option inside the IRC '
+                    'declaration that produced this warning '
+                    + ('(the task_type entry)' if from_task_type else '(the existing irc=(…) in keywords)')
+                    + ', keeping its direction, MaxPoints and other settings; do not add a second irc=. Reusing '
+                    'force constants requires providing the actual input that the chosen native option consumes, '
+                    'correctly associated; CalcFC is the example when you explicitly choose to recompute. '
+                    'No solver option was added.'))
     return entries
 
 
