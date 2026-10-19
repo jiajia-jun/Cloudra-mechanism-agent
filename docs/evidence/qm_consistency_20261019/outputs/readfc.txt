@@ -1,0 +1,100 @@
+{
+  "root": "/tmp/ts-native-dependency-audit-kwx7zok7",
+  "engine_binaries": {
+    "g16": null,
+    "g09": null,
+    "g26": null,
+    "orca": null
+  },
+  "qm_calculation_fields": [
+    "engine",
+    "method",
+    "basis_set",
+    "keywords",
+    "frequency_mode",
+    "orca_blocks",
+    "end_setting"
+  ],
+  "gaussian": {
+    "input": "%chk=/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/irc/irc.chk\n%nproc=1\n%mem=4096MB\n#p HF/STO-3G irc=(readfc,reverse)\n\nIRC from the refined saddle: O | smiles: O\n\n0 1\nO        0.00000000     0.00000000     0.00000000\nH        0.96000000     0.00000000     0.00000000\nH       -0.24000000     0.93000000     0.00000000\n\n",
+    "input_path": "/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/irc/irc.gjf",
+    "warnings": [],
+    "method_check": {
+      "input_revision": 1,
+      "purpose": "irc",
+      "actual": {
+        "engine": "gaussian",
+        "method": "HF",
+        "basis_set": "STO-3G",
+        "keywords": "irc=(readfc,reverse)",
+        "frequency_mode": "auto",
+        "orca_blocks": null,
+        "end_setting": ""
+      },
+      "source": "stage_declaration",
+      "differences": [],
+      "matched": true
+    },
+    "frequency_dependency": "/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/frequency/freq.chk",
+    "frequency_dependency_exists": true,
+    "irc_checkpoint_exists": false,
+    "staged_input": "%chk=irc.chk\n%nproc=1\n%mem=4096MB\n#p HF/STO-3G irc=(readfc,reverse)\n\nIRC from the refined saddle: O | smiles: O\n\n0 1\nO        0.00000000     0.00000000     0.00000000\nH        0.96000000     0.00000000     0.00000000\nH       -0.24000000     0.93000000     0.00000000\n\n",
+    "staged_files": [
+      {
+        "local_path": "/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/irc/irc.chk",
+        "staged_path": "irc.chk",
+        "role": "inout",
+        "directory": false,
+        "prefix": false,
+        "source_sha256": null
+      }
+    ],
+    "calculator_dry_run": {
+      "cmd": [
+        "/usr/bin/bash",
+        "/workspace/Cloudra-mechanism-agent/cloudra/calculator.sh",
+        "/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/irc/irc.gjf",
+        "gaussian"
+      ],
+      "returncode": 42,
+      "stdout": "SPY_CWD=/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/irc\nSPY_INPUT=/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/irc/irc.gjf\n%chk=/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/irc/irc.chk\n%nproc=1\n%mem=4096MB\n#p HF/STO-3G irc=(readfc,reverse)\n\nIRC from the refined saddle: O | smiles: O\n\n0 1\nO        0.00000000     0.00000000     0.00000000\nH        0.96000000     0.00000000     0.00000000\nH       -0.24000000     0.93000000     0.00000000\n\n",
+      "stderr": "[calculator] isolated GAUSS_SCRDIR=/tmp/ts-native-dependency-audit-kwx7zok7/gaussian/irc/.g16_scratch/cloudra_g16_3922\n"
+    }
+  },
+  "orca": {
+    "input": "# IRC from the refined saddle: O | smiles: O\n! HF STO-3G IRC\n%pal nprocs 1 end\n%maxcore 4096\n%irc\n InitHess read\n Hess_Filename \"/tmp/ts-native-dependency-audit-kwx7zok7/orca/frequency/freq.hess\"\nend\n* xyz 0 1\nO        0.00000000     0.00000000     0.00000000\nH        0.96000000     0.00000000     0.00000000\nH       -0.24000000     0.93000000     0.00000000\n*\n",
+    "input_path": "/tmp/ts-native-dependency-audit-kwx7zok7/orca/irc/irc.inp",
+    "warnings": [],
+    "method_check": {
+      "input_revision": 1,
+      "purpose": "irc",
+      "actual": {
+        "engine": "orca",
+        "method": "HF",
+        "basis_set": "STO-3G",
+        "keywords": "IRC",
+        "frequency_mode": "auto",
+        "orca_blocks": "%irc\n InitHess read\n Hess_Filename \"/tmp/ts-native-dependency-audit-kwx7zok7/orca/frequency/freq.hess\"\nend",
+        "end_setting": ""
+      },
+      "source": "stage_declaration",
+      "differences": [],
+      "matched": true
+    },
+    "frequency_dependency": "/tmp/ts-native-dependency-audit-kwx7zok7/orca/frequency/freq.hess",
+    "frequency_dependency_exists": true,
+    "irc_checkpoint_exists": false,
+    "staged_input": "# IRC from the refined saddle: O | smiles: O\n! HF STO-3G IRC\n%pal nprocs 1 end\n%maxcore 4096\n%irc\n InitHess read\n Hess_Filename \".cloudra-files-123/7ed6a2cdd433aa83/freq.hess\"\nend\n* xyz 0 1\nO        0.00000000     0.00000000     0.00000000\nH        0.96000000     0.00000000     0.00000000\nH       -0.24000000     0.93000000     0.00000000\n*\n",
+    "staged_files": [
+      {
+        "local_path": "/tmp/ts-native-dependency-audit-kwx7zok7/orca/frequency/freq.hess",
+        "staged_path": ".cloudra-files-123/7ed6a2cdd433aa83/freq.hess",
+        "role": "dependency",
+        "directory": false,
+        "prefix": false,
+        "source_sha256": "1f08e4b3efd8037b319d933e4ee9147f51b64dd3e913328a679a0d7bb0de3539"
+      }
+    ]
+  }
+}
+REPORT_PATH=/tmp/ts-native-dependency-audit-kwx7zok7/report.json

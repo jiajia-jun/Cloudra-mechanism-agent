@@ -167,3 +167,57 @@ def test_separated_declaration_cannot_bypass_component_checks_with_a_complex_min
         passed, details = irc_evidence.verify_short_irc_direction(irc, *arguments,
             product_smiles=products, atom_bindings=associations)
     assert not passed, details
+
+
+def charged_native_bundle(directory):
+    """Parser fixtures: captured NU3 geometries plus a distant hydroxide spectator.
+
+    These native-shaped logs test charge propagation, not new QM calculations.
+    """
+    from cloudra.tools.core.irc_path import xyz_block
+    from tests.ts_fixtures import native_qm_log
+
+    ends, ts, source, components, _ = materials()
+    hydroxide = embedded_geometry('[OH-]')
+    hydroxide = hydroxide[0], hydroxide[1] + [20., 0., 0.]
+
+    def with_spectator(geometry):
+        return geometry[0] + hydroxide[0], np.concatenate([geometry[1], hydroxide[1]])
+
+    def log(name, geometry, frequencies):
+        path = directory / name
+        path.write_text(native_qm_log('orca', *geometry, optimization=None, frequencies=frequencies))
+        return path
+
+    ts = with_spectator(ts)
+    paths = {
+        'ts': log('ts.out', ts, [-100., 200., 300.]),
+        'source': log('source.out', with_spectator(source), [100., 200., 300.]),
+        'components': [log(f'component_{index}.out', geometry, [100., 200., 300.])
+                       for index, geometry in enumerate([*components, hydroxide])],
+    }
+    irc = directory / 'irc.out'
+    text = native_qm_log('orca', *ts, optimization=None).replace('! Freq', '! IRC')
+    irc.write_text(text.replace('ORCA TERMINATED NORMALLY',
+        'Intrinsic Reaction Coordinate Calculation\n'
+        '* FORWARD IRC *\n0 -92.0 -1.0 0.1 0.1\n'
+        '* BACKWARD IRC *\n0 -92.0 -1.0 0.1 0.1\nORCA TERMINATED NORMALLY'))
+    for suffix, geometry in zip(('F', 'B'), ends, strict=True):
+        (directory / f'irc_IRC_{suffix}.xyz').write_text(xyz_block(*with_spectator(geometry)))
+    paths['irc'] = irc
+    return paths
+
+
+@pytest.mark.parametrize('paired', [False, True])
+@pytest.mark.parametrize('charge', [-1, 0])
+def test_native_separated_irc_preserves_explicit_charge_without_binding(tmp_path, paired, charge, rdkit_chemistry):
+    paths = charged_native_bundle(tmp_path)
+    arguments = ([paths['ts']], paths['components'], [paths['source']])
+    keywords = dict(charge=charge, product_smiles=[*PRODUCTS, '[OH-]'])
+
+    if paired:
+        passed, details = irc_evidence.verify_short_irc_pair(paths['irc'], paths['irc'], *arguments, **keywords)
+    else:
+        passed, details = irc_evidence.verify_short_irc_direction(paths['irc'], *arguments, **keywords)
+
+    assert passed is (charge == -1), details

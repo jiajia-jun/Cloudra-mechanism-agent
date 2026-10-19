@@ -28,7 +28,9 @@ def write_lineage_bundle(directory):
         text = '* O   R   C   A *\nProgram Version 6.1.1\n'
         text += coordinates(initial)
         if optimize:
-            text += 'THE OPTIMIZATION HAS CONVERGED\n' + coordinates(final)
+            # Native ORCA prints this stationary-point header before the final geometry.
+            text += ('THE OPTIMIZATION HAS CONVERGED\n'
+                     'FINAL ENERGY EVALUATION AT THE STATIONARY POINT\n' + coordinates(final))
         text += 'FINAL SINGLE POINT ENERGY -92.0\n'
         if imaginary is not None:
             text += 'VIBRATIONAL FREQUENCIES\n-----------------------\n\n'

@@ -1,0 +1,104 @@
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef54f40>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55000>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55180>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55180>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55180>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55180>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55180>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef550c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef550c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef550c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef54f40>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef54f40>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef553c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef553c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef553c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef553c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55600>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55600>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55600>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55600>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55600>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55600>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55600>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55600>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55780>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55780>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef556c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef556c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef556c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fd2bc0580>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55840>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef55540>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef556c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef556c0>], try the fallback mechanism
+Unable to determine the type of logfile [<_io.StringIO object at 0x7f0fcef556c0>], try the fallback mechanism
+[
+  {
+    "variant": "normal",
+    "directory": "/tmp/irc_verify_audit_viwhiixg",
+    "irc_native_normal": true,
+    "is_success": true,
+    "ts_guess_status": "pass",
+    "verdict": "pass: both actual IRC outer frames optimize to the expected zero-imaginary endpoint minima.",
+    "benchmark_consistency": true,
+    "strict_details": [
+      "[advisory] N2-H3: TS=1.412 Å, IRC_endpoint=1.713 Å, intermediate=2.220 Å, inside interval",
+      "[advisory] Distance-vector ratio endpoint-to-intermediate=0.627 (<1 means closer than TS).",
+      "[advisory] Gate pairs layer: distance_top5 (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds)."
+    ]
+  },
+  {
+    "variant": "error_termination",
+    "directory": "/tmp/irc_verify_audit_6nibw98z",
+    "irc_native_normal": false,
+    "is_success": true,
+    "ts_guess_status": "pass",
+    "verdict": "pass: both actual IRC outer frames optimize to the expected zero-imaginary endpoint minima.",
+    "benchmark_consistency": false,
+    "strict_details": [
+      "[advisory] N2-H3: TS=1.412 Å, IRC_endpoint=1.713 Å, intermediate=2.220 Å, inside interval",
+      "[advisory] Distance-vector ratio endpoint-to-intermediate=0.627 (<1 means closer than TS).",
+      "[advisory] Gate pairs layer: distance_top5 (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds)."
+    ]
+  },
+  {
+    "variant": "no_termination",
+    "directory": "/tmp/irc_verify_audit__jihhnqp",
+    "irc_native_normal": false,
+    "is_success": true,
+    "ts_guess_status": "pass",
+    "verdict": "pass: both actual IRC outer frames optimize to the expected zero-imaginary endpoint minima.",
+    "benchmark_consistency": false,
+    "strict_details": [
+      "[advisory] N2-H3: TS=1.412 Å, IRC_endpoint=1.713 Å, intermediate=2.220 Å, inside interval",
+      "[advisory] Distance-vector ratio endpoint-to-intermediate=0.627 (<1 means closer than TS).",
+      "[advisory] Gate pairs layer: distance_top5 (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds)."
+    ]
+  }
+]

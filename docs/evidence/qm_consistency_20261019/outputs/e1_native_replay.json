@@ -1,0 +1,266 @@
+{
+  "source": "/tmp/cloudra-e1-evidence-x42s7_p4/evidence/e1-irc-20261019",
+  "workspace": "/tmp/cloudra-e1-native-replay-jl4dgctv/workspace",
+  "manifest_entries_valid": true,
+  "original_request_seq": 4736,
+  "original_result_seq": 4761,
+  "original_arguments": {
+    "step_name": "Concerted E2 elimination RC -> products via TS1",
+    "ts_file": "calc/ts1.log",
+    "irc_file": "calc/irc3.log",
+    "source_minimum_file": "calc/endpoint_rev5.log",
+    "target_minimum_file": "calc/endpoint_fwd5.log",
+    "reaction_coordinate_description": "Concerted, strongly asynchronous elimination over a single saddle. Native IRC calc/irc3.log (calcfc, stepsize 5; normal termination; native both-directions convergence TRUE, 141 forward / 39 reverse points, endpoints -639.003407 Ha RC side and -639.022897 Ha product side) starts at exactly this TS geometry and connects the F-...H-CH2-CH2-Cl ion-dipole complex to C2H4 + HF + Cl-. Its reverse outer frame re-optimizes to the RC minimum (calc/endpoint_rev5.log, -639.003420924 Ha, 0 imaginary frequencies, identical to calc/rc2.log) and its forward outer frame to the product minimum (calc/endpoint_fwd5.log, -639.022951022 Ha, 0 imaginary frequencies, C2=C3 1.349 A, C3-Cl4 2.909 A, F1-H5 0.950 A); an independent repeat from the same two outer frames (calc/endpoint_rev6.log, calc/endpoint_fwd6.log) reproduces both minima to 0.0000 A. The imaginary mode (299.6i cm-1) is essentially pure proton transfer - H5 displacement 72.6%, heavy-atom fraction 0.058, C3-Cl4 projection 0.0045; at the saddle F1-H5 1.355 A, C2-H5 1.247 A, C3-Cl4 1.934 A, C2-C3 1.478 A - so the C-Cl bond is NOT part of the mode: it cleaves downhill after the saddle. Consequence, stated honestly: the step has no E2 barrier above the complex (dE(TS-RC) = +0.84 kcal/mol electronic; dE0 = -1.22 and dH(298) = -1.69 kcal/mol after ZPE/thermal correction) and the path is equally consistent with an E1cB-like continuum at this level of theory. Atom-mapping note: mapped SMILES [F-:1].[CH2:2]([H:4])[CH2:3][Cl:5] corresponds to log atom order F1, C2 = CH3 carbon, C3 = CH2Cl carbon, Cl4, H5, i.e. map H4 = log H5 and map Cl5 = log Cl4. Bond changes over the step: break C2-H4 and C3-Cl5, form F1-H4, C2-C3 order 1->2. NOTE: the harness short_irc machine check cannot bind this pair because its Gaussian IRC endpoint extractor returns filename=null for every Gaussian IRC log (Gaussian IRC jobs print only 'Input orientation' geometry blocks, never 'Standard orientation': 0 in irc3/irc4_fwd/irc4_rev vs 12-34 in the Opt/Freq logs), so it cannot materialise the rx<0/rx>0 outer frames; the supervisor independently verified the direction proof in these native files and a disposal of that stage was requested."
+  },
+  "original_scientific_checks": {
+    "frequency": {
+      "status": "passed",
+      "detail": "Native normal termination and exactly 1 imaginary frequencies required. ",
+      "next_action": ""
+    },
+    "ts_opt": {
+      "status": "passed",
+      "detail": "Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.",
+      "next_action": ""
+    },
+    "short_irc": {
+      "status": "incomplete",
+      "detail": "TS candidate /home/ly/cloudra-bench-run2-20261019/sandboxes/E1/batch_62c7ba4977e247fc/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/5bd0ec68af6e3b99_irc3.log is not usable: a first-order saddle log (exactly one imaginary frequency) with a final geometry is required; got n_imag=None, geometry=yes. The actual IRC outer frames are not connected to both declared zero-imaginary minima by converged optimization logs; geometric interval agreement alone is not direction proof.",
+      "next_action": "Submit same-TS bidirectional IRC and native Opt/Freq logs connecting each outer frame to its declared minimum; geometric interval checks are advisory. Separated products need each declared species minimum. Full IRC convergence is not required."
+    }
+  },
+  "facts": {
+    "ts": {
+      "path": "calc/ts1.log",
+      "normal_termination": true,
+      "normal_log": true,
+      "opt_converged": true,
+      "frequencies_present": true,
+      "n_imag": 1,
+      "imaginary_frequencies": [
+        -299.6111
+      ],
+      "energy_hartree": -639.002077473,
+      "atom_count": 9,
+      "job_types": [
+        "freq",
+        "opt",
+        "ts"
+      ]
+    },
+    "irc": {
+      "path": "calc/irc3.log",
+      "normal_termination": true,
+      "normal_log": true,
+      "opt_converged": null,
+      "frequencies_present": false,
+      "n_imag": null,
+      "imaginary_frequencies": null,
+      "energy_hartree": -639.003404154,
+      "atom_count": 9,
+      "job_types": [
+        "irc"
+      ]
+    },
+    "source_opt_freq": {
+      "path": "calc/endpoint_rev5.log",
+      "normal_termination": true,
+      "normal_log": true,
+      "opt_converged": true,
+      "frequencies_present": true,
+      "n_imag": 0,
+      "imaginary_frequencies": [],
+      "energy_hartree": -639.003420924,
+      "atom_count": 9,
+      "job_types": [
+        "freq",
+        "opt"
+      ]
+    },
+    "target_opt_freq": {
+      "path": "calc/endpoint_fwd5.log",
+      "normal_termination": true,
+      "normal_log": true,
+      "opt_converged": true,
+      "frequencies_present": true,
+      "n_imag": 0,
+      "imaginary_frequencies": [],
+      "energy_hartree": -639.022951022,
+      "atom_count": 9,
+      "job_types": [
+        "freq",
+        "opt"
+      ]
+    },
+    "delivered_source": {
+      "path": "calc/rc2.log",
+      "normal_termination": true,
+      "normal_log": true,
+      "opt_converged": true,
+      "frequencies_present": true,
+      "n_imag": 0,
+      "imaginary_frequencies": [],
+      "energy_hartree": -639.003420935,
+      "atom_count": 9,
+      "job_types": [
+        "freq",
+        "opt"
+      ]
+    }
+  },
+  "identities": {
+    "source_opt_freq": {
+      "smiles": "[F-].CCCl",
+      "matches": true
+    },
+    "delivered_source": {
+      "smiles": "[F-].CCCl",
+      "matches": true
+    },
+    "target_opt_freq": {
+      "smiles": "C=C.F.[Cl-]",
+      "matches": true
+    }
+  },
+  "prerequisites": {
+    "irc_two_sides_present": true,
+    "irc_start_matches_ts": true,
+    "source_qualified_opt_freq_count": 1,
+    "target_qualified_opt_freq_count": 1,
+    "source_qualified_details": [],
+    "target_qualified_details": [],
+    "source_opt_final_matches_own_freq_geometry": true,
+    "target_opt_final_matches_own_freq_geometry": true,
+    "source_rev5_final_matches_rc2_final": false,
+    "source_opt_start_matches_irc_side_0": false,
+    "source_opt_start_matches_irc_side_1": false,
+    "target_opt_start_matches_irc_side_0": false,
+    "target_opt_start_matches_irc_side_1": false
+  },
+  "direct_verifier": {
+    "passed": false,
+    "details": [
+      "The actual IRC outer frames are not connected to both declared zero-imaginary minima by converged optimization logs; geometric interval agreement alone is not direction proof."
+    ]
+  },
+  "dag_replay": {
+    "reconstructed_graph": true,
+    "original_approval_state_restored": false,
+    "proposal": {
+      "is_success": true,
+      "action": "dag_propose_mechanism",
+      "result": {
+        "draft_id": "draft_99b9ec5cec234d40aafa15cf9b797ff6",
+        "state": "open",
+        "accepted": false,
+        "normalized_advisory_stages": [
+          "step_90d8cd80: ts_guess normalized to advisory (required=False); an advisory stage can never be required and never blocks ts_opt/frequency binds"
+        ]
+      },
+      "accepted": false,
+      "rejection_code": null,
+      "error": ""
+    },
+    "species_submissions": [
+      {
+        "is_success": true,
+        "action": "dag_submit_species_evidence",
+        "result": {
+          "species_name": "Reactant complex (F- ... HCH2CH2Cl)",
+          "status": "submitted_for_review",
+          "scientific_checks": {
+            "geometry": {
+              "status": "passed",
+              "detail": "Normally terminated zero-imaginary-frequency geometry matches the complete species.",
+              "next_action": ""
+            }
+          },
+          "validation": {
+            "frequency_count_valid": true,
+            "frequency_data_present": true,
+            "n_imag": 0,
+            "imaginary_frequencies": [],
+            "message": "Imaginary-frequency count criterion met: 0 imaginary frequencies; molecular identity is checked separately."
+          },
+          "review_id": "rev_7d22ea8f38d74d50b08c048de9462262",
+          "enqueued": true,
+          "message": "Species 'Reactant complex (F- ... HCH2CH2Cl)' evidence submitted for Supervisor review."
+        },
+        "accepted": true,
+        "rejection_code": null,
+        "error": ""
+      },
+      {
+        "is_success": true,
+        "action": "dag_submit_species_evidence",
+        "result": {
+          "species_name": "Ethylene + HF + Cl- (separated products)",
+          "status": "submitted_for_review",
+          "scientific_checks": {
+            "geometry": {
+              "status": "passed",
+              "detail": "Normally terminated zero-imaginary-frequency geometry matches the complete species.",
+              "next_action": ""
+            }
+          },
+          "validation": {
+            "frequency_count_valid": true,
+            "frequency_data_present": true,
+            "n_imag": 0,
+            "imaginary_frequencies": [],
+            "message": "Imaginary-frequency count criterion met: 0 imaginary frequencies; molecular identity is checked separately."
+          },
+          "review_id": "rev_b291d01275fd4b609641b4fcbea79059",
+          "enqueued": true,
+          "message": "Species 'Ethylene + HF + Cl- (separated products)' evidence submitted for Supervisor review."
+        },
+        "accepted": true,
+        "rejection_code": null,
+        "error": ""
+      }
+    ],
+    "step_submission": {
+      "is_success": true,
+      "action": "dag_submit_step_evidence",
+      "result": {
+        "step_name": "Concerted E2 elimination RC -> products via TS1",
+        "status": "submitted_for_review",
+        "scientific_checks": {
+          "frequency": {
+            "status": "passed",
+            "detail": "Native normal termination and exactly 1 imaginary frequencies required. ",
+            "next_action": ""
+          },
+          "ts_opt": {
+            "status": "passed",
+            "detail": "Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.",
+            "next_action": ""
+          },
+          "short_irc": {
+            "status": "incomplete",
+            "detail": "TS candidate /tmp/cloudra-e1-native-replay-jl4dgctv/workspace/.cloudra/evidence/3b052363ec4f911f86f1a213c525c1dca2a14bb30d700980656bc45aa3d309f9/5bd0ec68af6e3b99_irc3.log is not usable: a first-order saddle log (exactly one imaginary frequency) with a final geometry is required; got n_imag=None, geometry=yes. The actual IRC outer frames are not connected to both declared zero-imaginary minima by converged optimization logs; geometric interval agreement alone is not direction proof.",
+            "next_action": "Submit same-TS bidirectional IRC and native Opt/Freq logs connecting each outer frame to its declared minimum; geometric interval checks are advisory. Separated products need each declared species minimum. Full IRC convergence is not required."
+          }
+        },
+        "ts_validation": {
+          "frequency_count_valid": true,
+          "frequency_data_present": true,
+          "n_imag": 1,
+          "imaginary_frequencies": [
+            -299.6111
+          ],
+          "mode_matched": false,
+          "message": "Imaginary-frequency count criterion met: exactly 1 imaginary frequency (-299.6 cm\u207b\u00b9). Submitted mode description (not verified): Concerted, strongly asynchronous elimination over a single saddle. Native IRC calc/irc3.log (calcfc, stepsize 5; normal termination; native both-directions convergence TRUE, 141 forward / 39 reverse points, endpoints -639.003407 Ha RC side and -639.022897 Ha product side) starts at exactly this TS geometry and connects the F-...H-CH2-CH2-Cl ion-dipole complex to C2H4 + HF + Cl-. Its reverse outer frame re-optimizes to the RC minimum (calc/endpoint_rev5.log, -639.003420924 Ha, 0 imaginary frequencies, identical to calc/rc2.log) and its forward outer frame to the product minimum (calc/endpoint_fwd5.log, -639.022951022 Ha, 0 imaginary frequencies, C2=C3 1.349 A, C3-Cl4 2.909 A, F1-H5 0.950 A); an independent repeat from the same two outer frames (calc/endpoint_rev6.log, calc/endpoint_fwd6.log) reproduces both minima to 0.0000 A. The imaginary mode (299.6i cm-1) is essentially pure proton transfer - H5 displacement 72.6%, heavy-atom fraction 0.058, C3-Cl4 projection 0.0045; at the saddle F1-H5 1.355 A, C2-H5 1.247 A, C3-Cl4 1.934 A, C2-C3 1.478 A - so the C-Cl bond is NOT part of the mode: it cleaves downhill after the saddle. Consequence, stated honestly: the step has no E2 barrier above the complex (dE(TS-RC) = +0.84 kcal/mol electronic; dE0 = -1.22 and dH(298) = -1.69 kcal/mol after ZPE/thermal correction) and the path is equally consistent with an E1cB-like continuum at this level of theory. Atom-mapping note: mapped SMILES [F-:1].[CH2:2]([H:4])[CH2:3][Cl:5] corresponds to log atom order F1, C2 = CH3 carbon, C3 = CH2Cl carbon, Cl4, H5, i.e. map H4 = log H5 and map Cl5 = log Cl4. Bond changes over the step: break C2-H4 and C3-Cl5, form F1-H4, C2-C3 order 1->2. NOTE: the harness short_irc machine check cannot bind this pair because its Gaussian IRC endpoint extractor returns filename=null for every Gaussian IRC log (Gaussian IRC jobs print only 'Input orientation' geometry blocks, never 'Standard orientation': 0 in irc3/irc4_fwd/irc4_rev vs 12-34 in the Opt/Freq logs), so it cannot materialise the rx<0/rx>0 outer frames; the supervisor independently verified the direction proof in these native files and a disposal of that stage was requested.."
+        },
+        "review_id": "rev_6f14fe7a5f764a109e194da281c13036",
+        "enqueued": true,
+        "message": "Step 'Concerted E2 elimination RC -> products via TS1' evidence submitted for Supervisor review."
+      },
+      "accepted": true,
+      "rejection_code": null,
+      "error": ""
+    }
+  },
+  "original_source_hashes_unchanged": true,
+  "copied_calc_hashes_unchanged": true
+}

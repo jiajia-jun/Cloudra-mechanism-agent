@@ -1,0 +1,239 @@
+{
+  "source": "/workspace/Cloudra-mechanism-agent/tests/fixtures/gaussian/hcn_ts_irc_g16.log",
+  "strict_tolerance_A": 1.7320508075688771e-06,
+  "point_count_compared": 20,
+  "same_geometry_true_count": 0,
+  "all_points": [
+    {
+      "point": 1,
+      "path": 1,
+      "point_header_line": 277,
+      "prior_input_line": 170,
+      "current_structure_line": 278,
+      "raw_max_component_A": 0.0004009999999999847,
+      "proper_aligned_max_atom_residual_A": 0.0003300258586781494,
+      "max_pair_distance_difference_A": 0.0005194279679581193,
+      "same_geometry": false
+    },
+    {
+      "point": 2,
+      "path": 1,
+      "point_header_line": 401,
+      "prior_input_line": 299,
+      "current_structure_line": 402,
+      "raw_max_component_A": 0.00033199999999999896,
+      "proper_aligned_max_atom_residual_A": 0.0002713899239874758,
+      "max_pair_distance_difference_A": 0.0004318250600401363,
+      "same_geometry": false
+    },
+    {
+      "point": 3,
+      "path": 1,
+      "point_header_line": 525,
+      "prior_input_line": 423,
+      "current_structure_line": 526,
+      "raw_max_component_A": 0.0002550000000000052,
+      "proper_aligned_max_atom_residual_A": 0.00021123073685184638,
+      "max_pair_distance_difference_A": 0.00033811150506668497,
+      "same_geometry": false
+    },
+    {
+      "point": 4,
+      "path": 1,
+      "point_header_line": 649,
+      "prior_input_line": 547,
+      "current_structure_line": 650,
+      "raw_max_component_A": 0.00026999999999999247,
+      "proper_aligned_max_atom_residual_A": 0.00022673923077934035,
+      "max_pair_distance_difference_A": 0.00036500852431808894,
+      "same_geometry": false
+    },
+    {
+      "point": 5,
+      "path": 1,
+      "point_header_line": 773,
+      "prior_input_line": 671,
+      "current_structure_line": 774,
+      "raw_max_component_A": 0.000284000000000062,
+      "proper_aligned_max_atom_residual_A": 0.0002432551956167302,
+      "max_pair_distance_difference_A": 0.0003925203327950211,
+      "same_geometry": false
+    },
+    {
+      "point": 6,
+      "path": 1,
+      "point_header_line": 897,
+      "prior_input_line": 795,
+      "current_structure_line": 898,
+      "raw_max_component_A": 0.00029800000000002047,
+      "proper_aligned_max_atom_residual_A": 0.0002595952601607423,
+      "max_pair_distance_difference_A": 0.00042132138957162724,
+      "same_geometry": false
+    },
+    {
+      "point": 7,
+      "path": 1,
+      "point_header_line": 1021,
+      "prior_input_line": 919,
+      "current_structure_line": 1022,
+      "raw_max_component_A": 0.00030700000000005723,
+      "proper_aligned_max_atom_residual_A": 0.0002728628110273374,
+      "max_pair_distance_difference_A": 0.0004444118962387833,
+      "same_geometry": false
+    },
+    {
+      "point": 8,
+      "path": 1,
+      "point_header_line": 1145,
+      "prior_input_line": 1043,
+      "current_structure_line": 1146,
+      "raw_max_component_A": 0.0003129999999999522,
+      "proper_aligned_max_atom_residual_A": 0.0002849161808120082,
+      "max_pair_distance_difference_A": 0.0004648760018655107,
+      "same_geometry": false
+    },
+    {
+      "point": 9,
+      "path": 1,
+      "point_header_line": 1269,
+      "prior_input_line": 1167,
+      "current_structure_line": 1270,
+      "raw_max_component_A": 0.00032300000000007323,
+      "proper_aligned_max_atom_residual_A": 0.00029598735771670207,
+      "max_pair_distance_difference_A": 0.0004841540522015908,
+      "same_geometry": false
+    },
+    {
+      "point": 10,
+      "path": 1,
+      "point_header_line": 1393,
+      "prior_input_line": 1291,
+      "current_structure_line": 1394,
+      "raw_max_component_A": 0.000344000000000122,
+      "proper_aligned_max_atom_residual_A": 0.00030723845574440856,
+      "max_pair_distance_difference_A": 0.0005030480762198142,
+      "same_geometry": false
+    },
+    {
+      "point": 1,
+      "path": 2,
+      "point_header_line": 1525,
+      "prior_input_line": 1420,
+      "current_structure_line": 1526,
+      "raw_max_component_A": 0.00034599999999995745,
+      "proper_aligned_max_atom_residual_A": 0.0002781451175684357,
+      "max_pair_distance_difference_A": 0.0004309017660102388,
+      "same_geometry": false
+    },
+    {
+      "point": 2,
+      "path": 2,
+      "point_header_line": 1649,
+      "prior_input_line": 1547,
+      "current_structure_line": 1650,
+      "raw_max_component_A": 0.00010199999999993548,
+      "proper_aligned_max_atom_residual_A": 8.497758544783779e-05,
+      "max_pair_distance_difference_A": 0.00013086965765496394,
+      "same_geometry": false
+    },
+    {
+      "point": 3,
+      "path": 2,
+      "point_header_line": 1773,
+      "prior_input_line": 1671,
+      "current_structure_line": 1774,
+      "raw_max_component_A": 1.1000000000094268e-05,
+      "proper_aligned_max_atom_residual_A": 1.1092479350969254e-05,
+      "max_pair_distance_difference_A": 1.8288139245870028e-05,
+      "same_geometry": false
+    },
+    {
+      "point": 4,
+      "path": 2,
+      "point_header_line": 1897,
+      "prior_input_line": 1795,
+      "current_structure_line": 1898,
+      "raw_max_component_A": 6.599999999989947e-05,
+      "proper_aligned_max_atom_residual_A": 5.138273381354216e-05,
+      "max_pair_distance_difference_A": 7.357551087339154e-05,
+      "same_geometry": false
+    },
+    {
+      "point": 5,
+      "path": 2,
+      "point_header_line": 2021,
+      "prior_input_line": 1919,
+      "current_structure_line": 2022,
+      "raw_max_component_A": 0.00016900000000008575,
+      "proper_aligned_max_atom_residual_A": 0.00013424193898747052,
+      "max_pair_distance_difference_A": 0.00019119992700700195,
+      "same_geometry": false
+    },
+    {
+      "point": 6,
+      "path": 2,
+      "point_header_line": 2145,
+      "prior_input_line": 2043,
+      "current_structure_line": 2146,
+      "raw_max_component_A": 0.0002969999999999917,
+      "proper_aligned_max_atom_residual_A": 0.0002401034065910194,
+      "max_pair_distance_difference_A": 0.00033572877728960115,
+      "same_geometry": false
+    },
+    {
+      "point": 7,
+      "path": 2,
+      "point_header_line": 2269,
+      "prior_input_line": 2167,
+      "current_structure_line": 2270,
+      "raw_max_component_A": 0.00043599999999999195,
+      "proper_aligned_max_atom_residual_A": 0.00035807264522383223,
+      "max_pair_distance_difference_A": 0.0004887094371477385,
+      "same_geometry": false
+    },
+    {
+      "point": 8,
+      "path": 2,
+      "point_header_line": 2393,
+      "prior_input_line": 2291,
+      "current_structure_line": 2394,
+      "raw_max_component_A": 0.0005600000000000049,
+      "proper_aligned_max_atom_residual_A": 0.00046831766920896157,
+      "max_pair_distance_difference_A": 0.0006178483571259719,
+      "same_geometry": false
+    },
+    {
+      "point": 9,
+      "path": 2,
+      "point_header_line": 2517,
+      "prior_input_line": 2415,
+      "current_structure_line": 2518,
+      "raw_max_component_A": 0.0006300000000000194,
+      "proper_aligned_max_atom_residual_A": 0.0005380192492710109,
+      "max_pair_distance_difference_A": 0.000704163433397742,
+      "same_geometry": false
+    },
+    {
+      "point": 10,
+      "path": 2,
+      "point_header_line": 2641,
+      "prior_input_line": 2539,
+      "current_structure_line": 2642,
+      "raw_max_component_A": 0.0006070000000000242,
+      "proper_aligned_max_atom_residual_A": 0.0005292975275515871,
+      "max_pair_distance_difference_A": 0.0007218986665680216,
+      "same_geometry": false
+    }
+  ],
+  "final_print": {
+    "final_input_line": 2695,
+    "final_input_equals_prior_input_rows": true,
+    "final_input_vs_corrected_current": {
+      "raw_max_component_A": 0.0006070000000000242,
+      "proper_aligned_max_atom_residual_A": 0.0005292975275515871,
+      "max_pair_distance_difference_A": 0.0007218986665680216,
+      "same_geometry": false
+    },
+    "native_extracted_reverse_outer_frame_equals_corrected_current": true
+  }
+}

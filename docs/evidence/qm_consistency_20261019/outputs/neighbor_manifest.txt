@@ -1,0 +1,7 @@
+before_neighbor True True gaussian
+binding_before_neighbor None
+first_log_still_valid gaussian
+snapshot_second ValueError Archived IRC log hash mismatch
+probe_second_binding ValueError Archived IRC log hash mismatch
+second_native_still_valid True True
+workspace /tmp/cloudra-irc-neighbor-e0sk1j3g

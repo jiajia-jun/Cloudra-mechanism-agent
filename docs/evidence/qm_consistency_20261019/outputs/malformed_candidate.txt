@@ -1,0 +1,10 @@
+ROOT /tmp/cloudra-unrelated-parse-failure-9py9jddr
+valid IRC baseline True
+LogProbe bad candidate (None, None)
+audit_self_consistency + unrelated malformed candidate ValueError could not convert string to float: '**************'
+TRACE cloudra_unrelated_parse_failure_probe.py:19:caught -> cloudra_unrelated_parse_failure_probe.py:38:<lambda> -> test_gaussian_irc_evidence.py:78:_audit -> selfconsistency.py:404:audit_self_consistency -> selfconsistency.py:200:_strict_irc_proof -> irc_evidence.py:162:normal_log -> irc_evidence.py:179:frequency_geometry_matches -> irc_evidence.py:177:geometry -> gaussian_frames.py:251:final_xyz_from_text -> gaussian_frames.py:387:_parse_coord_block_after
+valid score baseline 1.0
+audit_integrity + unrelated malformed candidate ValueError could not convert string to float: '**************'
+TRACE cloudra_unrelated_parse_failure_probe.py:19:caught -> cloudra_unrelated_parse_failure_probe.py:53:<lambda> -> integrity.py:552:audit_integrity -> integrity.py:418:bind_graph_to_evidence -> irc_evidence.py:162:normal_log -> irc_evidence.py:179:frequency_geometry_matches -> irc_evidence.py:177:geometry -> gaussian_frames.py:251:final_xyz_from_text -> gaussian_frames.py:387:_parse_coord_block_after
+score_sandbox + unrelated malformed candidate ValueError could not convert string to float: '**************'
+TRACE cloudra_unrelated_parse_failure_probe.py:19:caught -> cloudra_unrelated_parse_failure_probe.py:54:<lambda> -> runner.py:359:score_sandbox -> integrity.py:552:audit_integrity -> integrity.py:418:bind_graph_to_evidence -> irc_evidence.py:162:normal_log -> irc_evidence.py:179:frequency_geometry_matches -> irc_evidence.py:177:geometry -> gaussian_frames.py:251:final_xyz_from_text -> gaussian_frames.py:387:_parse_coord_block_after

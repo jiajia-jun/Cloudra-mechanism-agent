@@ -1,0 +1,5 @@
+without_neighbors ValueError ORCA IRC output has no associated endpoint geometries. Submit the original IRC log from the compute job directory with its native endpoint/trajectory files; do not copy or rename the log alone. The evidence snapshot archives the bundle automatically.
+forward final_endpoint_file_glob other_job_IRC_F.xyz
+backward final_endpoint_file_glob other_job_IRC_B.xyz
+snapshot_accepted orca ['other_job_IRC_F.xyz', 'other_job_IRC_B.xyz']
+workspace /tmp/cloudra-orca-foreign-e9pj_h9c

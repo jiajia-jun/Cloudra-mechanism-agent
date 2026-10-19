@@ -1,0 +1,188 @@
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_zhht5def/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_zhht5def/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_67dg6vob/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/ts.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/ts.out ERROR] Last line read:
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/reactant_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Encountered error when parsing.
+[ORCA /tmp/orca_irc_audit_agrqgcow/product_freq.out ERROR] Last line read: 1: 0.00 cm**-1
+
+[
+  {
+    "variant": "normal",
+    "directory": "/tmp/orca_irc_audit_zhht5def",
+    "irc_native_normal": true,
+    "ts_guess_status": "pass",
+    "direct": true,
+    "paired": true
+  },
+  {
+    "variant": "error_termination",
+    "directory": "/tmp/orca_irc_audit_67dg6vob",
+    "irc_native_normal": false,
+    "ts_guess_status": "pass",
+    "direct": true,
+    "paired": true
+  },
+  {
+    "variant": "no_termination",
+    "directory": "/tmp/orca_irc_audit_agrqgcow",
+    "irc_native_normal": false,
+    "ts_guess_status": "pass",
+    "direct": true,
+    "paired": true
+  }
+]

@@ -659,7 +659,7 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
     if separated:
         for geometry, ts_binding in ts:
             verdict = verify_separated_product_direction((forward, reverse), geometry, source,
-                product_smiles, target, charge=(atom_binding or {}).get('charge', 0),
+                product_smiles, target, charge=charge,
                 atom_binding=atom_binding if ts_binding == atom_binding else None)
             if verdict['is_match']:
                 return True, verdict['details']
