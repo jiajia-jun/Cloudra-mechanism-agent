@@ -651,3 +651,10 @@ def ts_separated_product_recovery_steps(
         Step(tools=[('ts_inspect', {'run_id': run_id})]),
         Step(stop=True),
     ]
+
+
+def invalid_compute_job_type_steps(job_type: Any) -> list[Step]:
+    """模型错填类型后继续收尾；合法类型使用缺失文件，绝不启动 QM。"""
+    return [Step(tools=[('submit_compute_job', {
+        'input_file': 'missing.inp', 'job_type': job_type,
+    })]), Step(stop=True)]

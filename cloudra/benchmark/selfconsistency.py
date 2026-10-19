@@ -197,7 +197,13 @@ def _strict_irc_proof(
     irc_logs = []
     for path in sorted(pool):
         native = probe._sandbox / path
-        if normal_log(native) and irc_start_geometry(native) is not None:
+        try:
+            normal = normal_log(native)
+            start = irc_start_geometry(native) if normal else None
+        except (OSError, ValueError) as exc:
+            failures.append(f'QM evidence candidate {path} is unusable: {exc}')
+            continue
+        if normal and start is not None:
             irc_logs.append(path)
             continue
         evidence = probe._files.get(path)
@@ -215,9 +221,9 @@ def _strict_irc_proof(
             parser.extract_irc(str(native))
         except ValueError as exc:
             failures.append(f'IRC candidate {path} is unusable: {exc}')
-        if not normal_log(native):
+        if not normal:
             failures.append(f'IRC candidate {path} lacks normally terminated native evidence.')
-        elif irc_start_geometry(native) is None:
+        elif start is None:
             failures.append(f'IRC candidate {path} has no usable native starting saddle.')
     if not irc_logs:
         failures.append('No normally terminated IRC candidate supplies a native starting saddle.')

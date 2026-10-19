@@ -827,6 +827,7 @@ def frames_unavailable_reason_from_text(text: str, *, log_path: str | None = Non
 # IRC 端点几何（final endpoint 文件 / F/B trajectory 末帧）
 # ---------------------------------------------------------------------------
 
+_ORCA_BASE_RE = re.compile(r'^[ \t]*\|[ \t]*\d+>[ \t]*%base[ \t]+"([^"\r\n]+)"[ \t]*(?:#.*)?$', re.M | re.I)
 _ORCA_NAME_RE = re.compile(r"^\s*NAME\s*=\s*(?P<path>\S+)\s*$", re.M)
 
 
@@ -861,6 +862,19 @@ def _orca_sidecar_roots(log_path: str, text: str) -> list[tuple[str, str]]:
         if match:
             names.add(Path(match.group('path')).stem)
         return [(log_dir, name) for name in sorted(names)]
+    base_match = _ORCA_BASE_RE.search(text[:200_000])
+    if base_match:
+        # Only a numbered native input-echo directive establishes a %base.
+        # It overrides NAME; do not adopt endpoints under the old basename.
+        base = Path(base_match.group(1))
+        directories = [Path(log_dir)]
+        if Path(log_dir).name == '.cloudra':
+            directories.append(Path(log_dir).parent)
+        name_match = _ORCA_NAME_RE.search(text[:200_000])
+        if name_match and Path(name_match.group('path')).is_absolute():
+            directories.append(Path(name_match.group('path')).parent)
+        return list(dict.fromkeys((str((directory / base).parent), base.name)
+                                  for directory in directories))
     m = _ORCA_NAME_RE.search(text[:200_000])
     if m:
         job = os.path.splitext(m.group("path"))[0]

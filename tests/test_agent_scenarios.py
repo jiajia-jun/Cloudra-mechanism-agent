@@ -2239,3 +2239,25 @@ async def test_ts_separated_product_component_evidence_recovers_candidate_withou
     finally:
         ready.set()
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('job_type', [[], {}, 'orca'])
+async def test_compute_job_type_feedback_without_runtime_retry(tmp_path, job_type):
+    from tests.agent_scenarios import invalid_compute_job_type_steps
+
+    harness = await ScenarioHarness.start(tmp_path, provider=ScriptedProvider(
+        default=invalid_compute_job_type_steps(job_type)))
+    try:
+        agent = await harness.spawn('small_mol', protocol='traditional')
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        assert len(calls) == 1, harness.describe(agent)
+        assert calls[0]['is_success'] is False
+        assert calls[0]['status'] == 'failed'
+        if not isinstance(job_type, str):
+            assert 'Invalid tool arguments' in calls[0]['result_summary']
+        assert not any(event.type == 'run.retry' for event in harness.events(agent))
+        assert agent.state.value == 'succeeded', harness.describe(agent)
+    finally:
+        await harness.aclose()
