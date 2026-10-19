@@ -2,8 +2,9 @@
 
 通道纪律：操作级修正进工具结果（跟随单次调用），行为级引导进 pin 的
 常驻上下文通知（跨轮/跨 run/跨重启可见；NoticeManager 按键幂等去重，
-重复 pin 不产生新消息、免费去抖）。本 stage 只提示、永不阻拦——它不是
-闸门，是「工作方式该调整」的提醒通道。
+重复 pin 不产生新消息、免费去抖）。
+
+引导只警告；YOLO 开启时，直接 TS/IRC 与 shell 提交另由既有审批官按意图判断。
 
 引导项：
 - TS/PES 准备与分子计算提交 → 物理条件、模型边界与坐标耦合的思考提醒；
@@ -27,13 +28,23 @@ from cloudra.runtime_v2.notices import NoticeManager
 from cloudra.runtime_v2.policies.base import PipelineContext, PolicyResult, ToolCall, ToolResult
 from cloudra.tools.core.bash_habit_guard import bash_file_write_warning
 from cloudra.tools.core.coord_guard import handwritten_coord_warning
+from cloudra.tools.core.ts_workflow_guard import inspect_ts_operation
 
 _PIN_TS_SOP = "guidance-ts-sop"
+_PIN_TS_WORKFLOW = "guidance-ts-workflow"
 _PIN_PHYSICAL_THINKING = "guidance-physical-thinking"
 _PIN_DELEGATE = "guidance-delegate-compute"
 _PIN_BASH_WRITE = "guidance-bash-file-write"
 _PIN_BASH_COORDS = "guidance-handwritten-coords"
 _PIN_REFLECTION = "guidance-scientific-reflection:"
+
+_TS_WORKFLOW_NOTICE = (
+    "[Warning: possible TS workflow bypass] This operation prepares or executes TS/IRC work outside ts_process. "
+    "For formal solving and verification, inspect and repair the same ts_prepare/ts_resume run. "
+    "Do not replace a blocked process with manual jobs or another script to avoid its missing inputs or scientific checks. "
+    "Exploratory trials, capability probes, diagnosis and evidence-backed reruns remain valid; "
+    "a manually completed calculation still needs the full TS/frequency/IRC evidence chain."
+)
 
 _TS_NOTICE = (
     "[Guidance] This looks like a TS/IRC job. For formal TS solving and complete "
@@ -113,6 +124,7 @@ def guide_ts_process(notices: NoticeManager | None, agent_id: str, data: dict) -
     run_id = data.get("run_id")
     if notices is None or not isinstance(run_id, str) or not run_id:
         return
+    notices.pin(agent_id, key=_PIN_TS_SOP, content=_TS_NOTICE)
     key = _PIN_REFLECTION + "ts-process:" + run_id
     verdict = data.get("result") or {}
     blocked = data.get("blocked") or {}
@@ -140,40 +152,63 @@ def guide_ts_process(notices: NoticeManager | None, agent_id: str, data: dict) -
         content = f"[Guidance] The target TS step remains unverified; {source}. {_REFLECTION_ADVICE}"
     _pin_reflection(notices, agent_id, key, content)
 
-def sniff_ts_or_irc_input(text: str, *, engine: str) -> bool:
-    """Recognize native TS/IRC tasks, excluding titles, comments and plain scans."""
-    from cloudra.tools.core.calculation_intent import inspect_input
-
-    return bool(inspect_input(text, engine=engine).tasks & {'ts_opt', 'irc'})
-
-
 class GuidanceStage:
     name = "guidance"
 
     async def before_tool(self, ctx: PipelineContext, call: ToolCall) -> PolicyResult:
         notices = ctx.notices
-        if notices is None:
-            return PolicyResult.allow()
-        if self._needs_physical_thinking(call):
+        if notices is not None and self._needs_physical_thinking(call):
             notices.pin(
                 ctx.agent.id,
                 key=_PIN_PHYSICAL_THINKING,
                 content=_PHYSICAL_THINKING_NOTICE,
             )
-        if call.name == "ts_guess" and self._needs_physical_thinking(call):
+        if notices is not None and call.name == "ts_guess" and self._needs_physical_thinking(call):
             notices.pin(ctx.agent.id, key=_PIN_TS_SOP, content=_TS_NOTICE)
-        if call.name == "qm_input_writer":
-            from cloudra.tools.core.calculation_intent import intent_from_writer
-            try:
-                intent = intent_from_writer(call.arguments)
-            except (TypeError, ValueError, KeyError):
-                intent = None
-            if intent is not None and any(task in intent.tasks for task in ("ts_opt", "irc")):
-                notices.pin(ctx.agent.id, key=_PIN_TS_SOP, content=_TS_NOTICE)
-        if call.name == "submit_compute_job":
-            await self._guide_submit(ctx, call, notices)
-        elif call.name == "bash":
+        if notices is not None and call.name == "submit_compute_job" and getattr(ctx.agent, "role_id", "") == "coordinator":
+            notices.pin(ctx.agent.id, key=_PIN_DELEGATE, content=_DELEGATE_NOTICE)
+        if notices is not None and call.name == "bash":
             self._guide_bash(ctx, call, notices)
+
+        operation = {}
+        if call.name in {"qm_input_writer", "write", "edit", "bash", "submit_compute_job"} and not (
+                call.name == "submit_compute_job" and call.arguments.get('job_type', 'gaussian')
+                not in {'gaussian', 'orca', 'shell'}):
+            operation = await asyncio.to_thread(inspect_ts_operation, call.name, call.arguments, ctx.workspace_dir)
+        native_ts = bool(operation.get('ts_inputs'))
+        known_ts = notices is not None and notices.pin_content(ctx.agent.id, _PIN_TS_SOP) is not None
+        # 命中只说明有绕过的可能：先提醒，不能据此禁用提交或诊断脚本。
+        possible_bypass = native_ts or bool(known_ts and operation.get('scripts') and operation.get('direct_execution'))
+        warning = ''
+        if possible_bypass:
+            sources = ', '.join(item['path'] for item in operation.get('ts_inputs', []))
+            message = f"{_TS_WORKFLOW_NOTICE}\nObserved operation: {call.name}" + (f"; TS/IRC inputs: {sources}" if sources else '')
+            if notices is None or notices.pin_content(ctx.agent.id, _PIN_TS_WORKFLOW) != message:
+                warning = message
+            if notices is not None:
+                notices.pin(ctx.agent.id, key=_PIN_TS_SOP, content=_TS_NOTICE)
+                notices.pin(ctx.agent.id, key=_PIN_TS_WORKFLOW, content=message)
+
+        # bash/write/edit 已在执行前调用同一个审批官；这里只补直接提交，避免重复审批。
+        from cloudra.infra.yolo_guard import YoloGuard, is_yolo_enabled
+
+        if (call.name == 'submit_compute_job' and (native_ts or call.arguments.get('job_type') == 'shell')
+                and (ctx.settings.yolo or is_yolo_enabled())):
+            approved, reason = await YoloGuard().judge(
+                call.name, call.arguments, ctx.agent, None,
+                risk_summary='Direct compute submission: distinguish a legitimate trial/diagnosis from bypassing formal TS verification.',
+                workspace_dir=ctx.workspace_dir,
+                event_log=notices._event_log if notices is not None else None,
+            )
+            if not approved:
+                message = reason or 'YOLO review rejected this operation; inspect and repair the TS workflow or choose a justified diagnostic.'
+                if notices is not None:
+                    notices.pin(ctx.agent.id, key=_PIN_TS_WORKFLOW,
+                                content='[YOLO workflow review] The current submission was rejected. '
+                                        'Address the returned reason; switching to bash, Python, SSH or another tool does not resolve it.')
+                return PolicyResult.block(message)
+        if warning:
+            return PolicyResult.warn(warning)
         return PolicyResult.allow()
 
     async def after_tool(self, ctx: PipelineContext, call: ToolCall, result: ToolResult) -> None:
@@ -283,17 +318,6 @@ class GuidanceStage:
             return call.arguments.get("job_type") in ("gaussian", "orca")
         return False
 
-    async def _guide_submit(self, ctx: PipelineContext, call: ToolCall, notices) -> None:
-        if getattr(ctx.agent, "role_id", "") == "coordinator":
-            notices.pin(ctx.agent.id, key=_PIN_DELEGATE, content=_DELEGATE_NOTICE)
-        engine = call.arguments.get('job_type', 'gaussian')
-        if engine not in ('gaussian', 'orca'):
-            return
-        input_file = str(call.arguments.get("input_file") or "")
-        text = await asyncio.to_thread(self._read_input, ctx, input_file)
-        if text is not None and await asyncio.to_thread(sniff_ts_or_irc_input, text, engine=engine):
-            notices.pin(ctx.agent.id, key=_PIN_TS_SOP, content=_TS_NOTICE)
-
     def _guide_bash(self, ctx: PipelineContext, call: ToolCall, notices) -> None:
         command = str(call.arguments.get("command") or "")
         if not command:
@@ -302,19 +326,3 @@ class GuidanceStage:
             notices.pin(ctx.agent.id, key=_PIN_BASH_COORDS, content=_BASH_COORDS_NOTICE)
         elif bash_file_write_warning(command) is not None:
             notices.pin(ctx.agent.id, key=_PIN_BASH_WRITE, content=_BASH_WRITE_NOTICE)
-
-    @staticmethod
-    def _read_input(ctx: PipelineContext, input_file: str) -> str | None:
-        """Read the complete native input, including later Link1 jobs."""
-        if not input_file:
-            return None
-        candidates = [input_file]
-        if not os.path.isabs(input_file) and ctx.workspace_dir:
-            candidates.insert(0, os.path.join(ctx.workspace_dir, input_file))
-        for candidate in candidates:
-            try:
-                with open(candidate, encoding="utf-8", errors="replace") as fh:
-                    return fh.read()
-            except OSError:
-                continue
-        return None

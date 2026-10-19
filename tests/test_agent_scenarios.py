@@ -1715,13 +1715,18 @@ async def test_ts_resume_native_cclib_assertion_keeps_completed_ts(tmp_path, mon
         frequency_input = await asyncio.to_thread(Path(frequency.input_path).read_text)
         assert "NumFreq" in frequency_input and "TightSCF" in frequency_input
         optimized_xyz = await asyncio.to_thread(Path(frequency.input_path).with_name("optimized.xyz").read_text)
-        assert optimized_xyz.splitlines()[2:] == [
+        expected_geometry = [
             "C -0.423530 -0.004703 0.002036",
             "O 0.591597 -0.682213 -0.372134",
             "O 1.476819 0.188463 0.229121",
             "H -1.261767 -0.509001 0.485509",
             "H -0.434262 1.076129 -0.083405",
         ]
+        actual_atoms = [line.split() for line in optimized_xyz.splitlines()[2:]]
+        expected_atoms = [line.split() for line in expected_geometry]
+        assert [atom[0] for atom in actual_atoms] == [atom[0] for atom in expected_atoms]
+        assert [float(x) for atom in actual_atoms for x in atom[1:]] == pytest.approx(
+            [float(x) for atom in expected_atoms for x in atom[1:]], abs=1e-8)
         assert await asyncio.to_thread(job_count, db) == 2
         for _ in range(2):
             await asyncio.to_thread(handle_process_job_terminal, db, step.job_id)
@@ -1760,6 +1765,45 @@ async def test_yolo_invalid_boolean_never_applies_agent_file_write(tmp_path, mon
         assert client.create.call_count == 3
         target = _workspace(harness.project.id) / "blocked.txt"
         assert not await asyncio.to_thread(target.exists)
+    finally:
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_yolo_reviews_ts_submission_and_python_switch_but_allows_diagnosis(tmp_path, monkeypatch):
+    """真实工具链中，拒绝提交、拒绝 Python 换路、允许诊断，均在副作用之前裁决。"""
+    from unittest.mock import AsyncMock
+
+    from cloudra.infra.yolo_guard import YoloGuard
+    from tests.agent_scenarios import ts_bypass_then_diagnostic_steps
+    from tests.test_yolo_guard import _approval_response
+
+    monkeypatch.setenv('CLOUDRA_YOLO_MODE', 'true')
+    client = SimpleNamespace(create=AsyncMock(side_effect=[
+        _approval_response({'approved': False, 'reason': 'Repair the existing TS workflow.'}),
+        _approval_response({'approved': False, 'reason': 'Changing execution tools does not repair the missing verification.'}),
+        _approval_response({'approved': True, 'reason': 'Diagnostic observation is allowed.'}),
+    ]))
+    monkeypatch.setattr(YoloGuard, '_client', lambda _: client)
+    harness = await ScenarioHarness.start(tmp_path, provider=ScriptedProvider(default=ts_bypass_then_diagnostic_steps()))
+    try:
+        workspace = _workspace(harness.project.id)
+        await asyncio.to_thread(workspace.mkdir, parents=True, exist_ok=True)
+        await asyncio.to_thread((workspace / 'ts.inp').write_text, '! HF STO-3G OptTS Freq\n')
+        task = 'Find and rigorously verify this reaction TS.'
+        agent = await harness.spawn('coordinator', protocol='traditional', query=task)
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        assert [call['tool_name'] for call in calls] == ['submit_compute_job', 'bash', 'write'], harness.describe(agent)
+        assert calls[0]['status'] == 'blocked'
+        assert calls[1]['result_data']['exit_code'] == 126
+        assert calls[2]['result_data']['is_written'] is True
+        assert client.create.call_count == 3
+        assert not await asyncio.to_thread((workspace / 'bypassed.txt').exists)
+        assert await asyncio.to_thread((workspace / 'diagnostic.txt').read_text) == 'diagnostic observation'
+        reviewed = [''.join(part['text'] for part in call.kwargs['messages'][1]['content'])
+                    for call in client.create.call_args_list]
+        assert all(task in content for content in reviewed), reviewed
     finally:
         await harness.aclose()
 

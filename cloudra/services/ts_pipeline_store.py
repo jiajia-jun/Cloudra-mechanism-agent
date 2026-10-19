@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sqlite3
 import time
+from contextlib import closing
 from pathlib import Path
 from typing import Literal
 
@@ -277,6 +279,26 @@ def get_process(db: ComputeDB, process_id: str) -> dict | None:
         return None
     return dict(process_id=row[0], payload=json.loads(row[1]), declaration_revision=row[2], revision=row[3],
                 status=row[4], record=json.loads(row[5]) if row[5] else None)
+
+
+def workflow_review_context(db: ComputeDB, *, project_id: str, owner_id: str) -> list[dict]:
+    """Read only this owner's workflow facts, without logs, geometry or schema writes."""
+    if not project_id or not owner_id or not Path(db.path).is_file():
+        return []
+    # ComputeDB.connect self-heals schema; the auditor must be a pure reader.
+    uri = Path(db.path).resolve().as_uri() + '?mode=ro'
+    with closing(sqlite3.connect(uri, uri=True)) as con:
+        if not con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='ts_pipeline_processes'").fetchone():
+            return []
+        rows = con.execute(
+            "SELECT json_extract(record,'$.run_id'),status,json_extract(record,'$.stage'),"
+            "coalesce(json_extract(record,'$.blocked.failure_class'),json_extract(record,'$.failed_attempt.failure_class')),"
+            "json_extract(record,'$.blocked.needs'),json_extract(record,'$.terminal'),json_extract(record,'$.run_dir') "
+            "FROM ts_pipeline_processes WHERE project_id=? AND owner_id=? AND record IS NOT NULL ORDER BY rowid",
+            (project_id, owner_id),
+        ).fetchall()
+    return [dict(run_id=row[0], status=row[1], stage=row[2], failure_class=row[3],
+                 required_inputs=json.loads(row[4]) if row[4] else [], outcome=row[5], run_dir=row[6]) for row in rows]
 
 
 def stop_process(db: ComputeDB, *, process_id: str, project_id: str,

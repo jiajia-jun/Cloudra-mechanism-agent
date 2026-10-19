@@ -27,6 +27,6 @@ def default_stages(core=None) -> list[PolicyStage]:
         DagPolicyStage(core),
         GoalStage(),
         ScheduleStage(core),
-        # 行为引导（pin 常驻上下文通知）：只提示、永不阻拦，放最后。
+        # 行为引导放最后；YOLO 对直接 TS/IRC 或 shell 提交按意图审批。
         GuidanceStage(),
     ]

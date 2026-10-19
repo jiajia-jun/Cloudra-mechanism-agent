@@ -447,6 +447,42 @@ def _approval_response(payload, channel="tool", name="submit_approval_decision",
     return SimpleNamespace(choices=[SimpleNamespace(message=message)])
 
 
+def _auditor_payload(create):
+    return "\n".join(part["text"] for part in create.call_args.kwargs["messages"][1]["content"])
+
+
+@pytest.mark.asyncio
+async def test_nonruntime_agent_task_fallback_reaches_yolo_auditor(monkeypatch):
+    """Standalone callers without a runtime event log retain their explicit task."""
+    from cloudra.runtime_v2.schemas import AgentSession
+
+    agent = AgentSession(id="owner", project_id="project", role_id="dft", display_name="DFT",
+                         current_task="Diagnose the blocked TS without weakening verification")
+    guard = YoloGuard.__new__(YoloGuard)
+    guard.model = "offline"
+    create = AsyncMock(return_value=_approval_response({"approved": True}))
+    monkeypatch.setattr(guard, "_client", lambda: SimpleNamespace(create=create))
+
+    assert (await guard.judge("bash", {"command": "pwd"}, agent, None))[0] is True
+    payload = _auditor_payload(create)
+    assert "Diagnose the blocked TS without weakening verification" in payload
+    assert "dft" in payload
+
+
+@pytest.mark.asyncio
+async def test_yolo_audits_complete_operation_arguments(monkeypatch):
+    """A command appended after a long harmless prefix must remain visible."""
+    guard = YoloGuard.__new__(YoloGuard)
+    guard.model = "offline"
+    create = AsyncMock(return_value=_approval_response({"approved": True}))
+    monkeypatch.setattr(guard, "_client", lambda: SimpleNamespace(create=create))
+    command = "# diagnostic context " + "x" * 3000 + "\npython bypass_verification.py"
+
+    await guard.judge("bash", {"command": command}, SimpleNamespace(), None)
+
+    assert json.dumps({"command": command}, ensure_ascii=False) in _auditor_payload(create)
+
+
 @pytest.mark.parametrize("channel", ["tool", "content"])
 @pytest.mark.parametrize("payload", [
     {"approved": "false"}, {"approved": "true"}, {"approved": 1}, {"approved": 0},

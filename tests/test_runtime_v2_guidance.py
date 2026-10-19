@@ -1,4 +1,4 @@
-"""GuidanceStage：行为引导经 pin 常驻上下文通知（永不阻拦、按键幂等去重）。
+"""GuidanceStage：行为警告经 pin 通知；YOLO 可按意图拒绝单次提交。
 
 通道纪律的回归守卫：行为引导（TS 走 ts_prepare、Coordinator 派单、bash
 手写文件/坐标）不再进工具返回结果，而是 pin 进上下文；本文件同时钉住
@@ -16,8 +16,9 @@ import pytest
 from cloudra.runtime_v2.events import EventLog
 from cloudra.runtime_v2.notices import NoticeManager
 from cloudra.runtime_v2.policies.base import PipelineContext, ToolCall, ToolResult
-from cloudra.runtime_v2.policies.guidance import GuidanceStage, sniff_ts_or_irc_input
+from cloudra.runtime_v2.policies.guidance import GuidanceStage
 from cloudra.runtime_v2.schemas import AgentCapabilities, PermissionSet, RuntimeSettings
+from cloudra.tools.core.ts_workflow_guard import native_ts_tasks
 from tests.test_manual_ts_submission import TS_INPUTS
 
 
@@ -50,19 +51,19 @@ def _bash(command: str) -> ToolCall:
 
 
 def test_sniff_detects_ts_irc_qst_routes():
-    assert sniff_ts_or_irc_input("! B3LYP def2-SVP OptTS Freq\n", engine='orca')
-    assert sniff_ts_or_irc_input("# opt=(ts,calcfc,noeigentest) b3lyp/def2svp\n", engine='gaussian')
-    assert sniff_ts_or_irc_input("# opt=qst2 b3lyp/def2svp\n", engine='gaussian')
-    assert sniff_ts_or_irc_input("! IRC\n%irc MaxIter 50 end\n", engine='orca')
-    assert sniff_ts_or_irc_input("# irc=calcfC\n", engine='gaussian')
+    assert native_ts_tasks("! B3LYP def2-SVP OptTS Freq\n", engine='orca')
+    assert native_ts_tasks("# opt=(ts,calcfc,noeigentest) b3lyp/def2svp\n", engine='gaussian')
+    assert native_ts_tasks("# opt=qst2 b3lyp/def2svp\n", engine='gaussian')
+    assert native_ts_tasks("! IRC\n%irc MaxIter 50 end\n", engine='orca')
+    assert native_ts_tasks("# irc=calcfC\n", engine='gaussian')
 
 
 def test_sniff_ignores_plain_and_scan_jobs():
-    assert not sniff_ts_or_irc_input("! B3LYP def2-SVP Opt Freq\n", engine='orca')
-    assert not sniff_ts_or_irc_input("# opt b3lyp/def2svp\n", engine='gaussian')
+    assert not native_ts_tasks("! B3LYP def2-SVP Opt Freq\n", engine='orca')
+    assert not native_ts_tasks("# opt b3lyp/def2svp\n", engine='gaussian')
     # 松弛扫描是 agent 侧正当手段，不触发 TS 引导
-    assert not sniff_ts_or_irc_input("# opt=modredundant b3lyp/def2svp\nB 1 2 S 10 0.1\n", engine='gaussian')
-    assert not sniff_ts_or_irc_input("", engine='gaussian')
+    assert not native_ts_tasks("# opt=modredundant b3lyp/def2svp\nB 1 2 S 10 0.1\n", engine='gaussian')
+    assert not native_ts_tasks("", engine='gaussian')
 
 
 # ---------------------------------------------------------------- submit 引导
@@ -73,7 +74,7 @@ def test_ts_submission_pins_sop_guidance(tmp_path):
     inp.write_text("! OptTS B3LYP def2-SVP\n* xyz 0 1\nC 0 0 0\n*\n", encoding="utf-8")
     notices = NoticeManager()
     result = _run(GuidanceStage(), _ctx("small_mol", notices, str(tmp_path)), _submit("ts.inp"))
-    assert result.outcome == "allow"
+    assert result.outcome == "warn"
     pin = notices.pin_content("as_g", "guidance-ts-sop")
     assert pin is not None and "ts_prepare" in pin and "QST2/QST3" in pin
 
@@ -94,7 +95,7 @@ def test_native_ts_submission_variants_pin_the_workflow_without_blocking(tmp_pat
 
     result = _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), _submit(str(path), engine))
 
-    assert result.outcome == 'allow'
+    assert result.outcome == 'warn'
     pin = notices.pin_content('as_g', 'guidance-ts-sop')
     assert pin and 'ts_prepare' in pin and 'exploratory trials' in pin
     assert {'role': 'system', 'content': pin} in notices.collect_batch('as_g', fresh=False)
@@ -126,12 +127,12 @@ def test_native_non_ts_submission_does_not_pin_workflow(tmp_path, engine, conten
     assert notices.pin_content('as_g', 'guidance-ts-sop') is None
 
 
-@pytest.mark.parametrize('engine', ['shell', 'xtb', 'vasp', 'cp2k'])
+@pytest.mark.parametrize('engine', ['xtb', 'vasp', 'cp2k'])
 def test_non_qm_submission_does_not_sniff_script_contents(tmp_path, monkeypatch, engine):
     def unexpected(*_args):
         pytest.fail('Native TS input inspection must only read Gaussian/ORCA jobs')
 
-    monkeypatch.setattr(GuidanceStage, '_read_input', unexpected)
+    monkeypatch.setattr('cloudra.runtime_v2.policies.guidance.inspect_ts_operation', unexpected)
     notices = NoticeManager()
     result = _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), _submit('script.sh', engine))
     assert result.outcome == 'allow'
@@ -143,26 +144,28 @@ def test_omitted_submit_engine_uses_the_gaussian_schema_default(tmp_path):
     path.write_text('#p HF/STO-3G Opt=TS\n\n')
     notices = NoticeManager()
     call = ToolCall(id='default-engine', name='submit_compute_job', arguments={'input_file': str(path)})
-    assert _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), call).outcome == 'allow'
+    assert _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), call).outcome == 'warn'
     assert notices.pin_content('as_g', 'guidance-ts-sop') is not None
 
 
 @pytest.mark.asyncio
 async def test_native_submit_guidance_reads_input_off_the_event_loop(tmp_path, monkeypatch):
+    from cloudra.runtime_v2.policies import guidance
+
     path = tmp_path / 'prepared.inp'
     path.write_text('! HF STO-3G NEB-TS\n')
-    read = GuidanceStage._read_input
+    inspect = guidance.inspect_ts_operation
     loop_thread = threading.get_ident()
     threads = []
 
-    def recording_read(ctx, input_file):
+    def recording_read(*args):
         threads.append(threading.get_ident())
-        return read(ctx, input_file)
+        return inspect(*args)
 
-    monkeypatch.setattr(GuidanceStage, '_read_input', staticmethod(recording_read))
+    monkeypatch.setattr(guidance, 'inspect_ts_operation', recording_read)
     notices = NoticeManager()
     result = await GuidanceStage().before_tool(_ctx('small_mol', notices, str(tmp_path)), _submit(str(path)))
-    assert result.outcome == 'allow'
+    assert result.outcome == 'warn'
     assert threads and all(thread != loop_thread for thread in threads)
     assert notices.pin_content('as_g', 'guidance-ts-sop') is not None
 
@@ -175,7 +178,7 @@ def test_submit_guidance_reads_ts_link_after_large_first_geometry(tmp_path):
     path.write_text(first + '--Link1--\n#p HF/STO-3G Opt=TS\n\n')
     notices = NoticeManager()
     result = _run(GuidanceStage(), _ctx('small_mol', notices, str(tmp_path)), _submit(str(path), 'gaussian'))
-    assert result.outcome == 'allow'
+    assert result.outcome == 'warn'
     assert notices.pin_content('as_g', 'guidance-ts-sop') is not None
 
 
@@ -416,7 +419,7 @@ def test_process_reflection_is_cleared_when_attempt_resumes_or_is_verified(tmp_p
     _after(stage, ctx, call, ToolResult(is_success=True, data=data))
     _after(stage, ctx, call, ToolResult(is_success=True, data={**data, "status": status, "result": result}))
     assert _reflection_pins(notices) == {}
-    assert notices._local_seqs["as_g"] == 2
+    assert notices._local_seqs["as_g"] == 3  # SOP pin, reflection pin, reflection cleared.
 
 
 def test_stop_retracts_the_previous_hint_to_repair_that_pipeline(tmp_path):
@@ -509,7 +512,8 @@ def test_process_reflection_is_not_reinjected_after_notice_restore(tmp_path):
     restored.restore_from(log)
     _after(stage, _ctx("small_mol", restored), call, ToolResult(is_success=True, data=data))
     assert len(_reflection_pins(restored)) == 1
-    assert sum(event.type == "context.pin_set" for event in log) == 1
+    assert sum(event.type == "context.pin_set" and event.data['key'].startswith('guidance-scientific-reflection:')
+               for event in log) == 1
 
 
 @pytest.mark.parametrize(

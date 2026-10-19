@@ -7,6 +7,7 @@
 ``set_session_yolo`` 设置 contextvar，只对当前会话生效，互不影响。
 """
 
+import asyncio
 import contextvars
 import json
 import os
@@ -96,6 +97,22 @@ def _format_content(content: Any, max_len: int = 1000) -> str:
     return "\n".join(text_parts)
 
 
+def _task_instructions(event_log, session_id: str) -> str:
+    """Read original assignments and human steering, never tool/peer reports."""
+    instructions = []
+    events = event_log.query_session(session_id, types={'agent.message_injected'}, limit=None, tail=False)
+    for index, event in enumerate(events):
+        data = event.data
+        content = data.get('content')
+        manifest = data.get('manifest') or {}
+        initial_assignment = index == 0 and not manifest and not data.get('post_id')
+        if isinstance(content, str) and content.strip() and (
+            initial_assignment or data.get('sender') == 'user' or manifest.get('kind') == 'task_assignment'
+        ):
+            instructions.append(content)
+    return '\n\n'.join(instructions)
+
+
 class _ApprovalDecision(BaseModel):
     """The sole approval payload contract: no truthiness coercion or text guessing."""
 
@@ -134,22 +151,49 @@ class YoloGuard:
         agent,
         session,
         risk_summary: str = "",
+        *,
+        workspace_dir: str | None = None,
+        event_log=None,
     ) -> tuple[bool, str]:
         """判断当前工具调用是否应该被允许执行。
 
-        审批官只看结构化输入（任务、执行者、工具名、序列化参数、风险摘要），
+        审批官只看结构化输入（任务、执行者、工具参数、风险摘要和程序读取的流程事实），
         不接收 agent 的近期消息历史——工具输出等外部文本可能携带提示词注入，
         喂给审批官会让执行者与审批官同源失效。
         """
-        args_summary = _format_content(tool_args, max_len=1000)
+        from cloudra.tools.core.ts_workflow_guard import inspect_ts_operation
+
+        args_summary = json.dumps(tool_args, ensure_ascii=False, allow_nan=False)
+        task = getattr(agent, 'query', None) or getattr(agent, 'current_task', '') or ''
+        actor_name = getattr(agent, 'name', None) or getattr(agent, 'role_id', 'Unknown Agent')
+        project_id = getattr(agent, 'project_id', None) or getattr(agent, 'conversation_id', None)
+        owner_id = getattr(agent, 'id', None)
+        log = event_log if event_log is not None else getattr(agent, '_event_log', None)
+        if log is not None and isinstance(owner_id, str) and owner_id:
+            # current_task 只是界面摘要；审批需要原始指派和用户补充的完整约束。
+            task = await asyncio.to_thread(_task_instructions, log, owner_id)
+        workspace = workspace_dir or getattr(agent, 'working_directory', None)
+        operation = await asyncio.to_thread(
+            inspect_ts_operation, tool_name, tool_args, workspace if isinstance(workspace, str) else None
+        )
+        workflows = []
+        if isinstance(project_id, str) and isinstance(owner_id, str) and project_id and owner_id:
+            from cloudra.services.ts_pipeline_context import pipeline_database
+            from cloudra.services.ts_pipeline_store import workflow_review_context
+
+            workflows = await asyncio.to_thread(
+                workflow_review_context, pipeline_database(), project_id=project_id, owner_id=owner_id
+            )
 
         prefix_text = (
-            f"[当前任务]\n{getattr(agent, 'query', '')}\n\n"
-            f"[执行者]\n{getattr(agent, 'name', 'Unknown Agent')}\n\n"
+            f"[当前任务]\n{task}\n\n"
+            f"[执行者]\n{actor_name}\n\n"
             f"[待审批操作]\n"
             f"工具: {tool_name}\n"
             f"参数: {args_summary}\n"
             f"风险摘要: {risk_summary or '（未提供）'}"
+            f"\n\n[操作检查事实]\n{json.dumps(operation, ensure_ascii=False)}"
+            f"\n\n[本执行者的 TS 流程事实]\n{json.dumps(workflows, ensure_ascii=False)}"
         )
 
         user_content = [{"type": "text", "text": prefix_text}]

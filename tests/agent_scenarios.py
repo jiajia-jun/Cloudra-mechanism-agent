@@ -30,6 +30,7 @@
 | 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态；配置预算的 TS 终态通知能唤醒并落盘 |
 | 工具进度持久化 | 阶段记录落盘失败立即终止 Agent，不重试工具副作用 |
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
+| YOLO TS 流程审查 | 提交被拒后改走 Python 仍需审批；获准诊断可正常执行 |
 | TS 故障检查点 + 重复恢复 | 重复相同 scan 续接保留原故障与同一重试作业 |
 | TS fixture 频率门禁 + 终态事件 | 真实零虚频日志阻止 IRC，重复 resume 保留故障与原流程 |
 | TS 完成后的频率恢复 | 原生日志解析器断言不阻断频率提交，保留既有 TS 作业和科学待验证状态 |
@@ -206,6 +207,16 @@ def malformed_shell_steps() -> list[Step]:
     return [
         Step(tools=[("bash", {"command": 'echo "unfinished'})]),
         Step(tools=[("todo_write", {"todos": [{"content": "Recovered after invalid input", "status": "done"}]})]),
+        Step(stop=True),
+    ]
+
+
+def ts_bypass_then_diagnostic_steps() -> list[Step]:
+    """直接提交被拒后换 Python，最后执行获准的诊断写入。"""
+    return [
+        Step(tools=[('submit_compute_job', {'input_file': 'ts.inp', 'job_type': 'orca'})]),
+        Step(tools=[('bash', {'command': 'python3 -c \'from pathlib import Path; Path("bypassed.txt").write_text("bypass")\''})]),
+        Step(tools=[('write', {'path': 'diagnostic.txt', 'content': 'diagnostic observation'})]),
         Step(stop=True),
     ]
 
