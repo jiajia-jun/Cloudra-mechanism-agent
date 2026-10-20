@@ -2,7 +2,7 @@
   "source_batch_id": "batch_33673755b17b4a55",
   "source_program_revision": "fae430ab",
   "scoring_regression_revision": "87685c5e",
-  "meaning": "Historical real ORCA calculation replay, not a new calculation or current model benchmark run. All captured native files and original delivered graph bytes are unchanged; current step endpoint metadata is reconstructed from the independently verified historical per-step Opt/Freq lineage.",
+  "meaning": "Historical real ORCA calculation replays, not new QM calculations or new model benchmark runs. L1/M17 preserve original failed deliveries, diagnostic endpoint-index reconstructions and later actual automatic exports. M3 preserves only its actual automatic successful delivery from the separate batch and revision recorded in that case. Native logs, frozen IRC bundles, captured graph and automatic endpoint-index bytes are unchanged.",
   "cases": {
     "L1": {
       "files": [
@@ -652,6 +652,197 @@
           "graph_score": 1.0,
           "selfconsistency_passed": true,
           "accuracy_score": 0.9999990154134106,
+          "final_score": 1.0
+        }
+      }
+    },
+    "M3": {
+      "source_batch_id": "batch_06889167511143ee",
+      "source_program_revision": "81def5682875a4fffbc5af9fe89a235d57798c27",
+      "meaning": "Actual automatic M3 delivery from a completed real NH3 inversion calculation; only this successful captured delivery is represented, with no invented historical failure or reconstructed endpoint index.",
+      "files": [
+        {
+          "archive": "M3/job03.out.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/ts_opt/.cloudra/execution-3/results/calc-3.out.log",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/ts_opt/.cloudra/execution-3/results/calc-3.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0002/ts_opt/.cloudra/execution-3/results/calc-3.out.log",
+          "sha256": "d82e7f2dca21f69644f0c2d2d04540d10108e7d1cf78ec9448fce7560494aec4",
+          "gzip_sha256": "7c75cfdc03e20dd8260da8254c5832877bbcc01f67daef7a7f00c4330bf3ca4a",
+          "uncompressed_bytes": 107372,
+          "compressed_bytes": 28241,
+          "job_id": 3
+        },
+        {
+          "archive": "M3/job04.out.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/frequency/.cloudra/execution-4/results/calc-4.out.log",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/frequency/.cloudra/execution-4/results/calc-4.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0002/frequency/.cloudra/execution-4/results/calc-4.out.log",
+          "sha256": "da55bf0d01990a5e1fc4f4dacae01ab0de49aec6734858516547b5cc27f36db0",
+          "gzip_sha256": "4c0a69225cefab5e27f9875f8d37e960afb2b996700dbadac0b68bcae6ff0bbc",
+          "uncompressed_bytes": 70317,
+          "compressed_bytes": 19691,
+          "job_id": 4
+        },
+        {
+          "archive": "M3/job05.out.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/irc/.cloudra/execution-5/results/calc-5.out.log",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/irc/.cloudra/execution-5/results/calc-5.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0002/irc/.cloudra/execution-5/results/calc-5.out.log",
+          "sha256": "564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074",
+          "gzip_sha256": "5844250d9ddf9e53308f2d277a21c0b434ae37c1ce7db15d149c4a4d67b0a975",
+          "uncompressed_bytes": 76723,
+          "compressed_bytes": 20318,
+          "job_id": 5
+        },
+        {
+          "archive": "M3/job06.out.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/reactant_opt/.cloudra/execution-6/results/calc-6.out.log",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/reactant_opt/.cloudra/execution-6/results/calc-6.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0002/reactant_opt/.cloudra/execution-6/results/calc-6.out.log",
+          "sha256": "efefcb6ce412e5de0ce2e3d6215ea712556714fece1bff77114e5a7bb0daeaa9",
+          "gzip_sha256": "72e8a0cc23433e8da17cbb23be34e5c5b81c4590cffdd6690331e598505ea8c8",
+          "uncompressed_bytes": 184298,
+          "compressed_bytes": 33197,
+          "job_id": 6
+        },
+        {
+          "archive": "M3/job08.out.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+          "sha256": "63135aaa820ef53b7aefa0e242c4ed445b9a4ab4fc254b18bc3f7d5d7889521b",
+          "gzip_sha256": "664e4c167617b697fdbfcf0c624228c647ddb5cadc9a45c254769d2ba961e830",
+          "uncompressed_bytes": 184258,
+          "compressed_bytes": 33228,
+          "job_id": 8
+        },
+        {
+          "archive": "M3/irc05/114175448b95b05f_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/114175448b95b05f_irc_IRC_F.xyz",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/114175448b95b05f_irc_IRC_F.xyz",
+          "sandbox_path": ".cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/114175448b95b05f_irc_IRC_F.xyz",
+          "sha256": "114175448b95b05fe5bd4341d7719be9d67b696525f4c0b660380564169373dd",
+          "gzip_sha256": "72f69d05b5b2d464da896490da84a1d8b584917a707f707cea1a44c6b10465e5",
+          "uncompressed_bytes": 357,
+          "compressed_bytes": 214
+        },
+        {
+          "archive": "M3/irc05/61a8938bf7d2f1f8_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/61a8938bf7d2f1f8_irc_IRC_B.xyz",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/61a8938bf7d2f1f8_irc_IRC_B.xyz",
+          "sandbox_path": ".cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/61a8938bf7d2f1f8_irc_IRC_B.xyz",
+          "sha256": "61a8938bf7d2f1f8cc0916910c0870eec4d5ee53ed59493fd1ed591aaa6bcc50",
+          "gzip_sha256": "4a2f8107041f28d7f667e165bc066366abf16c095f5f0e9a185dd436d2d3ab57",
+          "uncompressed_bytes": 357,
+          "compressed_bytes": 217
+        },
+        {
+          "archive": "M3/irc05/irc-564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074.end-a.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc-564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074.end-a.xyz",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc-564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074.end-a.xyz",
+          "sandbox_path": ".cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc-564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074.end-a.xyz",
+          "sha256": "660a505f886a746dcce741eb83516948a5354c740fe38d9154b83a987a991992",
+          "gzip_sha256": "ad7b8baa8a63dee5e9e2271597fa56277046c93ae187699f57e62e57ebb2f991",
+          "uncompressed_bytes": 250,
+          "compressed_bytes": 194
+        },
+        {
+          "archive": "M3/irc05/irc-564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074.end-b.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc-564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074.end-b.xyz",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc-564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074.end-b.xyz",
+          "sandbox_path": ".cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc-564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074.end-b.xyz",
+          "sha256": "6f3de7a49c4b92da68d443ad00c7a693034531839ba9fb1e652ecf2260ed68df",
+          "gzip_sha256": "088f931c51a9cf9733205162b7a700c1bb091a0add65bf2dc28eef187dd72cb4",
+          "uncompressed_bytes": 254,
+          "compressed_bytes": 195
+        },
+        {
+          "archive": "M3/irc05/irc_endpoints.json.gz",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc_endpoints.json",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc_endpoints.json",
+          "sandbox_path": ".cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/irc_endpoints.json",
+          "sha256": "6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390",
+          "gzip_sha256": "a693cd4208dc2b4ed6bf23dd20ea3d84df6640d5a5ca8e7580750f8a82f659cf",
+          "uncompressed_bytes": 1572,
+          "compressed_bytes": 618
+        }
+      ],
+      "graph": {
+        "archive": "M3/automatic/mechanism_graph.json",
+        "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/mechanism_graph.json",
+        "source_member": "data/sandboxes/M3/batch_06889167511143ee/mechanism_graph.json",
+        "sha256": "5aab823008c1fdfc5e29783c9e4f153d0aaf15594d36b99396237b833d3a455c",
+        "bytes": 2292
+      },
+      "task": {
+        "archive": "M3/task.json",
+        "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/formal-tasks/easy/M3.json",
+        "sha256": "3cdebd81327cb2184ac20ad8eb41cae5b38db88d8ac23af56c2c4379eeb01594",
+        "bytes": 7590
+      },
+      "automatic_delivery": {
+        "source_archive": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/raw-m3.tar",
+        "source_archive_sha256": "6059e9110635d0aa3f78a46d8dd952cfad5213e62e252a64c386f08dc7d606d1",
+        "source_archive_bytes": 42864640,
+        "source_program_revision": "81def5682875a4fffbc5af9fe89a235d57798c27",
+        "source_batch_id": "batch_06889167511143ee",
+        "retrieved_at": "2026-10-20T13:56:07.551102+00:00",
+        "meaning": "Actual unedited automatic DAG delivery from the original M3 archive; graph, endpoint index, frozen IRC sidecar and native calculation bytes are not reconstructed.",
+        "native_file_aliases": [
+          {
+            "archive": "M3/job03.out.gz",
+            "sandbox_path": ".cloudra/evidence/d82e7f2dca21f696_calc-3.out.log",
+            "sha256": "d82e7f2dca21f69644f0c2d2d04540d10108e7d1cf78ec9448fce7560494aec4",
+            "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/d82e7f2dca21f696_calc-3.out.log"
+          },
+          {
+            "archive": "M3/job04.out.gz",
+            "sandbox_path": ".cloudra/evidence/da55bf0d01990a5e_calc-4.out.log",
+            "sha256": "da55bf0d01990a5e1fc4f4dacae01ab0de49aec6734858516547b5cc27f36db0",
+            "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/da55bf0d01990a5e_calc-4.out.log"
+          },
+          {
+            "archive": "M3/job06.out.gz",
+            "sandbox_path": ".cloudra/evidence/efefcb6ce412e5de_calc-6.out.log",
+            "sha256": "efefcb6ce412e5de0ce2e3d6215ea712556714fece1bff77114e5a7bb0daeaa9",
+            "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/efefcb6ce412e5de_calc-6.out.log"
+          },
+          {
+            "archive": "M3/job08.out.gz",
+            "sandbox_path": ".cloudra/evidence/63135aaa820ef53b_calc-8.out.log",
+            "sha256": "63135aaa820ef53b7aefa0e242c4ed445b9a4ab4fc254b18bc3f7d5d7889521b",
+            "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/63135aaa820ef53b_calc-8.out.log"
+          },
+          {
+            "archive": "M3/job05.out.gz",
+            "sandbox_path": ".cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/564790ae055b547e_calc-5.out.log",
+            "sha256": "564790ae055b547e39b3934658e5b18a22630cf62c36e1a392fbdf1b0c455074",
+            "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/evidence/6f90aca6c500c6a484e8045017183590660792fa192f5d9f52d312640abd6390/564790ae055b547e_calc-5.out.log"
+          }
+        ],
+        "graph": {
+          "archive": "M3/automatic/mechanism_graph.json",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/mechanism_graph.json",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/mechanism_graph.json",
+          "sha256": "5aab823008c1fdfc5e29783c9e4f153d0aaf15594d36b99396237b833d3a455c",
+          "bytes": 2292
+        },
+        "step_endpoint_evidence": {
+          "archive": "M3/automatic/mechanism_evidence.json",
+          "source_path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/returned/data/sandboxes/M3/batch_06889167511143ee/.cloudra/mechanism_evidence.json",
+          "source_member": "data/sandboxes/M3/batch_06889167511143ee/.cloudra/mechanism_evidence.json",
+          "sha256": "1ebbbb1d4571761818c4aa8ab7837aacf4d93cadfd260fa566ad4effe3880f04",
+          "bytes": 533
+        },
+        "formal_score_source": {
+          "path": "benchmark_smoke_data/vm-three-20261020-81def568/m3-formal/formal-score.json",
+          "sha256": "1b7064cb5c29ec6de9be53d045cd923b8e570f323f7306b03a1631f3e0da44a6",
+          "scored_at": "2026-10-20T13:56:58.567007+00:00"
+        },
+        "formal_gold_result": {
+          "graph_score": 1.0,
+          "selfconsistency_passed": true,
+          "accuracy_score": 0.9999998175672095,
           "final_score": 1.0
         }
       }

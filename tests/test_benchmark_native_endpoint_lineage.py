@@ -105,8 +105,13 @@ def test_native_step_endpoint_index_preserves_each_historical_chain(tmp_path, ta
     _assert_original_bytes(sandbox, case)
 
 
-@pytest.mark.parametrize('task_id', ['L1', 'M17'])
-def test_actual_automatic_delivery_scores_gold_without_rebuilding_metadata(tmp_path, task_id):
+@pytest.mark.parametrize(('task_id', 'expected_edges'), [
+    ('L1', {'Ring_opening_conrotatory', 'Butadiene_torsional_relaxation',
+            'Butadiene_reverse_torsion'}),
+    ('M17', {'e1'}),
+    ('M3', {'e1'}),
+])
+def test_actual_automatic_delivery_scores_gold_without_rebuilding_metadata(tmp_path, task_id, expected_edges):
     sandbox = tmp_path / 'actual-automatic-delivery'
     task, case = _restore_case(task_id, sandbox)
     automatic = case['automatic_delivery']
@@ -135,12 +140,17 @@ def test_actual_automatic_delivery_scores_gold_without_rebuilding_metadata(tmp_p
 
     assert result.graph_score == 1.0
     assert result.selfconsistency_passed, result.notes
-    assert result.accuracy_score == pytest.approx(case['original_result']['accuracy_score'])
+    expected = automatic['formal_gold_result'] if task_id == 'M3' else case['original_result']
+    assert result.accuracy_score == pytest.approx(expected['accuracy_score'])
     assert result.final_score == 1.0
-    expected_edges = {'Ring_opening_conrotatory', 'Butadiene_torsional_relaxation',
-                      'Butadiene_reverse_torsion'} if task_id == 'L1' else {'e1'}
     assert {check.element_id for check in science.checks if check.kind == 'edge' and check.covered} == expected_edges
     assert science.passed, science.notes
+    if task_id == 'M3':
+        graph = json.loads((sandbox / 'mechanism_graph.json').read_bytes())
+        assert all(node['smiles'] == ['N'] for node in graph['nodes'])
+        inversion = next(check for check in science.checks if check.kind == 'edge' and check.element_id == 'e1')
+        assert any(note.startswith('[advisory] No atom-pair distance change') for note in inversion.notes)
+        assert any('both actual IRC outer frames were independently optimized' in note for note in inversion.notes)
     for relative, content in originals.items():
         assert (sandbox / relative).read_bytes() == content
     _assert_native_bytes(sandbox, case)

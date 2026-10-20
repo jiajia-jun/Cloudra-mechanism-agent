@@ -1,0 +1,75 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.474319256779,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/reactant_opt/.cloudra/execution-6/results/calc-6.out.log",
+        "geometry_file": "ts/ts_0001/jobs/declaration_0002/reactant_opt/reactant_opt.xyz",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "method": "B3LYP-D3(BJ)/def2-SVP",
+        "imaginary_frequency_count": 0,
+        "signed_umbrella_height_angstrom": 0.408202506
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.464858077243,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/ts_opt/.cloudra/execution-3/results/calc-3.out.log",
+        "frequency_log": "ts/ts_0001/jobs/declaration_0002/frequency/.cloudra/execution-4/results/calc-4.out.log",
+        "irc_log": "ts/ts_0001/jobs/declaration_0002/irc/.cloudra/execution-5/results/calc-5.out.log",
+        "geometry_file": "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.xyz",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "method": "B3LYP-D3(BJ)/def2-SVP",
+        "imaginary_frequency_count": 1,
+        "imaginary_frequency_cm_1": -829.67,
+        "signed_umbrella_height_angstrom": -0.000057324
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.474317840335,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+        "geometry_file": "ts/ts_0001/jobs/declaration_0002/product_opt/product_opt.xyz",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "method": "B3LYP-D3(BJ)/def2-SVP",
+        "imaginary_frequency_count": 0,
+        "signed_umbrella_height_angstrom": -0.408390397
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 5.93697979465,
+      "channel": "umbrella inversion"
+    }
+  ]
+}

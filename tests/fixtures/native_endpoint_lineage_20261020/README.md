@@ -1,12 +1,13 @@
-# Historical native endpoint lineage: L1 and M17
+# Historical native endpoint lineage: L1, M17 and M3
 
-These are complete, unchanged ORCA outputs from the real calculations in
-`batch_33673755b17b4a55`, run on 2026-10-20 with Cloudra `fae430ab`.
+These are complete, unchanged ORCA outputs from real calculations on
+2026-10-20. L1/M17 originated in `batch_33673755b17b4a55` with Cloudra
+`fae430ab`; M3 originated in `batch_06889167511143ee` with `81def568`.
 They are historical calculation replays, **not a new calculation, a simulated
 quantum result, or a new end-to-end model Benchmark run**.
 
-The package retains 22 complete TS Opt/Freq, IRC, and endpoint Opt/Freq logs,
-the three original frozen IRC bundles (including their original endpoint
+The package retains 27 complete TS Opt/Freq, IRC, and endpoint Opt/Freq logs,
+the four original frozen IRC bundles (including their original endpoint
 sidecars, atom correspondence and XYZ bytes), and the original delivered
 mechanism graphs. There are no cropped native logs or edited calculations.
 The existing `dag_m8_endpoint/*.out.gz` fixtures use the same lossless gzip
@@ -15,7 +16,9 @@ convention.
 `manifest.json` records every source path, original SHA256, archive SHA256,
 byte count, job number, formal task snapshot and original scoring result.
 Decompression restores the exact original sandbox-relative paths. Native
-archive bytes total 998,787 bytes; decompressed evidence totals 5,920,280 bytes.
+archive bytes total 1,134,900 bytes; decompressed evidence totals 6,546,038 bytes.
+The manifest's original top-level batch/revision describe L1/M17; the M3 case
+records its separate original batch and source revision explicitly.
 
 | Case | Actual failure in the original delivery | Historical correct chain |
 | --- | --- | --- |
@@ -57,8 +60,35 @@ edge check both pass, with final score 1.0. The test restores each actual graph
 and sidecar as captured, rather than assuming that the new graph must equal
 the original failed delivery.
 
-The three distinct cases are therefore preserved: original failed delivery,
-diagnostic endpoint-index reconstruction, and both real automatic exports.
+`M3/automatic/` preserves the actual automatic NH3 umbrella-inversion delivery
+from `vm-three-20261020-81def568/m3-formal/raw-m3.tar`, retrieved at
+`2026-10-20T13:56:07.551102+00:00`. The manifest records the original archive
+SHA256 and member paths, all native and gzip hashes, the fixed formal task,
+and the existing formal score report's SHA256. Its graph and endpoint index
+are original bytes from the archive, without a metadata writer or diagnostic
+reconstruction. Only the successful M3 delivery is represented; no earlier
+failed M3 delivery is invented.
+
+The five complete M3 native logs are TS Opt job 3, independent TS Freq job 4,
+IRC job 5, and endpoint Opt/Freq jobs 6/8. The latter two already contain their
+native frequency analyses, so the separate endpoint Freq jobs 7/9 are not
+needed by the captured successful evidence chain. The original frozen IRC
+bundle retains both actual endpoint files, both frozen endpoint frames, its
+atom correspondence and sidecar. Duplicate original evidence snapshots are
+restored by SHA256 from the same gzip files. M3 adds 136,113 compressed native
+bytes plus 10,415 bytes for its original graph, endpoint index and formal task.
+
+Formal M3 Gold scoring gives graph 1.0, self-consistency true, accuracy
+0.9999998175672095 and composite 1.0. Both endpoints are NH3 and the edge has
+no bond changes: the geometric distance-interval check is only advisory,
+while the genuine same-TS IRC outer-frame to converged zero-imaginary
+Opt/Freq chain establishes direction. Its automatic-delivery regression
+checks both the advisory and the accepted endpoint proof using the production
+scientific validator. This replays historical real QM; it launches no new QM.
+
+The three distinct categories are therefore preserved: L1/M17 original failed
+deliveries, their diagnostic endpoint-index reconstructions, and the three
+real automatic exports. M3 participates only in the automatic-export test.
 
 The source run's original complete archive remains separate from this small
 test package. These fixtures retain all native evidence needed by these
