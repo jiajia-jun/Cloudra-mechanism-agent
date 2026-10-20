@@ -1,0 +1,660 @@
+{
+  "source_batch_id": "batch_33673755b17b4a55",
+  "source_program_revision": "fae430ab",
+  "scoring_regression_revision": "87685c5e",
+  "meaning": "Historical real ORCA calculation replay, not a new calculation or current model benchmark run. All captured native files and original delivered graph bytes are unchanged; current step endpoint metadata is reconstructed from the independently verified historical per-step Opt/Freq lineage.",
+  "cases": {
+    "L1": {
+      "files": [
+        {
+          "archive": "L1/job02.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0001/ts_opt/.cloudra/execution-2/results/calc-2.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0001/ts_opt/.cloudra/execution-2/results/calc-2.out.log",
+          "sha256": "40e1bc0b9d4b47c3238dc76ab58daf48bfac4f507016f0d44dcb2f13d700634e",
+          "gzip_sha256": "c6e7d515b2e999bbda43f633f37e0c93d79c535d8929df2994d9decdd79e69ef",
+          "uncompressed_bytes": 787406,
+          "compressed_bytes": 100352,
+          "job_id": 2
+        },
+        {
+          "archive": "L1/job03.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0001/frequency/.cloudra/execution-3/results/calc-3.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0001/frequency/.cloudra/execution-3/results/calc-3.out.log",
+          "sha256": "575c009add892492d05eb71360718be07511b70026a84387f571945a6f820c59",
+          "gzip_sha256": "513ee1f3baaba914367ab374c718aee69996da63099036bdc28447582eddb2f5",
+          "uncompressed_bytes": 89712,
+          "compressed_bytes": 25662,
+          "job_id": 3
+        },
+        {
+          "archive": "L1/job04.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0001/irc/.cloudra/execution-4/results/calc-4.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0001/irc/.cloudra/execution-4/results/calc-4.out.log",
+          "sha256": "5a88336342220cc479b228800a0774d38a32de03385f1cf1bc54eb84c5a34c40",
+          "gzip_sha256": "ba1f58f61ac066c6e559f67d2e8dfb98eb2549f0e7f7eef000bdb038c1d3d824",
+          "uncompressed_bytes": 84854,
+          "compressed_bytes": 23271,
+          "job_id": 4
+        },
+        {
+          "archive": "L1/job06.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0001/reactant_opt/.cloudra/execution-6/results/calc-6.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0001/reactant_opt/.cloudra/execution-6/results/calc-6.out.log",
+          "sha256": "2e6509760f665cd3744bdc69e0925595d6663a24899c264f42044cdb3b235b07",
+          "gzip_sha256": "5b668ab92c2c307e96eadb58d82e7373f3153fee4b30757aa09f63e0bc1904ab",
+          "uncompressed_bytes": 293272,
+          "compressed_bytes": 52362,
+          "job_id": 6
+        },
+        {
+          "archive": "L1/job07.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0002/reactant_frequency/.cloudra/execution-7/results/calc-7.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0002/reactant_frequency/.cloudra/execution-7/results/calc-7.out.log",
+          "sha256": "21927c5aaba4c3cfaff87b46c4df9744759d025ce76dcc9c00a759acc78eebda",
+          "gzip_sha256": "5a1b35c3b05712f6ff24a2895268cb58ef4c591ed280b292ef0d2ed18f2ce624",
+          "uncompressed_bytes": 90156,
+          "compressed_bytes": 25688,
+          "job_id": 7
+        },
+        {
+          "archive": "L1/job08.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+          "sha256": "b7c991b4610704e848a3636bbb6fb5205738389dbf503fc1732ddf49183f286a",
+          "gzip_sha256": "77e13e5a3523efbfa04e6f4d531017b0cf349c2fc76c0e85a2aa1d68fac3b0c4",
+          "uncompressed_bytes": 315938,
+          "compressed_bytes": 54036,
+          "job_id": 8
+        },
+        {
+          "archive": "L1/job09.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0002/product_frequency/.cloudra/execution-9/results/calc-9.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0002/product_frequency/.cloudra/execution-9/results/calc-9.out.log",
+          "sha256": "646424a35f49a46ed60a3295d041097fcc83eefac6e7e39b55c6e7875abce898",
+          "gzip_sha256": "95ca3a9e71c186e1af6d3dfb4131d91754d8c402550127471e49121d84792839",
+          "uncompressed_bytes": 90103,
+          "compressed_bytes": 25798,
+          "job_id": 9
+        },
+        {
+          "archive": "L1/job11.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/execution-11/results/calc-11.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/execution-11/results/calc-11.out.log",
+          "sha256": "7d086861fbb47182d77c1a1bdd9bada70124c04cb3a4f3d1a900efe5a35eb17f",
+          "gzip_sha256": "bebab411a5364b3641f9b5c6dbfa9ab54be8387a6786f9e41f73077e37f1f074",
+          "uncompressed_bytes": 154512,
+          "compressed_bytes": 37143,
+          "job_id": 11
+        },
+        {
+          "archive": "L1/job12.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/execution-12/results/calc-12.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/execution-12/results/calc-12.out.log",
+          "sha256": "e9da787498812d826ce9333ec5b44f5cd112a1ac22a77eac878d2681aeed889a",
+          "gzip_sha256": "2c37670431a947272ea388f602e11a7af28971a8df7631d4b54bcbe0175c23c5",
+          "uncompressed_bytes": 89812,
+          "compressed_bytes": 25700,
+          "job_id": 12
+        },
+        {
+          "archive": "L1/job13.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-13/results/calc-13.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-13/results/calc-13.out.log",
+          "sha256": "f5ade38b0468cb5cab52f9477cfa2c45ebe5dba9e5c98d5219284de5e3984999",
+          "gzip_sha256": "8a2502618d8844dce9a16137a85a4a59124b2386e55e15f364efa207c67fb269",
+          "uncompressed_bytes": 82622,
+          "compressed_bytes": 22595,
+          "job_id": 13
+        },
+        {
+          "archive": "L1/job14.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/execution-14/results/calc-14.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/execution-14/results/calc-14.out.log",
+          "sha256": "d83c270e6c6645a2328245a84a61257841e8f48daa0b5e7fb2626967ae914ba9",
+          "gzip_sha256": "9d2709ac83b8df7a2b9828a5f194db24119b21904bfb82c39da8bee314e68b58",
+          "uncompressed_bytes": 375635,
+          "compressed_bytes": 58983,
+          "job_id": 14
+        },
+        {
+          "archive": "L1/job15.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/execution-15/results/calc-15.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/execution-15/results/calc-15.out.log",
+          "sha256": "57a7a04ba2f421e954104eb80ebc314972882d3b79a55fd82cb357a4cc162cbe",
+          "gzip_sha256": "28a7d192e113a9fad9a477400915f3e2f527c5f585292cecb22e0be6f0ed48bc",
+          "uncompressed_bytes": 90163,
+          "compressed_bytes": 25379,
+          "job_id": 15
+        },
+        {
+          "archive": "L1/job16.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/execution-16/results/calc-16.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/execution-16/results/calc-16.out.log",
+          "sha256": "18e4eb89729b62cc2326c792e501d53ea58b99973ddde96e69b8d4bd8532afa6",
+          "gzip_sha256": "720de8e9bd600426a0c51e1868d6efa9e1cd8469c43da0e5ec7d4afc89c3c4a2",
+          "uncompressed_bytes": 375440,
+          "compressed_bytes": 59270,
+          "job_id": 16
+        },
+        {
+          "archive": "L1/job17.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/execution-17/results/calc-17.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/execution-17/results/calc-17.out.log",
+          "sha256": "f35aab5d001b5f472b1633411abac238328faa009d859df1b9c1594652ef2037",
+          "gzip_sha256": "2f3969f8cac322aba2177f2d7c3c4d6560ebc8e0838d7e6bd709dd983cf14ca0",
+          "uncompressed_bytes": 90104,
+          "compressed_bytes": 25771,
+          "job_id": 17
+        },
+        {
+          "archive": "L1/irc04/2a218531dbddcda7_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/2a218531dbddcda7_irc_IRC_B.xyz",
+          "sandbox_path": ".cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/2a218531dbddcda7_irc_IRC_B.xyz",
+          "sha256": "2a218531dbddcda7fc49d798abf1b8f3e5e6236012c0b84cdb01265d707ccb44",
+          "gzip_sha256": "fe4cfd0dbd405f99e355ed67ba3815dd9a655724b4d05d5a848f677d2523f967",
+          "uncompressed_bytes": 809,
+          "compressed_bytes": 393
+        },
+        {
+          "archive": "L1/irc04/43f643f3304774d8_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/43f643f3304774d8_irc_IRC_F.xyz",
+          "sandbox_path": ".cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/43f643f3304774d8_irc_IRC_F.xyz",
+          "sha256": "43f643f3304774d87c3ace8da812e12f5e5f75310ace1f922746beae97f73388",
+          "gzip_sha256": "e136b26de3f3bd72529d0682086d3380040294a881b6ce2383a80bd21c991e89",
+          "uncompressed_bytes": 809,
+          "compressed_bytes": 387
+        },
+        {
+          "archive": "L1/irc04/5a88336342220cc4_calc-4.out.log.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/5a88336342220cc4_calc-4.out.log",
+          "sandbox_path": ".cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/5a88336342220cc4_calc-4.out.log",
+          "sha256": "5a88336342220cc479b228800a0774d38a32de03385f1cf1bc54eb84c5a34c40",
+          "gzip_sha256": "ba1f58f61ac066c6e559f67d2e8dfb98eb2549f0e7f7eef000bdb038c1d3d824",
+          "uncompressed_bytes": 84854,
+          "compressed_bytes": 23271
+        },
+        {
+          "archive": "L1/irc04/irc-5a88336342220cc479b228800a0774d38a32de03385f1cf1bc54eb84c5a34c40.end-a.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/irc-5a88336342220cc479b228800a0774d38a32de03385f1cf1bc54eb84c5a34c40.end-a.xyz",
+          "sandbox_path": ".cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/irc-5a88336342220cc479b228800a0774d38a32de03385f1cf1bc54eb84c5a34c40.end-a.xyz",
+          "sha256": "2a7a51194cda9be0967f94bfb8c566ba0c3ef688a8ffe0706e7d2139116156d9",
+          "gzip_sha256": "5c7f18366e78c75e965161ecbc04d3f8d927a62b306f136e56e718822a8c6c69",
+          "uncompressed_bytes": 544,
+          "compressed_bytes": 338
+        },
+        {
+          "archive": "L1/irc04/irc-5a88336342220cc479b228800a0774d38a32de03385f1cf1bc54eb84c5a34c40.end-b.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/irc-5a88336342220cc479b228800a0774d38a32de03385f1cf1bc54eb84c5a34c40.end-b.xyz",
+          "sandbox_path": ".cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/irc-5a88336342220cc479b228800a0774d38a32de03385f1cf1bc54eb84c5a34c40.end-b.xyz",
+          "sha256": "5a539362b82899c8818cac2db1cf03bdb4cc679130af3594918f9fd66a87b3fe",
+          "gzip_sha256": "7901b95bd00b4a79641adf3ae8c6ca33f8079284c845b3f7139df0fb4f7ad5bd",
+          "uncompressed_bytes": 542,
+          "compressed_bytes": 338
+        },
+        {
+          "archive": "L1/irc04/irc_endpoints.json.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/irc_endpoints.json",
+          "sandbox_path": ".cloudra/evidence/1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02/irc_endpoints.json",
+          "sha256": "1025b05353e1fc4c12b3c92e0a4b2f038566ea537e8391fd28beeba7c26f8a02",
+          "gzip_sha256": "44457467c56ad07725bb967143ff436f8807244270ffa291836d7016c3f4d0f7",
+          "uncompressed_bytes": 2627,
+          "compressed_bytes": 825
+        },
+        {
+          "archive": "L1/irc13/4d3345601f788ae7_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/4d3345601f788ae7_irc_IRC_B.xyz",
+          "sandbox_path": ".cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/4d3345601f788ae7_irc_IRC_B.xyz",
+          "sha256": "4d3345601f788ae7c82cdc010868e392c7937727aa1f3d5f9ad6476243795dbb",
+          "gzip_sha256": "34f18c48c968919f5302ea1cb574056c0d5548c30d6fd1eb701823be695b999c",
+          "uncompressed_bytes": 809,
+          "compressed_bytes": 390
+        },
+        {
+          "archive": "L1/irc13/e9f123edf43f9f8c_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/e9f123edf43f9f8c_irc_IRC_F.xyz",
+          "sandbox_path": ".cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/e9f123edf43f9f8c_irc_IRC_F.xyz",
+          "sha256": "e9f123edf43f9f8c6681cf81286565fb423a2acbbba35fe29e29f078169be3ac",
+          "gzip_sha256": "a7e8b6ec52448bcdc880b3f81c0382b3dfa5a665b34aa86b07e5bc8cc277157f",
+          "uncompressed_bytes": 809,
+          "compressed_bytes": 392
+        },
+        {
+          "archive": "L1/irc13/f5ade38b0468cb5c_calc-13.out.log.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/f5ade38b0468cb5c_calc-13.out.log",
+          "sandbox_path": ".cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/f5ade38b0468cb5c_calc-13.out.log",
+          "sha256": "f5ade38b0468cb5cab52f9477cfa2c45ebe5dba9e5c98d5219284de5e3984999",
+          "gzip_sha256": "8a2502618d8844dce9a16137a85a4a59124b2386e55e15f364efa207c67fb269",
+          "uncompressed_bytes": 82622,
+          "compressed_bytes": 22595
+        },
+        {
+          "archive": "L1/irc13/irc-f5ade38b0468cb5cab52f9477cfa2c45ebe5dba9e5c98d5219284de5e3984999.end-a.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/irc-f5ade38b0468cb5cab52f9477cfa2c45ebe5dba9e5c98d5219284de5e3984999.end-a.xyz",
+          "sandbox_path": ".cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/irc-f5ade38b0468cb5cab52f9477cfa2c45ebe5dba9e5c98d5219284de5e3984999.end-a.xyz",
+          "sha256": "a8fd5e1d62e3d858628046af137b557888df78b9915979ca66516dd1f1af2b1d",
+          "gzip_sha256": "3da664c8db36a0437d7ed567a61cdea64dfd4dcb51141dcded78f6a50e76dc63",
+          "uncompressed_bytes": 542,
+          "compressed_bytes": 341
+        },
+        {
+          "archive": "L1/irc13/irc-f5ade38b0468cb5cab52f9477cfa2c45ebe5dba9e5c98d5219284de5e3984999.end-b.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/irc-f5ade38b0468cb5cab52f9477cfa2c45ebe5dba9e5c98d5219284de5e3984999.end-b.xyz",
+          "sandbox_path": ".cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/irc-f5ade38b0468cb5cab52f9477cfa2c45ebe5dba9e5c98d5219284de5e3984999.end-b.xyz",
+          "sha256": "6f3cada10ee6c3411b46c70466c69be7fa454ef36d402c897cc3ee99008708aa",
+          "gzip_sha256": "f3c84412460b5b68320a9ba1fe04d3ba8f69edba8483025ff76de6b0fe6e74b7",
+          "uncompressed_bytes": 542,
+          "compressed_bytes": 337
+        },
+        {
+          "archive": "L1/irc13/irc_endpoints.json.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/irc_endpoints.json",
+          "sandbox_path": ".cloudra/evidence/27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda/irc_endpoints.json",
+          "sha256": "27dc60c32ee1476f73e6dd31f8f503b55df50bde952f8421b495d12bc280aeda",
+          "gzip_sha256": "a2af3f3941ad36d562ebc61ab8e5b858be69f68d19969d7d3d0825e12a1ad16f",
+          "uncompressed_bytes": 2613,
+          "compressed_bytes": 858
+        }
+      ],
+      "step_jobs": {
+        "Ring_opening_conrotatory": {
+          "source": [
+            6,
+            7
+          ],
+          "target": [
+            8,
+            9
+          ]
+        },
+        "Butadiene_torsional_relaxation": {
+          "source": [
+            16,
+            17
+          ],
+          "target": [
+            14,
+            15
+          ]
+        },
+        "Butadiene_reverse_torsion": {
+          "source": [
+            14,
+            15
+          ],
+          "target": [
+            16,
+            17
+          ]
+        }
+      },
+      "step_endpoint_evidence": {
+        "Ring_opening_conrotatory": {
+          "source": [
+            {
+              "path": "ts/ts_0001/jobs/declaration_0001/reactant_opt/.cloudra/execution-6/results/calc-6.out.log",
+              "sha256": "2e6509760f665cd3744bdc69e0925595d6663a24899c264f42044cdb3b235b07"
+            },
+            {
+              "path": "ts/ts_0001/jobs/declaration_0002/reactant_frequency/.cloudra/execution-7/results/calc-7.out.log",
+              "sha256": "21927c5aaba4c3cfaff87b46c4df9744759d025ce76dcc9c00a759acc78eebda"
+            }
+          ],
+          "target": [
+            {
+              "path": "ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+              "sha256": "b7c991b4610704e848a3636bbb6fb5205738389dbf503fc1732ddf49183f286a"
+            },
+            {
+              "path": "ts/ts_0001/jobs/declaration_0002/product_frequency/.cloudra/execution-9/results/calc-9.out.log",
+              "sha256": "646424a35f49a46ed60a3295d041097fcc83eefac6e7e39b55c6e7875abce898"
+            }
+          ]
+        },
+        "Butadiene_torsional_relaxation": {
+          "source": [
+            {
+              "path": "ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/execution-16/results/calc-16.out.log",
+              "sha256": "18e4eb89729b62cc2326c792e501d53ea58b99973ddde96e69b8d4bd8532afa6"
+            },
+            {
+              "path": "ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/execution-17/results/calc-17.out.log",
+              "sha256": "f35aab5d001b5f472b1633411abac238328faa009d859df1b9c1594652ef2037"
+            }
+          ],
+          "target": [
+            {
+              "path": "ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/execution-14/results/calc-14.out.log",
+              "sha256": "d83c270e6c6645a2328245a84a61257841e8f48daa0b5e7fb2626967ae914ba9"
+            },
+            {
+              "path": "ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/execution-15/results/calc-15.out.log",
+              "sha256": "57a7a04ba2f421e954104eb80ebc314972882d3b79a55fd82cb357a4cc162cbe"
+            }
+          ]
+        },
+        "Butadiene_reverse_torsion": {
+          "source": [
+            {
+              "path": "ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/execution-14/results/calc-14.out.log",
+              "sha256": "d83c270e6c6645a2328245a84a61257841e8f48daa0b5e7fb2626967ae914ba9"
+            },
+            {
+              "path": "ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/execution-15/results/calc-15.out.log",
+              "sha256": "57a7a04ba2f421e954104eb80ebc314972882d3b79a55fd82cb357a4cc162cbe"
+            }
+          ],
+          "target": [
+            {
+              "path": "ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/execution-16/results/calc-16.out.log",
+              "sha256": "18e4eb89729b62cc2326c792e501d53ea58b99973ddde96e69b8d4bd8532afa6"
+            },
+            {
+              "path": "ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/execution-17/results/calc-17.out.log",
+              "sha256": "f35aab5d001b5f472b1633411abac238328faa009d859df1b9c1594652ef2037"
+            }
+          ]
+        }
+      },
+      "graph": {
+        "archive": "L1/mechanism_graph.json",
+        "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/L1/batch_33673755b17b4a55/mechanism_graph.json",
+        "sha256": "3cfb8906712ea9be06eb2262d0b39dee60e0229c9ccc68001a238f5a9c6621d2"
+      },
+      "task": {
+        "archive": "L1/task.json",
+        "source_path": "ideapool/tasks/easy/L1.json",
+        "sha256": "f334e8f66702ca96f65eb0da6507189e1fa2afff6db63d27c2f2071608746c81"
+      },
+      "original_result": {
+        "graph_score": 0.6666666666666667,
+        "selfconsistency_passed": false,
+        "accuracy_score": 0.9999967027977937,
+        "final_score": 0.6667
+      },
+      "automatic_delivery": {
+        "source_archive": "benchmark_smoke_data/vm-two-20261020-fae430ab/archives/continuation-stalled-seq-20261020/raw-evidence.tar",
+        "source_archive_sha256": "a0da8f067c996461159a1ca3e911515bfb1f0f0ac1c94d95792a557b2118f05f",
+        "meaning": "Actual unedited automatic DAG delivery from the continuation archive; no endpoint metadata reconstruction. Existing native gzip files are reused by exact SHA256.",
+        "native_file_aliases": [
+          {
+            "archive": "L1/job16.out.gz",
+            "sandbox_path": ".cloudra/evidence/18e4eb89729b62cc_calc-16.out.log",
+            "sha256": "18e4eb89729b62cc2326c792e501d53ea58b99973ddde96e69b8d4bd8532afa6",
+            "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/18e4eb89729b62cc_calc-16.out.log"
+          },
+          {
+            "archive": "L1/job06.out.gz",
+            "sandbox_path": ".cloudra/evidence/2e6509760f665cd3_calc-6.out.log",
+            "sha256": "2e6509760f665cd3744bdc69e0925595d6663a24899c264f42044cdb3b235b07",
+            "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/2e6509760f665cd3_calc-6.out.log"
+          },
+          {
+            "archive": "L1/job08.out.gz",
+            "sandbox_path": ".cloudra/evidence/b7c991b4610704e8_calc-8.out.log",
+            "sha256": "b7c991b4610704e848a3636bbb6fb5205738389dbf503fc1732ddf49183f286a",
+            "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/b7c991b4610704e8_calc-8.out.log"
+          },
+          {
+            "archive": "L1/job14.out.gz",
+            "sandbox_path": ".cloudra/evidence/d83c270e6c6645a2_calc-14.out.log",
+            "sha256": "d83c270e6c6645a2328245a84a61257841e8f48daa0b5e7fb2626967ae914ba9",
+            "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/d83c270e6c6645a2_calc-14.out.log"
+          }
+        ],
+        "captured_at": "2026-10-20T10:49:24.311812+00:00",
+        "source_program_revision": "87685c5ea8e7f4a3343749c592bc5d42fcb2b3f9",
+        "continuation_batch": "batch_resume_55446158c1074e36",
+        "graph": {
+          "archive": "L1/automatic/mechanism_graph.json",
+          "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/mechanism_graph.json",
+          "sha256": "3cfb8906712ea9be06eb2262d0b39dee60e0229c9ccc68001a238f5a9c6621d2",
+          "bytes": 5608
+        },
+        "step_endpoint_evidence": {
+          "archive": "L1/automatic/mechanism_evidence.json",
+          "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/mechanism_evidence.json",
+          "sha256": "84d31bd9f33589bffd8396846dffe7ea6ea6ec49bc7ba4d300a3f13e10abb167",
+          "bytes": 1466
+        }
+      }
+    },
+    "M17": {
+      "files": [
+        {
+          "archive": "M17/job24.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0003/product_seed_opt/.cloudra/execution-24/results/calc-24.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0003/product_seed_opt/.cloudra/execution-24/results/calc-24.out.log",
+          "sha256": "f9f0a420821b33b66d107ffc77128da7069df79c49af2bc65834fb56e35b5141",
+          "gzip_sha256": "408dd2b70531c0effcd8eff46d83abe3c1193a9f61bf6bf6a607ff3ddc59bcb4",
+          "uncompressed_bytes": 459044,
+          "compressed_bytes": 54375,
+          "job_id": 24
+        },
+        {
+          "archive": "M17/job26.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0004/ts_opt/.cloudra/execution-26/results/calc-26.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0004/ts_opt/.cloudra/execution-26/results/calc-26.out.log",
+          "sha256": "12c769e1e71ee6be56a8bc012ab8fc80b63b3daadcff0de8146ed8a279924ab6",
+          "gzip_sha256": "2f86dedd52eb44f75292ceec5b0f25eaec0a5fb6c80eafc7a68c1a9d13b2a9e1",
+          "uncompressed_bytes": 981500,
+          "compressed_bytes": 102063,
+          "job_id": 26
+        },
+        {
+          "archive": "M17/job27.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0004/frequency/.cloudra/execution-27/results/calc-27.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0004/frequency/.cloudra/execution-27/results/calc-27.out.log",
+          "sha256": "c8b7b50c35aa4ce21363f99bbbe4ae02c9258bd353dbb51b265a35d367b3fd40",
+          "gzip_sha256": "4484dcc8b3cde6f69bc5de825eee4095d2950d8668ddb73004004b9c16621cab",
+          "uncompressed_bytes": 76982,
+          "compressed_bytes": 21846,
+          "job_id": 27
+        },
+        {
+          "archive": "M17/job28.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0004/irc/.cloudra/execution-28/results/calc-28.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0004/irc/.cloudra/execution-28/results/calc-28.out.log",
+          "sha256": "bf948a587fbe618d9b3e7bd3fce8ebd5dab01be5afc2ff40e0f39a96dc6f884e",
+          "gzip_sha256": "23d965da4dc0fcdb16e0b00cc8e907ee9dbc735b2fb53d83996bf5e1838d9dc0",
+          "uncompressed_bytes": 85500,
+          "compressed_bytes": 22833,
+          "job_id": 28
+        },
+        {
+          "archive": "M17/job29.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/execution-29/results/calc-29.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/execution-29/results/calc-29.out.log",
+          "sha256": "a75a46a00f6e8804a73969153e0606fd0c6c26ed66709e9589a5c98e6609188a",
+          "gzip_sha256": "a65f16f82d4ac134d2ed1914043cd2f6995083934aa211079cda99e023954cdd",
+          "uncompressed_bytes": 574895,
+          "compressed_bytes": 66995,
+          "job_id": 29
+        },
+        {
+          "archive": "M17/job30.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0005/reactant_frequency/.cloudra/execution-30/results/calc-30.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0005/reactant_frequency/.cloudra/execution-30/results/calc-30.out.log",
+          "sha256": "0f2d87fe295b113ea79fe1fa6285ebbde3e2244bc411118d2f490e985ffe3fb5",
+          "gzip_sha256": "6795ea43c2ef15312a79eab7b66a677735e122100af2c20e4b948df4bb349f0b",
+          "uncompressed_bytes": 77088,
+          "compressed_bytes": 21758,
+          "job_id": 30
+        },
+        {
+          "archive": "M17/job31.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0005/product_opt/.cloudra/execution-31/results/calc-31.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0005/product_opt/.cloudra/execution-31/results/calc-31.out.log",
+          "sha256": "499dad3f9b9785f977466e768d04e72f5f5b58ff0cffabb0ceee6aaa14e0a61f",
+          "gzip_sha256": "f3e9b784daceebac88159d730105ea81c484277a98712ca074af48184a74c0e4",
+          "uncompressed_bytes": 311246,
+          "compressed_bytes": 50132,
+          "job_id": 31
+        },
+        {
+          "archive": "M17/job32.out.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/ts/ts_0001/jobs/declaration_0005/product_frequency/.cloudra/execution-32/results/calc-32.out.log",
+          "sandbox_path": "ts/ts_0001/jobs/declaration_0005/product_frequency/.cloudra/execution-32/results/calc-32.out.log",
+          "sha256": "6f03fe8ff0f1fb16100f4a0aa5bcf4271932f020ea158978845f726b78a51800",
+          "gzip_sha256": "5843066f78eea01f6d8f521ac5c0b9acfbef66b3ade98d916ef6883f68211d1e",
+          "uncompressed_bytes": 77011,
+          "compressed_bytes": 21730,
+          "job_id": 32
+        },
+        {
+          "archive": "M17/irc28/af64849759c2268a_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/af64849759c2268a_irc_IRC_B.xyz",
+          "sandbox_path": ".cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/af64849759c2268a_irc_IRC_B.xyz",
+          "sha256": "af64849759c2268a2404b3a49a0fe5d45bb0565f505a6456ada7024e3f6da6e2",
+          "gzip_sha256": "30555eb7ef642d3d0c4f9ca2c26700d0676775ef2893bc605735728db5f21350",
+          "uncompressed_bytes": 508,
+          "compressed_bytes": 277
+        },
+        {
+          "archive": "M17/irc28/bf948a587fbe618d_calc-28.out.log.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/bf948a587fbe618d_calc-28.out.log",
+          "sandbox_path": ".cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/bf948a587fbe618d_calc-28.out.log",
+          "sha256": "bf948a587fbe618d9b3e7bd3fce8ebd5dab01be5afc2ff40e0f39a96dc6f884e",
+          "gzip_sha256": "23d965da4dc0fcdb16e0b00cc8e907ee9dbc735b2fb53d83996bf5e1838d9dc0",
+          "uncompressed_bytes": 85500,
+          "compressed_bytes": 22833
+        },
+        {
+          "archive": "M17/irc28/fbdabd78ea64f9a1_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/fbdabd78ea64f9a1_irc_IRC_F.xyz",
+          "sandbox_path": ".cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/fbdabd78ea64f9a1_irc_IRC_F.xyz",
+          "sha256": "fbdabd78ea64f9a16c01bccd728d1db4531904f93da7edf0b9a4b8e2952ec1cf",
+          "gzip_sha256": "3569acb21422413845f525dd4a7fb0e98fd710ee280cedce5116f0ce5d5ed5b9",
+          "uncompressed_bytes": 508,
+          "compressed_bytes": 274
+        },
+        {
+          "archive": "M17/irc28/irc-bf948a587fbe618d9b3e7bd3fce8ebd5dab01be5afc2ff40e0f39a96dc6f884e.end-a.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/irc-bf948a587fbe618d9b3e7bd3fce8ebd5dab01be5afc2ff40e0f39a96dc6f884e.end-a.xyz",
+          "sandbox_path": ".cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/irc-bf948a587fbe618d9b3e7bd3fce8ebd5dab01be5afc2ff40e0f39a96dc6f884e.end-a.xyz",
+          "sha256": "36ae664c5b788ea3cc9aa6996d7172ff213b868d1f3d356bc2c60a799cb1a17f",
+          "gzip_sha256": "236415f220e4c42754758d44a9957c3d9bd4e8c5182cdbd7070a63e9338f5fa3",
+          "uncompressed_bytes": 350,
+          "compressed_bytes": 241
+        },
+        {
+          "archive": "M17/irc28/irc-bf948a587fbe618d9b3e7bd3fce8ebd5dab01be5afc2ff40e0f39a96dc6f884e.end-b.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/irc-bf948a587fbe618d9b3e7bd3fce8ebd5dab01be5afc2ff40e0f39a96dc6f884e.end-b.xyz",
+          "sandbox_path": ".cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/irc-bf948a587fbe618d9b3e7bd3fce8ebd5dab01be5afc2ff40e0f39a96dc6f884e.end-b.xyz",
+          "sha256": "087ebf9758c6806c676330cfc7ae681cc7f3563222d951e5c8d39461eb73c89d",
+          "gzip_sha256": "960396eccd1e6ceb4b210ada00bc40f0b588a0f54767ba5045a6335da1683539",
+          "uncompressed_bytes": 350,
+          "compressed_bytes": 245
+        },
+        {
+          "archive": "M17/irc28/irc_endpoints.json.gz",
+          "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/irc_endpoints.json",
+          "sandbox_path": ".cloudra/evidence/5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd/irc_endpoints.json",
+          "sha256": "5b300d07bf29c04892575e2b68bf32abb1515574cf07f8f65f43ae0cf9b045cd",
+          "gzip_sha256": "7d16cd41aa4a8535bce09367718e3b504a41a4bc029cc4d0e3e1f8eab8a27e1a",
+          "uncompressed_bytes": 1947,
+          "compressed_bytes": 710
+        }
+      ],
+      "step_jobs": {
+        "e1": {
+          "source": [
+            29,
+            30
+          ],
+          "target": [
+            31,
+            32
+          ]
+        }
+      },
+      "step_endpoint_evidence": {
+        "e1": {
+          "source": [
+            {
+              "path": "ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/execution-29/results/calc-29.out.log",
+              "sha256": "a75a46a00f6e8804a73969153e0606fd0c6c26ed66709e9589a5c98e6609188a"
+            },
+            {
+              "path": "ts/ts_0001/jobs/declaration_0005/reactant_frequency/.cloudra/execution-30/results/calc-30.out.log",
+              "sha256": "0f2d87fe295b113ea79fe1fa6285ebbde3e2244bc411118d2f490e985ffe3fb5"
+            }
+          ],
+          "target": [
+            {
+              "path": "ts/ts_0001/jobs/declaration_0005/product_opt/.cloudra/execution-31/results/calc-31.out.log",
+              "sha256": "499dad3f9b9785f977466e768d04e72f5f5b58ff0cffabb0ceee6aaa14e0a61f"
+            },
+            {
+              "path": "ts/ts_0001/jobs/declaration_0005/product_frequency/.cloudra/execution-32/results/calc-32.out.log",
+              "sha256": "6f03fe8ff0f1fb16100f4a0aa5bcf4271932f020ea158978845f726b78a51800"
+            }
+          ]
+        }
+      },
+      "graph": {
+        "archive": "M17/mechanism_graph.json",
+        "source_path": "benchmark_smoke_data/vm-two-20261020-fae430ab/returned/data/sandboxes/M17/batch_33673755b17b4a55/mechanism_graph.json",
+        "sha256": "1da0204693be61308c845b06fee9d48dced982d422d954ccfeeb158d798b1530"
+      },
+      "task": {
+        "archive": "M17/task.json",
+        "source_path": "ideapool/tasks/easy/M17.json",
+        "sha256": "dcb6993372ec79d81723bc1f1819c56af4379b73101bd1e02d702d1f8d46be9e"
+      },
+      "original_result": {
+        "graph_score": 0.6666666666666667,
+        "selfconsistency_passed": false,
+        "accuracy_score": 0.9999990154134106,
+        "final_score": 0.6667
+      },
+      "automatic_delivery": {
+        "source_archive": "benchmark_smoke_data/vm-two-20261020-fae430ab/continuation-fixedseq-20261020/returned.tar",
+        "source_archive_sha256": "46b2d7823b3b408cfc7c521d30f9c696a96a1ae51ed29331a8423648315b6bc7",
+        "source_program_revision": "b40e3581336ff5b28adad1c9fc1d051f5604ea13",
+        "deployment_manifest_sha256": "2e6c38911f991591c0254cc48f128a9487c01db3e0b18ed7cbdcb8ea7d0117e1",
+        "meaning": "Actual unedited automatic DAG delivery from the completed continuation archive; no endpoint metadata reconstruction. Existing native gzip files are reused by exact SHA256.",
+        "native_file_aliases": [
+          {
+            "archive": "M17/job30.out.gz",
+            "sandbox_path": ".cloudra/evidence/0f2d87fe295b113e_calc-30.out.log",
+            "sha256": "0f2d87fe295b113ea79fe1fa6285ebbde3e2244bc411118d2f490e985ffe3fb5",
+            "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/0f2d87fe295b113e_calc-30.out.log"
+          },
+          {
+            "archive": "M17/job31.out.gz",
+            "sandbox_path": ".cloudra/evidence/499dad3f9b9785f9_calc-31.out.log",
+            "sha256": "499dad3f9b9785f977466e768d04e72f5f5b58ff0cffabb0ceee6aaa14e0a61f",
+            "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/499dad3f9b9785f9_calc-31.out.log"
+          },
+          {
+            "archive": "M17/job29.out.gz",
+            "sandbox_path": ".cloudra/evidence/a75a46a00f6e8804_calc-29.out.log",
+            "sha256": "a75a46a00f6e8804a73969153e0606fd0c6c26ed66709e9589a5c98e6609188a",
+            "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/a75a46a00f6e8804_calc-29.out.log"
+          }
+        ],
+        "continuation_batch": "batch_resume_686b719b057549d2",
+        "started_at": "2026-10-20T10:59:10.868678+00:00",
+        "finished_at": "2026-10-20T11:04:29.617664+00:00",
+        "graph": {
+          "archive": "M17/automatic/mechanism_graph.json",
+          "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/mechanism_graph.json",
+          "sha256": "1da0204693be61308c845b06fee9d48dced982d422d954ccfeeb158d798b1530",
+          "bytes": 2361
+        },
+        "step_endpoint_evidence": {
+          "archive": "M17/automatic/mechanism_evidence.json",
+          "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/mechanism_evidence.json",
+          "sha256": "9bc71a6a059a31ed5c00a17fe63219b0d64e0e42e93e8b3ba3b2c25e100754bf",
+          "bytes": 715
+        },
+        "formal_gold_result": {
+          "graph_score": 1.0,
+          "selfconsistency_passed": true,
+          "accuracy_score": 0.9999990154134106,
+          "final_score": 1.0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,159 @@
+{
+  "nodes": [
+    {
+      "id": "RC_cyclobutene",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -155.763104167208,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/reactant_opt/.cloudra/execution-6/results/calc-6.out.log",
+        "imaginary_frequency_count": 0,
+        "state": "gas-phase neutral singlet cyclobutene pre-reaction minimum"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -155.707044927735,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/frequency/.cloudra/execution-3/results/calc-3.out.log",
+        "optimization_log": "ts/ts_0001/jobs/declaration_0001/ts_opt/.cloudra/execution-2/results/calc-2.out.log",
+        "imaginary_frequency_cm1": -727.59,
+        "review_record": "qm/ring_step_review.json",
+        "accepted_review_id": "rev_39fe0ac176cb4ee6a2a1be85de3d19bf",
+        "direction_analysis": "qm/ring_opening_direction.md"
+      }
+    },
+    {
+      "id": "BD_opening",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -155.777479340728,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/execution-16/results/calc-16.out.log",
+        "frequency_log": "ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/execution-17/results/calc-17.out.log",
+        "conformer": "gauche/cisoid",
+        "dihedral_C4_C1_C2_C3_deg": -26.9,
+        "imaginary_frequency_count": 0,
+        "ring_opening_irc_endpoint_log": "ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+        "ring_opening_irc_endpoint_energy_hartree": -155.777478797228,
+        "ring_opening_irc_endpoint_dihedral_deg": -26.8,
+        "irc_origins": "TS1 backward/B -> native job8, same gauche basin; TS2 forward/F -> native job16"
+      }
+    },
+    {
+      "id": "BD_trans",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -155.78274568649,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/execution-14/results/calc-14.out.log",
+        "frequency_log": "ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/execution-15/results/calc-15.out.log",
+        "conformer": "s-trans",
+        "dihedral_C4_C1_C2_C3_deg": -180,
+        "imaginary_frequency_count": 0,
+        "independent_minimum_log": "qm/minima/bd_trans/.cloudra/execution-5/results/calc-5.out.log",
+        "irc_origin": "TS2 backward/B"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -155.770613253133,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/execution-12/results/calc-12.out.log",
+        "optimization_log": "ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/execution-11/results/calc-11.out.log",
+        "imaginary_frequency_cm1": -193.34,
+        "review_record": "qm/torsion_step_review.json",
+        "accepted_review_id": "rev_839ab220a3bd45a59cdd44002c90e14c",
+        "direction_analysis": "qm/torsion_connectivity.md",
+        "reverse_review_record": "qm/reverse_torsion_review.json"
+      }
+    },
+    {
+      "id": "BD_gauche_return",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -155.777479340728,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/execution-16/results/calc-16.out.log",
+        "frequency_log": "ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/execution-17/results/calc-17.out.log",
+        "conformer": "gauche/cisoid",
+        "dihedral_C4_C1_C2_C3_deg": -26.9,
+        "imaginary_frequency_count": 0,
+        "ring_opening_irc_endpoint_log": "ts/ts_0001/jobs/declaration_0002/product_opt/.cloudra/execution-8/results/calc-8.out.log",
+        "ring_opening_irc_endpoint_energy_hartree": -155.777478797228,
+        "ring_opening_irc_endpoint_dihedral_deg": -26.8,
+        "irc_origins": "TS1 backward/B -> native job8, same gauche basin; TS2 forward/F -> native job16",
+        "same_conformer_as": "BD_opening",
+        "occurrence_reason": "acyclic occurrence of the reverse torsional return to same gauche basin"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "Ring_opening_conrotatory",
+      "from": "RC_cyclobutene",
+      "to": "BD_opening",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "channel": "thermal conrotatory electrocyclic ring opening",
+      "barrier_kcal_mol": 35.17770387808014
+    },
+    {
+      "id": "Butadiene_torsional_relaxation",
+      "from": "BD_opening",
+      "to": "BD_trans",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "butadiene central-single-bond torsional relaxation",
+      "barrier_kcal_mol": 4.308535015609738
+    },
+    {
+      "id": "Butadiene_reverse_torsion",
+      "from": "BD_trans",
+      "to": "BD_gauche_return",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 7.613216874945175,
+      "channel": "reverse butadiene central-single-bond torsion"
+    }
+  ]
+}
