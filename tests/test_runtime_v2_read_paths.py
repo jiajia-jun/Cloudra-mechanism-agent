@@ -1,6 +1,7 @@
 """History reads reuse cached prefixes and the existing ordered event indexes."""
 
 import contextlib
+import json
 
 import pytest
 
@@ -71,6 +72,20 @@ def test_store_event_metadata_only_reads_new_narrow_columns(history):
     assert len(event_selects) == 1
     assert event_selects[0].startswith("SELECT rowid, project_id, session_id, seq, session_seq")
     assert "rowid > 150" in event_selects[0]
+
+
+def test_store_metadata_rebuild_ignores_a_private_core_snapshot(history):
+    _, store, _, _ = history
+    # Existing databases can contain the second private core's local counters
+    # anchored after the first core's entire history.
+    with store._connect() as con:
+        con.execute(
+            "INSERT INTO objects(kind, obj_id, data) VALUES ('snapshot', 'state', ?)",
+            (json.dumps({"event_metadata": {
+                "count": 75, "projects": {"p1": 75}, "sessions": {"a1": 75}, "rowid": 150,
+            }}),),
+        )
+    assert store.event_metadata() == (150, {"p0": 75, "p1": 75}, {"a0": 75, "a1": 75})
 
 
 def test_store_metadata_keeps_late_events_outside_the_state_snapshot(history):
