@@ -342,29 +342,43 @@ class RuntimeStore:
         return self._envelope(row) if row is not None else None
 
     def event_metadata(self) -> tuple[int, dict[str, int], dict[str, int]]:
-        snapshot, _ = self.load_snapshot()
-        metadata = (snapshot or {}).get("event_metadata")
         with self._connect() as con:
-            if metadata is None:
-                # A cache miss is rebuilt once; subsequent snapshots carry the
-                # log's existing durable counters instead of rescanning history.
-                count = con.execute("SELECT COUNT(*) FROM events").fetchone()[0]
-                projects = dict(con.execute("SELECT project_id, MAX(seq) FROM events GROUP BY project_id"))
-                sessions = dict(con.execute(
+            con.execute("BEGIN IMMEDIATE")
+            metadata = self._event_metadata(con)
+        return metadata["count"], metadata["projects"], metadata["sessions"]
+
+    @staticmethod
+    def _event_metadata(con: sqlite3.Connection) -> dict[str, Any]:
+        """Cache the store's durable prefix, independently of any private core."""
+        row = con.execute("SELECT value FROM meta WHERE key = 'event_metadata'").fetchone()
+        if row is None:
+            # Rebuild narrow counters once. State snapshots may describe only
+            # one private core even when this event store contains many projects.
+            count, rowid = con.execute("SELECT COUNT(*), COALESCE(MAX(rowid), 0) FROM events").fetchone()
+            metadata = {
+                "count": count, "rowid": rowid,
+                "projects": dict(con.execute("SELECT project_id, MAX(seq) FROM events GROUP BY project_id")),
+                "sessions": {session_id: int(seq or 0) for session_id, seq in con.execute(
                     "SELECT session_id, MAX(session_seq) FROM events WHERE session_id IS NOT NULL GROUP BY session_id"
-                ))
-            else:
-                count = metadata["count"]
-                projects, sessions = dict(metadata["projects"]), dict(metadata["sessions"])
-                for project_id, session_id, seq, session_seq in con.execute(
-                    "SELECT project_id, session_id, seq, session_seq FROM events WHERE rowid > ? ORDER BY rowid",
-                    (metadata["rowid"],),
-                ):
-                    count += 1
-                    projects[project_id] = max(projects.get(project_id, 0), seq)
-                    if session_id is not None:
-                        sessions[session_id] = max(sessions.get(session_id, 0), session_seq or 0)
-        return count, projects, {k: int(v or 0) for k, v in sessions.items()}
+                )},
+            }
+        else:
+            metadata = json.loads(row[0])
+            projects, sessions = metadata["projects"], metadata["sessions"]
+            for rowid, project_id, session_id, seq, session_seq in con.execute(
+                "SELECT rowid, project_id, session_id, seq, session_seq FROM events WHERE rowid > ? ORDER BY rowid",
+                (metadata["rowid"],),
+            ):
+                metadata["count"] += 1
+                metadata["rowid"] = rowid
+                projects[project_id] = max(projects.get(project_id, 0), seq)
+                if session_id is not None:
+                    sessions[session_id] = max(sessions.get(session_id, 0), session_seq or 0)
+        con.execute(
+            "INSERT OR REPLACE INTO meta(key, value) VALUES ('event_metadata', ?)",
+            (json.dumps(metadata),),
+        )
+        return metadata
 
     def iter_events(
         self, *, project_id: str | None = None, session_id: str | None = None,
@@ -550,20 +564,8 @@ class RuntimeStore:
         """
         frozen = _strip_computed_fields(payload)
         with self._connect() as con:
-            metadata = frozen.get("event_metadata")
-            if metadata is not None:
-                # Locate the frozen prefix using its existing project/seq
-                # index. Never equate event counts with SQLite rowids, or use
-                # the current DB end: newer events may have arrived meanwhile.
-                rowids = [0]
-                for project_id, seq in last_seqs.items():
-                    row = con.execute(
-                        "SELECT rowid FROM events WHERE project_id = ? AND seq = ?",
-                        (project_id, seq),
-                    ).fetchone()
-                    if row is not None:
-                        rowids.append(row[0])
-                metadata["rowid"] = max(rowids)
+            con.execute("BEGIN IMMEDIATE")
+            self._event_metadata(con)
             con.execute(
                 "INSERT OR REPLACE INTO objects(kind, obj_id, data) VALUES ('snapshot', 'state', ?)",
                 (json.dumps(frozen, ensure_ascii=False),),

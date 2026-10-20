@@ -77,6 +77,61 @@ async def test_snapshot_and_event_durability_roundtrip(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_private_cores_share_store_without_rewinding_resumed_project_sequences(tmp_path):
+    """A later private core's snapshot cannot hide an earlier project's counters."""
+    store = RuntimeStore(tmp_path / "runtime.db")
+    private_runs = []
+    for name in ("first", "second"):
+        core = RuntimeCore(strict_events=True)
+        core.store = store
+        bus = CommandBus(core)
+        project = (await bus.execute(Command(type="project.create", payload={"name": name}))).data
+        parent = (await bus.execute(Command(
+            type="agent.spawn", target={"project_id": project.id},
+            payload={"role_id": "coordinator"},
+        ))).data
+        await core.agent_host.start_run(parent)
+        await core.agent_host.finish_run(parent, outcome="succeeded")
+        await bus.flush_snapshot()
+        private_runs.append((core, project, parent))
+
+    first, project, parent = private_runs[0]
+    old_project_seq = first.event_log.high_watermarks[project.id]
+    old_session_seq = first.event_log.high_session_watermarks[parent.id]
+    restored = RuntimeCore(strict_events=True)
+    await asyncio.to_thread(restore_core, restored, store)
+    bus = CommandBus(restored)
+    await bus.execute(Command(
+        type="agent.message", target={"session_id": parent.id}, payload={"content": "continue"},
+    ))
+    message = restored.event_log.query_session(parent.id, types={"agent.message_injected"})[-1]
+    assert message.seq > old_project_seq
+    assert message.session_seq > old_session_seq
+
+    child = (await bus.execute(Command(
+        type="agent.spawn", target={"project_id": project.id},
+        payload={"role_id": "explorer", "parent_session_id": parent.id},
+    ))).data
+    await restored.agent_host.start_run(child)
+    await restored.agent_host.finish_run(child, outcome="succeeded")
+    terminal = restored.child_completions.terminal_by_session[child.id]
+    assert terminal.data["to"] == "succeeded"
+    assert terminal.seq > old_project_seq
+    count, projects, sessions = await asyncio.to_thread(store.event_metadata)
+
+    def durable_count():
+        with store._connect() as con:
+            return con.execute("SELECT COUNT(*) FROM events").fetchone()[0]
+
+    assert count == await asyncio.to_thread(durable_count)
+    assert projects[project.id] == restored.event_log.high_watermarks[project.id]
+    assert sessions[parent.id] == restored.event_log.high_session_watermarks[parent.id]
+    second, other_project, other_parent = private_runs[1]
+    assert projects[other_project.id] == second.event_log.high_watermarks[other_project.id]
+    assert sessions[other_parent.id] == second.event_log.high_session_watermarks[other_parent.id]
+
+
+@pytest.mark.asyncio
 async def test_snapshot_watermarks_exclude_unpersisted_tail(tmp_path, monkeypatch):
     """Appending during snapshot serialization must not advance its frozen cursor."""
     store = RuntimeStore(tmp_path / "runtime.db")

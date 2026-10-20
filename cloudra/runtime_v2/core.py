@@ -335,7 +335,6 @@ class RuntimeCore:
                 **{name: getattr(self, name).snapshot() for name in (
                     "notices", "pending", "reminders", "mailbox", "child_completions", "peer_completions",
                 )},
-                "event_metadata": self.event_log.durable_metadata(),
                 "deleted_project_ids": sorted(self.deleted_project_ids),
             },
         }
