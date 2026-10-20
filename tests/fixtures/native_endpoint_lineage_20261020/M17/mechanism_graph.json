@@ -1,0 +1,80 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C[N+]#[C-]"
+      ],
+      "properties": {
+        "energy_hartree": -132.543561598163,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/reactant_frequency/.cloudra/execution-30/results/calc-30.out.log",
+        "optimization_log": "ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/execution-29/results/calc-29.out.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "n_imag": 0
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -132.472639625416,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/frequency/.cloudra/execution-27/results/calc-27.out.log",
+        "optimization_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/.cloudra/execution-26/results/calc-26.out.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "n_imag": 1,
+        "imaginary_frequency_cm_inverse": -457.60,
+        "irc_log": "ts/ts_0001/jobs/declaration_0004/irc/.cloudra/execution-28/results/calc-28.out.log",
+        "irc_source_minimum_log": "ts/ts_0001/jobs/declaration_0004/reactant_opt/.cloudra/execution-29/results/calc-29.out.log",
+        "irc_target_minimum_log": "ts/ts_0001/jobs/declaration_0005/product_opt/.cloudra/execution-31/results/calc-31.out.log"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CC#N"
+      ],
+      "properties": {
+        "energy_hartree": -132.578832413685,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/product_seed_opt/.cloudra/execution-24/results/calc-24.out.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "n_imag": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 44.504209817979444,
+      "channel": "direct intramolecular methyl migration"
+    }
+  ]
+}
