@@ -68,6 +68,40 @@ def _score_with_science(task, sandbox, score_directory):
     return result, science
 
 
+def _restore_hb10_dag(case, sandbox, data_dir):
+    from cloudra.dag.store import DagStore
+    from cloudra.persistence.database import ConversationDB
+
+    record = case['dag_snapshot']
+    content = (FIXTURES / record['archive']).read_bytes()
+    assert _sha256(content) == record['sha256']
+    captured = json.loads(content)
+    db = ConversationDB('historical-hb10', data_dir=data_dir).init()
+    with db.connect() as connection:
+        for table, rows in captured['tables'].items():
+            for row in rows:
+                columns = ', '.join(row)
+                placeholders = ', '.join('?' for _ in row)
+                connection.execute(f'INSERT INTO {table} ({columns}) VALUES ({placeholders})',
+                                   tuple(row.values()))
+
+    def localize(value):
+        if isinstance(value, str) and value.startswith(case['source_workspace'] + '/'):
+            return str(sandbox / value[len(case['source_workspace']) + 1:])
+        if isinstance(value, dict):
+            return {key: localize(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [localize(item) for item in value]
+        return value
+
+    class HistoricalStore(DagStore):
+        def resolve_evidence(self, ref):
+            # Translate locations only when reading; captured rows/hashes stay exact.
+            return localize(super().resolve_evidence(ref))
+
+    return HistoricalStore(db)
+
+
 @pytest.mark.parametrize('task_id', ['L1', 'M17'])
 def test_original_native_delivery_rejects_its_actual_wrong_endpoint_selection(tmp_path, task_id):
     sandbox = tmp_path / 'historical-delivery'
@@ -154,3 +188,64 @@ def test_actual_automatic_delivery_scores_gold_without_rebuilding_metadata(tmp_p
     for relative, content in originals.items():
         assert (sandbox / relative).read_bytes() == content
     _assert_native_bytes(sandbox, case)
+
+
+def test_hb10_original_delivery_keeps_partial_score_without_endpoint_export(tmp_path):
+    sandbox = tmp_path / 'actual-hb10-delivery'
+    task, case = _restore_case('HB10', sandbox)
+
+    result, science = _score_with_science(task, sandbox, tmp_path / 'score')
+
+    expected = case['formal_gold_result']
+    assert result.graph_score == pytest.approx(expected['graph_score'])
+    assert result.selfconsistency_passed is False
+    assert result.accuracy_score == pytest.approx(expected['accuracy_score'])
+    assert result.final_score == pytest.approx(expected['final_score'])
+    edges = {check.element_id: check for check in science.checks if check.kind == 'edge'}
+    assert edges['exo_DA'].covered
+    assert not edges['endo_DA'].covered
+    assert any('native starting geometry matches neither actual IRC outer frame' in note
+               and 'calc-39.out.log' in note for note in edges['endo_DA'].notes)
+    assert not (sandbox / '.cloudra/mechanism_evidence.json').exists()
+    _assert_original_bytes(sandbox, case)
+
+
+def test_hb10_real_step_reviews_pass_science_but_keep_extra_thermo_contract(tmp_path):
+    from cloudra.dag.controller import DagController
+    from cloudra.dag.engine import DagEngine
+    from cloudra.dag.file_science import file_scientific_checks
+
+    sandbox = tmp_path / 'actual-hb10-dag'
+    task, case = _restore_case('HB10', sandbox)
+    store = _restore_hb10_dag(case, sandbox, tmp_path / 'data')
+    graph = store.load_snapshot().delivery
+
+    for request_id in case['accepted_step_reviews'].values():
+        request = store.get_review_request(request_id)
+        decision = store.get_review_decision_for_request(request_id)
+        assert decision.verdict == 'accept'
+        checks = file_scientific_checks(store, graph, request.target_ids[0],
+            workspace_root=sandbox, evidence_refs=request.supporting_refs,
+            irc_files=request.proposal.get('irc_files'),
+            endpoint_refs=request.proposal.get('endpoint_refs'))
+        assert {stage: check['status'] for stage, check in checks.items()} == {
+            'ts_opt': 'passed', 'frequency': 'passed', 'short_irc': 'passed'}
+    assert 'without ZPE or thermal corrections' in task.prompt.query
+    assert store.load_coverage_contract().require_thermochemistry
+    assert all('thermochemistry' not in {stage.kind.value for stage in edge.stages}
+               for edge in graph.edges)
+    controller = DagController(store.db, 'historical-hb10', 'dag_guided',
+                               working_directory=sandbox)
+    controller.store = store
+    controller.engine = DagEngine(store)
+
+    report = controller.delivery_report()
+
+    assert not report.complete
+    assert {(gap.code, gap.target_id) for gap in report.unresolved} == {
+        ('missing_thermochemistry', 'step_8700874a'),
+        ('missing_thermochemistry', 'step_1f59336c')}
+    assert len(report.unresolved) == 2
+    assert not report.inconclusive
+    assert not (sandbox / '.cloudra/mechanism_evidence.json').exists()
+    _assert_original_bytes(sandbox, case)

@@ -254,7 +254,7 @@ def pending_stop_answer_step(answer: str) -> Step:
 
 
 def final_delivery_review_steps(review: Step, resume: asyncio.Event, park: asyncio.Event) -> dict[str, list[Step]]:
-    """完整交付经最终督导审查，唤醒后重复同一声明；拒绝仍留在研究回合。"""
+    """接受裁决由运行时结题；拒绝裁决才继续模型研究回合。"""
     return {
         "coordinator": [Step(tools=[("stop", {"delivery_disposition": "complete"})]),
                         Step(wait_for=resume, tools=[("stop", {"delivery_disposition": "complete"})]),
@@ -263,20 +263,31 @@ def final_delivery_review_steps(review: Step, resume: asyncio.Event, park: async
     }
 
 
+def frozen_exit_confirmation_steps(
+    review: Step, continuation: Step, *, answer: str, disposition: str = "partial",
+) -> dict[str, list[Step]]:
+    """接受裁决由运行时确认冻结答复；续研脚本只应在不能结题时调用。"""
+    return {
+        "coordinator": [Step(tools=[("stop", {
+            "delivery_disposition": disposition, "reason": "Report the observed evidence.",
+            "final_answer": answer,
+        })]), continuation],
+        "supervisor": [review, Step(stop=True)],
+    }
+
+
 def independent_partial_review_steps(
     review: Step,
     attempt: asyncio.Event,
-    confirm: asyncio.Event,
     *,
     prior_intent: str,
 ) -> dict[str, list[Step]]:
-    """过程督导先休眠；部分退出由新督导审查，原请求人收到裁决再确认。"""
+    """过程督导先休眠；部分退出由新督导审查，接受后程序直接完成。"""
     stop = {"delivery_disposition": "partial", "reason": "Report the observed partial evidence."}
     return {
         "coordinator": [
             Step(wait_for=attempt, tools=[("dag_delivery_report", {})]),
             Step(tools=[("stop", stop)]),
-            Step(wait_for=confirm, tools=[("stop", stop)]),
         ],
         "supervisor": [Step(text=prior_intent, stop=True), review, Step(stop=True)],
     }

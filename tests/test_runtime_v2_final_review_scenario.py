@@ -29,10 +29,10 @@ async def test_partial_exit_final_supervisor_is_independent_in_actual_llm_turns(
     )
     user_constraint = "User update: preserve the original native files and do not change the method."
     prior_intent = "PROCESS_SUPERVISOR_PRIVATE_INTENT: require an unrelated Gibbs comparison."
-    attempt, confirm, review_ready = [asyncio.Event() for _ in range(3)]
+    attempt, review_ready = [asyncio.Event() for _ in range(2)]
     review = Step(wait_for=review_ready)
     provider = ScriptedProvider(by_role=independent_partial_review_steps(
-        review, attempt, confirm, prior_intent=prior_intent,
+        review, attempt, prior_intent=prior_intent,
     ))
     harness = await ScenarioHarness.start(tmp_path, provider=provider, workspace_dir=tmp_path)
     try:
@@ -93,11 +93,9 @@ async def test_partial_exit_final_supervisor_is_independent_in_actual_llm_turns(
         assert verdict_tool["is_success"]
         decision = await asyncio.to_thread(store.get_review_decision_for_request, request.request_id)
         assert decision.verdict == "accept"
-        await harness.wait_for(lambda: provider.call_count("coordinator") == 3,
-                               "verdict wakes the original requester")
-        confirm.set()
         await harness.wait_terminal(coordinator)
         assert coordinator.state.value == "succeeded"
+        assert provider.call_count("coordinator") == 2
         gates = [event.data for event in harness.events(coordinator)
                  if event.type == "agent.completion_gate" and event.data.get("explicit_stop")]
         assert [gate["action"] for gate in gates] == ["wait_review", "allow_final"]
@@ -108,6 +106,6 @@ async def test_partial_exit_final_supervisor_is_independent_in_actual_llm_turns(
         assert not any(tool["tool_name"] == "submit_compute_job"
                        for agent in harness.core.agents.values() for tool in harness.tool_events(agent))
     finally:
-        for release in (attempt, confirm, review_ready):
+        for release in (attempt, review_ready):
             release.set()
         await harness.aclose()

@@ -1,0 +1,1050 @@
+{
+  "meaning": "Selected original DAG rows only; unchanged values, no conversation history or invented acceptance.",
+  "source_database": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/runtime/conversations/prj_f6b449fe54d740d8/tasks/database.db",
+  "source_database_sha256": "56d324284e7915e6394cc63707c44ea2b875533af6a15a3091d7092c1594e69d",
+  "tables": {
+    "dag_graphs": [
+      {
+        "graph_id": "dag_process",
+        "graph_kind": "process",
+        "revision": 0,
+        "metadata": "{\"initialized_by_session\":\"as_b02861f53fd74201\"}",
+        "created_at": "2026-10-20 15:45:17",
+        "updated_at": "2026-10-20 15:45:17"
+      },
+      {
+        "graph_id": "dag_delivery",
+        "graph_kind": "delivery",
+        "revision": 11,
+        "metadata": "{\"initialized_by_session\":\"as_b02861f53fd74201\"}",
+        "created_at": "2026-10-20 15:45:17",
+        "updated_at": "2026-10-20 17:31:55"
+      }
+    ],
+    "dag_nodes": [
+      {
+        "graph_id": "dag_delivery",
+        "node_id": "sp_185830d9",
+        "node_type": "species",
+        "label": "TS_exo",
+        "refs": "[{\"content_hash\":\"sha256:ed3d651c164e46929c206410de09858da082ef53c943584066dc4395bb2b0eab\",\"ref_id\":\"ev_38e63b10e1eb26bf1865fa175a68d9bca9c5803c0be88a80e76470df614037e4\",\"ref_type\":\"file\",\"revision\":null}]",
+        "payload": "{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"metadata\":{},\"name\":\"TS_exo\",\"reason\":\"\",\"required\":false,\"smiles\":[],\"status\":\"pending\",\"supersedes\":null}",
+        "stages": "[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]",
+        "created_revision": 1,
+        "updated_revision": 11
+      },
+      {
+        "graph_id": "dag_delivery",
+        "node_id": "sp_5079971e",
+        "node_type": "species",
+        "label": "P_endo",
+        "refs": "[{\"content_hash\":\"sha256:ade3a90eece7de87d42d685b037178cd29d95a22d2310cc847825b3341829c3d\",\"ref_id\":\"ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:e27f4d4c5f2b1015b4781fbb650ad37aff6cd2ec274c2731afd4176d24468c3c\",\"ref_id\":\"ev_7d021132c808b7bcdbbec8b6f8fc6b54bf6e796eced99cde2c8843c585bd0cd1\",\"ref_type\":\"file\",\"revision\":null}]",
+        "payload": "{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"metadata\":{},\"name\":\"P_endo\",\"reason\":\"\",\"required\":false,\"smiles\":\"N#C[C@H]1C[C@H]2C=C[C@@H]1C2\",\"status\":\"pending\",\"supersedes\":null}",
+        "stages": "[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]",
+        "created_revision": 1,
+        "updated_revision": 11
+      },
+      {
+        "graph_id": "dag_delivery",
+        "node_id": "sp_89af40cd",
+        "node_type": "species",
+        "label": "TS_endo",
+        "refs": "[{\"content_hash\":\"sha256:08f7c51ec711582c566ef0611dfb5ec5396220838523c82584cd50cea015240b\",\"ref_id\":\"ev_7d370b6b22c7c276cf70017d10fad569d6ecffcb3040995e3311077f07879f60\",\"ref_type\":\"file\",\"revision\":null}]",
+        "payload": "{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"metadata\":{},\"name\":\"TS_endo\",\"reason\":\"\",\"required\":false,\"smiles\":[],\"status\":\"pending\",\"supersedes\":null}",
+        "stages": "[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]",
+        "created_revision": 1,
+        "updated_revision": 11
+      },
+      {
+        "graph_id": "dag_delivery",
+        "node_id": "sp_9d6df516",
+        "node_type": "species",
+        "label": "P_exo",
+        "refs": "[{\"content_hash\":\"sha256:021f234b22b002904acb7c4f30cf58626e1f89e626dab1df12befb199857d594\",\"ref_id\":\"ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:3dfaf2182e1308f6d7d2cb0c553b7b2a4bb3fe1e779051178bb3e85970226b56\",\"ref_id\":\"ev_1920ba42b0d2c56b770ea78f7a572ceb32dc2cadfdd80f5972aa61e04b6856d7\",\"ref_type\":\"file\",\"revision\":null}]",
+        "payload": "{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"metadata\":{},\"name\":\"P_exo\",\"reason\":\"\",\"required\":false,\"smiles\":\"N#C[C@@H]1C[C@H]2C=C[C@@H]1C2\",\"status\":\"pending\",\"supersedes\":null}",
+        "stages": "[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]",
+        "created_revision": 1,
+        "updated_revision": 11
+      },
+      {
+        "graph_id": "dag_delivery",
+        "node_id": "sp_bda2ff59",
+        "node_type": "species",
+        "label": "RC",
+        "refs": "[{\"content_hash\":\"sha256:1b9f062abafec7a757d9995bd89c2508a30ce6a61f48d8f95b7b93fe7b4a48c4\",\"ref_id\":\"ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:080d8d73a6c9381a6049cd4740ff6ea4e5875f6b6ea5e75fa9c49b996fca9cd5\",\"ref_id\":\"ev_1a213259b30705ea6b420e679993cabc0b474cd7a41366a46a867adc13d342b1\",\"ref_type\":\"file\",\"revision\":null}]",
+        "payload": "{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"metadata\":{},\"name\":\"RC\",\"reason\":\"\",\"required\":false,\"smiles\":\"C1=CCC=C1.C=CC#N\",\"status\":\"pending\",\"supersedes\":null}",
+        "stages": "[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]",
+        "created_revision": 1,
+        "updated_revision": 11
+      }
+    ],
+    "dag_edges": [
+      {
+        "graph_id": "dag_delivery",
+        "edge_id": "step_1f59336c",
+        "source_node_id": "sp_bda2ff59",
+        "target_node_id": "sp_9d6df516",
+        "edge_type": "elementary_step",
+        "label": "exo_DA",
+        "refs": "[{\"content_hash\":\"sha256:ed3d651c164e46929c206410de09858da082ef53c943584066dc4395bb2b0eab\",\"ref_id\":\"ev_38e63b10e1eb26bf1865fa175a68d9bca9c5803c0be88a80e76470df614037e4\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:c0f8458eabc6e8317103e72797e0cdf7df0ee86b5ec7a289de93be175bf11bde\",\"ref_id\":\"ev_7944bbac44e7e9f0fa77cbadec868218405db066445de1738e182981c20ae35f\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:f42621ab20a9309f8a8a53b5068c2984bea0fe983825ff2802bed38360cd1410\",\"ref_id\":\"ev_3d5d5756c7c2b4f9fb0f19b7c27f80c4ac9bfb98b0b8d5d9b8a59daa291a6485\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:1b9f062abafec7a757d9995bd89c2508a30ce6a61f48d8f95b7b93fe7b4a48c4\",\"ref_id\":\"ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:021f234b22b002904acb7c4f30cf58626e1f89e626dab1df12befb199857d594\",\"ref_id\":\"ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e\",\"ref_type\":\"file\",\"revision\":null}]",
+        "payload": "{\"advisory_sources\":[],\"annotations\":null,\"endpoint_a_minimum_supported\":false,\"endpoint_b_minimum_supported\":false,\"endpoint_direction_consistent\":false,\"endpoint_identity_matched\":false,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"metadata\":{},\"name\":\"exo_DA\",\"reason\":\"\",\"required\":false,\"saddle_supported\":false,\"status\":\"pending\",\"supersedes\":null,\"thermochemistry_supported\":false}",
+        "stages": "[{\"kind\":\"ts_guess\",\"reason\":\"\",\"ref\":null,\"required\":false,\"status\":\"pending\"},{\"kind\":\"ts_opt\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"},{\"kind\":\"frequency\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"},{\"kind\":\"short_irc\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]",
+        "created_revision": 1,
+        "updated_revision": 11
+      },
+      {
+        "graph_id": "dag_delivery",
+        "edge_id": "step_8700874a",
+        "source_node_id": "sp_bda2ff59",
+        "target_node_id": "sp_5079971e",
+        "edge_type": "elementary_step",
+        "label": "endo_DA",
+        "refs": "[{\"content_hash\":\"sha256:08f7c51ec711582c566ef0611dfb5ec5396220838523c82584cd50cea015240b\",\"ref_id\":\"ev_7d370b6b22c7c276cf70017d10fad569d6ecffcb3040995e3311077f07879f60\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:3a7fd400c55e2497e74495a8d6c2bb9db190285f812379af95e9955e66ba9cb5\",\"ref_id\":\"ev_1d049559194744893bb45ce57428b8003947a6ca33c0b33b881c76683058f05d\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:0c5e3d9974ab3165a922faae63ee1cbae9ad97b713ebd9fdfd1cad5d50efb585\",\"ref_id\":\"ev_30afad7c78a07dd94c971a0861b37e5c0864ef396e5e4532b92f11884044f610\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:080d8d73a6c9381a6049cd4740ff6ea4e5875f6b6ea5e75fa9c49b996fca9cd5\",\"ref_id\":\"ev_1a213259b30705ea6b420e679993cabc0b474cd7a41366a46a867adc13d342b1\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:e27f4d4c5f2b1015b4781fbb650ad37aff6cd2ec274c2731afd4176d24468c3c\",\"ref_id\":\"ev_7d021132c808b7bcdbbec8b6f8fc6b54bf6e796eced99cde2c8843c585bd0cd1\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:64d2f4f161705644bfd387e77494e930aa5d59e6332f7445beeca2167031a3ec\",\"ref_id\":\"ev_8577fdc15be693852ed8af02d09000dd020620c7a6499a009a988a767a818a74\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:ade3a90eece7de87d42d685b037178cd29d95a22d2310cc847825b3341829c3d\",\"ref_id\":\"ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6\",\"ref_type\":\"file\",\"revision\":null}]",
+        "payload": "{\"advisory_sources\":[],\"annotations\":null,\"endpoint_a_minimum_supported\":false,\"endpoint_b_minimum_supported\":false,\"endpoint_direction_consistent\":false,\"endpoint_identity_matched\":false,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"metadata\":{},\"name\":\"endo_DA\",\"reason\":\"\",\"required\":false,\"saddle_supported\":false,\"status\":\"pending\",\"supersedes\":null,\"thermochemistry_supported\":false}",
+        "stages": "[{\"kind\":\"ts_guess\",\"reason\":\"\",\"ref\":null,\"required\":false,\"status\":\"pending\"},{\"kind\":\"ts_opt\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"},{\"kind\":\"frequency\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"},{\"kind\":\"short_irc\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]",
+        "created_revision": 1,
+        "updated_revision": 11
+      }
+    ],
+    "dag_evidence_bindings": [
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "node",
+        "target_id": "sp_bda2ff59",
+        "evidence_id": "ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 3
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "node",
+        "target_id": "sp_bda2ff59",
+        "evidence_id": "ev_1a213259b30705ea6b420e679993cabc0b474cd7a41366a46a867adc13d342b1",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 3
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "node",
+        "target_id": "sp_5079971e",
+        "evidence_id": "ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 4
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "node",
+        "target_id": "sp_5079971e",
+        "evidence_id": "ev_7d021132c808b7bcdbbec8b6f8fc6b54bf6e796eced99cde2c8843c585bd0cd1",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 4
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "node",
+        "target_id": "sp_9d6df516",
+        "evidence_id": "ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 5
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "node",
+        "target_id": "sp_9d6df516",
+        "evidence_id": "ev_1920ba42b0d2c56b770ea78f7a572ceb32dc2cadfdd80f5972aa61e04b6856d7",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 5
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_8700874a",
+        "evidence_id": "ev_7d370b6b22c7c276cf70017d10fad569d6ecffcb3040995e3311077f07879f60",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 6
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_8700874a",
+        "evidence_id": "ev_1d049559194744893bb45ce57428b8003947a6ca33c0b33b881c76683058f05d",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 6
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_8700874a",
+        "evidence_id": "ev_30afad7c78a07dd94c971a0861b37e5c0864ef396e5e4532b92f11884044f610",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 6
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_8700874a",
+        "evidence_id": "ev_1a213259b30705ea6b420e679993cabc0b474cd7a41366a46a867adc13d342b1",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 6
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_8700874a",
+        "evidence_id": "ev_7d021132c808b7bcdbbec8b6f8fc6b54bf6e796eced99cde2c8843c585bd0cd1",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 6
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_8700874a",
+        "evidence_id": "ev_8577fdc15be693852ed8af02d09000dd020620c7a6499a009a988a767a818a74",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 8
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_8700874a",
+        "evidence_id": "ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 8
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_1f59336c",
+        "evidence_id": "ev_38e63b10e1eb26bf1865fa175a68d9bca9c5803c0be88a80e76470df614037e4",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 9
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_1f59336c",
+        "evidence_id": "ev_7944bbac44e7e9f0fa77cbadec868218405db066445de1738e182981c20ae35f",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 9
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_1f59336c",
+        "evidence_id": "ev_3d5d5756c7c2b4f9fb0f19b7c27f80c4ac9bfb98b0b8d5d9b8a59daa291a6485",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 9
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_1f59336c",
+        "evidence_id": "ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 9
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "edge",
+        "target_id": "step_1f59336c",
+        "evidence_id": "ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 9
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "node",
+        "target_id": "sp_89af40cd",
+        "evidence_id": "ev_7d370b6b22c7c276cf70017d10fad569d6ecffcb3040995e3311077f07879f60",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 10
+      },
+      {
+        "graph_id": "dag_delivery",
+        "target_type": "node",
+        "target_id": "sp_185830d9",
+        "evidence_id": "ev_38e63b10e1eb26bf1865fa175a68d9bca9c5803c0be88a80e76470df614037e4",
+        "evidence_role": null,
+        "derived_level": "proposed",
+        "created_revision": 11
+      }
+    ],
+    "dag_coverage": [
+      {
+        "graph_id": "dag_delivery",
+        "revision": 2,
+        "coverage": "{\"require_branch_disposition\":true,\"require_thermochemistry\":true,\"required_edge_level\":\"endpoint_supported\",\"required_node_level\":\"structure_supported\",\"waivers\":[]}",
+        "updated_at": "2026-10-20 16:02:40"
+      }
+    ],
+    "dag_drafts": [
+      {
+        "draft_id": "draft_02d9d3ea73ae4fb6add4a2c2d4b164c1",
+        "state": "accepted",
+        "rationale": "Concerted Diels-Alder addition of cyclopentadiene (C1=CCC=C1) to acrylonitrile (C=CC#N), a normal-electron-demand [4+2] cycloaddition. The two new C-C sigma bonds form simultaneously with conversion of the diene pi system into one double bond and the dienophile C=C into a single bond, so the reaction is a single concerted elementary step per stereochemical channel. Both stereochemical outcomes are investigated from ONE common pre-reaction complex (cyclopentadiene/acrylonitrile pi-stacked complex, declared as a single dot-joined node RC) so that the two barrier heights share a common reference: the endo channel (acrylonitrile carbonitrile group tucked under the diene pi system, maximizing secondary orbital overlap in the TS, giving endo-5-norbornene-2-carbonitrile) and the exo channel (nitrile pointing away from the diene, giving exo-5-norbornene-2-carbonitrile). No intermediates are expected on either path: the DA is a single concerted step with one first-order saddle per channel. Conditions modelled: gas phase, charge 0, multiplicity 1 (closed shell), B3LYP-D3(BJ)/def2-SVP with RIJCOSX/def2-J, i.e. within the project method policy (xtb, pm7, b3lyp/def2svp). Each channel is solved with the ts_prepare workflow (provided guess -> OptTS + analytic frequency -> bidirectional IRC -> frequency-verified endpoint minima), so the IRC direction proof connects TS_endo/TS_exo back to the shared RC and forward to the corresponding stereo-explicit product.",
+        "operations": "[{\"graph\":\"delivery\",\"node\":{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"label\":\"RC\",\"metadata\":{},\"name\":\"RC\",\"node_id\":\"sp_bda2ff59\",\"node_type\":\"species\",\"reason\":\"\",\"refs\":[],\"required\":false,\"smiles\":\"C1=CCC=C1.C=CC#N\",\"stages\":[],\"status\":\"pending\",\"supersedes\":null},\"op\":\"add_node\"},{\"graph\":\"delivery\",\"node\":{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"label\":\"TS_endo\",\"metadata\":{},\"name\":\"TS_endo\",\"node_id\":\"sp_89af40cd\",\"node_type\":\"species\",\"reason\":\"\",\"refs\":[],\"required\":false,\"smiles\":[],\"stages\":[],\"status\":\"pending\",\"supersedes\":null},\"op\":\"add_node\"},{\"graph\":\"delivery\",\"node\":{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"label\":\"P_endo\",\"metadata\":{},\"name\":\"P_endo\",\"node_id\":\"sp_5079971e\",\"node_type\":\"species\",\"reason\":\"\",\"refs\":[],\"required\":false,\"smiles\":\"N#C[C@H]1C[C@H]2C=C[C@@H]1C2\",\"stages\":[],\"status\":\"pending\",\"supersedes\":null},\"op\":\"add_node\"},{\"graph\":\"delivery\",\"node\":{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"label\":\"TS_exo\",\"metadata\":{},\"name\":\"TS_exo\",\"node_id\":\"sp_185830d9\",\"node_type\":\"species\",\"reason\":\"\",\"refs\":[],\"required\":false,\"smiles\":[],\"stages\":[],\"status\":\"pending\",\"supersedes\":null},\"op\":\"add_node\"},{\"graph\":\"delivery\",\"node\":{\"advisory_sources\":[],\"annotations\":null,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"label\":\"P_exo\",\"metadata\":{},\"name\":\"P_exo\",\"node_id\":\"sp_9d6df516\",\"node_type\":\"species\",\"reason\":\"\",\"refs\":[],\"required\":false,\"smiles\":\"N#C[C@@H]1C[C@H]2C=C[C@@H]1C2\",\"stages\":[],\"status\":\"pending\",\"supersedes\":null},\"op\":\"add_node\"},{\"edge\":{\"advisory_sources\":[],\"annotations\":null,\"edge_id\":\"step_8700874a\",\"edge_type\":\"elementary_step\",\"endpoint_a_minimum_supported\":false,\"endpoint_b_minimum_supported\":false,\"endpoint_direction_consistent\":false,\"endpoint_identity_matched\":false,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"label\":\"endo_DA\",\"metadata\":{},\"name\":\"endo_DA\",\"reason\":\"\",\"refs\":[],\"required\":false,\"saddle_supported\":false,\"source_node_id\":\"sp_bda2ff59\",\"stages\":[],\"status\":\"pending\",\"supersedes\":null,\"target_node_id\":\"sp_5079971e\",\"thermochemistry_supported\":false},\"graph\":\"delivery\",\"op\":\"add_edge\"},{\"edge\":{\"advisory_sources\":[],\"annotations\":null,\"edge_id\":\"step_1f59336c\",\"edge_type\":\"elementary_step\",\"endpoint_a_minimum_supported\":false,\"endpoint_b_minimum_supported\":false,\"endpoint_direction_consistent\":false,\"endpoint_identity_matched\":false,\"evidence_level\":\"proposed\",\"evidence_vetoed\":false,\"label\":\"exo_DA\",\"metadata\":{},\"name\":\"exo_DA\",\"reason\":\"\",\"refs\":[],\"required\":false,\"saddle_supported\":false,\"source_node_id\":\"sp_bda2ff59\",\"stages\":[],\"status\":\"pending\",\"supersedes\":null,\"target_node_id\":\"sp_9d6df516\",\"thermochemistry_supported\":false},\"graph\":\"delivery\",\"op\":\"add_edge\"}]",
+        "stage_contracts": "{\"sp_185830d9\":{\"claim_spec\":null,\"contract_version\":1,\"stages\":[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]},\"sp_5079971e\":{\"claim_spec\":null,\"contract_version\":1,\"stages\":[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]},\"sp_89af40cd\":{\"claim_spec\":null,\"contract_version\":1,\"stages\":[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]},\"sp_9d6df516\":{\"claim_spec\":null,\"contract_version\":1,\"stages\":[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]},\"sp_bda2ff59\":{\"claim_spec\":null,\"contract_version\":1,\"stages\":[{\"kind\":\"geometry\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]},\"step_1f59336c\":{\"claim_spec\":null,\"contract_version\":1,\"stages\":[{\"kind\":\"ts_guess\",\"reason\":\"\",\"ref\":null,\"required\":false,\"status\":\"pending\"},{\"kind\":\"ts_opt\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"},{\"kind\":\"frequency\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"},{\"kind\":\"short_irc\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]},\"step_8700874a\":{\"claim_spec\":null,\"contract_version\":1,\"stages\":[{\"kind\":\"ts_guess\",\"reason\":\"\",\"ref\":null,\"required\":false,\"status\":\"pending\"},{\"kind\":\"ts_opt\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"},{\"kind\":\"frequency\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"},{\"kind\":\"short_irc\",\"reason\":\"\",\"ref\":null,\"required\":true,\"status\":\"pending\"}]}}",
+        "actor_id": "a-0",
+        "reject_reason": "",
+        "created_at": "2026-10-20 16:02:21",
+        "decided_at": "2026-10-20 16:02:40",
+        "claim_spec": "{\"kind\":\"mechanism\",\"optional_checks\":[],\"quantity\":\"\",\"reference\":{},\"required_checks\":[],\"scope\":{\"targets\":[\"step_8700874a\",\"step_1f59336c\"]},\"unit\":null}"
+      }
+    ],
+    "dag_evidence_facts": [
+      {
+        "fact_id": "fact_a8d4baaf54b844b3907596d1112c7959",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:b9a13c266a7a99ed53f4355e7325d5881e5e2c4615fa65ddee5269291b286c61\",\"ref_id\":\"ev_82218efa43d7d43de9c883950e9f4de4a255b28bfcd49093dda729939c1c6b06\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[-457.1],\"n_imag\":1}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:0d9da06c9a49d05072f72053d346c8526f9451573fc699f271fcdf982f4ff9fc",
+        "created_at": "2026-10-20 16:27:36"
+      },
+      {
+        "fact_id": "fact_bc44710eaf694c8f898ded70ccfc2deb",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:b9a13c266a7a99ed53f4355e7325d5881e5e2c4615fa65ddee5269291b286c61\",\"ref_id\":\"ev_82218efa43d7d43de9c883950e9f4de4a255b28bfcd49093dda729939c1c6b06\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.441025442681,\"scf_energy_hartree\":-364.40535240557915}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:a3cc4fa14b28a4e03c0d1e8b4fcf70858adda58866ac8a636e64a1e6045d8e86",
+        "created_at": "2026-10-20 16:27:36"
+      },
+      {
+        "fact_id": "fact_efb480d72ff54df58cd974125f2aacd5",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:349d38fe25f970b7218a298b88ea802cc763670d4822cb647d874a17bd67d692\",\"ref_id\":\"ev_57b9738a2ba8dd1c415faace338949a043222b964f6f7db1ad1cfac74caf4adf\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[-456.87],\"n_imag\":1}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:7d933e48445aa6834bbc92be976824bf5476a0f84488f21b6fe65bdc47079c1f",
+        "created_at": "2026-10-20 16:27:39"
+      },
+      {
+        "fact_id": "fact_79726ac07483404b9fc09ee33b44178b",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:349d38fe25f970b7218a298b88ea802cc763670d4822cb647d874a17bd67d692\",\"ref_id\":\"ev_57b9738a2ba8dd1c415faace338949a043222b964f6f7db1ad1cfac74caf4adf\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.44136578259,\"scf_energy_hartree\":-364.4058393675682}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:d844e41ef7a1972c4502ef3169afb57cceff9b5707aa8fdb3fd79f4209810acd",
+        "created_at": "2026-10-20 16:27:39"
+      },
+      {
+        "fact_id": "fact_c279cca67a2e47e89e11ce1cb8c4cc36",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:df86b3936d6dbf6a8de5b6dc59d0a2379ffde47ef69aef29bdb71235cf4d3610\",\"ref_id\":\"ev_e3cbd221d3b9e2fd9adc05ff142259dcc0d9416f5e281d779e68c6abc3556f95\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[-457.1],\"n_imag\":1}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:0f336046533e686f7f817d92f65779b0f409d1c7fb5ee925e68a5289a3cec9fe",
+        "created_at": "2026-10-20 17:13:05"
+      },
+      {
+        "fact_id": "fact_991d07603e2b4bbeb4e3043ed0a0e29b",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:df86b3936d6dbf6a8de5b6dc59d0a2379ffde47ef69aef29bdb71235cf4d3610\",\"ref_id\":\"ev_e3cbd221d3b9e2fd9adc05ff142259dcc0d9416f5e281d779e68c6abc3556f95\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.441025442681,\"scf_energy_hartree\":-364.40535240557915}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:47418db02c2388976afa447cf6ecc9bbdbf6b2a26e6761fddc4ad8eccf26bdad",
+        "created_at": "2026-10-20 17:13:05"
+      },
+      {
+        "fact_id": "fact_b73cb063df4a441ba7e24bd266aeb305",
+        "check_name": "stationary_point",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:2bf758960ebe6ae797914f7511580d0f931ffd45c8ef2591f606d0a5075fbb37\",\"ref_id\":\"ev_95a1ed93effb3783fa3133c91a4420ce2c96b10e8ed7e8185c5590acc4336c26\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"opt_converged\":true}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:f27ab402b9d5b49aa418748eef945f8a12c2ecb4d4f1c39642a423c51b36f6d8",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_b86253c24a844a84b431e2ad1e283213",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:2bf758960ebe6ae797914f7511580d0f931ffd45c8ef2591f606d0a5075fbb37\",\"ref_id\":\"ev_95a1ed93effb3783fa3133c91a4420ce2c96b10e8ed7e8185c5590acc4336c26\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[],\"n_imag\":0}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:19a0b7449acd7430bb99248eadff827831d776e4aaf72dcfba6186b47803e371",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_f40a8311dddf46e9947e297f50475d79",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:2bf758960ebe6ae797914f7511580d0f931ffd45c8ef2591f606d0a5075fbb37\",\"ref_id\":\"ev_95a1ed93effb3783fa3133c91a4420ce2c96b10e8ed7e8185c5590acc4336c26\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.463168151598,\"scf_energy_hartree\":-364.43217233409325}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:272d882f8b4c165467eec28dc7f2964828fb7fda48573c570574ace7b956e97c",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_806ee98623854963be0beaa1035e9293",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:e1c70c56d9bab48a99db2fb0f4b6890f2a245a25eb4558c4aaf8debc056395c1\",\"ref_id\":\"ev_0a13efb6095ada5c0b05d3080f087db948c8a92e3e4a39342062a93d2b4bf49a\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[],\"n_imag\":0}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:79984c01f5cf679776c0ae187fef04412a8ecae56402b64c7126ac22e1edd0c4",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_f9a22b6f1b6f4ed08607541532bab332",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:e1c70c56d9bab48a99db2fb0f4b6890f2a245a25eb4558c4aaf8debc056395c1\",\"ref_id\":\"ev_0a13efb6095ada5c0b05d3080f087db948c8a92e3e4a39342062a93d2b4bf49a\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.463168377659,\"scf_energy_hartree\":-364.43217256130396}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:c056882349a8b2f21348bbb6a70746e830ca541d235d1603af44c5b1f227cb37",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_0faff96f7c454b0f81723bddb5aaffbf",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:5231ae2e1127b758f5c4ad0b7a0644caf465d8b01b60029de4de8514774dc599\",\"ref_id\":\"ev_8d225ca678e5eb88defeb8ffd1fa7fbaa12cdec7ca7d5d2b612c77d09e338f35\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[-456.87],\"n_imag\":1}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:81834d181d76211eebee2032041bf3cbba1ea9950ca642014895859ea99bc689",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_6370bd0941234efb9df0c50b8d199def",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:5231ae2e1127b758f5c4ad0b7a0644caf465d8b01b60029de4de8514774dc599\",\"ref_id\":\"ev_8d225ca678e5eb88defeb8ffd1fa7fbaa12cdec7ca7d5d2b612c77d09e338f35\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.44136578259,\"scf_energy_hartree\":-364.4058393675682}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:c86f42a5716a106851081fee64524e8f58f05bd3951dab99017e1d5bc1906bca",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_614d6946c60e45fab4a29787708efe78",
+        "check_name": "stationary_point",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:9fb3f8139184e738d867ba42fcc9e252efe664f2427031767f953d9457f0b8a6\",\"ref_id\":\"ev_17d1bb667f9ef7ecc5d93c0fe0275375b81d0022ca8b176d8dcd0986e354af24\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"opt_converged\":true}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:e8150637791c31ce451d9ecca8dad443fe3d91094d05210042045c4fb51f9020",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_3a24e098f62b4ae5b58348e72e0c196b",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:9fb3f8139184e738d867ba42fcc9e252efe664f2427031767f953d9457f0b8a6\",\"ref_id\":\"ev_17d1bb667f9ef7ecc5d93c0fe0275375b81d0022ca8b176d8dcd0986e354af24\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[],\"n_imag\":0}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:61db7062ede15e0ceb2c19b2d9e6e6c6210087e3f3c731d5aaef9a788bc2b611",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_d2080410a32d412cb2d1688f910d329b",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:9fb3f8139184e738d867ba42fcc9e252efe664f2427031767f953d9457f0b8a6\",\"ref_id\":\"ev_17d1bb667f9ef7ecc5d93c0fe0275375b81d0022ca8b176d8dcd0986e354af24\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.463865860397,\"scf_energy_hartree\":-364.43281358065315}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:2694e1859ed708bc5dbe7ca6e37c9ca50c427f13147f099701f892b76e250626",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_2b7a969bbe764b27b5f6beb5236464c5",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:652c3c73b2ab483e3a275b94e593297257bee889c55d9d8e9a87d8f8844c76f3\",\"ref_id\":\"ev_3bb38283353222d37575b8f30bbea0342ec4809e534db528e252f5df880d55bf\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[],\"n_imag\":0}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:1abf9480185106c8bce7ef4987237c6c9717bec9baf51b2c3ec145a4130b8834",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_2af60cc5ec514a2099cbb4bbff365731",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:652c3c73b2ab483e3a275b94e593297257bee889c55d9d8e9a87d8f8844c76f3\",\"ref_id\":\"ev_3bb38283353222d37575b8f30bbea0342ec4809e534db528e252f5df880d55bf\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.463871431511,\"scf_energy_hartree\":-364.4328191521699}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:ce452c05ec7a02dc9af7e354d679b37d1009c682b50bb793dc7d9ed953160ee4",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_f1ba910335cf4cf890999d62f7b13db6",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:253730d7dfb6184db5b34e1afa6a24a5f35e47ed62eb0ad087bed2a2307ce1b3\",\"ref_id\":\"ev_d928f02583fa54dfccfc709e33b97f0c0b13cc3818959282c3b92491292a4d51\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.500680734,\"scf_energy_hartree\":-364.46648171616636}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:eff47cd15b52968b001e179975981fa1ac4bdfcb9dc9ba04edba95aca36c78ae",
+        "created_at": "2026-10-20 17:13:06"
+      },
+      {
+        "fact_id": "fact_47c1266335484990b474872964e3a0a2",
+        "check_name": "stationary_point",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:dea0141bb3bcce17350d721f6ace427fd6fa507c2b9b3f17e14118589dc773ba\",\"ref_id\":\"ev_25c8220b790772ec9d2c2be8a83a44057198acada635b12225d78dc17197e09b\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"opt_converged\":true}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:6b957127cf652ac7c9327cb4cc23402e1a64612e764419c152e55007219abf47",
+        "created_at": "2026-10-20 17:28:21"
+      },
+      {
+        "fact_id": "fact_f0fbb608679a47c2b8b90aba53572efb",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:dea0141bb3bcce17350d721f6ace427fd6fa507c2b9b3f17e14118589dc773ba\",\"ref_id\":\"ev_25c8220b790772ec9d2c2be8a83a44057198acada635b12225d78dc17197e09b\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.500695191868,\"scf_energy_hartree\":-364.46649088213513}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:28f205e964821d26371fe4b23caf43e749ef4fc18ebf699256d71c848a6624f7",
+        "created_at": "2026-10-20 17:28:21"
+      },
+      {
+        "fact_id": "fact_1781d5943ce54f63bc7cd7319cab3385",
+        "check_name": "stationary_point",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:bd6bcaa27ad7d9442efafb30e9e5eb19aa55c25a0f2e7f4f4af517469fb73156\",\"ref_id\":\"ev_148e37e979550bf771c3624373eaa3d3fbfb5a7e1697fb31db41590379fce275\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"opt_converged\":true}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:58a636c305b38298cc678af0d896c0cec2a8fdf03bcdad533a5c6280df2f6762",
+        "created_at": "2026-10-20 17:28:21"
+      },
+      {
+        "fact_id": "fact_00bf26a52da749858788e3d2ad4a8d62",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:bd6bcaa27ad7d9442efafb30e9e5eb19aa55c25a0f2e7f4f4af517469fb73156\",\"ref_id\":\"ev_148e37e979550bf771c3624373eaa3d3fbfb5a7e1697fb31db41590379fce275\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.500479623999,\"scf_energy_hartree\":-364.46647956350216}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:fdf73500d75e933001a337d17782e30c1b15a0702aee75dad9bf17518dddff40",
+        "created_at": "2026-10-20 17:28:21"
+      },
+      {
+        "fact_id": "fact_a93bf3f3efe04423b6e23470a4f81ccd",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:c13adde2696022635af8af47a29413e61d36a91b17ad3ffe89de83ca409ea4b5\",\"ref_id\":\"ev_0bb7e704f16c3f78b030ec8e5379a31346716fe53d8856e82ecc5a93548e00b2\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[-457.1],\"n_imag\":1}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:d7dab8126a62602096a7836a1a5b644a0e69e0c3e545902a5a7735d11491072c",
+        "created_at": "2026-10-20 17:29:37"
+      },
+      {
+        "fact_id": "fact_d21cd40117654c86942c1f4484e896d8",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:c13adde2696022635af8af47a29413e61d36a91b17ad3ffe89de83ca409ea4b5\",\"ref_id\":\"ev_0bb7e704f16c3f78b030ec8e5379a31346716fe53d8856e82ecc5a93548e00b2\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.441025442681,\"scf_energy_hartree\":-364.40535240557915}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:93ca43d6c7ddccf9aeff0afa4b73860558fb3208f19c7831ddd5c050657de536",
+        "created_at": "2026-10-20 17:29:37"
+      },
+      {
+        "fact_id": "fact_df1a1983e04e4c10b92be93f9a9e33f3",
+        "check_name": "thermochemistry",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:c13adde2696022635af8af47a29413e61d36a91b17ad3ffe89de83ca409ea4b5\",\"ref_id\":\"ev_0bb7e704f16c3f78b030ec8e5379a31346716fe53d8856e82ecc5a93548e00b2\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"thermal_gibbs_correction_hartree\":0.11401313999999729,\"total_gibbs_free_energy_hartree\":-364.3270123}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:fb73854dff4cb383078f3e00115547c87ee265dafcda1577954dac7698a51584",
+        "created_at": "2026-10-20 17:29:37"
+      },
+      {
+        "fact_id": "fact_44a191164cd44136a3ce17875129f16e",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:956a85c211f9c33f914bc405ec804cea47c9ff9cfa7d667a1ebf9f5726392d1c\",\"ref_id\":\"ev_0268547870ea2e5fb1ae42aef0a3b687c2c78c8f9687055fbaa379daf6603819\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[],\"n_imag\":0}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:63866b7c369f0f4b3b1c36169531759127b9b97eaac49eacdde9e8bf4255407c",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_b27b14937bf84b92b611ec03f5e4a087",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:956a85c211f9c33f914bc405ec804cea47c9ff9cfa7d667a1ebf9f5726392d1c\",\"ref_id\":\"ev_0268547870ea2e5fb1ae42aef0a3b687c2c78c8f9687055fbaa379daf6603819\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.463871431511,\"scf_energy_hartree\":-364.4328191521699}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:fe3b15d46859ad0f6c45bdcd9592d3bc74d02d226e6ee3cc0685fe5d7f4ccc6b",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_5ec2cfd95eeb4a4196995178f33634b2",
+        "check_name": "thermochemistry",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:956a85c211f9c33f914bc405ec804cea47c9ff9cfa7d667a1ebf9f5726392d1c\",\"ref_id\":\"ev_0268547870ea2e5fb1ae42aef0a3b687c2c78c8f9687055fbaa379daf6603819\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"thermal_gibbs_correction_hartree\":0.10851224999998976,\"total_gibbs_free_energy_hartree\":-364.35535918}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:1264af2ba8ff9933c3d4b14e3c9f940a1cd9a4896395b3dd10c698e7a06d8775",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_1e2e8b56953140aab30f5044648120ee",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:37d0d205ae1f4fe67d025d3d5e697313df23f9bd8dca6f6f36657b8b8cc0bfe3\",\"ref_id\":\"ev_0f4015e1e04813367380f36552fdafce05031fccc6d36809ad243c6cf0f3aa03\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[-456.87],\"n_imag\":1}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:ffd451bb3bbac16306ccc68b5daafebcdbd56b1bbf6615a39b457add70517853",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_2a3661dc5e1542598755e05ca9e1d3c8",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:37d0d205ae1f4fe67d025d3d5e697313df23f9bd8dca6f6f36657b8b8cc0bfe3\",\"ref_id\":\"ev_0f4015e1e04813367380f36552fdafce05031fccc6d36809ad243c6cf0f3aa03\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.44136578259,\"scf_energy_hartree\":-364.4058393675682}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:84d8b09efe28eaa4160a528705d3d4b98987ea37c5de6784da98c3e41d083b6e",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_55713a0d4e2043e1a2e3e27bdb9979df",
+        "check_name": "thermochemistry",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:37d0d205ae1f4fe67d025d3d5e697313df23f9bd8dca6f6f36657b8b8cc0bfe3\",\"ref_id\":\"ev_0f4015e1e04813367380f36552fdafce05031fccc6d36809ad243c6cf0f3aa03\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"thermal_gibbs_correction_hartree\":0.11410123000001704,\"total_gibbs_free_energy_hartree\":-364.32726455}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:19ae049f38831413af262f38821472ddb5dab3430bbb112bdfd735b2e4be32b5",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_3f8eb61c59cb4690bf1b03bef0bea7a9",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:5a562eab0d611f212031d9f0d5ba5dbc71f44dba1cc370de1f95212740eaf2a9\",\"ref_id\":\"ev_104ae52880e0fcd63748a2e6a2a33a0243d7e5701c89f3de4c36a3a8347a654f\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[],\"n_imag\":0}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:bf53d66170b429487800f80352d7286a0985b0610c97baffe35df93ffe88e612",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_f7fd8c87ff7c4c71b7c0231dbb488efb",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:5a562eab0d611f212031d9f0d5ba5dbc71f44dba1cc370de1f95212740eaf2a9\",\"ref_id\":\"ev_104ae52880e0fcd63748a2e6a2a33a0243d7e5701c89f3de4c36a3a8347a654f\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.500703995727,\"scf_energy_hartree\":-364.4664996870093}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:9bc2237fc3cea3c5fca9449012a8317d29ba810201b57ebc242c346e7d90845c",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_f0a74545da104ada9fc984d167a0bfd9",
+        "check_name": "thermochemistry",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:5a562eab0d611f212031d9f0d5ba5dbc71f44dba1cc370de1f95212740eaf2a9\",\"ref_id\":\"ev_104ae52880e0fcd63748a2e6a2a33a0243d7e5701c89f3de4c36a3a8347a654f\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"thermal_gibbs_correction_hartree\":0.12016696000000593,\"total_gibbs_free_energy_hartree\":-364.38053704}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:c6ffc3c7e79b67bdc5655206b1515c44a782fed72c6d2f982155daf8430ffbed",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_3c32c2e61c1b4735a5a41ba385297d3d",
+        "check_name": "curvature",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:22184a4049a77de2f7c8def35cbbef2384f593dfc9c1ef6f6d9bcc932e62942a\",\"ref_id\":\"ev_c75eeb27b5189047e26e6d81f79112bd9a0d65b077566c09b937bd4a4ba71ef1\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"imaginary_frequencies\":[],\"n_imag\":0}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:dc3f890aaf29a64e2c8b2919a71dd126566ad6aaba173f8d4a76b1f5bd29a8dc",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_7bf704c4e3d04f4b84b4e1404c28a209",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:22184a4049a77de2f7c8def35cbbef2384f593dfc9c1ef6f6d9bcc932e62942a\",\"ref_id\":\"ev_c75eeb27b5189047e26e6d81f79112bd9a0d65b077566c09b937bd4a4ba71ef1\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.500488969555,\"scf_energy_hartree\":-364.46648890912354}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:0195135dedc954f2a8c52c56d1e83f19b0b383e23095eda37c332ce22f2dff96",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_d375e1659630460794322c11dff70ed5",
+        "check_name": "thermochemistry",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:22184a4049a77de2f7c8def35cbbef2384f593dfc9c1ef6f6d9bcc932e62942a\",\"ref_id\":\"ev_c75eeb27b5189047e26e6d81f79112bd9a0d65b077566c09b937bd4a4ba71ef1\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"thermal_gibbs_correction_hartree\":0.1201202999999964,\"total_gibbs_free_energy_hartree\":-364.38036867}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:795b41f8e9162516f3fc8b7268177a0e3befcd7a62be99be4949d0ed5c8b94d8",
+        "created_at": "2026-10-20 17:29:48"
+      },
+      {
+        "fact_id": "fact_7a9d0a196aad4757b5368cee5f0e94e0",
+        "check_name": "energy",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:78f5f0d7862f45f1b6fa216d13e1beabe26b058f02df5961b3a3e8d0e7831499\",\"ref_id\":\"ev_c86a1d9c276651cbf8dc9a88ed7810b8fbfb7ad5f81b6c2f36d2987b44743f46\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"electronic_energy_hartree\":-364.441025442681,\"scf_energy_hartree\":-364.40535240557915}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:38dcb43ace9ddf5b6ba4474d3a24973d89a8824073f47b2550835d222b4353b5",
+        "created_at": "2026-10-20 17:30:39"
+      },
+      {
+        "fact_id": "fact_82738c681a1642ca95303ccc9bf10af2",
+        "check_name": "thermochemistry",
+        "outcome": "supports",
+        "subject": "{\"candidate_id\":\"\",\"geometry_hash\":\"\",\"method_signature\":\"\",\"target_hint\":\"\"}",
+        "source_refs": "[{\"content_hash\":\"sha256:78f5f0d7862f45f1b6fa216d13e1beabe26b058f02df5961b3a3e8d0e7831499\",\"ref_id\":\"ev_c86a1d9c276651cbf8dc9a88ed7810b8fbfb7ad5f81b6c2f36d2987b44743f46\",\"ref_type\":\"tool_result\",\"revision\":null}]",
+        "details": "{\"thermal_gibbs_correction_hartree\":0.11401313999999729,\"total_gibbs_free_energy_hartree\":-364.3270123}",
+        "adapter_version": "1",
+        "dedup_key": "sha256:0bae38a3626acea8974c9a878d07d0a519d232ba8c9fd5ca21a62273d87737f9",
+        "created_at": "2026-10-20 17:30:39"
+      }
+    ],
+    "dag_evidence": [
+      {
+        "evidence_id": "ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-39.out.log",
+        "content_hash": "sha256:1b9f062abafec7a757d9995bd89c2508a30ce6a61f48d8f95b7b93fe7b4a48c4",
+        "payload": "{\"engine\":\"orca\",\"file_size\":2011236,\"final_energy_hartree\":-364.463865860397,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,24.03,58.5,93.87,101.05,101.59,121.3,231.99,351.75,361.92,526.42,572.43,682.66,699.68,721.81,810.27,816.12,889.65,901.72,931.36,960.12,964.65,967.44,970.65,980.56,1025.39,1094.49,1096.31,1108.84,1117.54,1263.14,1295.84,1317.84,1373.08,1406.08,1421.26,1556.34,1642.84,1680.19,2353.6,3020.64,3063.12,3160.13,3185.03,3192.55,3203.33,3222.34,3229.85,3265.01],\"imaginary_frequencies\":[],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-39.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_opt/.cloudra/calc-39.out.log\",\"sha256\":\"ab55fe79974b384bde2bcd491e13206a520886299fddbb7061fced3f9513ef5d\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/ab55fe79974b384b_calc-39.out.log\"}",
+        "created_at": "2026-10-20 17:29:45",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_1a213259b30705ea6b420e679993cabc0b474cd7a41366a46a867adc13d342b1",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-42.out.log",
+        "content_hash": "sha256:080d8d73a6c9381a6049cd4740ff6ea4e5875f6b6ea5e75fa9c49b996fca9cd5",
+        "payload": "{\"engine\":\"orca\",\"file_size\":129368,\"final_energy_hartree\":-364.463871431511,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,24.01,58.5,93.86,101.04,101.58,121.27,231.99,351.74,361.93,526.42,572.44,682.67,699.68,721.82,810.26,816.12,889.64,901.72,931.36,960.12,964.66,967.45,970.66,980.55,1025.4,1094.49,1096.31,1108.84,1117.54,1263.14,1295.83,1317.84,1373.08,1406.08,1421.25,1556.34,1642.84,1680.18,2353.6,3020.63,3063.12,3160.12,3185.03,3192.55,3203.34,3222.34,3229.85,3265.0],\"imaginary_frequencies\":[],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-42.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_frequency/.cloudra/calc-42.out.log\",\"sha256\":\"e006549b497e5eef0f7f47b12d037c8619d1e71f53f4b2668d26eeff96534da9\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/e006549b497e5eef_calc-42.out.log\"}",
+        "created_at": "2026-10-20 17:29:45",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-44.out.log",
+        "content_hash": "sha256:ade3a90eece7de87d42d685b037178cd29d95a22d2310cc847825b3341829c3d",
+        "payload": "{\"engine\":\"orca\",\"file_size\":424033,\"final_energy_hartree\":-364.500695191868,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,107.08,158.23,295.05,374.61,452.47,479.13,521.08,570.17,681.5,738.91,766.56,798.68,834.04,843.44,918.22,932.47,945.65,958.12,967.64,973.68,1003.6,1049.27,1065.45,1103.79,1129.19,1149.7,1180.11,1208.95,1252.92,1277.85,1282.18,1296.52,1315.1,1341.77,1364.44,1467.09,1481.82,1653.69,2373.37,3051.87,3061.82,3072.95,3114.94,3123.91,3126.84,3133.48,3199.31,3224.36],\"imaginary_frequencies\":[],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-44.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/calc-44.out.log\",\"sha256\":\"48dad6180d965ba644c7a2399661364ac34bfb0fd47b076651f0d1242122afa0\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/48dad6180d965ba6_calc-44.out.log\"}",
+        "created_at": "2026-10-20 17:29:45",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_7d021132c808b7bcdbbec8b6f8fc6b54bf6e796eced99cde2c8843c585bd0cd1",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-49.out.log",
+        "content_hash": "sha256:e27f4d4c5f2b1015b4781fbb650ad37aff6cd2ec274c2731afd4176d24468c3c",
+        "payload": "{\"engine\":\"orca\",\"file_size\":129423,\"final_energy_hartree\":-364.500703995727,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,107.08,158.23,295.06,374.61,452.47,479.14,521.08,570.18,681.5,738.91,766.56,798.68,834.04,843.44,918.23,932.47,945.65,958.12,967.64,973.68,1003.6,1049.27,1065.45,1103.79,1129.19,1149.71,1180.11,1208.96,1252.93,1277.85,1282.18,1296.53,1315.11,1341.77,1364.44,1467.09,1481.82,1653.69,2373.37,3051.87,3061.82,3072.95,3114.94,3123.91,3126.84,3133.48,3199.31,3224.37],\"imaginary_frequencies\":[],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-49.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/calc-49.out.log\",\"sha256\":\"90faeb4d908b99ac8a87edbca7f5174b67667a5d2876d1cf53d38e23d733c21c\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/90faeb4d908b99ac_calc-49.out.log\"}",
+        "created_at": "2026-10-20 17:29:45",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-45.out.log",
+        "content_hash": "sha256:021f234b22b002904acb7c4f30cf58626e1f89e626dab1df12befb199857d594",
+        "payload": "{\"engine\":\"orca\",\"file_size\":424151,\"final_energy_hartree\":-364.500479623999,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,108.4,158.27,288.0,365.67,444.91,474.24,535.52,569.83,684.01,724.15,784.91,791.98,844.48,869.61,913.84,916.03,927.47,952.27,964.36,992.52,1006.59,1032.9,1062.92,1108.73,1126.54,1157.15,1178.47,1208.23,1249.62,1277.99,1288.06,1292.83,1309.99,1342.43,1358.9,1466.85,1482.01,1652.78,2369.0,3059.25,3074.43,3083.19,3116.59,3126.93,3130.13,3132.98,3193.87,3217.31],\"imaginary_frequencies\":[],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-45.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_opt/.cloudra/calc-45.out.log\",\"sha256\":\"87cb245c78a07619e0a9ce2cbbbea6cf787a9d035ecf30a73c129a9d121d34db\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/87cb245c78a07619_calc-45.out.log\"}",
+        "created_at": "2026-10-20 17:30:07",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_1920ba42b0d2c56b770ea78f7a572ceb32dc2cadfdd80f5972aa61e04b6856d7",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-50.out.log",
+        "content_hash": "sha256:3dfaf2182e1308f6d7d2cb0c553b7b2a4bb3fe1e779051178bb3e85970226b56",
+        "payload": "{\"engine\":\"orca\",\"file_size\":129425,\"final_energy_hartree\":-364.500488969555,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,108.41,158.27,288.01,365.67,444.92,474.24,535.51,569.84,684.01,724.15,784.91,791.98,844.48,869.62,913.84,916.03,927.47,952.27,964.36,992.52,1006.59,1032.9,1062.92,1108.73,1126.55,1157.16,1178.48,1208.24,1249.63,1277.99,1288.07,1292.84,1310.0,1342.44,1358.9,1466.85,1482.01,1652.78,2368.99,3059.25,3074.43,3083.19,3116.58,3126.93,3130.14,3132.98,3193.87,3217.31],\"imaginary_frequencies\":[],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-50.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_frequency/.cloudra/calc-50.out.log\",\"sha256\":\"57ccb90963f61d09673a942ec1ba93fff2516ac03a020e53b3f96b878980375e\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/57ccb90963f61d09_calc-50.out.log\"}",
+        "created_at": "2026-10-20 17:30:07",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_30afad7c78a07dd94c971a0861b37e5c0864ef396e5e4532b92f11884044f610",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-34.out.log",
+        "content_hash": "sha256:0c5e3d9974ab3165a922faae63ee1cbae9ad97b713ebd9fdfd1cad5d50efb585",
+        "payload": "{\"engine\":\"orca\",\"file_size\":93278,\"final_energy_hartree\":-364.441025442681,\"frequencies\":null,\"imaginary_frequencies\":null,\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-34.out.log\",\"irc_end_a_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-a.xyz\",\"irc_end_b_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-b.xyz\",\"irc_manifest\":{\"sha256\":\"df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_endpoints.json\"},\"irc_sidecars\":[{\"sha256\":\"a1e7f79947c197e19ae649a0388ac4c8df0359bcc3ea916d81aa82abf8d45349\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_IRC_F.xyz\"},{\"sha256\":\"42535160fbd70055bad9bc694ac9fcc7b281ebc5011979ba240a6793f0524efe\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_IRC_B.xyz\"}]},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/calc-34.out.log\",\"sha256\":\"f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/f79f9efb5ca5f60c_calc-34.out.log\"}",
+        "created_at": "2026-10-20 17:30:08",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_7d370b6b22c7c276cf70017d10fad569d6ecffcb3040995e3311077f07879f60",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-30.out.log",
+        "content_hash": "sha256:08f7c51ec711582c566ef0611dfb5ec5396220838523c82584cd50cea015240b",
+        "payload": "{\"engine\":\"orca\",\"file_size\":129440,\"final_energy_hartree\":-364.441025442681,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,-457.1,87.64,130.0,220.27,262.23,293.06,402.73,472.54,544.41,571.49,582.05,732.58,757.6,810.3,816.51,852.68,869.2,907.42,916.64,947.16,969.44,975.09,979.91,1039.46,1075.3,1086.06,1113.73,1120.45,1127.34,1233.85,1276.05,1308.07,1385.93,1414.04,1433.85,1474.54,1514.74,1522.31,2336.52,3003.56,3121.58,3143.06,3184.98,3186.27,3208.2,3214.57,3231.75,3240.94],\"imaginary_frequencies\":[-457.1],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-30.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/calc-30.out.log\",\"sha256\":\"b47e1fe5dd13f694a4465deb82045951a6fd188ca1cafb452f2d61a073456337\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/b47e1fe5dd13f694_calc-30.out.log\"}",
+        "created_at": "2026-10-20 17:30:08",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_1d049559194744893bb45ce57428b8003947a6ca33c0b33b881c76683058f05d",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-15.out.log",
+        "content_hash": "sha256:3a7fd400c55e2497e74495a8d6c2bb9db190285f812379af95e9955e66ba9cb5",
+        "payload": "{\"engine\":\"orca\",\"file_size\":1984782,\"final_energy_hartree\":-364.441028359916,\"frequencies\":null,\"imaginary_frequencies\":null,\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-15.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/calc-15.out.log\",\"sha256\":\"fb694b996a98cd9178a48aa9cf53097107d2b814a35029de5fd11a4a0cb62fc0\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/fb694b996a98cd91_calc-15.out.log\"}",
+        "created_at": "2026-10-20 17:30:08",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_8577fdc15be693852ed8af02d09000dd020620c7a6499a009a988a767a818a74",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-38.out.log",
+        "content_hash": "sha256:64d2f4f161705644bfd387e77494e930aa5d59e6332f7445beeca2167031a3ec",
+        "payload": "{\"engine\":\"orca\",\"file_size\":2341895,\"final_energy_hartree\":-364.463168151598,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,17.45,65.5,88.9,92.49,104.06,123.2,232.89,340.27,358.94,523.78,572.82,682.89,699.7,719.04,811.02,814.43,889.16,901.83,930.78,959.12,964.21,966.76,974.15,985.32,1027.66,1095.73,1097.54,1107.92,1118.42,1260.94,1295.83,1316.62,1371.66,1406.12,1421.19,1558.72,1646.25,1681.37,2357.32,3019.02,3051.55,3160.25,3176.52,3198.37,3210.19,3222.37,3231.94,3265.14],\"imaginary_frequencies\":[],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-38.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/calc-38.out.log\",\"sha256\":\"0b11ee103925a38182423c2e645d53dc1424a4dcf2d2c4656155bd2ee16fcbae\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0b11ee103925a381_calc-38.out.log\"}",
+        "created_at": "2026-10-20 17:30:29",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_3d5d5756c7c2b4f9fb0f19b7c27f80c4ac9bfb98b0b8d5d9b8a59daa291a6485",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-35.out.log",
+        "content_hash": "sha256:f42621ab20a9309f8a8a53b5068c2984bea0fe983825ff2802bed38360cd1410",
+        "payload": "{\"engine\":\"orca\",\"file_size\":93278,\"final_energy_hartree\":-364.44136578259,\"frequencies\":null,\"imaginary_frequencies\":null,\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-35.out.log\",\"irc_end_a_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-a.xyz\",\"irc_end_b_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-b.xyz\",\"irc_manifest\":{\"sha256\":\"0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_endpoints.json\"},\"irc_sidecars\":[{\"sha256\":\"9dde49b75c17e9ea314748c47325dc0fb621447cccb78fe900f55660f59850a2\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_IRC_F.xyz\"},{\"sha256\":\"00c27cdf8e3018a4591a8218535410413f0529dd30792bbb0243f131b35c8947\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_IRC_B.xyz\"}]},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/calc-35.out.log\",\"sha256\":\"9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/9635d5b9d06e9e22_calc-35.out.log\"}",
+        "created_at": "2026-10-20 17:30:31",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_38e63b10e1eb26bf1865fa175a68d9bca9c5803c0be88a80e76470df614037e4",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-31.out.log",
+        "content_hash": "sha256:ed3d651c164e46929c206410de09858da082ef53c943584066dc4395bb2b0eab",
+        "payload": "{\"engine\":\"orca\",\"file_size\":129440,\"final_energy_hartree\":-364.44136578259,\"frequencies\":[0.0,0.0,0.0,0.0,0.0,0.0,-456.87,96.45,128.09,217.96,255.33,287.04,416.21,475.52,536.21,576.49,577.63,757.68,777.43,807.9,814.59,854.15,873.03,891.92,909.66,966.62,972.11,977.83,979.55,1038.11,1072.81,1082.05,1114.84,1118.17,1126.9,1235.67,1278.47,1309.16,1383.65,1414.4,1435.37,1474.39,1512.62,1520.43,2330.32,3005.33,3134.39,3143.38,3185.3,3199.04,3200.73,3213.59,3226.18,3241.92],\"imaginary_frequencies\":[-456.87],\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-31.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/frequency/.cloudra/calc-31.out.log\",\"sha256\":\"2895a3771e464ba86078b93e10988f31d1abc83e085d421c2c47ace3bb66afec\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/2895a3771e464ba8_calc-31.out.log\"}",
+        "created_at": "2026-10-20 17:30:31",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      },
+      {
+        "evidence_id": "ev_7944bbac44e7e9f0fa77cbadec868218405db066445de1738e182981c20ae35f",
+        "session_id": "as_b02861f53fd74201",
+        "source_type": "file",
+        "source_name": "calc-16.out.log",
+        "content_hash": "sha256:c0f8458eabc6e8317103e72797e0cdf7df0ee86b5ec7a289de93be175bf11bde",
+        "payload": "{\"engine\":\"orca\",\"file_size\":1828813,\"final_energy_hartree\":-364.441374818549,\"frequencies\":null,\"imaginary_frequencies\":null,\"is_qm_log\":true,\"metadata\":{\"filename\":\"calc-16.out.log\"},\"normal_modes\":null,\"original_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/ts_opt/.cloudra/calc-16.out.log\",\"sha256\":\"3f38a0816a7f7b717b164e22b8121a396c2ba2ed3911385323d5c0c53226963f\",\"snapshot_path\":\"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/3f38a0816a7f7b71_calc-16.out.log\"}",
+        "created_at": "2026-10-20 17:30:31",
+        "tool_call_id": "",
+        "compute_job_id": ""
+      }
+    ],
+    "dag_review_requests": [
+      {
+        "request_id": "rev_dd8e5ef2a4f84107aedaba47bb6ebee4",
+        "kind": "evidence",
+        "requester": "as_b02861f53fd74201",
+        "target_ids": "[\"sp_bda2ff59\"]",
+        "question": "Review species 'RC'",
+        "supporting_refs": "[{\"ref_type\": \"file\", \"ref_id\": \"ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa\", \"content_hash\": \"sha256:1b9f062abafec7a757d9995bd89c2508a30ce6a61f48d8f95b7b93fe7b4a48c4\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_1a213259b30705ea6b420e679993cabc0b474cd7a41366a46a867adc13d342b1\", \"content_hash\": \"sha256:080d8d73a6c9381a6049cd4740ff6ea4e5875f6b6ea5e75fa9c49b996fca9cd5\", \"revision\": null}]",
+        "counterevidence_refs": "[]",
+        "proposal": "{\"scientific_checks\": {\"geometry\": {\"status\": \"passed\", \"detail\": \"Normally terminated zero-imaginary-frequency geometry matches the complete species.\", \"next_action\": \"\"}}, \"element_type\": \"species\", \"species_name\": \"RC\", \"target_identity\": {\"node_id\": \"sp_bda2ff59\", \"name\": \"RC\", \"label\": \"RC\", \"smiles\": \"C1=CCC=C1.C=CC#N\", \"metadata\": {}}, \"opt_file\": \"ts/ts_0003/jobs/declaration_0001/reactant_opt/.cloudra/calc-39.out.log\", \"freq_file\": \"ts/ts_0003/jobs/declaration_0001/reactant_frequency/.cloudra/calc-42.out.log\", \"validation\": {\"frequency_count_valid\": true, \"frequency_data_present\": true, \"n_imag\": 0, \"imaginary_frequencies\": [], \"message\": \"Imaginary-frequency count criterion met: 0 imaginary frequencies; molecular identity is checked separately.\"}, \"description\": \"Pre-reaction pi-complex of cyclopentadiene and acrylonitrile (single dot-joined complex node, ORCA B3LYP-D3BJ/def2-SVP RIJCOSX Opt then Freq, gas phase, charge 0, singlet). 0 imaginary frequencies. E = -364.463871431511 Ha. This is the lowest of the two verified complex minima reached from the two channels (the endo-derived complex optimized to -364.463168377659 Ha, 0.44 kcal/mol higher) and is used as the common barrier reference for both channels.\"}",
+        "basis_fingerprint": "sha256:0ed0220fc84ef7158b5d9f8045c1b911e5dc468855f911ba0f6020d09e892fa2",
+        "state": "resolved",
+        "created_at": "2026-10-20T17:29:45.422578+00:00",
+        "updated_at": "2026-10-20 17:30:27",
+        "owner": null,
+        "claim_token": 0,
+        "lease_expires_at": null
+      },
+      {
+        "request_id": "rev_855be1dbe20545b6bd3058809759c21a",
+        "kind": "evidence",
+        "requester": "as_b02861f53fd74201",
+        "target_ids": "[\"sp_5079971e\"]",
+        "question": "Review species 'P_endo'",
+        "supporting_refs": "[{\"ref_type\": \"file\", \"ref_id\": \"ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6\", \"content_hash\": \"sha256:ade3a90eece7de87d42d685b037178cd29d95a22d2310cc847825b3341829c3d\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_7d021132c808b7bcdbbec8b6f8fc6b54bf6e796eced99cde2c8843c585bd0cd1\", \"content_hash\": \"sha256:e27f4d4c5f2b1015b4781fbb650ad37aff6cd2ec274c2731afd4176d24468c3c\", \"revision\": null}]",
+        "counterevidence_refs": "[]",
+        "proposal": "{\"scientific_checks\": {\"geometry\": {\"status\": \"passed\", \"detail\": \"Normally terminated zero-imaginary-frequency geometry matches the complete species.\", \"next_action\": \"\"}}, \"element_type\": \"species\", \"species_name\": \"P_endo\", \"target_identity\": {\"node_id\": \"sp_5079971e\", \"name\": \"P_endo\", \"label\": \"P_endo\", \"smiles\": \"N#C[C@H]1C[C@H]2C=C[C@@H]1C2\", \"metadata\": {}}, \"opt_file\": \"ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/calc-44.out.log\", \"freq_file\": \"ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/calc-49.out.log\", \"validation\": {\"frequency_count_valid\": true, \"frequency_data_present\": true, \"n_imag\": 0, \"imaginary_frequencies\": [], \"message\": \"Imaginary-frequency count criterion met: 0 imaginary frequencies; molecular identity is checked separately.\"}, \"description\": \"endo-5-norbornene-2-carbonitrile adduct, N#C[C@H]1C[C@H]2C=C[C@@H]1C2. Reached by IRC from TS_endo; Opt then Freq, 0 imaginary frequencies, E = -364.500695191868 Ha. Nitrile points toward the C1=C5 double bond (N...C1 3.67 A vs N...C3 4.83 A).\"}",
+        "basis_fingerprint": "sha256:ef445f29997870dd95f749981ba04f8130bb699219cb8605f6cbeb4e975f3cae",
+        "state": "resolved",
+        "created_at": "2026-10-20T17:29:45.720567+00:00",
+        "updated_at": "2026-10-20 17:30:27",
+        "owner": null,
+        "claim_token": 0,
+        "lease_expires_at": null
+      },
+      {
+        "request_id": "rev_0880b84161be4d07b15bffcda0506b85",
+        "kind": "evidence",
+        "requester": "as_b02861f53fd74201",
+        "target_ids": "[\"sp_9d6df516\"]",
+        "question": "Review species 'P_exo'",
+        "supporting_refs": "[{\"ref_type\": \"file\", \"ref_id\": \"ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e\", \"content_hash\": \"sha256:021f234b22b002904acb7c4f30cf58626e1f89e626dab1df12befb199857d594\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_1920ba42b0d2c56b770ea78f7a572ceb32dc2cadfdd80f5972aa61e04b6856d7\", \"content_hash\": \"sha256:3dfaf2182e1308f6d7d2cb0c553b7b2a4bb3fe1e779051178bb3e85970226b56\", \"revision\": null}]",
+        "counterevidence_refs": "[]",
+        "proposal": "{\"scientific_checks\": {\"geometry\": {\"status\": \"passed\", \"detail\": \"Normally terminated zero-imaginary-frequency geometry matches the complete species.\", \"next_action\": \"\"}}, \"element_type\": \"species\", \"species_name\": \"P_exo\", \"target_identity\": {\"node_id\": \"sp_9d6df516\", \"name\": \"P_exo\", \"label\": \"P_exo\", \"smiles\": \"N#C[C@@H]1C[C@H]2C=C[C@@H]1C2\", \"metadata\": {}}, \"opt_file\": \"ts/ts_0003/jobs/declaration_0001/product_opt/.cloudra/calc-45.out.log\", \"freq_file\": \"ts/ts_0003/jobs/declaration_0001/product_frequency/.cloudra/calc-50.out.log\", \"validation\": {\"frequency_count_valid\": true, \"frequency_data_present\": true, \"n_imag\": 0, \"imaginary_frequencies\": [], \"message\": \"Imaginary-frequency count criterion met: 0 imaginary frequencies; molecular identity is checked separately.\"}, \"description\": \"exo-5-norbornene-2-carbonitrile adduct, N#C[C@@H]1C[C@H]2C=C[C@@H]1C2. Reached by IRC from TS_exo; Opt then Freq, 0 imaginary frequencies, E = -364.500488969555 Ha. Nitrile points away from the C1=C5 double bond (N...C1 4.88 A; C8...C3 methylene 3.10 A).\"}",
+        "basis_fingerprint": "sha256:f2e5773d0121c4a98647f10df962a06a3756add39f904845b48ddb6d9eab63d4",
+        "state": "resolved",
+        "created_at": "2026-10-20T17:30:07.983807+00:00",
+        "updated_at": "2026-10-20 17:31:17",
+        "owner": null,
+        "claim_token": 0,
+        "lease_expires_at": null
+      },
+      {
+        "request_id": "rev_f635fe86e93b44b9986923b96bca59a1",
+        "kind": "evidence",
+        "requester": "as_b02861f53fd74201",
+        "target_ids": "[\"step_8700874a\"]",
+        "question": "Review step 'endo_DA'",
+        "supporting_refs": "[{\"ref_type\": \"file\", \"ref_id\": \"ev_7d370b6b22c7c276cf70017d10fad569d6ecffcb3040995e3311077f07879f60\", \"content_hash\": \"sha256:08f7c51ec711582c566ef0611dfb5ec5396220838523c82584cd50cea015240b\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_1d049559194744893bb45ce57428b8003947a6ca33c0b33b881c76683058f05d\", \"content_hash\": \"sha256:3a7fd400c55e2497e74495a8d6c2bb9db190285f812379af95e9955e66ba9cb5\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_30afad7c78a07dd94c971a0861b37e5c0864ef396e5e4532b92f11884044f610\", \"content_hash\": \"sha256:0c5e3d9974ab3165a922faae63ee1cbae9ad97b713ebd9fdfd1cad5d50efb585\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_8577fdc15be693852ed8af02d09000dd020620c7a6499a009a988a767a818a74\", \"content_hash\": \"sha256:64d2f4f161705644bfd387e77494e930aa5d59e6332f7445beeca2167031a3ec\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6\", \"content_hash\": \"sha256:ade3a90eece7de87d42d685b037178cd29d95a22d2310cc847825b3341829c3d\", \"revision\": null}]",
+        "counterevidence_refs": "[]",
+        "proposal": "{\"scientific_checks\": {\"frequency\": {\"status\": \"passed\", \"detail\": \"Native normal termination and exactly 1 imaginary frequencies required. \", \"next_action\": \"\"}, \"ts_opt\": {\"status\": \"passed\", \"detail\": \"Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.\", \"next_action\": \"\"}, \"short_irc\": {\"status\": \"passed\", \"detail\": \"direct pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0b11ee103925a381_calc-38.out.log; /home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/48dad6180d965ba6_calc-44.out.log). [advisory] C1-C6: TS=3.157 \\u00c5, IRC_endpoint=3.416 \\u00c5, intermediate=3.704 \\u00c5, inside interval [advisory] C1-C7: TS=2.888 \\u00c5, IRC_endpoint=3.140 \\u00c5, intermediate=3.392 \\u00c5, inside interval [advisory] C1-C8: TS=3.023 \\u00c5, IRC_endpoint=3.113 \\u00c5, intermediate=3.266 \\u00c5, inside interval [advisory] C1-H12: TS=3.298 \\u00c5, IRC_endpoint=3.239 \\u00c5, intermediate=3.111 \\u00c5, inside interval [advisory] C1-H13: TS=2.802 \\u00c5, IRC_endpoint=2.906 \\u00c5, intermediate=3.089 \\u00c5, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.549 (<1 means closer than TS). [advisory] Gate pairs layer: distance_top5 (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] C2-C6: TS=2.935 \\u00c5, IRC_endpoint=3.307 \\u00c5, intermediate=3.742 \\u00c5 [advisory] [advisory-B] C2-C7: TS=2.381 \\u00c5, IRC_endpoint=2.821 \\u00c5, intermediate=3.321 \\u00c5 [advisory] [advisory-B] C3-C6: TS=2.659 \\u00c5, IRC_endpoint=2.979 \\u00c5, intermediate=3.490 \\u00c5 [advisory] [advisory-B] C3-C7: TS=2.729 \\u00c5, IRC_endpoint=3.019 \\u00c5, intermediate=3.558 \\u00c5 [advisory] [advisory-B] C4-C6: TS=2.101 \\u00c5, IRC_endpoint=2.652 \\u00c5, intermediate=3.251 \\u00c5 [advisory] [advisory-B] C4-C7: TS=2.814 \\u00c5, IRC_endpoint=3.221 \\u00c5, intermediate=3.725 \\u00c5 [advisory] [advisory-B] C4-H16: TS=2.441 \\u00c5, IRC_endpoint=2.685 \\u00c5, intermediate=3.355 \\u00c5 [advisory] [advisory-B] C4-H17: TS=2.518 \\u00c5, IRC_endpoint=2.827 \\u00c5, intermediate=3.312 \\u00c5 [advisory] [advisory-B] C6-H13: TS=3.713 \\u00c5, IRC_endpoint=4.052 \\u00c5, intermediate=4.543 \\u00c5 [advisory] [advisory-B] C6-H14: TS=2.580 \\u00c5, IRC_endpoint=2.933 \\u00c5, intermediate=3.587 \\u00c5 [advisory] [advisory-B] C7-H11: TS=2.844 \\u00c5, IRC_endpoint=3.169 \\u00c5, intermediate=3.691 \\u00c5 [advisory] [advisory-B] C7-H13: TS=3.823 \\u00c5, IRC_endpoint=4.115 \\u00c5, intermediate=4.626 \\u00c5 [advisory] C2-C7: TS=2.381 \\u00c5, IRC_endpoint=1.590 \\u00c5, intermediate=1.580 \\u00c5, inside interval [advisory] C4-C6: TS=2.101 \\u00c5, IRC_endpoint=1.561 \\u00c5, intermediate=1.564 \\u00c5, inside interval [advisory] C6-C7: TS=1.406 \\u00c5, IRC_endpoint=1.574 \\u00c5, intermediate=1.569 \\u00c5, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.011 (<1 means closer than TS). [advisory] Gate pairs layer: bond_diff (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] C1-C2: TS=1.397 \\u00c5, IRC_endpoint=1.519 \\u00c5, intermediate=1.520 \\u00c5 [advisory] [advisory-B] C1-C5: TS=1.405 \\u00c5, IRC_endpoint=1.340 \\u00c5, intermediate=1.343 \\u00c5 [advisory] [advisory-B] C1-N9: TS=3.565 \\u00c5, IRC_endpoint=3.533 \\u00c5, intermediate=3.670 \\u00c5 [advisory] [advisory-B] C2-C3: TS=1.503 \\u00c5, IRC_endpoint=1.539 \\u00c5, intermediate=1.543 \\u00c5 [advisory] [advisory-B] C2-C8: TS=2.950 \\u00c5, IRC_endpoint=2.525 \\u00c5, intermediate=2.544 \\u00c5 [advisory] [advisory-B] C2-N9: TS=3.760 \\u00c5, IRC_endpoint=3.508 \\u00c5, intermediate=3.554 \\u00c5 [advisory] [advisory-B] C2-H16: TS=3.550 \\u00c5, IRC_endpoint=3.198 \\u00c5, intermediate=3.211 \\u00c5 [advisory] [advisory-B] C2-H17: TS=3.637 \\u00c5, IRC_endpoint=3.262 \\u00c5, intermediate=3.223 \\u00c5 [advisory] [advisory-B] C2-H18: TS=2.632 \\u00c5, IRC_endpoint=2.227 \\u00c5, intermediate=2.199 \\u00c5 [advisory] [advisory-B] C3-C4: TS=1.515 \\u00c5, IRC_endpoint=1.545 \\u00c5, intermediate=1.545 \\u00c5 [advisory] [advisory-B] C3-C6: TS=2.659 \\u00c5, IRC_endpoint=2.379 \\u00c5, intermediate=2.394 \\u00c5 [advisory] [advisory-B] C3-C7: TS=2.729 \\u00c5, IRC_endpoint=2.383 \\u00c5, intermediate=2.383 \\u00c5 [advisory] [advisory-B] C4-C5: TS=1.411 \\u00c5, IRC_endpoint=1.521 \\u00c5, intermediate=1.521 \\u00c5 [advisory] [advisory-B] C4-C7: TS=2.814 \\u00c5, IRC_endpoint=2.441 \\u00c5, intermediate=2.443 \\u00c5 [advisory] [advisory-B] C4-N9: TS=4.688 \\u00c5, IRC_endpoint=4.532 \\u00c5, intermediate=4.592 \\u00c5 [advisory] [advisory-B] C5-C6: TS=2.747 \\u00c5, IRC_endpoint=2.464 \\u00c5, intermediate=2.466 \\u00c5 [advisory] [advisory-B] C5-C7: TS=3.137 \\u00c5, IRC_endpoint=2.845 \\u00c5, intermediate=2.872 \\u00c5 [advisory] [advisory-B] C5-N9: TS=4.201 \\u00c5, IRC_endpoint=4.157 \\u00c5, intermediate=4.304 \\u00c5 [advisory] [advisory-B] C6-H13: TS=3.713 \\u00c5, IRC_endpoint=3.399 \\u00c5, intermediate=3.408 \\u00c5 [advisory] [advisory-B] C6-H14: TS=2.580 \\u00c5, IRC_endpoint=2.248 \\u00c5, intermediate=2.244 \\u00c5 [advisory] [advisory-B] C7-C8: TS=1.426 \\u00c5, IRC_endpoint=1.460 \\u00c5, intermediate=1.460 \\u00c5 [advisory] [advisory-B] C7-H11: TS=2.844 \\u00c5, IRC_endpoint=2.275 \\u00c5, intermediate=2.251 \\u00c5 [advisory] [advisory-B] C7-H13: TS=3.823 \\u00c5, IRC_endpoint=3.410 \\u00c5, intermediate=3.399 \\u00c5 [advisory] [advisory-B] C8-N9: TS=1.164 \\u00c5, IRC_endpoint=1.159 \\u00c5, intermediate=1.159 \\u00c5 [advisory] [advisory-B] N9-H10: TS=3.390 \\u00c5, IRC_endpoint=3.487 \\u00c5, intermediate=3.679 \\u00c5 [advisory] [advisory-B] N9-H15: TS=4.585 \\u00c5, IRC_endpoint=4.642 \\u00c5, intermediate=4.858 \\u00c5 [advisory] [advisory-B] N9-H16: TS=4.495 \\u00c5, IRC_endpoint=4.340 \\u00c5, intermediate=4.265 \\u00c5\", \"next_action\": \"\"}}, \"element_type\": \"step\", \"step_name\": \"endo_DA\", \"target_identity\": {\"edge_id\": \"step_8700874a\", \"name\": \"endo_DA\", \"label\": \"endo_DA\", \"metadata\": {}, \"source\": {\"node_id\": \"sp_bda2ff59\", \"name\": \"RC\", \"label\": \"RC\", \"smiles\": \"C1=CCC=C1.C=CC#N\", \"metadata\": {}}, \"target\": {\"node_id\": \"sp_5079971e\", \"name\": \"P_endo\", \"label\": \"P_endo\", \"smiles\": \"N#C[C@H]1C[C@H]2C=C[C@@H]1C2\", \"metadata\": {}}}, \"ts_file\": \"ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/calc-30.out.log\", \"opt_file\": \"ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/calc-15.out.log\", \"ts_validation\": {\"frequency_count_valid\": true, \"frequency_data_present\": true, \"n_imag\": 1, \"imaginary_frequencies\": [-457.1], \"mode_matched\": false, \"message\": \"Imaginary-frequency count criterion met: exactly 1 imaginary frequency (-457.1 cm\\u207b\\u00b9). Submitted mode description (not verified): Concerted Diels-Alder: simultaneous C2-C7 (2.38 A at the saddle) and C4-C6 (2.10 A) bond formation, dienophile C6=C7 pi bond -> single bond, diene C1=C2/C4=C5 pi bonds -> product C1=C5 double bond. One imaginary mode -457.1 cm-1 dominated by the (4,6) and (2,7) pairs..\"}, \"irc_files\": {\"irc_file\": {\"original_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/calc-34.out.log\", \"snapshot_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/f79f9efb5ca5f60c_calc-34.out.log\", \"sha256\": \"f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd\", \"file_size\": 93278, \"is_qm_log\": true, \"engine\": \"orca\", \"frequencies\": null, \"imaginary_frequencies\": null, \"normal_modes\": null, \"final_energy_hartree\": -364.441025442681, \"metadata\": {\"filename\": \"calc-34.out.log\", \"irc_sidecars\": [{\"snapshot_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_IRC_F.xyz\", \"sha256\": \"a1e7f79947c197e19ae649a0388ac4c8df0359bcc3ea916d81aa82abf8d45349\"}, {\"snapshot_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_IRC_B.xyz\", \"sha256\": \"42535160fbd70055bad9bc694ac9fcc7b281ebc5011979ba240a6793f0524efe\"}], \"irc_manifest\": {\"snapshot_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_endpoints.json\", \"sha256\": \"df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7\"}, \"irc_end_a_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-a.xyz\", \"irc_end_b_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-b.xyz\"}}}, \"endpoint_refs\": {\"endpoint_b\": {\"ref_type\": \"file\", \"ref_id\": \"ev_8577fdc15be693852ed8af02d09000dd020620c7a6499a009a988a767a818a74\", \"content_hash\": \"sha256:64d2f4f161705644bfd387e77494e930aa5d59e6332f7445beeca2167031a3ec\", \"revision\": null}, \"endpoint_a\": {\"ref_type\": \"file\", \"ref_id\": \"ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6\", \"content_hash\": \"sha256:ade3a90eece7de87d42d685b037178cd29d95a22d2310cc847825b3341829c3d\", \"revision\": null}}, \"reaction_coordinate_description\": \"Concerted Diels-Alder: simultaneous C2-C7 (2.38 A at the saddle) and C4-C6 (2.10 A) bond formation, dienophile C6=C7 pi bond -> single bond, diene C1=C2/C4=C5 pi bonds -> product C1=C5 double bond. One imaginary mode -457.1 cm-1 dominated by the (4,6) and (2,7) pairs.\"}",
+        "basis_fingerprint": "sha256:e7f5efd656506291dc0b28369851b4ea870175a34d16652f86ad9838cc85f9e6",
+        "state": "resolved",
+        "created_at": "2026-10-20T17:30:31.098780+00:00",
+        "updated_at": "2026-10-20 17:31:19",
+        "owner": null,
+        "claim_token": 0,
+        "lease_expires_at": null
+      },
+      {
+        "request_id": "rev_f1e10e3eb30d4516a1a2b102100e84d5",
+        "kind": "evidence",
+        "requester": "as_b02861f53fd74201",
+        "target_ids": "[\"step_1f59336c\"]",
+        "question": "Review step 'exo_DA'",
+        "supporting_refs": "[{\"ref_type\": \"file\", \"ref_id\": \"ev_38e63b10e1eb26bf1865fa175a68d9bca9c5803c0be88a80e76470df614037e4\", \"content_hash\": \"sha256:ed3d651c164e46929c206410de09858da082ef53c943584066dc4395bb2b0eab\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_7944bbac44e7e9f0fa77cbadec868218405db066445de1738e182981c20ae35f\", \"content_hash\": \"sha256:c0f8458eabc6e8317103e72797e0cdf7df0ee86b5ec7a289de93be175bf11bde\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_3d5d5756c7c2b4f9fb0f19b7c27f80c4ac9bfb98b0b8d5d9b8a59daa291a6485\", \"content_hash\": \"sha256:f42621ab20a9309f8a8a53b5068c2984bea0fe983825ff2802bed38360cd1410\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa\", \"content_hash\": \"sha256:1b9f062abafec7a757d9995bd89c2508a30ce6a61f48d8f95b7b93fe7b4a48c4\", \"revision\": null}, {\"ref_type\": \"file\", \"ref_id\": \"ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e\", \"content_hash\": \"sha256:021f234b22b002904acb7c4f30cf58626e1f89e626dab1df12befb199857d594\", \"revision\": null}]",
+        "counterevidence_refs": "[]",
+        "proposal": "{\"scientific_checks\": {\"frequency\": {\"status\": \"passed\", \"detail\": \"Native normal termination and exactly 1 imaginary frequencies required. \", \"next_action\": \"\"}, \"ts_opt\": {\"status\": \"passed\", \"detail\": \"Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.\", \"next_action\": \"\"}, \"short_irc\": {\"status\": \"passed\", \"detail\": \"swapped pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/ab55fe79974b384b_calc-39.out.log; /home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/87cb245c78a07619_calc-45.out.log). [advisory] C2-C7: TS=2.386 \\u00c5, IRC_endpoint=1.594 \\u00c5, intermediate=1.584 \\u00c5, inside interval [advisory] C4-C6: TS=2.097 \\u00c5, IRC_endpoint=1.562 \\u00c5, intermediate=1.563 \\u00c5, inside interval [advisory] C6-C7: TS=1.407 \\u00c5, IRC_endpoint=1.574 \\u00c5, intermediate=1.570 \\u00c5, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.011 (<1 means closer than TS). [advisory] Gate pairs layer: bond_diff (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] C1-C2: TS=1.397 \\u00c5, IRC_endpoint=1.515 \\u00c5, intermediate=1.520 \\u00c5 [advisory] [advisory-B] C1-C5: TS=1.404 \\u00c5, IRC_endpoint=1.341 \\u00c5, intermediate=1.343 \\u00c5 [advisory] [advisory-B] C2-C3: TS=1.502 \\u00c5, IRC_endpoint=1.542 \\u00c5, intermediate=1.543 \\u00c5 [advisory] [advisory-B] C2-C8: TS=2.885 \\u00c5, IRC_endpoint=2.480 \\u00c5, intermediate=2.524 \\u00c5 [advisory] [advisory-B] C2-N9: TS=3.657 \\u00c5, IRC_endpoint=3.421 \\u00c5, intermediate=3.521 \\u00c5 [advisory] [advisory-B] C2-H16: TS=3.590 \\u00c5, IRC_endpoint=3.235 \\u00c5, intermediate=3.193 \\u00c5 [advisory] [advisory-B] C2-H17: TS=3.604 \\u00c5, IRC_endpoint=3.233 \\u00c5, intermediate=3.238 \\u00c5 [advisory] [advisory-B] C2-H18: TS=2.691 \\u00c5, IRC_endpoint=2.256 \\u00c5, intermediate=2.221 \\u00c5 [advisory] [advisory-B] C3-C4: TS=1.513 \\u00c5, IRC_endpoint=1.544 \\u00c5, intermediate=1.545 \\u00c5 [advisory] [advisory-B] C3-C6: TS=2.667 \\u00c5, IRC_endpoint=2.384 \\u00c5, intermediate=2.390 \\u00c5 [advisory] [advisory-B] C3-C7: TS=2.727 \\u00c5, IRC_endpoint=2.376 \\u00c5, intermediate=2.401 \\u00c5 [advisory] [advisory-B] C3-N9: TS=3.753 \\u00c5, IRC_endpoint=3.764 \\u00c5, intermediate=3.945 \\u00c5 [advisory] [advisory-B] C4-C5: TS=1.413 \\u00c5, IRC_endpoint=1.522 \\u00c5, intermediate=1.522 \\u00c5 [advisory] [advisory-B] C4-C7: TS=2.814 \\u00c5, IRC_endpoint=2.442 \\u00c5, intermediate=2.446 \\u00c5 [advisory] [advisory-B] C5-C6: TS=2.733 \\u00c5, IRC_endpoint=2.461 \\u00c5, intermediate=2.469 \\u00c5 [advisory] [advisory-B] C5-C7: TS=3.144 \\u00c5, IRC_endpoint=2.861 \\u00c5, intermediate=2.857 \\u00c5 [advisory] [advisory-B] C6-H13: TS=3.721 \\u00c5, IRC_endpoint=3.404 \\u00c5, intermediate=3.405 \\u00c5 [advisory] [advisory-B] C6-H14: TS=2.580 \\u00c5, IRC_endpoint=2.249 \\u00c5, intermediate=2.242 \\u00c5 [advisory] [advisory-B] C7-C8: TS=1.426 \\u00c5, IRC_endpoint=1.462 \\u00c5, intermediate=1.462 \\u00c5 [advisory] [advisory-B] C7-H10: TS=3.546 \\u00c5, IRC_endpoint=3.238 \\u00c5, intermediate=3.213 \\u00c5 [advisory] [advisory-B] C7-H11: TS=2.841 \\u00c5, IRC_endpoint=2.273 \\u00c5, intermediate=2.257 \\u00c5 [advisory] [advisory-B] C7-H13: TS=3.821 \\u00c5, IRC_endpoint=3.407 \\u00c5, intermediate=3.415 \\u00c5 [advisory] [advisory-B] C8-N9: TS=1.164 \\u00c5, IRC_endpoint=1.160 \\u00c5, intermediate=1.160 \\u00c5 [advisory] [advisory-B] N9-H12: TS=3.042 \\u00c5, IRC_endpoint=3.127 \\u00c5, intermediate=3.395 \\u00c5 [advisory] [advisory-B] N9-H13: TS=4.608 \\u00c5, IRC_endpoint=4.652 \\u00c5, intermediate=4.883 \\u00c5 [advisory] [advisory-B] N9-H16: TS=3.502 \\u00c5, IRC_endpoint=3.377 \\u00c5, intermediate=3.292 \\u00c5 [advisory] [advisory-B] N9-H17: TS=4.499 \\u00c5, IRC_endpoint=4.368 \\u00c5, intermediate=4.266 \\u00c5 [advisory] C1-C6: TS=3.145 \\u00c5, IRC_endpoint=3.383 \\u00c5, intermediate=3.705 \\u00c5, inside interval [advisory] C1-C7: TS=2.896 \\u00c5, IRC_endpoint=3.127 \\u00c5, intermediate=3.425 \\u00c5, inside interval [advisory] C1-C8: TS=3.865 \\u00c5, IRC_endpoint=3.917 \\u00c5, intermediate=4.045 \\u00c5, inside interval [advisory] C1-H12: TS=3.296 \\u00c5, IRC_endpoint=3.247 \\u00c5, intermediate=3.121 \\u00c5, inside interval [advisory] C1-H13: TS=2.799 \\u00c5, IRC_endpoint=2.882 \\u00c5, intermediate=3.076 \\u00c5, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.598 (<1 means closer than TS). [advisory] Gate pairs layer: distance_top5 (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] C2-C6: TS=2.936 \\u00c5, IRC_endpoint=3.281 \\u00c5, intermediate=3.749 \\u00c5 [advisory] [advisory-B] C2-C7: TS=2.386 \\u00c5, IRC_endpoint=2.795 \\u00c5, intermediate=3.274 \\u00c5 [advisory] [advisory-B] C3-C6: TS=2.667 \\u00c5, IRC_endpoint=2.964 \\u00c5, intermediate=3.499 \\u00c5 [advisory] [advisory-B] C3-C7: TS=2.727 \\u00c5, IRC_endpoint=2.994 \\u00c5, intermediate=3.458 \\u00c5 [advisory] [advisory-B] C4-C6: TS=2.097 \\u00c5, IRC_endpoint=2.617 \\u00c5, intermediate=3.243 \\u00c5 [advisory] [advisory-B] C4-C7: TS=2.814 \\u00c5, IRC_endpoint=3.195 \\u00c5, intermediate=3.675 \\u00c5 [advisory] [advisory-B] C4-H16: TS=2.456 \\u00c5, IRC_endpoint=2.717 \\u00c5, intermediate=3.295 \\u00c5 [advisory] [advisory-B] C4-H17: TS=2.504 \\u00c5, IRC_endpoint=2.742 \\u00c5, intermediate=3.397 \\u00c5 [advisory] [advisory-B] C5-C6: TS=2.733 \\u00c5, IRC_endpoint=3.008 \\u00c5, intermediate=3.396 \\u00c5 [advisory] [advisory-B] C6-H13: TS=3.721 \\u00c5, IRC_endpoint=4.039 \\u00c5, intermediate=4.557 \\u00c5 [advisory] [advisory-B] C6-H14: TS=2.580 \\u00c5, IRC_endpoint=2.904 \\u00c5, intermediate=3.576 \\u00c5 [advisory] [advisory-B] C7-H11: TS=2.841 \\u00c5, IRC_endpoint=3.142 \\u00c5, intermediate=3.629 \\u00c5 [advisory] [advisory-B] C7-H13: TS=3.821 \\u00c5, IRC_endpoint=4.092 \\u00c5, intermediate=4.519 \\u00c5\", \"next_action\": \"\"}}, \"element_type\": \"step\", \"step_name\": \"exo_DA\", \"target_identity\": {\"edge_id\": \"step_1f59336c\", \"name\": \"exo_DA\", \"label\": \"exo_DA\", \"metadata\": {}, \"source\": {\"node_id\": \"sp_bda2ff59\", \"name\": \"RC\", \"label\": \"RC\", \"smiles\": \"C1=CCC=C1.C=CC#N\", \"metadata\": {}}, \"target\": {\"node_id\": \"sp_9d6df516\", \"name\": \"P_exo\", \"label\": \"P_exo\", \"smiles\": \"N#C[C@@H]1C[C@H]2C=C[C@@H]1C2\", \"metadata\": {}}}, \"ts_file\": \"ts/ts_0003/jobs/declaration_0001/frequency/.cloudra/calc-31.out.log\", \"opt_file\": \"ts/ts_0003/jobs/declaration_0001/ts_opt/.cloudra/calc-16.out.log\", \"ts_validation\": {\"frequency_count_valid\": true, \"frequency_data_present\": true, \"n_imag\": 1, \"imaginary_frequencies\": [-456.87], \"mode_matched\": false, \"message\": \"Imaginary-frequency count criterion met: exactly 1 imaginary frequency (-456.9 cm\\u207b\\u00b9). Submitted mode description (not verified): Concerted Diels-Alder on the exo face: simultaneous C2-C7 and C4-C6 formation, dienophile C6=C7 pi bond -> single bond, product C1=C5 double bond. One imaginary mode -456.87 cm-1 dominated by the (4,6) and (2,7) pairs..\"}, \"irc_files\": {\"irc_file\": {\"original_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/calc-35.out.log\", \"snapshot_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/9635d5b9d06e9e22_calc-35.out.log\", \"sha256\": \"9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76\", \"file_size\": 93278, \"is_qm_log\": true, \"engine\": \"orca\", \"frequencies\": null, \"imaginary_frequencies\": null, \"normal_modes\": null, \"final_energy_hartree\": -364.44136578259, \"metadata\": {\"filename\": \"calc-35.out.log\", \"irc_sidecars\": [{\"snapshot_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_IRC_F.xyz\", \"sha256\": \"9dde49b75c17e9ea314748c47325dc0fb621447cccb78fe900f55660f59850a2\"}, {\"snapshot_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_IRC_B.xyz\", \"sha256\": \"00c27cdf8e3018a4591a8218535410413f0529dd30792bbb0243f131b35c8947\"}], \"irc_manifest\": {\"snapshot_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_endpoints.json\", \"sha256\": \"0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3\"}, \"irc_end_a_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-a.xyz\", \"irc_end_b_path\": \"/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-b.xyz\"}}}, \"endpoint_refs\": {\"endpoint_b\": {\"ref_type\": \"file\", \"ref_id\": \"ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa\", \"content_hash\": \"sha256:1b9f062abafec7a757d9995bd89c2508a30ce6a61f48d8f95b7b93fe7b4a48c4\", \"revision\": null}, \"endpoint_a\": {\"ref_type\": \"file\", \"ref_id\": \"ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e\", \"content_hash\": \"sha256:021f234b22b002904acb7c4f30cf58626e1f89e626dab1df12befb199857d594\", \"revision\": null}}, \"reaction_coordinate_description\": \"Concerted Diels-Alder on the exo face: simultaneous C2-C7 and C4-C6 formation, dienophile C6=C7 pi bond -> single bond, product C1=C5 double bond. One imaginary mode -456.87 cm-1 dominated by the (4,6) and (2,7) pairs.\"}",
+        "basis_fingerprint": "sha256:5755fdaa80cfeb9ec7a4522a7f6b945d7342c5075f7d63eadf640619aab2b947",
+        "state": "resolved",
+        "created_at": "2026-10-20T17:30:33.584373+00:00",
+        "updated_at": "2026-10-20 17:31:20",
+        "owner": null,
+        "claim_token": 0,
+        "lease_expires_at": null
+      }
+    ],
+    "dag_review_decisions": [
+      {
+        "decision_id": "dec_e35f2ee17ab94d86a7561a2fb1b3a938",
+        "request_id": "rev_dd8e5ef2a4f84107aedaba47bb6ebee4",
+        "basis_fingerprint": "sha256:0ed0220fc84ef7158b5d9f8045c1b911e5dc468855f911ba0f6020d09e892fa2",
+        "verdict": "accept",
+        "reason": "Verified minimum: ORCA Opt (ts/ts_0003/jobs/declaration_0001/reactant_opt/.cloudra/calc-39.out.log, electronic -364.463865860 Hao) and Freq (…/reactant_frequency/.cloudra/calc-42.out.log, single point -364.463871431 Ha, 0 imaginary frequencies, normal termination, Gibbs -364.35535918 Ha at the same B3LYP-D3(BJ)/def2-SVP RIJCOSX level). I re-parsed both logs rather than relying on the submission text: no imaginary mode, first real mode 24.0 cm-1, opt and freq single points agree to 5.6e-6 Ha, so this is one genuine, converged two-fragment minimum, and the identity matches the declared dot-joined species C1=CCC=C1.C=CC#N with the dienophile double bond intact. Two notes that must carry into the step evidence: (1) A SECOND verified complex minimum exists 0.44 kcal/mol higher (-364.463168377659 Ha, 0 imaginary, ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/calc-41.out.log). It is a different conformer of the same species, reached by the endo channel's IRC, while this submitted (lower) conformer is the one reached from the exo channel. Choosing the lower conformer as the single common barrier reference is defensible and is the fairer choice, but the step evidence must say so explicitly and must state which conformer each IRC actually reaches: the barrier of whichever channel reaches the higher conformer then carries a 0.44 kcal/mol conformational term relative to this reference that is not part of its own IRC path. Alternatively declare the conformers separately. (2) The declared input guess rc_from_endo.xyz/rc_from_exo.xyz are NOT this geometry (N...C1 5.51 A vs 3.61 A); the node must carry this optimized structure as its evidence.",
+        "evidence_refs": "[{\"content_hash\":\"sha256:1b9f062abafec7a757d9995bd89c2508a30ce6a61f48d8f95b7b93fe7b4a48c4\",\"ref_id\":\"ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:080d8d73a6c9381a6049cd4740ff6ea4e5875f6b6ea5e75fa9c49b996fca9cd5\",\"ref_id\":\"ev_1a213259b30705ea6b420e679993cabc0b474cd7a41366a46a867adc13d342b1\",\"ref_type\":\"file\",\"revision\":null}]",
+        "findings": "[]",
+        "next_action": null,
+        "claim_token": 0,
+        "created_at": "2026-10-20 17:30:27"
+      },
+      {
+        "decision_id": "dec_ff04ad2ddaf24bfea6f851b55321aa3b",
+        "request_id": "rev_855be1dbe20545b6bd3058809759c21a",
+        "basis_fingerprint": "sha256:ef445f29997870dd95f749981ba04f8130bb699219cb8605f6cbeb4e975f3cae",
+        "verdict": "accept",
+        "reason": "Verified product minimum with the declared endo identity. ORCA Opt ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/calc-44.out.log (electronic -364.500695191868 Ha, opt converged) and Freq …/product_frequency/.cloudra/calc-49.out.log (single point -364.500703995727 Ha, 0 imaginary frequencies, normal termination, lowest real mode 107.1 cm-1, Gibbs -364.38053704 Ha). Re-parsed both logs myself; energies match the submission to 1e-5 Ha. My own geometry check on the optimized frame confirms the connectivity AND the stereochemistry rather than just the composition: both new bonds present (C2-C7 1.58 A, C4-C6 1.56 A), former dienophile bond now single (C6-C7 1.57 A), diene double bond intact (C1-C5 1.34 A), and the nitrile carbon on the C1=C5 double-bond side of the cage (N...C1 3.67 A vs N...C3 4.83 A) = endo, matching prod_endo.xyz (1.55/1.55/1.56/1.34 A, N...C1 3.76 vs N...C3 4.82 A). This is the endo adduct reached by IRC from TS_endo, and it is distinct from the exo channel's product.",
+        "evidence_refs": "[{\"content_hash\":\"sha256:ade3a90eece7de87d42d685b037178cd29d95a22d2310cc847825b3341829c3d\",\"ref_id\":\"ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:e27f4d4c5f2b1015b4781fbb650ad37aff6cd2ec274c2731afd4176d24468c3c\",\"ref_id\":\"ev_7d021132c808b7bcdbbec8b6f8fc6b54bf6e796eced99cde2c8843c585bd0cd1\",\"ref_type\":\"file\",\"revision\":null}]",
+        "findings": "[]",
+        "next_action": null,
+        "claim_token": 0,
+        "created_at": "2026-10-20 17:30:27"
+      },
+      {
+        "decision_id": "dec_b29357b329f7457ca039c5ea6b0110fc",
+        "request_id": "rev_0880b84161be4d07b15bffcda0506b85",
+        "basis_fingerprint": "sha256:f2e5773d0121c4a98647f10df962a06a3756add39f904845b48ddb6d9eab63d4",
+        "verdict": "accept",
+        "reason": "Verified product minimum with the declared exo identity. Re-parsed the cited logs myself: Opt ts/ts_0003/jobs/declaration_0001/product_opt/.cloudra/calc-45.out.log and Freq …/product_frequency/.cloudra/calc-50.out.log give single point -364.500488969555 Ha, 0 imaginary frequencies, normal termination, lowest real mode 108.4 cm-1, Gibbs -364.38036867 Ha at B3LYP-D3(BJ)/def2-SVP RIJCOSX. My own geometry check on the optimized frame confirms connectivity and stereochemistry, not just composition: new bonds C2-C7 1.58 A and C4-C6 1.56 A, former dienophile bond single (C6-C7 1.57 A), diene double bond intact (C1-C5 1.34 A), and the nitrile on the C3-methylene side (N...C1 4.88 A vs N...C3 3.94 A) = exo, matching prod_exo.xyz. Distinct from P_endo (Gibbs differs by 0.11 kcal/mol, and the two differ in nitrile orientation); this is the adduct reached by IRC from TS_exo.",
+        "evidence_refs": "[{\"content_hash\":\"sha256:021f234b22b002904acb7c4f30cf58626e1f89e626dab1df12befb199857d594\",\"ref_id\":\"ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:3dfaf2182e1308f6d7d2cb0c553b7b2a4bb3fe1e779051178bb3e85970226b56\",\"ref_id\":\"ev_1920ba42b0d2c56b770ea78f7a572ceb32dc2cadfdd80f5972aa61e04b6856d7\",\"ref_type\":\"file\",\"revision\":null}]",
+        "findings": "[]",
+        "next_action": null,
+        "claim_token": 0,
+        "created_at": "2026-10-20 17:31:17"
+      },
+      {
+        "decision_id": "dec_9d1f2978a31e4a08b105e74abe67b7da",
+        "request_id": "rev_f635fe86e93b44b9986923b96bca59a1",
+        "basis_fingerprint": "sha256:e7f5efd656506291dc0b28369851b4ea870175a34d16652f86ad9838cc85f9e6",
+        "verdict": "accept",
+        "reason": "Connectivity and saddle character supported; NO barrier value is supported by this submission. (a) Saddle: ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/calc-30.out.log has exactly one imaginary mode, -457.1 cm-1, and ts_inspect frequency_analysis for that job reports mode_alignment 'aligned' with watch-pair relative displacements 0.966 for (4,6) and 0.753 for (2,7) against the declared reaction-centre pairs [[2,7],[4,6]] — the soft mode is the two new C-C bonds closing together, so this saddle belongs to this edge and not to a rotation or a nitrile-local motion. The submission's own mode_matched=false only records that the free-text description was not machine-compared; the tool-level composition check does pass. (b) Direction, recomputed by me from the IRC frames rather than taken from the flag: TS at C2-C7 2.38 / C4-C6 2.10 A, one frame at 1.59/1.56 A (bonds closed) and the other at 2.82/2.65 A (bonds opening), each lying between the TS and its optimized endpoint — geometric direction evidence, not merely a declining IRC energy. (c) Endpoints: the product-side frame optimizes to the species I verified as P_endo (calc-44/calc-49, 0 imaginary, nitrile on the C1=C5 side); the reactant-side endpoint optimizes to 0 imaginary frequencies (calc-38). (d) Honest limits: the forward IRC frame did NOT reach a minimum (it stops between TS and the complex), so the reactant-side connection is interval evidence plus an independently optimized frequency-verified minimum — describe it that way, never as a converged IRC to the minimum. (e) Reference state: the reactant-side endpoint minimizes to a SECOND complex conformer (-364.463168 Ha, G -364.35482987) that lies 0.44 kcal/mol ABOVE the geometry now bound to node RC (-364.463871 Ha, G -364.35535918, from ts_0003). Same species, so the edge RC -> P_endo stands and RC need not be split; but every barrier figure for this step must say which of the two complexes it references, because 0.44 kcal/mol is larger than the computed endo/exo barrier difference (see exo_DA). (f) Thermochemistry is still unlinked for this step, so accept this as the mechanistic edge only.",
+        "evidence_refs": "[{\"content_hash\":\"sha256:08f7c51ec711582c566ef0611dfb5ec5396220838523c82584cd50cea015240b\",\"ref_id\":\"ev_7d370b6b22c7c276cf70017d10fad569d6ecffcb3040995e3311077f07879f60\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:3a7fd400c55e2497e74495a8d6c2bb9db190285f812379af95e9955e66ba9cb5\",\"ref_id\":\"ev_1d049559194744893bb45ce57428b8003947a6ca33c0b33b881c76683058f05d\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:0c5e3d9974ab3165a922faae63ee1cbae9ad97b713ebd9fdfd1cad5d50efb585\",\"ref_id\":\"ev_30afad7c78a07dd94c971a0861b37e5c0864ef396e5e4532b92f11884044f610\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:64d2f4f161705644bfd387e77494e930aa5d59e6332f7445beeca2167031a3ec\",\"ref_id\":\"ev_8577fdc15be693852ed8af02d09000dd020620c7a6499a009a988a767a818a74\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:ade3a90eece7de87d42d685b037178cd29d95a22d2310cc847825b3341829c3d\",\"ref_id\":\"ev_9408fcf4bbc128854ded49c438bf2fde072c9e9dcf8e7939a8afdeee4f3049c6\",\"ref_type\":\"file\",\"revision\":null}]",
+        "findings": "[]",
+        "next_action": null,
+        "claim_token": 0,
+        "created_at": "2026-10-20 17:31:19"
+      },
+      {
+        "decision_id": "dec_08167d54a81347aba854551975018064",
+        "request_id": "rev_f1e10e3eb30d4516a1a2b102100e84d5",
+        "basis_fingerprint": "sha256:5755fdaa80cfeb9ec7a4522a7f6b945d7342c5075f7d63eadf640619aab2b947",
+        "verdict": "accept",
+        "reason": "Connectivity and saddle character supported; NO barrier value is supported by this submission. (a) Saddle: ts/ts_0003/jobs/declaration_0001/frequency/.cloudra/calc-31.out.log has exactly one imaginary mode, -456.87 cm-1, mode_alignment 'aligned', watch-pair relative displacements 0.994 for (4,6) and 0.769 for (2,7) against the declared pairs [[2,7],[4,6]]. (b) Direction verified independently by me on this run's own frames: IRC_IRC_B is the reactant side (C2-C7 2.79 / C4-C6 2.62 A, bonds open) and IRC_IRC_F is the product side (1.59/1.56 A, nitrile toward the C3-methylene side: N...C1 4.82 vs N...C3 3.76 A), with the TS between them. Note the frame naming is SWAPPED relative to ts_0002 (here origins B=reactant, A=product), so each run's own manifest must be read rather than assuming a convention. (c) Endpoint identities: product side optimizes to the species I verified as P_exo (calc-45/calc-50, 0 imaginary); reactant side optimizes to a 0-imaginary complex minimum whose energy is the one bound to node RC (-364.463871 Ha, G -364.35535918) — so this channel is the one consistent with the currently bound RC geometry. (d) Honest limits: as for endo, the reactant-side IRC frame stops before the minimum, so this is interval evidence plus an independently optimized frequency-verified endpoint. (e) Thermochemistry is still unlinked for this step, so accept this as the mechanistic edge only.",
+        "evidence_refs": "[{\"content_hash\":\"sha256:ed3d651c164e46929c206410de09858da082ef53c943584066dc4395bb2b0eab\",\"ref_id\":\"ev_38e63b10e1eb26bf1865fa175a68d9bca9c5803c0be88a80e76470df614037e4\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:c0f8458eabc6e8317103e72797e0cdf7df0ee86b5ec7a289de93be175bf11bde\",\"ref_id\":\"ev_7944bbac44e7e9f0fa77cbadec868218405db066445de1738e182981c20ae35f\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:f42621ab20a9309f8a8a53b5068c2984bea0fe983825ff2802bed38360cd1410\",\"ref_id\":\"ev_3d5d5756c7c2b4f9fb0f19b7c27f80c4ac9bfb98b0b8d5d9b8a59daa291a6485\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:1b9f062abafec7a757d9995bd89c2508a30ce6a61f48d8f95b7b93fe7b4a48c4\",\"ref_id\":\"ev_5ce4c19262b4781387b2e80bbfe62f064b7149c9930296dee3d74d40308087aa\",\"ref_type\":\"file\",\"revision\":null},{\"content_hash\":\"sha256:021f234b22b002904acb7c4f30cf58626e1f89e626dab1df12befb199857d594\",\"ref_id\":\"ev_bf83250a52a31add7dab8728e1ffb8fa34d0b74aa22cde5c5645978abb2da94e\",\"ref_type\":\"file\",\"revision\":null}]",
+        "findings": "[]",
+        "next_action": null,
+        "claim_token": 0,
+        "created_at": "2026-10-20 17:31:20"
+      }
+    ]
+  }
+}
