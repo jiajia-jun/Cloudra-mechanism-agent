@@ -2274,3 +2274,85 @@ async def test_compute_job_type_feedback_without_runtime_retry(tmp_path, job_typ
         assert agent.state.value == 'succeeded', harness.describe(agent)
     finally:
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_public_js_failure_bookkeeping_preserves_live_compute_and_review(tmp_path):
+    """真实公共工具必须拒绝持锁作业，不改变账本，也不伪造失败审阅。"""
+    from cloudra.dag.store import DagStore
+    from cloudra.infra.compute_utils import calc_lock_path, guard_lock_path
+    from cloudra.infra.flocks import try_acquire_lock
+    from cloudra.persistence.database import ComputeDB, ConversationDB
+    from cloudra.services import session_store
+    from tests.agent_scenarios import live_compute_failure_steps
+
+    ready = asyncio.Event()
+    provider = ScriptedProvider()
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    lock_fds = []
+    try:
+        def create_job():
+            db = ComputeDB().init()
+            workdir = _workspace(harness.project.id) / "live-job"
+            workdir.mkdir(parents=True)
+            path = workdir / "job.inp"
+            path.write_text("! HF STO-3G\n* xyz 0 1\nHe 0 0 0\n*\n")
+            with db.connect() as con:
+                cursor = con.execute(
+                    "INSERT INTO compute_jobs(conversation_id, session_id, state, path, jobtype, "
+                    "scheduler, lease_expires_at, last_error) VALUES (?, '', 'running', ?, 'orca', "
+                    "'local', 12345, 'original execution state')",
+                    (harness.project.id, str(path)),
+                )
+                con.commit()
+                return db, workdir, int(cursor.lastrowid)
+
+        db, workdir, job_id = await asyncio.to_thread(create_job)
+        provider.script("small_mol", *live_compute_failure_steps(job_id, ready))
+        agent = await harness.spawn("small_mol", protocol="javascript", orchestration_mode="dag_record")
+
+        def bind_session_and_hold_locks():
+            conv_db = ConversationDB(harness.project.id).init()
+            session_store.create_session_record(
+                conv_db, session_id=agent.id, agent_id="small_mol", agent_type="small_mol",
+                parent_session_id=None, query="inspect existing calculation",
+                created_at="2026-10-21T00:00:00+00:00", orchestration_mode="dag_record",
+            )
+            with db.connect() as con:
+                con.execute("UPDATE compute_jobs SET session_id=? WHERE id=?", (agent.id, job_id))
+                con.commit()
+            for path in (calc_lock_path(str(workdir), job_id), guard_lock_path(str(workdir), job_id)):
+                fd = try_acquire_lock(path)
+                assert fd is not None
+                lock_fds.append(fd)
+            return conv_db
+
+        conv_db = await asyncio.to_thread(bind_session_and_hold_locks)
+        ready.set()
+        await harness.wait_terminal(agent)
+        calls = harness.tool_events(agent)
+        business = [call for call in calls if call["tool_name"] == "mark_compute_job_failed"]
+        assert len(business) == 1, harness.describe(agent)
+        assert business[0]["started"] and not business[0]["blocked"], harness.describe(agent)
+        assert business[0]["is_success"] is False
+        assert business[0]["status"] == "failed"
+        assert business[0]["result_data"]["job_id"] == job_id
+        assert business[0]["result_data"]["previous_state"] == "running"
+        programs = [event for event in harness.events(agent) if event.type == "program.finished"]
+        assert len(programs) == 1 and programs[0].data["status"] == "completed"
+
+        def read_bookkeeping():
+            with db.connect() as con:
+                row = con.execute("SELECT state, lease_expires_at, last_error, end_timestamp "
+                                  "FROM compute_jobs WHERE id=?", (job_id,)).fetchone()
+            return row, DagStore(conv_db).list_call_reviews(state=None)
+
+        row, reviews = await asyncio.to_thread(read_bookkeeping)
+        assert row[:3] == ("running", 12345, "original execution state")
+        assert row[3] in (None, -1)
+        assert not [review for review in reviews if review.compute_job_id == str(job_id)]
+    finally:
+        ready.set()
+        for fd in lock_fds:
+            await asyncio.to_thread(os.close, fd)
+        await harness.aclose()

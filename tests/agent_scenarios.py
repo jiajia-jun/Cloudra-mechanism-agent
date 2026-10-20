@@ -30,6 +30,7 @@
 | 重启后的按需收口 | 用户重新发消息时先关闭旧工具/程序，再进入新回复 |
 | 督导反馈通知 + 后台等待 | 只读督导反馈唤醒协调员，消费消息后仍保护运行中的计算 |
 | 计算完成通知 + 后台等待 | 高通量仍在运行时消费单个结果，再回到等待状态；配置预算的 TS 终态通知能唤醒并落盘 |
+| 计算失败记账 + 进程锁 | 公开 JS 工具不得把仍持计算/守卫锁的作业记为失败或投递失败审阅 |
 | 工具进度持久化 | 阶段记录落盘失败立即终止 Agent，不重试工具副作用 |
 | YOLO 审批结构校验 | 非布尔结论不得写入文件 |
 | YOLO TS 流程审查 | 提交被拒后改走 Python 仍需审批；获准诊断可正常执行 |
@@ -712,4 +713,15 @@ def invalid_compute_job_type_steps(job_type: Any) -> list[Step]:
     """模型错填类型后继续收尾；合法类型使用缺失文件，绝不启动 QM。"""
     return [Step(tools=[('submit_compute_job', {
         'input_file': 'missing.inp', 'job_type': job_type,
+    })]), Step(stop=True)]
+
+
+def live_compute_failure_steps(job_id: int, ready: asyncio.Event) -> list[Step]:
+    """回放真实公共 JS 失败记账调用；锁状态由场景中的执行端持有。"""
+    import json
+
+    arguments = {"job_id": job_id, "reason": "Reconcile a suspected orphaned job"}
+    return [Step(wait_for=ready, tools=[("js_exec", {
+        "code": "const result = await tools.mark_compute_job_failed("
+                + json.dumps(arguments) + ");\ntext(JSON.stringify(result));",
     })]), Step(stop=True)]

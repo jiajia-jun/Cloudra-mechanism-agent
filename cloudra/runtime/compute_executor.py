@@ -41,8 +41,14 @@ _POLLER_RENEW_EVERY = 20.0
 
 
 async def _mark_failed(db: ComputeDB, task_id: int, message: str) -> None:
+    try:
+        wrote = await afail_compute_job(db, task_id, message)
+    except ValueError as exc:
+        logger.warning("compute failure not recorded: %s", exc)
+        return
+    if not wrote:
+        return
     logger.error("compute job %s failed: %s", task_id, message)
-    await afail_compute_job(db, task_id, message)
     try:
         # D5/D11：失败终态入 CallReview 收件箱（非 dag 模式内部跳过）
         from cloudra.dag.controller import enqueue_compute_review
@@ -149,7 +155,13 @@ async def run_compute(
                 logger.exception("could not enqueue compute review for job %s", task_id)
             return rc
         except Exception as exc:
-            await _mark_failed(db, task_id, f"{kind} compute failed: {exc}")
+            # Submission may already have been accepted even when persisting
+            # its handle failed. The existing reconciler recovers that handle;
+            # an empty local receipt cannot establish remote process exit.
+            logger.warning(
+                "compute job %s: %s execution status unconfirmed; keeping ledger for reconciliation: %s",
+                task_id, kind, exc,
+            )
             return 1
         finally:
             stop.set()

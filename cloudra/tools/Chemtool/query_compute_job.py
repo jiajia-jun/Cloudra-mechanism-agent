@@ -24,8 +24,9 @@ description = (
     "non-terminal job is diagnosing a broken submission. If you genuinely need an interim checkpoint, `schedule` a "
     "one-shot read-only check_command and stop. "
     "Note: the scheduler daemon reconciles crashed workers automatically (lock-based, it never kills processes), "
-    "so a dead worker's job is adopted and finalized deterministically; mark_compute_job_failed remains the manual "
-    "escape hatch when you have out-of-band proof a job is truly gone."
+    "so a dead worker's job is adopted and finalized deterministically. mark_compute_job_failed can reconcile "
+    "a dead local orphan; it cannot withdraw queued work or override execution locks. "
+    "Remote jobs are finalized by their execution poller."
 )
 
 

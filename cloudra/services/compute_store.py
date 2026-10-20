@@ -738,6 +738,25 @@ async def aextend_compute_lease(db: ComputeDB, task_id: int, seconds: int) -> No
         await con.commit()
 
 
+def _compute_job_failure_refusal(job: Mapping[str, Any]) -> str | None:
+    """Shared facts required before controller-side orphan failure."""
+    from cloudra.infra.compute_utils import calc_lock_path, guard_lock_path
+    from cloudra.infra.flocks import is_lock_held
+
+    task_id = int(job["id"])
+    workdir = os.path.dirname(job.get("path") or "")
+    if workdir and os.path.isdir(os.path.join(workdir, ".cloudra")):
+        for lock_path in (guard_lock_path(workdir, task_id), calc_lock_path(workdir, task_id)):
+            if os.path.isfile(lock_path) and is_lock_held(lock_path):
+                return f"job {task_id} still holds a calculator or guard lock; failure was not recorded"
+    if (job.get("scheduler") or "local") != "local" and job.get("scheduler_job_id"):
+        return (
+            f"job {task_id} has a submitted remote/scheduler execution; "
+            "local lock absence cannot establish its exit; leave finalization to its execution poller"
+        )
+    return None
+
+
 def reap_exhausted_compute_leases(
     db: ComputeDB,
     *,
@@ -746,33 +765,22 @@ def reap_exhausted_compute_leases(
     """Fail expired compute jobs that consumed their retry budget; 返回被 reap 的 id。
 
     存活以 flock 为准：guard 或 calculator 仍持锁的作业不算死，即使租约过期
-    也不落 failed（租约只服务认领，对账会给活作业续租）。
+    也不落 failed。已提交的远端作业由其 poller 确认，不能凭本机无锁判死。
     """
-    from cloudra.infra.compute_utils import calc_lock_path, guard_lock_path
-    from cloudra.infra.flocks import is_lock_held
-
     now = time.time()
     compute_ids: list[int] = []
-
-    def _alive(task_id: int, path: str) -> bool:
-        workdir = os.path.dirname(path or "")
-        if not workdir:
-            return False
-        return is_lock_held(guard_lock_path(workdir, task_id)) or is_lock_held(
-            calc_lock_path(workdir, task_id)
-        )
 
     def write() -> None:
         with db.connect() as con:
             candidates = con.execute(
-                """SELECT id, path FROM compute_jobs WHERE state='running'
+                f"""SELECT {_SELECT_COLUMNS} FROM compute_jobs WHERE state='running'
                 AND lease_expires_at<? AND COALESCE(attempt_count, 0)>=?""",
                 (now, max_attempts),
             ).fetchall()
             dead = [
                 int(row[0])
                 for row in candidates
-                if not _alive(int(row[0]), row[1] or "")
+                if _compute_job_failure_refusal(_row_dict(row)) is None
             ]
             if not dead:
                 return
@@ -853,15 +861,31 @@ async def afinalize_compute_job(
 
 
 async def afail_compute_job(db: ComputeDB, task_id: int, message: str) -> bool:
-    """标记 failed（executor 拉起失败 / agent 手动标记），带 CAS 限制仅覆盖 ready/running，顺带清租约。"""
-    async with db.aconnect() as con:
-        cur = await con.execute(
-            "UPDATE compute_jobs SET state='failed', end_timestamp=?, "
-            "last_error=?, lease_expires_at=0 WHERE id=? AND state IN ('ready', 'running')",
-            (time.time(), message[:500], task_id),
-        )
-        await con.commit()
-        return cur.rowcount == 1
+    """Fail an unowned orphan/startup error; held locks/submitted remote jobs refuse.
+
+    False means the CAS state is no longer ready/running. A refusal explains why
+    execution is still protected; neither its lease nor its review is changed.
+    """
+    def write() -> bool:
+        with db.connect() as con:
+            row = con.execute(
+                f"SELECT {_SELECT_COLUMNS} FROM compute_jobs WHERE id=? AND state IN ('ready', 'running')",
+                (task_id,),
+            ).fetchone()
+            if row is None:
+                return False
+            refusal = _compute_job_failure_refusal(_row_dict(row))
+            if refusal is not None:
+                raise ValueError(refusal)
+            cur = con.execute(
+                "UPDATE compute_jobs SET state='failed', end_timestamp=?, "
+                "last_error=?, lease_expires_at=0 WHERE id=? AND state IN ('ready', 'running')",
+                (time.time(), message[:500], task_id),
+            )
+            con.commit()
+            return cur.rowcount == 1
+
+    return await asyncio.to_thread(retry_on_locked, write)
 
 
 async def aupdate_compute_pid(db: ComputeDB, task_id: int, column: str, pid: int) -> None:

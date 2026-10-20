@@ -68,3 +68,15 @@ def test_reap_fails_job_when_no_lock_held(tmp_path):
     row = get_compute_job(db, job_id)
     assert row["state"] == "failed"
     assert "lease retry budget exhausted" in (row["last_error"] or "")
+
+
+@pytest.mark.parametrize("scheduler", ["slurm", "ssh_local", "ssh_slurm"])
+def test_reap_leaves_submitted_remote_execution_to_poller(tmp_path, scheduler):
+    db = ComputeDB().init()
+    job_id = _exhausted_running(db, str(tmp_path / "input.inp"))
+    with db.connect() as con:
+        con.execute("UPDATE compute_jobs SET scheduler=?,scheduler_job_id='submitted-123' WHERE id=?",
+                    (scheduler, job_id))
+        con.commit()
+    assert reap_exhausted_compute_leases(db) == []
+    assert get_compute_job(db, job_id)["state"] == "running"
