@@ -1,0 +1,71 @@
+{
+  "nodes": [
+    {
+      "id": "sp_eec103a8",
+      "role": "reactant",
+      "smiles": [
+        "[BH3-][O+]=C"
+      ],
+      "properties": {
+        "label": "RC_adduct",
+        "atom_map": "1=B, 2=migrating H, 3=carbonyl C, 4=carbonyl O (1-based map numbers of [BH2:1][H:2].[CH2:3]=[O:4])",
+        "annotation": "Pre-reaction Lewis donor-acceptor complex of BH3 + H2C=O, declared in its bonded form [BH3-][O+]=C because the relaxed complex is a single bound molecule; the dot-joined complex SMILES [BH3].C=O denotes this same pre-reaction complex and is kept here as its representation, not a claim of two unbound monomers. Geometry of the verified minimum: B-O 1.610 A, C-O 1.221 A, B-O-C 124.5 deg, B...C 2.511 A, one syn B-H at C...H 2.62 A. Zero imaginary frequencies; barrier reference and IRC start. Association of separated BH3 + H2CO to this adduct is barrierless (work/diag/scan_BO.log, monotonic downhill 4.0 -> 1.6 A).",
+        "energy_hartree": -141.041124042,
+        "evidence_log": "work/g16/rc_c180.log",
+        "level_of_theory": "B3LYP/def2-SVP + GD3BJ, gas phase, charge 0, singlet, G16 default grid"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "TS1 (uncharacterised)",
+        "step_id": "step_fd33e9c2",
+        "status": "open gap - transition state uncharacterised at B3LYP-D3(BJ)/def2-SVP",
+        "annotation": "Hydride-transfer saddle B-H -> C-H with B-O contraction. NOT characterised: no first-order saddle was verified, so no energy and no evidence log are declared and nothing was fabricated. Twelve documented strategies failed (C...H scans with B-O free and frozen, B...C-frozen scan, product-side scan, B-O contraction scan, B-H stretch and compression scans, 2-D B3LYP PES grid that crashed in l103, xTB metadynamics path, IDPP and mapped linear interpolation, xTB diagonal corridor, and five opt=(ts,calcfc,noeigentest) refinements); refinements either returned to the adduct (0 imaginary frequencies) or converged on second-order saddles of the loose dative B-O shoulder (-183/-96 cm-1; -158.27/-151.83 cm-1, heavy-atom fractions 0.020/0.376/0.012, B-O 2.080-3.533 A, +16.8 to +18.8 kcal), and the final shared-hydride seed (B-O 1.814, B-H 1.449, C...H 1.446 A) slid to separated fragments (B-O 3.332 A, E = -141.011317193 Eh) unconverged at 100 cycles. Closed-shell RB3LYP is stable at a strained frame (work/diag/stable_zmat_t9.log), so scan discontinuities are geometric, not electronic. Constrained single-coordinate maxima (+41.1 kcal at C...H ~1.66 A; +59.5 kcal on the breaking B-H; +64.8 kcal xTB corridor) are compression/branch values on non-path coordinates and are NOT barriers. Trail in PROCESS.md and native logs under ts/ and work/diag/."
+      }
+    },
+    {
+      "id": "sp_a703a387",
+      "role": "product",
+      "smiles": [
+        "COB"
+      ],
+      "properties": {
+        "label": "P_methoxyborane",
+        "atom_map": "1=B, 2=migrating H, 3=carbonyl C, 4=carbonyl O (1-based map numbers of [BH2:1][H:2].[CH2:3]=[O:4])",
+        "annotation": "Methoxyborane CH3-O-BH2, the mono-hydroboration product of one BH3 and one H2CO (measured on this log's optimized frame: B-O 1.333 A, C-O 1.408 A). Verified minimum, 0 imaginary frequencies. Further hydroboration to (CH3O)2BH / (CH3O)3B was not investigated and is out of declared scope. Electronic reaction energy E(P) - E(RC) = -0.072384718 Eh = -45.4 kcal/mol (0 K electronic difference, no ZPE or thermal corrections).",
+        "energy_hartree": -141.11350876,
+        "evidence_log": "work/g16/p_b.log",
+        "level_of_theory": "B3LYP/def2-SVP + GD3BJ, gas phase, charge 0, singlet, G16 default grid"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_fd33e9c2",
+      "from": "sp_eec103a8",
+      "to": "sp_a703a387",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            4
+          ]
+        ]
+      }
+    }
+  ]
+}
