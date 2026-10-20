@@ -1,0 +1,288 @@
+{
+  "description": "Observed public failure bookkeeping with eight queued withdrawals and three still-locked ORCA jobs; replay uses temporary jobs and real native flocks. No Gold, credentials, inputs, or scientific acceptance data.",
+  "sources": {
+    "snapshot.json": "fb8a4d55c51b5a8325c5d53e610319cd1a6603dbea1988237a97077a7d14533f",
+    "mark-failed-tool-receipts.json": "6479696cf3a028891a5271b471c3dcf521725d7b5cb69880a0c979a16b1e1daa"
+  },
+  "held_snapshot_at": "2026-10-20T23:22:08.154018+00:00",
+  "held_after_wrong_failure": {
+    "73": {
+      "state": "failed",
+      "jobtype": "orca",
+      "locks": {
+        "calc": true,
+        "guard": true
+      }
+    },
+    "75": {
+      "state": "failed",
+      "jobtype": "orca",
+      "locks": {
+        "calc": true,
+        "guard": true
+      }
+    },
+    "76": {
+      "state": "failed",
+      "jobtype": "orca",
+      "locks": {
+        "calc": true,
+        "guard": true
+      }
+    }
+  },
+  "calls": [
+    {
+      "tool_call_id": "tc_e793253086364050",
+      "request": {
+        "event_id": "evt_a8f8fd1c3ec6474f",
+        "created_at": "2026-10-20T23:17:49.454803+00:00",
+        "arguments": {
+          "job_id": 77,
+          "reason": "superseded: this exploratory OptTS was submitted with cpus=4 and can never be scheduled on the saturated 12-CPU node (only 2 CPUs free); resubmitting the identical input with cpus=2 and priority 8 so the critical-path TS1 saddle can actually run."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_b64481f4cd814068",
+        "created_at": "2026-10-20T23:17:49.498461+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 77,
+          "previous_state": "ready",
+          "message": "job 77 marked failed (was ready); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_b71bc72cd3404492",
+      "request": {
+        "event_id": "evt_ed8749f021ad4a4c",
+        "created_at": "2026-10-20T23:18:13.900474+00:00",
+        "arguments": {
+          "job_id": 58,
+          "reason": "withdrawn by agent direct-pathways: competing-channel probe not needed for delivery (Coordinator instruction to stop submitting and clear the queue for the two TS chains); verified no calc-*.out.log exists in the job dir, job never started."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_da004cce90cd4610",
+        "created_at": "2026-10-20T23:18:13.931284+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 58,
+          "previous_state": "ready",
+          "message": "job 58 marked failed (was ready); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_6bca46251a894278",
+      "request": {
+        "event_id": "evt_406e215cf30841cd",
+        "created_at": "2026-10-20T23:18:13.940641+00:00",
+        "arguments": {
+          "job_id": 69,
+          "reason": "withdrawn by agent direct-pathways: competing-channel probe not needed for delivery (Coordinator instruction to stop submitting and clear the queue for the two TS chains); verified no calc-*.out.log exists in the job dir, job never started."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_25106e4130fd4ffb",
+        "created_at": "2026-10-20T23:18:13.965085+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 69,
+          "previous_state": "ready",
+          "message": "job 69 marked failed (was ready); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_8e9b6b045e764e60",
+      "request": {
+        "event_id": "evt_3534a6ddcdef42f5",
+        "created_at": "2026-10-20T23:18:13.966625+00:00",
+        "arguments": {
+          "job_id": 70,
+          "reason": "withdrawn by agent direct-pathways: competing-channel probe not needed for delivery (Coordinator instruction to stop submitting and clear the queue for the two TS chains); verified no calc-*.out.log exists in the job dir, job never started."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_0f7efceaab804f87",
+        "created_at": "2026-10-20T23:18:13.987052+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 70,
+          "previous_state": "ready",
+          "message": "job 70 marked failed (was ready); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_311c160331534d27",
+      "request": {
+        "event_id": "evt_1057a2857d1140d2",
+        "created_at": "2026-10-20T23:18:15.920188+00:00",
+        "arguments": {
+          "job_id": 61,
+          "reason": "4-CPU scan will never be scheduled on the saturated node; withdrawing and replacing with a leaner 2-CPU single OptTS job per Coordinator scheduling rule."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_fd0414104c1d4365",
+        "created_at": "2026-10-20T23:18:15.951216+00:00",
+        "result": {
+          "is_success": false,
+          "job_id": 61,
+          "previous_state": "failed",
+          "message": "job 61 is already terminal (failed)."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_1ce7e4d4e2fe4ec2",
+      "request": {
+        "event_id": "evt_a1c42507c1db41a5",
+        "created_at": "2026-10-20T23:18:20.020381+00:00",
+        "arguments": {
+          "job_id": 78,
+          "reason": "Withdrawn: input declared %pal nprocs 4 / cpus=4, which can never be scheduled on the saturated 12-CPU node. Replaced by work/ts2/ch1_ts3_2cpu.inp (%pal nprocs 2, %maxcore 1800, cpus=2, priority 7) with identical geometry and route."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_ba5bd17623dd4dfe",
+        "created_at": "2026-10-20T23:18:20.052816+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 78,
+          "previous_state": "ready",
+          "message": "job 78 marked failed (was ready); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_61b08fcb00ed48d4",
+      "request": {
+        "event_id": "evt_04194d2f42304e61",
+        "created_at": "2026-10-20T23:18:27.433323+00:00",
+        "arguments": {
+          "job_id": 45,
+          "reason": "Withdrawn: stale 6 GB duplicate of work/ts2/ch1_ts3.inp (same guess as job 59) that never started; superseded by job 81 (2 CPUs, work/ts2/ch1_ts3_2cpu.inp)."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_b1054857b9864a32",
+        "created_at": "2026-10-20T23:18:27.463456+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 45,
+          "previous_state": "ready",
+          "message": "job 45 marked failed (was ready); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_1060b2b8241a4e49",
+      "request": {
+        "event_id": "evt_6150ff13ce704f4a",
+        "created_at": "2026-10-20T23:18:27.468101+00:00",
+        "arguments": {
+          "job_id": 46,
+          "reason": "Withdrawn: stale 6 GB duplicate of the channel-2 OptTS (ch2_ts_lo.inp); channel 2 is chemically rejected by the Coordinator, no further compute on it."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_b0ec6fd8551c40bf",
+        "created_at": "2026-10-20T23:18:27.492663+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 46,
+          "previous_state": "ready",
+          "message": "job 46 marked failed (was ready); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_d9d860c3c07d4aac",
+      "request": {
+        "event_id": "evt_1d516b8108bd416e",
+        "created_at": "2026-10-20T23:18:31.184453+00:00",
+        "arguments": {
+          "job_id": 75,
+          "reason": "Withdrawn: relaxed scan whose first step jumped r(C4-H8) 3.16 -> 2.05 A, which collapsed the enediol (C4-C5 1.249, C5-O6 1.498 A). Superseded by job 81."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_793da0e79a554ef2",
+        "created_at": "2026-10-20T23:18:31.214450+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 75,
+          "previous_state": "running",
+          "message": "job 75 marked failed (was running); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_2b081169c06c4709",
+      "request": {
+        "event_id": "evt_a40f40a70341455d",
+        "created_at": "2026-10-20T23:18:31.219013+00:00",
+        "arguments": {
+          "job_id": 76,
+          "reason": "Withdrawn: constrained relaxation that crushed the enediol (C4-C5 0.881 A). Superseded by job 81 running from the consistent guess ts3_t143.xyz."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_454f099f2ea54e44",
+        "created_at": "2026-10-20T23:18:31.244097+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 76,
+          "previous_state": "running",
+          "message": "job 76 marked failed (was running); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_8f023aae819647da",
+      "request": {
+        "event_id": "evt_a4ba6393d40446ec",
+        "created_at": "2026-10-20T23:19:35.083449+00:00",
+        "arguments": {
+          "job_id": 73,
+          "reason": "1D relaxed scan too slow on the saturated node (~15-40 min/point, 5/7 points in ~2 h) and its path is the C-C-cleavage-only path (H8 stays on O3); withdrawing to free the slot for the OptTS."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_08c02559c00041d8",
+        "created_at": "2026-10-20T23:19:35.110970+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 73,
+          "previous_state": "running",
+          "message": "job 73 marked failed (was running); reason recorded."
+        }
+      }
+    },
+    {
+      "tool_call_id": "tc_801d708eef3e491c",
+      "request": {
+        "event_id": "evt_3e4ca97b23b34a84",
+        "created_at": "2026-10-20T23:19:35.119678+00:00",
+        "arguments": {
+          "job_id": 80,
+          "reason": "superseded: guess had O3...O6=2.876 A (too long) and Calc_Hess numeric Hessian on an overloaded node; replaced by ts1_optts_c built from the relaxed-scan frame at r(C2-C4)=2.00 with H8 at the O3...O6 midpoint."
+        }
+      },
+      "receipt": {
+        "event_id": "evt_7416b14467474b6d",
+        "created_at": "2026-10-20T23:19:35.143847+00:00",
+        "result": {
+          "is_success": true,
+          "job_id": 80,
+          "previous_state": "ready",
+          "message": "job 80 marked failed (was ready); reason recorded."
+        }
+      }
+    }
+  ]
+}

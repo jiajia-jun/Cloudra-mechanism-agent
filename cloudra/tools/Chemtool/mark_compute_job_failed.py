@@ -1,9 +1,7 @@
-"""mark_compute_job_failed: force a stuck compute job to a failed terminal state.
+"""mark_compute_job_failed: reconcile a dead local orphan.
 
-Orphaned jobs (executor/guard process died, files deleted, DB still says
-"running") block delivery stages forever.  This tool lets an agent explicitly
-mark such a job failed with a recorded reason instead of waiting for the lease
-to expire.
+The scheduler normally adopts crashed workers. This tool reconciles a remaining
+local orphan without overriding execution ownership or replacing cancellation.
 """
 
 import os
@@ -17,14 +15,12 @@ from cloudra.persistence.database import ComputeDB
 from cloudra.services.compute_store import afail_compute_job, aget_compute_job
 
 description = (
-    "Force a compute job into the failed state with a recorded reason. "
-    "Use for: a job that is stuck 'running' forever because its executor/guard "
-    "process died or its input/log files were removed — confirm with `ps -p <pid>` "
-    "/ file existence first, then mark it failed so the DAG stage can be re-planned. "
-    "The system never kills processes or marks jobs failed on its own, so reconcile "
-    "dead jobs yourself with this tool. "
-    "Do not use for: a job that is still legitimately running, or a job that "
-    "already reached done/failed (marking is refused for terminal jobs)."
+    "Reconcile a local orphan still recorded as running, with a recorded reason. "
+    "The runtime checks calculator/guard locks and refuses to fail a live calculation. "
+    "The scheduler also adopts and finalizes crashed workers automatically. "
+    "Do not use to withdraw queued work, cancel a calculation, free capacity, or declare scientific failure. "
+    "For a TS workflow use ts_stop to withdraw queued work/request safe cancellation. "
+    "Remote/scheduler jobs must be finalized by their execution poller; absence of a local process is not proof of exit."
 )
 
 
@@ -33,8 +29,8 @@ class MarkComputeJobFailed_input_schema(input_schema):
         description="Compute job ID (from submit_compute_job / query_compute_job).",
     )
     reason: str = Field(
-        description="Why the job is being marked failed (recorded for audit); "
-        "state what you verified, e.g. 'lease_owner process not in ps and input deleted'.",
+        description="Reason for reconciling this dead local orphan, recorded for audit. "
+        "This is not a cancellation request or a scientific verdict.",
     )
 
 
@@ -70,6 +66,7 @@ class MarkComputeJobFailed(Tool):
                 is_success=False, job_id=user_input.job_id,
                 message="no compute-jobs database on this node yet",
             )
+        previous_state = ""
         try:
             row = await aget_compute_job(db, user_input.job_id)
             if row is None or row["conversation_id"] != conv_id:
@@ -78,11 +75,21 @@ class MarkComputeJobFailed(Tool):
                     message=f"No compute job found for job_id={user_input.job_id}.",
                 )
             previous_state = row["state"] or ""
-            if previous_state in ("done", "failed"):
+            if previous_state in ("done", "failed", "cancelled"):
                 return MarkComputeJobFailed_output_schema(
                     is_success=False, job_id=user_input.job_id,
                     previous_state=previous_state,
                     message=f"job {user_input.job_id} is already terminal ({previous_state}).",
+                )
+            if previous_state == "ready":
+                return MarkComputeJobFailed_output_schema(
+                    is_success=False, job_id=user_input.job_id, previous_state=previous_state,
+                    message="Queued work cannot be withdrawn as failed; use cancellation controls (ts_stop for a TS workflow).",
+                )
+            if (row.get("scheduler") or "local") != "local":
+                return MarkComputeJobFailed_output_schema(
+                    is_success=False, job_id=user_input.job_id, previous_state=previous_state,
+                    message="Remote execution liveness is unknown here; its execution poller must confirm the terminal state.",
                 )
             wrote = await afail_compute_job(db, user_input.job_id, reason)
             if not wrote:
@@ -91,13 +98,15 @@ class MarkComputeJobFailed(Tool):
                     job_id=user_input.job_id,
                     previous_state=previous_state,
                     message=(
-                        f"job {user_input.job_id} is {previous_state}; "
-                        "only ready/running jobs can be marked failed"
+                        f"job {user_input.job_id} was not changed; "
+                        "its state changed or it is awaiting execution-side cancellation confirmation"
                     ),
                 )
         except Exception as exc:
             return MarkComputeJobFailed_output_schema(
-                is_success=False, job_id=user_input.job_id, message=f"mark failed: {exc}"
+                is_success=False, job_id=user_input.job_id,
+                previous_state=previous_state,
+                message=f"mark failed: {exc}",
             )
         try:
             from cloudra.dag.controller import enqueue_compute_review

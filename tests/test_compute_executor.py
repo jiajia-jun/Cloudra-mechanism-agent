@@ -607,3 +607,66 @@ async def test_accepted_scheduler_job_remains_polled_after_local_input_change(mo
     assert await run_compute(job, db) == 0
     assert called == [job]
     assert _job_row(db, job)['state'] == 'running'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scheduler", ["slurm", "ssh_local", "ssh_slurm"])
+async def test_remote_acceptance_survives_lost_handle_receipt(tmp_path, monkeypatch, scheduler):
+    import sqlite3
+
+    from cloudra.runtime.compute_executor import run_compute
+    from cloudra.scheduler.daemon import SchedulerDaemon
+    from cloudra.services.compute_store import get_compute_job
+    from tests.test_remote_compute import FakeTransport, _connection
+
+    source = tmp_path / "mol.xyz"
+    source.write_text("2\n\nH 0 0 0\nH 0 0 1\n")
+    db = ComputeDB().init()
+    job = _insert_job(db, state="running", path=str(source), jobtype="xtb", scheduler=scheduler,
+                      scheduler_options={"type": scheduler, "connection": _connection()})
+    transport = FakeTransport()
+    accepted = []
+    def submit(_path):
+        accepted.append("123")
+        return "123"
+    async def lost_receipt(*_args):
+        raise sqlite3.OperationalError("simulated receipt write failure")
+    enqueued = []
+    async def enqueue(*args):
+        enqueued.append(args)
+    monkeypatch.setattr("cloudra.dag.controller.enqueue_compute_review", enqueue)
+    if scheduler == "slurm":
+        monkeypatch.setattr("cloudra.infra.slurm.submit_batch", submit)
+        monkeypatch.setattr("cloudra.infra.slurm.amark_slurm_submitted", lost_receipt)
+        recovered = "123"
+        monkeypatch.setattr("cloudra.scheduler.daemon.query_job_by_name", lambda _name: recovered)
+    else:
+        monkeypatch.setattr("cloudra.runtime.remote_compute.SshTransport", lambda _endpoint: transport)
+        monkeypatch.setattr("cloudra.runtime.remote_compute.amark_slurm_submitted", lost_receipt)
+        recovered = "shell:4321" if scheduler == "ssh_local" else "98765"
+        recovery = "probe_remote_shell_handle" if scheduler == "ssh_local" else "recover_remote_slurm_handle"
+        monkeypatch.setattr("cloudra.scheduler.daemon." + recovery, lambda _row: recovered)
+    assert await run_compute(job, db) == 1
+    if scheduler == "slurm":
+        assert accepted == [recovered]
+    else:
+        assert any("nohup" in command or "sbatch" in command for command in transport.commands)
+    row = get_compute_job(db, job)
+    assert row["state"] == "running"
+    assert not row["scheduler_job_id"]
+    assert not row["last_error"]
+    assert enqueued == []
+    daemon = SchedulerDaemon()
+    assert job in await asyncio.to_thread(daemon._reconcile_central)
+    assert get_compute_job(db, job)["scheduler_job_id"] == recovered
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("scheduler", ["slurm", "ssh_local", "ssh_slurm"])
+async def test_remote_missing_input_before_execution_can_fail(scheduler):
+    from cloudra.runtime.compute_executor import run_compute
+
+    db = ComputeDB().init()
+    job = _insert_job(db, state="running", path="", scheduler=scheduler)
+    assert await run_compute(job, db) == 1
+    assert _job_row(db, job)["state"] == "failed"
