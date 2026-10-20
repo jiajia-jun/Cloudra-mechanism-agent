@@ -370,6 +370,52 @@
         "selfconsistency_passed": false,
         "accuracy_score": 0.9999967027977937,
         "final_score": 0.6667
+      },
+      "automatic_delivery": {
+        "source_archive": "benchmark_smoke_data/vm-two-20261020-fae430ab/archives/continuation-stalled-seq-20261020/raw-evidence.tar",
+        "source_archive_sha256": "a0da8f067c996461159a1ca3e911515bfb1f0f0ac1c94d95792a557b2118f05f",
+        "meaning": "Actual unedited automatic DAG delivery from the continuation archive; no endpoint metadata reconstruction. Existing native gzip files are reused by exact SHA256.",
+        "native_file_aliases": [
+          {
+            "archive": "L1/job16.out.gz",
+            "sandbox_path": ".cloudra/evidence/18e4eb89729b62cc_calc-16.out.log",
+            "sha256": "18e4eb89729b62cc2326c792e501d53ea58b99973ddde96e69b8d4bd8532afa6",
+            "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/18e4eb89729b62cc_calc-16.out.log"
+          },
+          {
+            "archive": "L1/job06.out.gz",
+            "sandbox_path": ".cloudra/evidence/2e6509760f665cd3_calc-6.out.log",
+            "sha256": "2e6509760f665cd3744bdc69e0925595d6663a24899c264f42044cdb3b235b07",
+            "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/2e6509760f665cd3_calc-6.out.log"
+          },
+          {
+            "archive": "L1/job08.out.gz",
+            "sandbox_path": ".cloudra/evidence/b7c991b4610704e8_calc-8.out.log",
+            "sha256": "b7c991b4610704e848a3636bbb6fb5205738389dbf503fc1732ddf49183f286a",
+            "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/b7c991b4610704e8_calc-8.out.log"
+          },
+          {
+            "archive": "L1/job14.out.gz",
+            "sandbox_path": ".cloudra/evidence/d83c270e6c6645a2_calc-14.out.log",
+            "sha256": "d83c270e6c6645a2328245a84a61257841e8f48daa0b5e7fb2626967ae914ba9",
+            "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/evidence/d83c270e6c6645a2_calc-14.out.log"
+          }
+        ],
+        "captured_at": "2026-10-20T10:49:24.311812+00:00",
+        "source_program_revision": "87685c5ea8e7f4a3343749c592bc5d42fcb2b3f9",
+        "continuation_batch": "batch_resume_55446158c1074e36",
+        "graph": {
+          "archive": "L1/automatic/mechanism_graph.json",
+          "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/mechanism_graph.json",
+          "sha256": "3cfb8906712ea9be06eb2262d0b39dee60e0229c9ccc68001a238f5a9c6621d2",
+          "bytes": 5608
+        },
+        "step_endpoint_evidence": {
+          "archive": "L1/automatic/mechanism_evidence.json",
+          "source_member": "data/sandboxes/L1/batch_33673755b17b4a55/.cloudra/mechanism_evidence.json",
+          "sha256": "84d31bd9f33589bffd8396846dffe7ea6ea6ec49bc7ba4d300a3f13e10abb167",
+          "bytes": 1466
+        }
       }
     },
     "M17": {
@@ -560,6 +606,54 @@
         "selfconsistency_passed": false,
         "accuracy_score": 0.9999990154134106,
         "final_score": 0.6667
+      },
+      "automatic_delivery": {
+        "source_archive": "benchmark_smoke_data/vm-two-20261020-fae430ab/continuation-fixedseq-20261020/returned.tar",
+        "source_archive_sha256": "46b2d7823b3b408cfc7c521d30f9c696a96a1ae51ed29331a8423648315b6bc7",
+        "source_program_revision": "b40e3581336ff5b28adad1c9fc1d051f5604ea13",
+        "deployment_manifest_sha256": "2e6c38911f991591c0254cc48f128a9487c01db3e0b18ed7cbdcb8ea7d0117e1",
+        "meaning": "Actual unedited automatic DAG delivery from the completed continuation archive; no endpoint metadata reconstruction. Existing native gzip files are reused by exact SHA256.",
+        "native_file_aliases": [
+          {
+            "archive": "M17/job30.out.gz",
+            "sandbox_path": ".cloudra/evidence/0f2d87fe295b113e_calc-30.out.log",
+            "sha256": "0f2d87fe295b113ea79fe1fa6285ebbde3e2244bc411118d2f490e985ffe3fb5",
+            "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/0f2d87fe295b113e_calc-30.out.log"
+          },
+          {
+            "archive": "M17/job31.out.gz",
+            "sandbox_path": ".cloudra/evidence/499dad3f9b9785f9_calc-31.out.log",
+            "sha256": "499dad3f9b9785f977466e768d04e72f5f5b58ff0cffabb0ceee6aaa14e0a61f",
+            "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/499dad3f9b9785f9_calc-31.out.log"
+          },
+          {
+            "archive": "M17/job29.out.gz",
+            "sandbox_path": ".cloudra/evidence/a75a46a00f6e8804_calc-29.out.log",
+            "sha256": "a75a46a00f6e8804a73969153e0606fd0c6c26ed66709e9589a5c98e6609188a",
+            "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/evidence/a75a46a00f6e8804_calc-29.out.log"
+          }
+        ],
+        "continuation_batch": "batch_resume_686b719b057549d2",
+        "started_at": "2026-10-20T10:59:10.868678+00:00",
+        "finished_at": "2026-10-20T11:04:29.617664+00:00",
+        "graph": {
+          "archive": "M17/automatic/mechanism_graph.json",
+          "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/mechanism_graph.json",
+          "sha256": "1da0204693be61308c845b06fee9d48dced982d422d954ccfeeb158d798b1530",
+          "bytes": 2361
+        },
+        "step_endpoint_evidence": {
+          "archive": "M17/automatic/mechanism_evidence.json",
+          "source_member": "data/sandboxes/M17/batch_33673755b17b4a55/.cloudra/mechanism_evidence.json",
+          "sha256": "9bc71a6a059a31ed5c00a17fe63219b0d64e0e42e93e8b3ba3b2c25e100754bf",
+          "bytes": 715
+        },
+        "formal_gold_result": {
+          "graph_score": 1.0,
+          "selfconsistency_passed": true,
+          "accuracy_score": 0.9999990154134106,
+          "final_score": 1.0
+        }
       }
     }
   }

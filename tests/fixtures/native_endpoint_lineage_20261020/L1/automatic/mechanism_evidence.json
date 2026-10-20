@@ -1,0 +1,47 @@
+{
+  "graph_sha256": "3cfb8906712ea9be06eb2262d0b39dee60e0229c9ccc68001a238f5a9c6621d2",
+  "steps": {
+    "Ring_opening_conrotatory": {
+      "source": [
+        {
+          "path": ".cloudra/evidence/2e6509760f665cd3_calc-6.out.log",
+          "sha256": "2e6509760f665cd3744bdc69e0925595d6663a24899c264f42044cdb3b235b07"
+        }
+      ],
+      "target": [
+        {
+          "path": ".cloudra/evidence/b7c991b4610704e8_calc-8.out.log",
+          "sha256": "b7c991b4610704e848a3636bbb6fb5205738389dbf503fc1732ddf49183f286a"
+        }
+      ]
+    },
+    "Butadiene_torsional_relaxation": {
+      "source": [
+        {
+          "path": ".cloudra/evidence/18e4eb89729b62cc_calc-16.out.log",
+          "sha256": "18e4eb89729b62cc2326c792e501d53ea58b99973ddde96e69b8d4bd8532afa6"
+        }
+      ],
+      "target": [
+        {
+          "path": ".cloudra/evidence/d83c270e6c6645a2_calc-14.out.log",
+          "sha256": "d83c270e6c6645a2328245a84a61257841e8f48daa0b5e7fb2626967ae914ba9"
+        }
+      ]
+    },
+    "Butadiene_reverse_torsion": {
+      "source": [
+        {
+          "path": ".cloudra/evidence/d83c270e6c6645a2_calc-14.out.log",
+          "sha256": "d83c270e6c6645a2328245a84a61257841e8f48daa0b5e7fb2626967ae914ba9"
+        }
+      ],
+      "target": [
+        {
+          "path": ".cloudra/evidence/18e4eb89729b62cc_calc-16.out.log",
+          "sha256": "18e4eb89729b62cc2326c792e501d53ea58b99973ddde96e69b8d4bd8532afa6"
+        }
+      ]
+    }
+  }
+}
