@@ -20,6 +20,7 @@
 | 默认 invocation protocol | 普通问答（默认协议下的纯文本收尾） |
 | Benchmark 方法策略作用域 | 模型看到当前范围；普通项目残留白名单仍能生成用户指定的计算输入 |
 | 角色权限矩阵 | small_mol 技能→计算入口、unattended 拒批 |
+| Benchmark 项目默认设置 | AgentHub 独立 peer 的 Bash 自动审批与 ask_user 拦截 |
 | 重试预算与 fail-fast 分类 | provider 暂态重试 / 永久 4xx |
 | 压缩阈值与摘要 | context overflow |
 | 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决、仅修订论证后清除旧拒绝 |
@@ -210,6 +211,29 @@ def malformed_shell_steps() -> list[Step]:
         Step(tools=[("todo_write", {"todos": [{"content": "Recovered after invalid input", "status": "done"}]})]),
         Step(stop=True),
     ]
+
+
+def benchmark_peer_unattended_provider(bash_arguments: dict[str, Any]) -> ScriptedProvider:
+    """两条 Benchmark 入口共用：Hub 独立 peer 回放真实 Bash，再拒绝向人求助。"""
+    import json
+
+    return ScriptedProvider(by_role={
+        "coordinator": [
+            Step(tools=[("agent_hub", {
+                "action": "call", "to": "small_mol",
+                "message": "Inspect the workspace and report back.",
+            })]),
+            Step(stop=True),
+        ],
+        "small_mol": [
+            Step(tools=[("js_exec", {
+                "code": "const inspected = await tools.bash(" + json.dumps(bash_arguments) + ");\n"
+                        'text("BASH finished " + JSON.stringify(inspected));',
+            })]),
+            Step(tools=[("ask_user", {"question": "Which pathway should I follow?"})]),
+            Step(stop=True),
+        ],
+    })
 
 
 def ts_bypass_then_diagnostic_steps() -> list[Step]:

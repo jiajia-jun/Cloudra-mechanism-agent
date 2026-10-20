@@ -16,7 +16,7 @@ Differences from the CLI backend (``backend.RuntimeV2Backend``):
   ``MethodPolicyStage(core=core)`` — no extra stage is appended.
 - The same ``watch.RunWatcher`` state machine decides when a task has
   genuinely finished (wait_background / wait_review semantics, GH #30);
-  unattended spawn settings keep ask_user blocked (GH #31).
+  unattended project defaults keep ask_user blocked for every built-in role (GH #31).
 - Scoring reuses ``BenchmarkRunner.score_sandbox``; results land in the same
   ``benchmark.db`` schema as the CLI runner, tagged with ``batch_id``.
 """
@@ -37,6 +37,7 @@ from cloudra.benchmark.runner import (
     RunResult,
     load_tasks,
     provenance_config,
+    task_project_settings,
 )
 from cloudra.benchmark.schema import TaskSpec, Tier
 from cloudra.benchmark.watch import RunWatcher
@@ -319,11 +320,7 @@ class BenchmarkBatch:
                         payload={
                             "name": f"benchmark:{task.task_id}",
                             "workspace_dir": str(sandbox),
-                            "settings": {
-                                "benchmark_task_id": task.task_id,
-                                "orchestration_mode": task.prompt.orchestration_mode.value,
-                                "method_policy": task.method_policy.model_dump(),
-                            },
+                            "settings": task_project_settings(task),
                         },
                     )
                 )
@@ -339,11 +336,6 @@ class BenchmarkBatch:
                             "query": task.prompt.query,
                             "settings": {
                                 "orchestration_mode": task.prompt.orchestration_mode.value,
-                                # 无人值守：审批走 yolo、ask_user 隐藏并
-                                # fail-closed 拦截（GH #31）
-                                "yolo": True,
-                                "unattended": True,
-                                "clean_context": True,
                             },
                         },
                     )

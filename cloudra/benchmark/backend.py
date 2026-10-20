@@ -27,7 +27,7 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Any
 
-from cloudra.benchmark.runner import BenchmarkStopped
+from cloudra.benchmark.runner import BenchmarkStopped, task_project_settings
 from cloudra.benchmark.schema import TaskSpec
 from cloudra.benchmark.watch import RunWatcher
 
@@ -176,8 +176,7 @@ class RuntimeV2Backend:
                         payload={
                             "name": f"benchmark:{task.task_id}",
                             "workspace_dir": str(sandbox),
-                            "settings": {"benchmark_task_id": task.task_id,
-                                         "method_policy": task.method_policy.model_dump(mode="json")},
+                            "settings": task_project_settings(task),
                         },
                     )
                 )
@@ -194,14 +193,6 @@ class RuntimeV2Backend:
                             "query": task.prompt.query,
                             "settings": {
                                 "orchestration_mode": task.prompt.orchestration_mode.value,
-                                # 无人值守：破坏性工具审批走 yolo 自动通道
-                                "yolo": True,
-                                # 无人值守（GH #31）：隐藏并 fail-closed 拦截
-                                # ask_user，绝不允许挂进 waiting_input
-                                "unattended": True,
-                                # Each benchmark case is isolated from global
-                                # cross-task memory and AGENTS injection.
-                                "clean_context": True,
                             },
                         },
                     )
