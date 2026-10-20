@@ -340,6 +340,45 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
     return checks
 
 
+def _step_endpoint_logs(store, graph, element, workspace_root=None, *, endpoint_refs=None, parsed=None, problems=None):
+    """Select the same bound native endpoint logs for review and file delivery."""
+    problems = problems if problems is not None else []
+
+    def endpoint_candidates(key, node):
+        candidates, _ = _logs(store, node, workspace_root, parsed=parsed) if node else ([], [])
+        node_candidates = candidates
+        if endpoint_refs and key in endpoint_refs:
+            from cloudra.dag.models import GraphRef
+            ref = GraphRef.model_validate(endpoint_refs[key])
+            if ref not in element.refs:
+                return []
+            candidates, errors = _logs(store, element.model_copy(update={'refs': [ref], 'stages': []}), workspace_root, parsed=parsed)
+            problems.extend(errors)
+            # An explicit minimum fixes the final geometry, while a
+            # separate bound Opt log supplies its native IRC starting frame.
+            from cloudra.tools.core.irc_path import same_geometry
+            minima = [_final_geometry(path) for path in candidates if _qm_data(path, parsed)[3] == []]
+            candidates = list(dict.fromkeys([*candidates, *[path for path in node_candidates
+                if any(same_geometry(_final_geometry(path), minimum) for minimum in minima)]]))
+        verified = []
+        for path in candidates:
+            try:
+                data = _qm_data(path, parsed)
+                if (node and node.smiles
+                        and (data[3] == [] or _optimization_converged(path, data[1]) is True)
+                        and any(_geometry_species(path, identity, diagnostics=problems)
+                                for identity in species_smiles(node.smiles))):
+                    verified.append(path)
+            except (ValueError, RuntimeError) as exc:
+                problems.append(str(exc))
+        return verified
+
+    source = next((n for n in graph.nodes if n.node_id == element.source_node_id), None)
+    target = next((n for n in graph.nodes if n.node_id == element.target_node_id), None)
+    return {'source': endpoint_candidates('endpoint_b', source),
+            'target': endpoint_candidates('endpoint_a', target)}
+
+
 def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, workspace_root=None, evidence_refs=None, endpoint_refs=None) -> dict[str, dict]:
     element = next((n for n in graph.nodes if n.node_id == target_id), None)
     is_edge = element is None
@@ -372,37 +411,9 @@ def _file_scientific_checks(store, graph, target_id: str, *, irc_files=None, wor
         checks['ts_opt'] = _ts_optimization_check(logs, parsed=parsed)
         source = next((n for n in graph.nodes if n.node_id == element.source_node_id), None)
         target = next((n for n in graph.nodes if n.node_id == element.target_node_id), None)
-        source_logs, _ = _logs(store, source, workspace_root, parsed=parsed) if source else ([], [])
-        target_logs, _ = _logs(store, target, workspace_root, parsed=parsed) if target else ([], [])
-        def endpoint_candidates(key, node, candidates):
-            node_candidates = candidates
-            if endpoint_refs and key in endpoint_refs:
-                from cloudra.dag.models import GraphRef
-                ref = GraphRef.model_validate(endpoint_refs[key])
-                if ref not in element.refs:
-                    return []
-                candidates, errors = _logs(store, element.model_copy(update={'refs': [ref], 'stages': []}), workspace_root, parsed=parsed)
-                problems.extend(errors)
-                # An explicit minimum fixes the final geometry, while a
-                # separate bound Opt log supplies its native IRC starting frame.
-                from cloudra.tools.core.irc_path import same_geometry
-                minima = [_final_geometry(path) for path in candidates if _qm_data(path, parsed)[3] == []]
-                candidates = list(dict.fromkeys([*candidates, *[path for path in node_candidates
-                    if any(same_geometry(_final_geometry(path), minimum) for minimum in minima)]]))
-            verified = []
-            for path in candidates:
-                try:
-                    data = _qm_data(path, parsed)
-                    if (node and node.smiles
-                            and (data[3] == [] or _optimization_converged(path, data[1]) is True)
-                            and any(_geometry_species(path, identity, diagnostics=problems)
-                                    for identity in species_smiles(node.smiles))):
-                        verified.append(path)
-                except (ValueError, RuntimeError) as exc:
-                    problems.append(str(exc))
-            return verified
-        source_logs = endpoint_candidates('endpoint_b', source, source_logs)
-        target_logs = endpoint_candidates('endpoint_a', target, target_logs)
+        endpoints = _step_endpoint_logs(store, graph, element, workspace_root,
+            endpoint_refs=endpoint_refs, parsed=parsed, problems=problems)
+        source_logs, target_logs = endpoints['source'], endpoints['target']
         charge = next((binding['charge'] for binding in atom_bindings.values() if 'charge' in binding), 0)
         if source_logs and source and source.smiles:
             from rdkit import Chem

@@ -53,6 +53,7 @@ from cloudra.benchmark.integrity import (
     EvidenceFile,
     NodeBinding,
     bind_graph_to_evidence,
+    find_graph_json,
 )
 from cloudra.benchmark.schema import (
     GoldMechanismGraph,
@@ -161,6 +162,7 @@ def _strict_irc_proof(
     charge: int = 0,
     *, ts_files: list[str] | None = None, product_smiles: list[str] | None = None,
     reactant_smiles: list[str] | None = None, details: list[str] | None = None,
+    endpoint_evidence: dict[str, list[str]] | None = None,
 ) -> Optional[tuple[list[str], list[str]]]:
     """Reconstruct the same native IRC→Opt→Freq proof used by DAG and tools."""
     from cloudra.tools.core import gaussian_frames, orca_frames
@@ -182,8 +184,11 @@ def _strict_irc_proof(
                               if same_geometry(geometry, probe.last_geometry(path)))
         return sorted(candidates)
 
-    source = endpoint_candidates(from_files)
-    target = endpoint_candidates(to_files)
+    # The energy reference identifies the delivered species geometry. An
+    # approved step can end at a separately optimized minimum of that species;
+    # keep its exact bound Opt/Freq logs instead of replacing them with history.
+    source = endpoint_evidence["source"] if endpoint_evidence is not None else endpoint_candidates(from_files)
+    target = endpoint_evidence["target"] if endpoint_evidence is not None else endpoint_candidates(to_files)
     failures = [
         f"IRC proof TS candidates (anchor, frequency witness): {ts_candidates or ts_files}; "
         f"SOURCE endpoint evidence: {source or from_files}; TARGET endpoint evidence: {target or to_files}."
@@ -284,6 +289,18 @@ def audit_self_consistency(
     if graph is None:
         report.notes.append("no delivered graph; self-consistency not assessable")
         return report
+
+    from cloudra.benchmark.delivery_evidence import read_step_endpoint_evidence
+
+    step_endpoints = {}
+    endpoint_error = None
+    if rubric.irc_connects_endpoints:
+        try:
+            graph_path = find_graph_json(sandbox)
+            digest = hashlib.sha256(graph_path.read_bytes()).hexdigest() if graph_path is not None else ""
+            step_endpoints = read_step_endpoint_evidence(sandbox, digest)
+        except (OSError, ValueError) as exc:
+            endpoint_error = str(exc)
 
     files_by_path = {f.path: f for f in evidence_files}
     probe = _LogProbe(sandbox, files_by_path)
@@ -397,6 +414,9 @@ def audit_self_consistency(
                 chk.evidence_used.extend(dict.fromkeys([p, witness]))
                 break
         if not irc_ok:
+            if endpoint_error is not None:
+                chk.notes.append(endpoint_error)
+                continue
             from_binding = bmap.get(edge.from_node)
             to_binding = bmap.get(edge.to_node)
             from_files = (
@@ -410,6 +430,7 @@ def audit_self_consistency(
             proof = _strict_irc_proof(probe, sorted(pool), from_files, to_files, charge,
                 ts_files=ts_files,
                 details=chk.notes,
+                endpoint_evidence=step_endpoints.get(edge.id),
                 product_smiles=next(node.smiles for node in graph.nodes if node.id == edge.to_node),
                 reactant_smiles=next(node.smiles for node in graph.nodes if node.id == edge.from_node))
             if proof is not None:

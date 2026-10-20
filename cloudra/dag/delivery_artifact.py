@@ -15,6 +15,7 @@ from cloudra.dag.file_science import (
     _geometry_species,
     _logs,
     _optimization_converged,
+    _step_endpoint_logs,
     file_scientific_checks,
     validate_frequency_geometry,
 )
@@ -30,6 +31,7 @@ class DeliveryArtifact(BaseModel):
     graph_revision: int
     scientific_checks: dict[str, dict]
     target_ids: dict[str, str]
+    step_endpoint_evidence: dict[str, dict[str, list[dict[str, str]]]]
     snapshot_path: str | None = None
 
 
@@ -64,27 +66,53 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
     checks = {}
     target_ids = {}
     energies = {}
+    step_endpoint_evidence = {}
     open_targets = {g.target_id for g in [*report.unresolved, *report.inconclusive, *report.waived]}
     reviews = store.list_review_requests(state=None)
 
-    def current_evidence(element):
+    def evidence_request(element):
         target_id = getattr(element, 'node_id', None) or element.edge_id
-        request = next((r for r in reversed(reviews) if r.kind == 'evidence'
+        return next((r for r in reversed(reviews) if r.kind == 'evidence'
                         and r.proposal.get('element_type') in {'species', 'step'}
                         and r.target_ids == [target_id] and r.supporting_refs
                         and all(ref in element.refs for ref in r.supporting_refs)), None)
+
+    def current_evidence(element):
+        request = evidence_request(element)
         return element.model_copy(update={'refs': request.supporting_refs, 'stages': []}) if request else element
 
     def scientific_checks(element):
         target_id = getattr(element, 'node_id', None) or element.edge_id
-        request = next((r for r in reversed(reviews) if r.kind == 'evidence'
-                        and r.proposal.get('element_type') in {'species', 'step'}
-                        and r.target_ids == [target_id] and r.supporting_refs
-                        and all(ref in element.refs for ref in r.supporting_refs)), None)
+        request = evidence_request(element)
         return file_scientific_checks(store, graph, target_id, workspace_root=root,
             evidence_refs=request.supporting_refs if request else None,
             irc_files=request.proposal.get('irc_files') if request else None,
             endpoint_refs=request.proposal.get('endpoint_refs') if request else None)
+
+    def endpoint_evidence(element):
+        request = evidence_request(element)
+        element = current_evidence(element)
+        selected = _step_endpoint_logs(store, graph, element, root,
+            endpoint_refs=request.proposal.get('endpoint_refs') if request else None)
+        related = [element, *[node for node in graph.nodes
+            if node.node_id in {element.source_node_id, element.target_node_id}]]
+        snapshots = {}
+        for item in related:
+            for ref in [*item.refs, *[stage.ref for stage in item.stages if stage.ref is not None]]:
+                payload = store.resolve_evidence(ref)
+                if isinstance(payload, dict) and 'snapshot_path' in payload:
+                    snapshot = FileEvidenceSnapshot.model_validate(payload)
+                    snapshots[str(Path(snapshot.snapshot_path).resolve())] = snapshot
+        result = {}
+        for side, logs in selected.items():
+            result[side] = []
+            for log in logs:
+                path = Path(log).resolve()
+                snapshot = snapshots.get(str(path))
+                if snapshot is None:
+                    raise ValueError(f'Step {element.name!r} endpoint log needs a bound immutable file snapshot: {log}')
+                result[side].append({'path': str(path.relative_to(root)), 'sha256': snapshot.sha256})
+        return result
 
     def match_species(node):
         matches = [n for n in graph.nodes if node.id in {n.node_id, n.name}]
@@ -214,6 +242,8 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
         target_ids[edge.id] = element.edge_id
         step_checks = scientific_checks(element)
         checks[edge.id] = step_checks
+        if step_checks.get('short_irc', {}).get('status') == 'passed':
+            step_endpoint_evidence[edge.id] = endpoint_evidence(element)
         verified = element.edge_id not in open_targets and all(c['status'] == 'passed' for c in step_checks.values())
         if edge.barrier_kcal_mol is not None and not verified:
             raise ValueError(f'Step {edge.id!r} cannot declare a barrier before its DAG scientific checks and review pass.')
@@ -243,4 +273,5 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
     if required_targets - represented:
         raise ValueError(f'Artifact omits declared delivery targets: {sorted(required_targets - represented)}.')
     return DeliveryArtifact(path=str(path), sha256=hashlib.sha256(content).hexdigest(),
-        graph_revision=graph.revision, scientific_checks=checks, target_ids=target_ids)
+        graph_revision=graph.revision, scientific_checks=checks, target_ids=target_ids,
+        step_endpoint_evidence=step_endpoint_evidence)

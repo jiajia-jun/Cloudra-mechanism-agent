@@ -495,4 +495,8 @@ class StopAuditMixin:
             report = report.model_copy(update={'output_artifact': artifact.model_dump(mode='json')})
         await asyncio.to_thread(self.store.record_delivery_disposition, self.session_id, disposition, report,
             expected_state=state)
+        if artifact is not None:
+            from cloudra.benchmark.delivery_evidence import write_step_endpoint_evidence
+            await asyncio.to_thread(write_step_endpoint_evidence, self.working_directory,
+                artifact.sha256, artifact.step_endpoint_evidence)
         self._pending_stop = None

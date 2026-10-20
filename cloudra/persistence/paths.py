@@ -57,6 +57,11 @@ def mechanism_graph_path(workspace_root: PathLike) -> Path:
     return Path(workspace_root) / "mechanism_graph.json"
 
 
+def mechanism_evidence_path(workspace_root: PathLike) -> Path:
+    """Program-authored per-step endpoint bindings for the declared delivery."""
+    return Path(workspace_root) / ".cloudra" / "mechanism_evidence.json"
+
+
 def workspace_file_lock_path(workspace_root: PathLike, relative_path: str) -> Path:
     """Stable inode for a text file's cross-process check-and-replace lock."""
     import hashlib
