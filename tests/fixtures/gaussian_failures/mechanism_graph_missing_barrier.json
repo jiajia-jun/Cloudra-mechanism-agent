@@ -1,0 +1,146 @@
+{
+  "nodes": [
+    {
+      "id": "RC_endo",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -385.766810905,
+        "evidence_log": "calc/endo/opt_endB/opt_endB.log"
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CCC=C1.C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -385.744265739,
+        "evidence_log": "calc/endo/ts2/ts_endo2.log"
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "O=C[C@@H]1C[C@@H]2C=CC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -385.798607847,
+        "evidence_log": "calc/endo/opt_endA/opt_endA.log"
+      }
+    },
+    {
+      "id": "RC_exo",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -385.765817909,
+        "evidence_log": "calc/exo/opt_rc_exo_irc/opt_rc_exo_irc.log"
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CCC=C1.C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -385.74383198,
+        "evidence_log": "calc/exo/ts_exo_guess1.log"
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "O=C[C@H]1C[C@@H]2C=CC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -385.798129436,
+        "evidence_log": "calc/exo/opt_prod_exo_irc/opt_prod_exo_irc.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "cycloaddition_endo",
+      "from": "RC_endo",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          [
+            7,
+            8
+          ]
+        ],
+        "form": [
+          [
+            3,
+            8
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ]
+      },
+      "channel": "endo"
+    },
+    {
+      "id": "cycloaddition_exo",
+      "from": "RC_exo",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          [
+            7,
+            8
+          ]
+        ],
+        "form": [
+          [
+            3,
+            8
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ]
+      },
+      "channel": "exo"
+    }
+  ]
+}

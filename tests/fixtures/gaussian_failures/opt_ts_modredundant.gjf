@@ -1,0 +1,13 @@
+%chk=/workspace/sandboxes/D1/batch_62fdfeacf177492c/probe/p6.chk
+%nproc=2
+%mem=2GB
+#p opt=TS B3LYP/def2SVP ModRedundant
+
+probe standalone ModRedundant keyword with opt=TS | expected_smiles: [H][H] (unverified expectation)
+
+0 1
+H        0.35400048     0.00000000     0.00000000
+H       -0.35400048     0.00000000     0.00000000
+
+B 1 2
+
