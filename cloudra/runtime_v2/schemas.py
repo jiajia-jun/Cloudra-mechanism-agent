@@ -223,6 +223,9 @@ class AgentSession(BaseModel):
     # AgentHub peer call requests a result notification without creating a
     # parent/child relationship (and therefore without cancellation cascade).
     requested_by_session_id: Optional[str] = None
+    # Internal binding: each final delivery request has an independent reviewer.
+    # Researchers never supply this identity through AgentHub tool arguments.
+    final_review_request_id: str | None = None
     state: AgentState = AgentState.QUEUED
     settings: RuntimeSettings = Field(default_factory=RuntimeSettings)
     settings_revision: int = 0

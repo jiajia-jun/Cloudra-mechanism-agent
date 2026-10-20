@@ -1,0 +1,31 @@
+{
+  "source_commit": "81def5682875a4fffbc5af9fe89a235d57798c27",
+  "task_id": "HB10",
+  "batch_id": "batch_159a23ad57b64073",
+  "project_id": "prj_f6b449fe54d740d8",
+  "source_files": {
+    "snapshot.tar.gz": {
+      "path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/diagnostics/hb10-delivery-audit/snapshot.tar.gz",
+      "sha256": "cd5e00fe29a13109268886f9afc9f70ef59bbfd3d17c6b59dfc93be80cc98d72"
+    },
+    "snapshot/runtime-events.json": {
+      "path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/diagnostics/hb10-delivery-audit/snapshot/runtime-events.json",
+      "sha256": "2698f57f83f513242f100aaddbe5cad4ec91f00ca8283ae940b8cb56bca66504"
+    },
+    "supervisor-input-before-thermo.json": {
+      "path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/diagnostics/hb10-delivery-audit/supervisor-input-before-thermo.json",
+      "sha256": "728fbaab8f6c1defe95e4e3fc196740ec7955933a630154983e15756783fa43b"
+    }
+  },
+  "files": {
+    "case.json": {
+      "sha256": "52b9e3d46257f18e2db1c439e26712e1d5f1dd594e78fa855d9faa30f13cfeea",
+      "bytes": 11404
+    },
+    "README.md": {
+      "sha256": "4a64c65d43aa58bb8bb8acc4cf5318344b73b5d6e526e5ae7106c61296793374",
+      "bytes": 1723
+    }
+  },
+  "scope": "Verbatim blind task, generic Supervisor notice, input-gap audit, and contract-call receipts only. Original sender provenance is preserved."
+}

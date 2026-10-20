@@ -858,8 +858,8 @@ class DagStore:
 
         The request's stored basis must equal ``expected_basis``; a stale basis
         means the decision cannot be applied (superseded request).  Consumer
-        uniqueness comes from the runtime: the project's single Supervisor
-        agent resolves queued requests through the serialized
+        scope comes from the runtime: a process Supervisor or a reviewer bound
+        to this final request resolves it through the serialized
         InvocationService path, and the duplicate_decision guard rejects a
         second resolve of the same request+basis (idempotency).
         """

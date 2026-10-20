@@ -25,6 +25,7 @@
 | 压缩阈值与摘要 | context overflow |
 | 结题门禁 + 编排模式 | dag_guided 证据门与督导裁决、仅修订论证后清除旧拒绝 |
 | 停止请求 + 最终答复门禁 | 未放行的候选答复不进入用户消息，放行事件先于最终答复 |
+| 独立最终督导 + 用户题干 | 部分退出新建审查上下文，完整读取人类约束而不继承过程意图 |
 | 消息投递/恢复语义 | 异步子 Agent 回传、重启 |
 | 重启后的按需收口 | 用户重新发消息时先关闭旧工具/程序，再进入新回复 |
 | 督导反馈通知 + 后台等待 | 只读督导反馈唤醒协调员，消费消息后仍保护运行中的计算 |
@@ -259,6 +260,25 @@ def final_delivery_review_steps(review: Step, resume: asyncio.Event, park: async
                         Step(wait_for=resume, tools=[("stop", {"delivery_disposition": "complete"})]),
                         Step(wait_for=park)],
         "supervisor": [review, Step(stop=True)],
+    }
+
+
+def independent_partial_review_steps(
+    review: Step,
+    attempt: asyncio.Event,
+    confirm: asyncio.Event,
+    *,
+    prior_intent: str,
+) -> dict[str, list[Step]]:
+    """过程督导先休眠；部分退出由新督导审查，原请求人收到裁决再确认。"""
+    stop = {"delivery_disposition": "partial", "reason": "Report the observed partial evidence."}
+    return {
+        "coordinator": [
+            Step(wait_for=attempt, tools=[("dag_delivery_report", {})]),
+            Step(tools=[("stop", stop)]),
+            Step(wait_for=confirm, tools=[("stop", stop)]),
+        ],
+        "supervisor": [Step(text=prior_intent, stop=True), review, Step(stop=True)],
     }
 
 

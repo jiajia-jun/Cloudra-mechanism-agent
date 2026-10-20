@@ -237,6 +237,10 @@ class DagPolicyStage:
             await flush_review_notifications(self._core, ctx.agent.project_id)
 
     async def before_llm(self, ctx: PipelineContext, messages: list[dict[str, Any]]) -> None:
+        if self._core is not None and ctx.agent.role_id == "supervisor":
+            from cloudra.runtime_v2.supervision_context import sync_supervisor_task_context
+
+            await sync_supervisor_task_context(self._core, ctx.agent)
         controller = await self._controller(ctx)
         notices = getattr(ctx, "notices", None)
         if controller is None:

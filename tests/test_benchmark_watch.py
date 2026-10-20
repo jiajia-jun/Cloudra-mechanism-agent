@@ -19,13 +19,14 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import AgentState, Command
 
 
-async def _spawn_quiet(core, bus, project_id: str, role_id: str):
+async def _spawn_quiet(core, bus, project_id: str, role_id: str, **payload):
     """spawn 不带 query：不投递消息、不调度（纯状态样本）。"""
     result = await bus.execute(
         Command(
             type="agent.spawn",
             target={"project_id": project_id},
-            payload={"role_id": role_id},
+            payload={"role_id": role_id, **payload},
+            actor="system",
         )
     )
     return result.data
@@ -43,7 +44,21 @@ async def _core_with_agents(tmp_path, second_role: str = "coordinator"):
         )
     ).data
     parent = await _spawn_quiet(core, bus, project.id, "coordinator")
-    sibling = await _spawn_quiet(core, bus, project.id, second_role)
+    binding = {}
+    if second_role == "supervisor":
+        from cloudra.dag.review_requests import ReviewRequest
+        from cloudra.dag.store import DagStore
+        from cloudra.persistence.database import ConversationDB
+
+        def queue_exit():
+            db = ConversationDB(project.id).init()
+            return DagStore(db).enqueue_review(ReviewRequest(kind="exit", requester=parent.id,
+                target_ids=["delivery"], question="May this delivery finish?",
+                proposal={"disposition": "partial"}, basis_fingerprint="sha256:delivery"))
+
+        binding = {"parent_session_id": parent.id,
+                   "final_review_request_id": await asyncio.to_thread(queue_exit)}
+    sibling = await _spawn_quiet(core, bus, project.id, second_role, **binding)
     return core, project, parent, sibling
 
 

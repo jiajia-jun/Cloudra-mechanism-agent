@@ -981,6 +981,7 @@ class _LegacyAgentBridge:
 
     def __init__(self, agent: AgentSession, workspace_dir: str | None, event_log=None) -> None:
         self._runtime_agent = agent
+        self.final_review_request_id = agent.final_review_request_id
         self.id = agent.id
         self.name = agent.role_id
         # dag_* 工具的 _actor() 依 type=="supervisor" 判 GraphActor.SUPERVISOR

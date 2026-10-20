@@ -1144,7 +1144,10 @@ async def test_exit_review_roundtrip_drives_coordinator_to_approved_partial(tmp_
         assert await asyncio.to_thread(_request_ids), (
             "wait_review gate fired without a persisted exit review request"
         )
-        supervisor = find_project_supervisor(core, project.id)
+        from cloudra.runtime_v2.supervision import find_final_review_supervisor
+
+        request_ids = await asyncio.to_thread(_request_ids)
+        supervisor = find_final_review_supervisor(core, project.id, request_ids[0])
         assert supervisor is not None
         llm._supervisor = supervisor
 

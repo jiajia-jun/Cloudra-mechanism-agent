@@ -361,6 +361,7 @@ class AgentHost:
         role: RoleProfile,
         parent_session_id: str | None,
         requested_by_session_id: str | None = None,
+        final_review_request_id: str | None = None,
         display_name: str | None,
         settings: RuntimeSettings,
     ) -> AgentSession:
@@ -393,6 +394,7 @@ class AgentHost:
             display_name=display_name or role.display_name,
             parent_session_id=parent_session_id,
             requested_by_session_id=requested_by_session_id,
+            final_review_request_id=final_review_request_id,
             settings=settings,
             capabilities=AgentCapabilities(
                 permissions=role.permissions,

@@ -64,24 +64,33 @@ def _has_live_task(core, session_id: str) -> bool:
     return task is not None and not task.done()
 
 
-def has_live_supervisor(core, project_id: str) -> bool:
-    """项目内是否存在仍可能裁决的 Supervisor（非终态/非沉睡即活）。"""
-    from cloudra.runtime_v2.supervision import find_project_supervisor
+def has_live_supervisor(core, project_id: str, *, requester_session_id: str) -> bool:
+    """Only this root's current queued exit reviewer can answer its wait."""
+    from cloudra.runtime_v2.supervision import pending_supervision_for_agent
 
-    supervisor = find_project_supervisor(core, project_id)
-    if supervisor is None:
-        return False
-    return supervisor.state not in _SUPERVISOR_DEAD_STATES
+    agents = [agent.model_copy(deep=True) for agent in list(core.agents.values())]
+    return any(
+        agent.project_id == project_id
+        and agent.role_id == "supervisor"
+        and agent.final_review_request_id is not None
+        and agent.parent_session_id == requester_session_id
+        and agent.state not in _SUPERVISOR_DEAD_STATES
+        and pending_supervision_for_agent(project_id, agent)
+        for agent in agents
+    )
 
 
 def has_running_peers(core, agent, *, final_cache: dict | None = None, peers=None) -> bool:
     """Project peers include children parked after a background-wait run."""
     from cloudra.runtime_v2.subagent_bridge import build_child_completion_index
+    from cloudra.runtime_v2.supervision import pending_supervision_for_agent
 
     parked_children = []
     task_for = getattr(getattr(core, "runner", None), "task_for", None)
     for peer in list(core.agents.values()) if peers is None else peers:
         if peer.id == agent.id or peer.project_id != agent.project_id:
+            continue
+        if peer.role_id == "supervisor" and not pending_supervision_for_agent(agent.project_id, peer):
             continue
         # A terminal projection can precede the completion report and its wake.
         # Wait for the real peer task to finish that delivery before scoring.
@@ -229,7 +238,8 @@ class RunWatcher:
             if state is AgentState.WAITING_APPROVAL and reason == WAIT_REVIEW_REASON:
                 # 等内部 Supervisor 裁决（GH #30/NI1）：不是人工卡死；只有
                 # 督导已死（无人会裁决）才落入卡死取消。
-                if has_live_supervisor(core, agent.project_id):
+                if await asyncio.to_thread(has_live_supervisor, core, agent.project_id,
+                                           requester_session_id=agent.id):
                     return WaitDecision("continue")
                 return WaitDecision(
                     "cancel",

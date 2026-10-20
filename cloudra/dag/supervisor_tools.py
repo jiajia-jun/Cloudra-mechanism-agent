@@ -280,6 +280,15 @@ class SupervisorToolExecutor:
                 "dag_view/dag_view_evidence/dag_delivery_report), get_skill, agent_hub, "
                 "and the dag_* review-decision tools."
             )
+        from cloudra.tools.Plantool.dag_tools._common import final_review_request_id
+
+        if final_review_request_id(self._agent) and (
+            access == "process_write" or (access == "review_decision" and name != "dag_review_evidence")
+        ):
+            return _error(
+                "[permission denied] Final-delivery reviewers may decide only their assigned exit request; "
+                "process notes, draft decisions, evidence decisions, and coverage changes belong to the process Supervisor."
+            )
         if access == "hub":
             return await self._execute_hub(arguments, session_id=session_id)
         if access == "process_write":
