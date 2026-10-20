@@ -21,9 +21,11 @@ from cloudra.services.compute_store import (
     acancel_all_compute_jobs,
     aget_compute_job,
     alist_compute_jobs,
+    arequest_compute_job_cancellation,
 )
 
 from ..context import ApiContext
+from ..models import ComputeCancelPost
 
 _ACTIVE_STATES = ("ready", "running", "cancel_requested")
 
@@ -53,6 +55,18 @@ def build_router(ctx: ApiContext) -> APIRouter:
             order="recent",
             limit=None if active_only else 100,
         )
+
+    @router.post("/api/v2/projects/{project_id}/compute/jobs/{job_id}/cancel", dependencies=ctx.protected)
+    async def cancel_project_compute_job(project_id: str, job_id: int, body: ComputeCancelPost) -> dict:
+        ctx.core.require_project(project_id)
+        try:
+            return await arequest_compute_job_cancellation(
+                ComputeDB(), job_id, project_id=project_id, reason=body.reason,
+            )
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(400, str(exc)) from exc
 
     @router.get("/api/v2/compute/nodes", dependencies=ctx.protected)
     async def list_compute_nodes() -> list[dict]:

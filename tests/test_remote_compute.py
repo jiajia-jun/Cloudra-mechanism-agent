@@ -121,7 +121,8 @@ def test_runner_script_writes_pid_and_exit_files_without_set_e():
     assert "echo $$ > .cloudra-runner-7.pid" in script
     assert ".cloudra-pid-7" not in script
     assert "echo \"$rc\" > .cloudra-exit-7" in script
-    assert "> .cloudra/calc-7.out.log 2>&1 &" in script
+    assert "> .cloudra/calc-7.out.log 2>&1" in script
+    assert "python3 .cloudra/calc_lock_wrapper.py .cloudra/calc-7.lock --" in script
     assert "bash calculator.sh mol.xyz xtb" in script
 
 
@@ -158,6 +159,9 @@ async def test_ssh_local_happy_path_stages_polls_and_finalizes(tmp_path):
     assert ".cloudra/" in transport.pushes[0][3]
     assert transport.pushes[1][0] == "files"
     assert transport.pushes[1][1][0].endswith("calculator.sh")
+    assert any(item[0] == "files" and item[1][0].endswith("calc_lock_wrapper.py")
+               and item[2].endswith("/.cloudra") for item in transport.pushes)
+    assert any("sys.version_info" in cmd and "python3" in cmd for cmd in transport.commands)
     # 提交脚本写在本地 workdir（可审计），远端 nohup 拉起
     assert (tmp_path / f".cloudra-run-{job_id}.sh").is_file()
     assert any("nohup" in cmd for cmd in transport.commands)
@@ -229,7 +233,7 @@ async def test_ssh_local_cancel_requested_is_delivered_to_owning_runner(tmp_path
     assert rc == 1
     row = await aget_compute_job(db, job_id)
     assert row["state"] == "cancelled"
-    assert any("touch " in cmd and ".cloudra-cancel-" in cmd for cmd in transport.commands)
+    assert any("touch " in cmd and "/.cloudra/calc-" in cmd and ".cancel" in cmd for cmd in transport.commands)
     assert not any("kill -TERM" in cmd for cmd in transport.commands)
 
 

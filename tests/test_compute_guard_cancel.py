@@ -41,10 +41,11 @@ async def _until(predicate, timeout=4):
 
 async def _stop_test_process(proc):
     """Only synthetic sessions created by this test are ever signalled here."""
-    try:
-        os.killpg(proc.pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
+    if proc.returncode is None:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
     await proc.wait()
 
 
@@ -244,6 +245,94 @@ async def test_cancel_waits_for_term_ignoring_link_to_stop(synthetic_job, close_
         await asyncio.gather(guard, return_exceptions=True)
         for proc in job.created:
             await _stop_test_process(proc)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("close_fds", [True, False], ids=["closed_lock", "inherited_lock"])
+async def test_cancel_stops_owned_session_child_in_another_process_group(synthetic_job, close_fds):
+    job = synthetic_job
+    job.script.write_text(job.script.read_text().replace(
+        "close_fds=False", f"close_fds={close_fds}, preexec_fn=os.setpgrp",
+    ).replace(
+        "signal.signal(signal.SIGTERM, stop)",
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN if role == 'link' else stop)",
+    ).replace(
+        "while True: time.sleep(0.05)",
+        "while not (root / 'finish').exists():\n"
+        "    if role == 'link': (root / 'link.heartbeat').write_text(str(time.monotonic_ns()))\n"
+        "    time.sleep(0.01)",
+    ))
+    unrelated = await asyncio.create_subprocess_exec(
+        sys.executable, "-c", "import time; time.sleep(30)", start_new_session=True,
+    )
+    guard = job.run()
+    try:
+        heartbeat = job.root / "link.heartbeat"
+        await _until(heartbeat.exists)
+        child_pid = int((job.root / "link.ready").read_text())
+        owner_sid = os.getsid(child_pid)
+        owner = next(proc for proc in job.created if proc.pid == owner_sid)
+        assert owner.pid != unrelated.pid
+        assert os.getpgid(child_pid) != owner.pid
+        await asyncio.to_thread(_set_state, job.db, job.id, "cancel_requested")
+        done, _ = await asyncio.wait({guard}, timeout=4)
+        assert guard in done, "cancellation must reach owned MPI-like child groups"
+        await guard
+        final_heartbeat = heartbeat.read_text()
+        await asyncio.sleep(0.15)
+        assert heartbeat.read_text() == final_heartbeat, "cancelled must not leave an owned child executing"
+        assert unrelated.returncode is None
+        assert get_compute_job(job.db, job.id)["state"] == "cancelled"
+        assert not is_lock_held(calc_lock_path(str(job.root), job.id))
+    finally:
+        # A finish marker also cleans up the pre-fix child outside the old PGID.
+        (job.root / "finish").touch()
+        await asyncio.sleep(0.15)
+        guard.cancel()
+        await asyncio.gather(guard, return_exceptions=True)
+        for proc in job.created:
+            await _stop_test_process(proc)
+        await _stop_test_process(unrelated)
+
+
+@pytest.mark.asyncio
+async def test_adopt_delivers_cancel_to_original_owner_without_using_stored_pid(synthetic_job):
+    from cloudra.runtime import monitor
+
+    job = synthetic_job
+    guard = job.run()
+    unrelated = await asyncio.create_subprocess_exec(
+        sys.executable, "-c", "import time; time.sleep(30)", start_new_session=True,
+    )
+    adopt = None
+    try:
+        await _until(lambda: (job.root / "link.ready").exists())
+        guard.cancel()
+        await asyncio.gather(guard, return_exceptions=True)
+        assert any(proc.pid != unrelated.pid and proc.returncode is None for proc in job.created)
+        await asyncio.to_thread(_set_pid, job.db, job.id, unrelated.pid)
+        await asyncio.to_thread(_set_state, job.db, job.id, "cancel_requested")
+        adopt = asyncio.create_task(monitor.run_adopt(
+            taskid=job.id, path=str(job.input), conv_id="guard-test", parse_timeout=1,
+            db_path=job.db.path, job_type="gaussian",
+        ))
+        done, _ = await asyncio.wait({adopt}, timeout=4)
+        assert adopt in done, "adoption must forward cancellation to the original live owner"
+        await adopt
+        assert (job.root / "calculator.terminated").exists()
+        assert (job.root / "link.terminated").exists()
+        assert unrelated.returncode is None
+        assert get_compute_job(job.db, job.id)["state"] == "cancelled"
+        assert not is_lock_held(calc_lock_path(str(job.root), job.id))
+    finally:
+        guard.cancel()
+        if adopt is not None:
+            adopt.cancel()
+            await asyncio.gather(adopt, return_exceptions=True)
+        await asyncio.gather(guard, return_exceptions=True)
+        for proc in job.created:
+            await _stop_test_process(proc)
+        await _stop_test_process(unrelated)
 
 
 @pytest.mark.asyncio

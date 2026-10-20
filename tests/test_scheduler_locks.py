@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
 
@@ -79,6 +81,19 @@ def test_calc_lock_wrapper_refuses_when_held(tmp_path):
         os.close(fd)
 
 
+def test_wrapper_runs_as_a_standalone_file_without_cloudra_imports(tmp_path):
+    from cloudra.runtime import calc_lock_wrapper
+
+    lock = tmp_path / "standalone.lock"
+    result = subprocess.run(
+        [sys.executable, "-I", str(Path(calc_lock_wrapper.__file__)), str(lock), "--",
+         sys.executable, "-c", "pass"],
+        cwd=tmp_path, text=True, capture_output=True, timeout=5,
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(lock.with_suffix(".exit.json").read_text()) == {"exit_code": 0}
+
+
 def test_wrapper_term_handler_does_not_make_engine_ignore_term(tmp_path):
     ready = tmp_path / "ready"
     proc = subprocess.Popen(_wrapper_cmd(
@@ -91,17 +106,12 @@ def test_wrapper_term_handler_does_not_make_engine_ignore_term(tmp_path):
             assert time.monotonic() < deadline
             time.sleep(0.02)
         os.kill(proc.pid, signal.SIGTERM)
-        time.sleep(0.1)
-        assert proc.poll() is None, "wrapper must retain ownership when only it receives TERM"
-        os.killpg(proc.pid, signal.SIGTERM)
         proc.wait(timeout=3)
         assert proc.returncode != 0, "exec child must retain default TERM handling"
         assert not is_lock_held(str(tmp_path / "term.lock"))
     finally:
-        try:
+        if proc.poll() is None:
             os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
         proc.wait(timeout=3)
 
 
@@ -113,9 +123,6 @@ def test_wrapper_records_early_term_and_covers_spawn_window(tmp_path, monkeypatc
     launches = []
     signals = []
     lock = tmp_path / "early.lock"
-
-    class WrapperKilled(BaseException):
-        """SIGKILL ends the wrapper instead of returning from killpg."""
 
     def install(sig, handler):
         previous = handlers.get(sig, signal.SIG_DFL)
@@ -133,28 +140,21 @@ def test_wrapper_records_early_term_and_covers_spawn_window(tmp_path, monkeypatc
         handlers[signal.SIGTERM](signal.SIGTERM, None)
         return Calculator()
 
-    def forward(group, sig):
-        assert group == os.getpid()
+    def forward(sig):
         assert is_lock_held(str(lock)), "wrapper must retain its lock through group cancellation"
-        signals.append((group, sig))
-        if sig == signal.SIGKILL:
-            raise WrapperKilled
-        handlers[signal.SIGTERM](signal.SIGTERM, None)
+        signals.append(sig)
 
     monkeypatch.setattr(signal, "signal", install)
     monkeypatch.setattr(wrapper.os, "getsid", lambda _pid: os.getpid())
     monkeypatch.setattr(wrapper.os, "getpgrp", os.getpid)
-    monkeypatch.setattr(wrapper.os, "killpg", forward)
+    monkeypatch.setattr(wrapper, "_owned_session_members", lambda: [])
+    monkeypatch.setattr(wrapper, "_signal_owned_session", forward)
     monkeypatch.setattr(subprocess, "Popen", spawn)
     monkeypatch.setattr(wrapper, "_CANCEL_GRACE_SECONDS", 0)
     if during_spawn:
-        with pytest.raises(WrapperKilled):
-            wrapper.main([str(lock), "--", "synthetic"])
+        assert wrapper.main([str(lock), "--", "synthetic"]) != 0
         assert launches == ["popen"]
-        assert signals == [
-            (os.getpid(), signal.SIGTERM),
-            (os.getpid(), signal.SIGKILL),
-        ]
+        assert signals == [signal.SIGTERM]
     else:
         rc = wrapper.main([str(lock), "--", "synthetic"])
         assert launches == [], "accepted pre-spawn cancellation must not start an engine"

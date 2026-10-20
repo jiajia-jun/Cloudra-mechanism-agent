@@ -2356,3 +2356,94 @@ async def test_public_js_failure_bookkeeping_preserves_live_compute_and_review(t
         for fd in lock_fds:
             await asyncio.to_thread(os.close, fd)
         await harness.aclose()
+
+
+@pytest.mark.asyncio
+async def test_public_js_cancellation_is_project_scoped_and_preserves_live_execution(tmp_path):
+    """同一公开调用链分别撤回队列、请求执行端取消，并拒绝外项目作业。"""
+    from cloudra.dag.store import DagStore
+    from cloudra.infra.compute_utils import calc_lock_path, guard_lock_path
+    from cloudra.infra.flocks import is_lock_held, try_acquire_lock
+    from cloudra.persistence.database import ComputeDB, ConversationDB
+    from cloudra.services import session_store
+    from tests.agent_scenarios import scoped_compute_cancellation_steps
+
+    ready = asyncio.Event()
+    provider = ScriptedProvider()
+    harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    lock_fds = []
+    try:
+        def create_jobs():
+            db = ComputeDB().init()
+            workdir = _workspace(harness.project.id) / "cancel-trials"
+            workdir.mkdir(parents=True)
+            ids = []
+            with db.connect() as con:
+                for project_id, state in ((harness.project.id, "ready"),
+                                          (harness.project.id, "running"),
+                                          ("foreign-project", "running")):
+                    cursor = con.execute(
+                        "INSERT INTO compute_jobs(conversation_id, session_id, state, path, jobtype, "
+                        "scheduler, lease_expires_at, last_error) VALUES (?, '', ?, ?, 'orca', "
+                        "'local', 12345, 'original execution state')",
+                        (project_id, state, str(workdir / f"trial-{len(ids)}.inp")),
+                    )
+                    ids.append(int(cursor.lastrowid))
+                con.commit()
+            return db, workdir, ids
+
+        db, workdir, job_ids = await asyncio.to_thread(create_jobs)
+        ready_job, live_job, foreign_job = job_ids
+        provider.script("small_mol", *scoped_compute_cancellation_steps(job_ids, ready))
+        agent = await harness.spawn("small_mol", protocol="javascript", orchestration_mode="dag_record")
+
+        def bind_session_and_hold_live_locks():
+            conv_db = ConversationDB(harness.project.id).init()
+            session_store.create_session_record(
+                conv_db, session_id=agent.id, agent_id="small_mol", agent_type="small_mol",
+                parent_session_id=None, query="withdraw superseded trials",
+                created_at="2026-10-21T00:00:00+00:00", orchestration_mode="dag_record",
+            )
+            with db.connect() as con:
+                con.execute("UPDATE compute_jobs SET session_id=? WHERE conversation_id=?",
+                            (agent.id, harness.project.id))
+                con.commit()
+            paths = [helper(str(workdir), live_job) for helper in (calc_lock_path, guard_lock_path)]
+            for path in paths:
+                fd = try_acquire_lock(path)
+                assert fd is not None
+                lock_fds.append(fd)
+            return conv_db, paths
+
+        conv_db, lock_paths = await asyncio.to_thread(bind_session_and_hold_live_locks)
+        ready.set()
+        await harness.wait_terminal(agent)
+        calls = [call for call in harness.tool_events(agent) if call["tool_name"] == "cancel_compute_job"]
+        assert len(calls) == 3, harness.describe(agent)
+        assert all(call["started"] and not call["blocked"] for call in calls), harness.describe(agent)
+        results = {call["result_data"]["job_id"]: call for call in calls}
+        assert results[ready_job]["is_success"] is True
+        assert results[ready_job]["result_data"]["state"] == "cancelled"
+        assert results[live_job]["is_success"] is True
+        assert results[live_job]["result_data"]["state"] == "cancel_requested"
+        assert results[foreign_job]["is_success"] is False
+        programs = [event for event in harness.events(agent) if event.type == "program.finished"]
+        assert len(programs) == 1 and programs[0].data["status"] == "completed"
+
+        def read_bookkeeping():
+            with db.connect() as con:
+                rows = dict(con.execute("SELECT id,state FROM compute_jobs"))
+                live = con.execute("SELECT lease_expires_at,end_timestamp FROM compute_jobs WHERE id=?",
+                                   (live_job,)).fetchone()
+            return rows, live, [is_lock_held(path) for path in lock_paths], DagStore(conv_db).list_call_reviews(state=None)
+
+        rows, live, held, reviews = await asyncio.to_thread(read_bookkeeping)
+        assert rows == {ready_job: "cancelled", live_job: "cancel_requested", foreign_job: "running"}
+        assert live[0] == 12345 and live[1] in (None, -1)
+        assert held == [True, True]
+        assert not [review for review in reviews if review.compute_job_id in {str(ready_job), str(live_job)}]
+    finally:
+        ready.set()
+        for fd in lock_fds:
+            await asyncio.to_thread(os.close, fd)
+        await harness.aclose()

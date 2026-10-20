@@ -48,6 +48,11 @@ class CancelPost(BaseModel):
     message: Optional[str] = None
 
 
+class ComputeCancelPost(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(min_length=1)
+
+
 class RestartPost(BaseModel):
     message: Optional[str] = None
     settings: dict[str, Any] = Field(default_factory=dict)

@@ -97,7 +97,9 @@
   引入额外指令），`sbatch --parsable` 提交并保存 job id；轮询期间经 `sacct` 查询
   状态并续租。
 - **ssh_slurm / ssh_local**（节点带 `connection: ssh`，`runtime/remote_compute.py`）：
-  远端**不起 guard、不需要远端 Python/cloudra**，认领进程内 async poller 即看守。
+  远端不起 guard，认领进程内 async poller 即看守。`ssh_local` 需要 Python 3.11+，
+  随任务发送与本地相同的独立计算 owner，无需安装 Cloudra；`ssh_slurm` 由 Slurm
+  根据作业句柄取消和确认退出，不增加 Python 要求。
   rsync 把整棵本地工作目录推送到 `<remote_root>/cloudra-<id>/`（排除 `.cloudra/`、
   `.g16_scratch/`，并单独推内置 calculator.sh），然后远端 sbatch 或 nohup 直跑
   runner 脚本（退出码落 `.cloudra-exit-<id>`）；终态后拉回全部产物到本地输入目录，

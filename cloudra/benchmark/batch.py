@@ -637,7 +637,14 @@ class BenchmarkService:
             batch = self._active_batch()
             if batch is None:
                 raise CommandRejected("state_conflict", "no active benchmark batch")
+            from cloudra.persistence.database import ComputeDB
+            from cloudra.services.compute_store import acancel_project_compute_jobs
+
             await batch.stop()
+            await acancel_project_compute_jobs(
+                ComputeDB(), [st.project_id for st in batch.task_states if st.project_id],
+                reason="cancelled by benchmark stop",
+            )
             return batch.snapshot()
 
     def status(self) -> dict:

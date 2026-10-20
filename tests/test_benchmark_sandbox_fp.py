@@ -1626,8 +1626,8 @@ async def test_web_concurrent_mixed_success_and_failure(tmp_path, monkeypatch):
 
 @_REQUIRES_HOST_AND_RDKIT
 @pytest.mark.asyncio
-async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
-    """batch stop：级联取消推理子树并停止新请求；已提交的计算继续登记与运行
+async def test_web_shutdown_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
+    """service shutdown：级联取消推理子树并停止新请求；已提交的计算继续登记与运行
     （测试用控制文件释放引擎后自行收尾），绝不被 kill。"""
     from cloudra.infra.compute_utils import calc_lock_path, guard_lock_path
     from cloudra.infra.flocks import is_lock_held
@@ -1677,7 +1677,7 @@ async def test_web_stop_cascades_but_keeps_live_compute(tmp_path, monkeypatch):
         calc_lock = calc_lock_path(workdir, job_id)
         assert is_lock_held(guard_lock)
         assert is_lock_held(calc_lock)
-        await service.stop()
+        await service.shutdown()
         await wait_until(
             lambda: service.status()["status"] == "stopped",
             timeout=60.0,

@@ -26,6 +26,7 @@ description = (
     "Note: the scheduler daemon reconciles crashed workers automatically (lock-based, it never kills processes), "
     "so a dead worker's job is adopted and finalized deterministically. mark_compute_job_failed can reconcile "
     "a dead local orphan; it cannot withdraw queued work or override execution locks. "
+    "Use cancel_compute_job(job_id, reason) to withdraw a queued job or request execution-owned cancellation. "
     "Remote jobs are finalized by their execution poller."
 )
 
