@@ -39,7 +39,10 @@ from pathlib import Path
 from cloudra.infra.compute_utils import (
     XtbParams,
     _default_calculator_path,
+    _gaussian_include_reference,
+    _orca_code_mask,
     _orca_file_references,
+    _orca_file_tokens,
     _orca_geometry_output_paths,
     get_log_path,
 )
@@ -63,6 +66,7 @@ from cloudra.infra.ssh_transport import (
     run_remote_checked,
 )
 from cloudra.persistence.database import ComputeDB
+from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.services.compute_store import (
     acancel_compute_job,
     afinalize_compute_job,
@@ -323,6 +327,24 @@ def _stage_chem_runtime(workdir: Path) -> str:
     return name
 
 
+def _same_existing_file(left: Path, right: Path) -> bool:
+    return left.is_file() and right.is_file() and left.samefile(right)
+
+
+def _check_native_receipt_aliases(receipt: Path, workdir: Path) -> None:
+    """Execution receipts must own their paths and file bytes before any write."""
+    parent = receipt
+    while parent != workdir:
+        if parent.is_symlink():
+            raise ValueError(f'native receipt contains a symlink directory: {parent}')
+        parent = parent.parent
+    for path in (receipt, *receipt.rglob('*')):
+        if path.is_symlink():
+            raise ValueError(f'native receipt contains a symlink: {path}')
+        if path.is_file() and path.stat().st_nlink > 1:
+            raise ValueError(f'native receipt contains a hard-linked file: {path}')
+
+
 def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type: str) -> Path | None:
     """Build an execution-only input overlay and a durable native path map.
 
@@ -333,6 +355,7 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
     if job_type not in {'gaussian', 'orca'}:
         return None
     receipt = workdir / '.cloudra' / f'remote-{task_id}'
+    _check_native_receipt_aliases(receipt, workdir)
     stage = receipt / 'stage'
     stage.mkdir(parents=True, exist_ok=True)
     original = input_file.read_bytes()
@@ -341,9 +364,24 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
     if original_copy.exists() and original_copy.read_bytes() != original:
         raise ValueError('submitted native input changed since remote staging')
     original_copy.write_bytes(original)
-    text = original.decode('utf-8')
+    text = original.decode('utf-8', errors='surrogateescape')
     files: dict[str, dict] = {}
     geometry_outputs = _orca_geometry_output_paths(str(input_file)) if job_type == 'orca' else set()
+    include_paths: set[Path] = set()
+    output_paths: set[Path] = set()
+
+    def reject_native_alias(local: Path, role: str) -> None:
+        if _same_existing_file(local, input_file):
+            raise ValueError('native artifact path aliases the submitted input')
+        if not local.is_file() or local.stat().st_nlink < 2:
+            return
+        if any(_same_existing_file(local, saved) for saved in (workdir / '.cloudra').rglob('*')):
+            raise ValueError('native artifact path aliases a runtime receipt file')
+        for previous in files.values():
+            other = Path(previous['local_path'])
+            if local != other and (role == 'dependency' or previous['role'] == 'dependency'):
+                if _same_existing_file(local, other):
+                    raise ValueError('native file path aliases another native dependency or output')
 
     def relocate(value: str, role: str, *, directory: bool = False, prefix: bool = False) -> str:
         if not value:
@@ -355,6 +393,7 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
             raise ValueError('native file path collides with the runtime receipt directory')
         if local.resolve() == input_file.resolve():
             raise ValueError('native artifact path would overwrite the submitted input')
+        reject_native_alias(local, role)
         try:
             relative = local.relative_to(workdir)
         except ValueError:
@@ -362,6 +401,14 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
             relative = Path(f'.cloudra-files-{task_id}') / digest / local.name
         if relative.parts and relative.parts[0] == '.cloudra':
             raise ValueError('native file path collides with the runtime receipt directory')
+        if relative in {Path('calculator.sh'), Path(f'.cloudra-run-{task_id}.sh'),
+                        Path(f'.cloudra-slurm-{task_id}.sh'), Path(f'.cloudra-path-map-{task_id}.json')}:
+            raise ValueError('native file path collides with a runtime execution file')
+        existing = workdir / relative
+        if existing.exists() and existing.resolve() != local:
+            raise ValueError('relocated native file path collides with an existing local file')
+        if role != 'dependency' and local in include_paths:
+            raise ValueError('native output collides with a Gaussian include dependency')
         staged = stage / relative
         if directory:
             staged.mkdir(parents=True, exist_ok=True)
@@ -401,6 +448,7 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
                         or child.name.endswith(('_IRC_F.xyz', '_IRC_B.xyz', '_IRC_F_trj.xyz', '_IRC_B_trj.xyz',
                                                 '_NEB-TS_converged.xyz'))):
                     continue  # Logs and the submitted input are not restart data.
+                reject_native_alias(child, 'inout')
                 staged_child = staged.with_name(staged.name + suffix)
                 shutil.copy2(child, staged_child)
                 saved = receipt / 'original-files' / relative.with_name(relative.name + suffix)
@@ -416,44 +464,102 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
         return relative.as_posix() + ('/' if directory else '')
 
     if job_type == 'gaussian':
-        lines = []
         in_link0 = True
-        for line in text.splitlines(keepends=True):
-            stripped = line.lstrip()
-            if stripped.strip().casefold() == '--link1--':
-                in_link0 = True
-            elif stripped.startswith('#'):
-                in_link0 = False
-            key, separator, value = stripped.partition('=')
-            directive = key.strip().casefold()
-            roles = {'%chk': 'inout', '%oldchk': 'dependency', '%rwf': 'inout',
-                     '%fchk': 'output', '%int': 'inout', '%d2e': 'inout'}
-            if in_link0 and separator and directive in roles:
-                bare = value.strip()
-                quote = bare[0] if bare and bare[0] in {'"', "'"} else ''
-                if quote:
-                    if not bare.endswith(quote):
-                        raise ValueError('unterminated Gaussian file path')
-                    bare = bare[1:-1]
-                if directive == '%rwf':
-                    parts = bare.split(',')
-                    for index in range(0, len(parts), 2):
-                        path = parts[index].strip()
-                        parts[index] = relocate(path, roles[directive], directory=path.endswith('/'))
-                    mapped = ','.join(parts)
-                else:
-                    mapped = relocate(bare, roles[directive])
-                start = len(line) - len(value) + len(value) - len(value.lstrip())
-                end = len(line.rstrip())
-                line = line[:start] + quote + mapped + quote + line[end:]
-            lines.append(line)
-        text = ''.join(lines)
+        produced: set[Path] = set()
+        pending_outputs: dict[str, set[Path]] = {}
+
+        def rewrite_gaussian(body: str, active: tuple[Path, ...]) -> str:
+            nonlocal in_link0
+            lines = []
+            for line in body.splitlines(keepends=True):
+                stripped = line.lstrip()
+                include_reference = _gaussian_include_reference(line)
+                if include_reference is not None:
+                    path, start, end = include_reference
+                    quote = line[start] if line[start] in {'"', "'"} else ''
+                    local = (workdir / path).resolve()
+                    if local in active:
+                        raise ValueError(f'Gaussian include cycle: {local}')
+                    if local in output_paths:
+                        raise ValueError('Gaussian include dependency collides with a native output')
+                    mapped = relocate(path, 'dependency')
+                    include_paths.add(local)
+                    include = local.read_bytes().decode('utf-8', errors='surrogateescape')
+                    rewritten = rewrite_gaussian(include, (*active, local))
+                    (stage / mapped).write_bytes(rewritten.encode('utf-8', errors='surrogateescape'))
+                    line = line[:start] + quote + mapped + quote + line[end:]
+                    lines.append(line)
+                    continue
+                if stripped.strip().casefold() == '--link1--':
+                    for outputs in pending_outputs.values():
+                        produced.update(outputs)
+                    pending_outputs.clear()
+                    in_link0 = True
+                elif stripped.startswith('#'):
+                    in_link0 = False
+                key, separator, value = stripped.partition('=')
+                directive = key.strip().casefold()
+                roles = {'%chk': 'inout', '%oldchk': 'dependency', '%rwf': 'inout',
+                         '%fchk': 'output', '%int': 'inout', '%d2e': 'inout'}
+                if in_link0 and separator and directive in roles:
+                    bare = value.strip()
+                    quote = bare[0] if bare and bare[0] in {'"', "'"} else ''
+                    if quote:
+                        if not bare.endswith(quote):
+                            raise ValueError('unterminated Gaussian file path')
+                        bare = bare[1:-1]
+                    role = roles[directive]
+                    if directive == '%rwf':
+                        parts = bare.split(',')
+                        outputs = set()
+                        for index in range(0, len(parts), 2):
+                            path = parts[index].strip()
+                            parts[index] = relocate(path, role, directory=path.endswith('/'))
+                            output_paths.add((workdir / path).resolve())
+                            outputs.add((workdir / path).resolve())
+                        pending_outputs[directive] = outputs
+                        mapped = ','.join(parts)
+                    else:
+                        local = (workdir / bare).resolve()
+                        # Only preceding Link1 steps can supply a missing input.
+                        effective_role = 'inout' if role == 'dependency' and local in produced else role
+                        mapped = relocate(bare, effective_role)
+                        if role != 'dependency':
+                            output_paths.add(local)
+                            pending_outputs[directive] = {local}
+                    start = len(line) - len(value.lstrip())
+                    end = len(line.rstrip())
+                    line = line[:start] + quote + mapped + quote + line[end:]
+                lines.append(line)
+            return ''.join(lines)
+
+        text = rewrite_gaussian(text, (input_file.resolve(),))
     else:
         replacements = []
+        code = _orca_code_mask(text)
+        boundaries = [start for start, end, value in _orca_file_tokens(text)
+                      if value and value.casefold() == '$new_job'
+                      and not code[code.rfind('\n', 0, start) + 1:start].strip()
+                      and not text[start:end].startswith(('"', "'"))]
+        current_job = 0
+        current_base = None
+        produced_bases: set[Path] = set()
         for keyword, path, start, end in _orca_file_references(text):
+            job = sum(boundary < start for boundary in boundaries)
+            if job != current_job:
+                if current_base is not None:
+                    produced_bases.add(current_base)
+                current_base = None
+                current_job = job
             raw = text[start:end]
             prefix = keyword == '%base'
-            mapped = relocate(path, 'output' if prefix else 'dependency', prefix=prefix)
+            local = (workdir / path).resolve()
+            generated = any(local.parent == base.parent and local.name.startswith((base.name + '.', base.name + '_'))
+                            for base in produced_bases)
+            role = 'output' if prefix else 'inout' if generated else 'dependency'
+            mapped = relocate(path, role, prefix=prefix)
+            if prefix:
+                current_base = local
             quote = raw[0] if raw[0] in {'"', "'"} else ''
             if not quote and any(c.isspace() or c in {'#', '=', '\\', '"', "'"} for c in mapped):
                 quote = '"'
@@ -464,7 +570,7 @@ def _stage_native_paths(input_file: Path, workdir: Path, task_id: int, job_type:
             replacements.append((start, end, quote + mapped + quote))
         for start, end, mapped in sorted(replacements, reverse=True):
             text = text[:start] + mapped + text[end:]
-    (stage / input_file.name).write_text(text, encoding='utf-8')
+    (stage / input_file.name).write_bytes(text.encode('utf-8', errors='surrogateescape'))
     staged_files = {}
     for directory, directories, filenames in os.walk(workdir, followlinks=False):
         directories[:] = [name for name in directories if name not in {'.cloudra', '.g16_scratch'}]
@@ -490,6 +596,10 @@ def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file
     input. Replaced local artifacts are retained alongside the receipt.
     """
     receipt = workdir / '.cloudra' / f'remote-{task_id}'
+    try:
+        _check_native_receipt_aliases(receipt, workdir)
+    except ValueError as exc:
+        raise SshError(str(exc)) from exc
     results = receipt / 'results'
     results.mkdir(parents=True, exist_ok=True)
     transport.pull_dir(remote_dir, str(results))
@@ -511,6 +621,10 @@ def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file
                              for item in endpoints.values() if item.get('filename')}
     protected = {input_file.resolve()}
     protected.update(Path(item['local_path']).resolve() for item in manifest['files'] if item['role'] == 'dependency')
+    protected.update(path.resolve() for directory in (receipt / 'original', receipt / 'original-files')
+                     for path in directory.rglob('*') if path.is_file())
+    if manifest_path.is_file():
+        protected.add(manifest_path.resolve())
     staged_files = manifest.get('staged_files', {})
     baselines = {str(workdir / name): digest for name, digest in staged_files.items()}
     baselines.update({item['local_path']: item['source_sha256'] for item in manifest['files']
@@ -526,6 +640,8 @@ def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file
             return
         if target.is_symlink():
             raise SshError(f'artifact conflicts with local symlink; retained in {results}: {target}')
+        if any(_same_existing_file(target, source_path) for source_path in protected):
+            raise SshError(f'artifact aliases a protected local file through a hard link; retained in {results}: {target}')
         parent = target.parent
         while parent != parent.parent:
             if parent.is_symlink():
@@ -637,9 +753,10 @@ def _stage_and_submit(
         )
         script_name = f".cloudra-run-{task_id}.sh"
     script_path = workdir / script_name
-    script_path.write_text(script, encoding="utf-8")
-    os.chmod(script_path, 0o700)
+    if script_path == input_file or _same_existing_file(script_path, input_file):
+        raise ValueError('runtime execution script would replace the submitted input')
     native_stage = _stage_native_paths(input_file, workdir, task_id, job_type)
+    atomic_write_text(str(script_path), script, mode=0o700)
     excludes = ('.cloudra/', '.g16_scratch/')
     if native_stage:
         excludes += (input_file.name, Path(get_log_path(str(input_file), job_type)).name, f'state_{task_id}.json',
@@ -696,7 +813,11 @@ async def run_remote_compute(
             return 1
         # 正常认领路径（ready → running 无句柄）与对账安全重投路径
         # （ssh_local 探明远端无 runner）共用：stage 幂等（rsync 覆盖）。
-        input_file = input_file.resolve(strict=True)
+        # Native relative paths belong to the submitted input directory, just
+        # as at admission and in the local calculator. Resolving a file symlink
+        # here would silently switch its include/restart dependencies.
+        input_file = input_file.absolute()
+        await asyncio.to_thread(input_file.stat)
         workdir = input_file.parent
         handle, script_path = await asyncio.to_thread(
             _stage_and_submit,

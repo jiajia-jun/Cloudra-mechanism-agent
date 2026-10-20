@@ -43,7 +43,8 @@ async def test_writer_reports_complete_written_calculation_without_method_substi
     target = tmp_path / 'explicit.inp'
     keywords = 'D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
     request = QmInputWriter_input_schema(charge=0, engine='orca', method='B3LYP', basis_set='def2SVP',
-        keywords=keywords, source_type='xyz_file', source_value=str(source), output_path=str(target))
+        task_type=[{'opt': None}], keywords=keywords,
+        source_type='xyz_file', source_value=str(source), output_path=str(target))
     result = await QmInputWriter().tool_call(request, None)
     assert result.is_success, result.message
     assert result.calculation.method == 'B3LYP'

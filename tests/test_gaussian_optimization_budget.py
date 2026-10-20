@@ -7,7 +7,8 @@ pytest.importorskip("rdkit")
 
 from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
 from cloudra.tools.core.molecule import read_molecule
-from cloudra.tools.core.ts_process import _extract_gaussian_opt_keywords
+from cloudra.tools.core.qm_calculation import QmCalculation
+from cloudra.tools.core.ts_process import _stage_writer_tasks
 
 
 @pytest.mark.parametrize("workflow,expected_opt", [
@@ -23,11 +24,12 @@ def test_render_preserves_requested_optimization_cycles_and_explicit_iop(
     if workflow == "direct":
         task_type = [{"opt": "readfc,maxcycles=200"}, {"freq": None}]
     else:
-        suboptions, remaining, _ = _extract_gaussian_opt_keywords(
-            "opt=(readfc,maxcycles=200) " + remaining,
-            is_ts=workflow == "ts",
+        calculation, task_type = _stage_writer_tasks(
+            QmCalculation(engine="gaussian", method="B3LYP", basis_set="def2SVP",
+                keywords="opt=(readfc,maxcycles=200) " + remaining),
+            [{"opt": "TS" if workflow == "ts" else None}],
         )
-        task_type = [{"opt": suboptions}]
+        remaining = calculation.keywords
     request = QmInputWriter_input_schema(
         engine="gaussian", method="B3LYP", basis_set="def2SVP",
         source_type="xyz_file", source_value="water.xyz", output_path=str(tmp_path / "opt.gjf"),

@@ -327,24 +327,48 @@ def _looks_gaussian_route(content: str) -> bool:
 
 
 def _detect_input_engine(filename: str, content: str) -> Optional[str]:
-    """Decide whether the payload is a Gaussian or ORCA input (or neither)."""
+    """Use determinate native content before a filename hint.
+
+    A renamed input still declares the same program. Full Gaussian molecule
+    sections distinguish its route from ORCA's ``#`` comments; ORCA simple
+    input can follow comments and multi-line blocks. No method dictionary is
+    needed to recognize either complete native structure.
+    """
+    from cloudra.tools.core.calculation_intent import _orca_code
+    from cloudra.tools.core.native_input_sections import gaussian_option, gaussian_sections
+
+    sections = gaussian_sections(content)
+    if any(section.charge is not None for section in sections):
+        return 'gaussian'
+    orca_code = _orca_code(content)
+    for line in orca_code.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith('*'):
+            continue
+        tokens = stripped[1:].split()
+        if len(tokens) < 3 or tokens[0].lower() not in {'xyz', 'xyzfile', 'int', 'internal', 'gzmt'}:
+            continue
+        try:
+            int(tokens[1]), int(tokens[2])
+        except ValueError:
+            continue
+        return 'orca'
+    if any(tokens and tokens[0].lower() == '%coords'
+           for tokens in map(str.split, orca_code.splitlines())):
+        return 'orca'
+    if any(key == 'geom' and options & {'allcheck', 'allcheckpoint'}
+           for section in sections for key, options in map(gaussian_option, section.route)):
+        return 'gaussian'
+    if any(line.strip().startswith('!') and not line.strip().startswith('!/')
+           for line in orca_code.splitlines()):
+        return 'orca'
+    if _looks_gaussian_route(content):
+        return 'gaussian'
     suffix = Path(filename).suffix.lower() if filename else ""
     if suffix in (".gjf", ".com"):
         return "gaussian"
     if suffix == ".inp":
         return "orca"
-    for line in content.splitlines():
-        s = line.strip()
-        # `%` 行有歧义（Gaussian Link0 的 %chk/%mem 与 ORCA 的 %maxcore/%pal
-        # 都是 `%` 开头），不能作为引擎判据，跳过继续找决定性行。
-        if not s or s.startswith("%"):
-            continue
-        if s.startswith("#"):
-            return "gaussian" if _looks_gaussian_route(content) else None
-        if s.startswith("!"):
-            return None if s.startswith("!/") else "orca"  # shebang 除外
-        # 第一有效行既不是路由卡也不是 ORCA 关键字：不像 QM 输入
-        return None
     return None
 
 

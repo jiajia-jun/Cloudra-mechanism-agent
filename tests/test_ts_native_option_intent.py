@@ -70,6 +70,9 @@ def test_irc_uses_only_declared_scientific_settings(tmp_path, engine, keywords, 
     Path(record.job_steps[-1].input_path).with_suffix('.hess').write_text('$hessian')
     folder = tmp_path / 'irc'
     folder.mkdir()
+    if engine == 'gaussian' and keywords == 'irc=(readfc,reverse)':
+        # This is an input-preservation control; checkpoint science is separate.
+        (folder / 'irc.chk').write_bytes(b'explicitly pre-staged checkpoint fixture')
     error, path = process._write_irc_input(record, str(folder))
     assert not error, error
     content = Path(path).read_text()
@@ -351,8 +354,7 @@ def test_scan_preserves_native_advice_instead_of_early_rejection(tmp_path, engin
         assert 'B 1 2 S 4' in content
 
 
-def test_scan_preserves_native_resource_blocks_for_shared_engineering_admission(tmp_path):
-    from cloudra.services.compute_admission import _read_declared_requirements
+def test_scan_reports_native_resource_conflict_before_writing_input(tmp_path):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
     target = tmp_path / 'scan.inp'
     native = '%pal nprocs 2 end'
@@ -361,7 +363,8 @@ def test_scan_preserves_native_resource_blocks_for_shared_engineering_admission(
         input_text='3\nwater\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n',
         scans=[dict(atoms=[0, 1], scan_end=2, scan_steps=4)], output_path=str(target))
     result = TsGuess()._scan_prepare(request)
-    assert result.is_success, result.message
-    assert native in target.read_text()
-    with pytest.raises(ValueError, match='Conflicting resource declarations'):
-        _read_declared_requirements('orca', str(target))
+    assert not result.is_success
+    assert 'resource' in result.message.lower()
+    assert 'nproc' in result.message.lower()
+    assert not target.exists()
+    assert request.orca_blocks == native

@@ -112,9 +112,12 @@ async def test_writer_keeps_ordinary_geom_settings_and_ignores_scan_comment(tmp_
     output = tmp_path / "minimum.inp"
     result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
         charge=0, source_type="xyz_file", source_value=str(source), output_path=str(output),
-        orca_blocks="%geom\n  MaxIter 200\n  # Scan is handled by a different operation\nend", **ORCA), session=None)
+        orca_blocks="%geom\n  MaxIter 200\n  # Scan is handled by a different operation\nend",
+        **dict(ORCA, keywords="Opt D3BJ")), session=None)
     assert result.is_success, result.message
-    assert "MaxIter 200" in output.read_text()
+    content = output.read_text()
+    assert content.splitlines()[0] == "! B3LYP def2-SVP Opt D3BJ"
+    assert "MaxIter 200" in content
     assert result.interpreted_intent["tasks"] == ["minimum_opt"]
 
 
@@ -147,8 +150,10 @@ def test_scan_raw_blocks_cannot_override_declared_resources(tmp_path, blocks):
     output = tmp_path / "duplicate-budget.inp"
     request = TsGuess_input_schema(charge=0, mode="scan_prepare", input_text=WATER, output_path=str(output),
         scans=ROWS[:1], nproc=4, mem="4096MB", orca_blocks=blocks, **ORCA)
-    with pytest.raises(ValueError, match="nproc|mem"):
-        TsGuess()._scan_prepare(request)
+    result = TsGuess()._scan_prepare(request)
+    assert not result.is_success
+    assert "resource" in result.message.lower()
+    assert any(field in result.message.lower() for field in ("nproc", "mem"))
     assert not output.exists()
 
 

@@ -1792,16 +1792,15 @@ class TsGuess(Tool):
 
         from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
         from cloudra.tools.core.calculation_intent import (
-            declared_native_tasks,
             inspect_input,
             validate_writer_request,
         )
-        native_tasks, unknown = declared_native_tasks(calculation.model_dump())
-        if native_tasks or unknown:
-            task_type = []
+        from cloudra.tools.core.ts_process import _stage_writer_tasks
+
+        calculation, task_type = _stage_writer_tasks(calculation, task_type)
         # 科学状态和资源只使用共同字段，扫描不再另写电子态、资源、坐标或检查点。
         request = QmInputWriter_input_schema(
-            **native_settings, **user_input.model_dump(include=set(QmInputSettings.model_fields)),
+            **native_settings, **user_input.model_dump(include=set(QmInputSettings.model_fields), exclude_unset=True),
             source_type='xyz_file' if mol.HasProp('cloudra_graph_status') else 'mol_file',
             source_value=user_input.input_path or '<inline>', task_type=task_type,
             output_path=user_input.output_path,
@@ -1817,7 +1816,10 @@ class TsGuess(Tool):
         ):
             advice.append(dict(code='scan_native_geometry_block', field='orca_blocks', severity='warning',
                 message='The declared native %geom block is preserved beside the generated scan coordinates; review the combined geometry settings.'))
-        content = QmInputWriter.render_input(request, mol)
+        try:
+            content = QmInputWriter.render_input(request, mol)
+        except ValueError as exc:
+            return TsGuess_output_schema(is_success=False, message=f'scan input refused: {exc}', warnings=advice[-100:])
         errors = QmInputWriter.validate_rendered_input(request, content, charge=total_charge(mol))
         if errors:
             return TsGuess_output_schema(is_success=False, message='scan input internal mismatch: ' + ' | '.join(errors), warnings=advice[-100:])

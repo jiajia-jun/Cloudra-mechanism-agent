@@ -372,30 +372,89 @@ def _execution_receipt(input_file: str, task_id: int) -> Path:
     return Path(input_file).parent / '.cloudra' / f'execution-{task_id}'
 
 
-class _OrcaTokenSource(io.StringIO):
-    comment_start: int | None = None
+def _gaussian_include_reference(line: str) -> tuple[str, int, int] | None:
+    """Read one native @include path/span; keep quotes and /N in source text.
 
-    def readline(self, size: int = -1) -> str:
-        # shlex consumes the rest of a comment through readline().
-        self.comment_start = self.tell() - 1
-        return super().readline(size)
+    The returned span includes path quotes, but excludes the optional /N and
+    trailing ! comment. Callers resolve the path against the execution workdir.
+    """
+    stripped = line.lstrip()
+    if not stripped.startswith('@'):
+        return None
+    start = len(line) - len(stripped) + 1
+    while start < len(line) and line[start] in ' \t':
+        start += 1
+    end = start
+    quote = line[start] if start < len(line) and line[start] in {'"', "'"} else ''
+    if quote:
+        end = line.find(quote, start + 1)
+        if end < 0:
+            raise ValueError('unterminated Gaussian include file path')
+        end += 1
+        path = line[start + 1:end - 1]
+    else:
+        while end < len(line) and not line[end].isspace() and line[end] != '!':
+            end += 1
+        if line[start:end].casefold().endswith('/n'):
+            end -= 2
+        path = line[start:end]
+    if not path:
+        raise ValueError('missing Gaussian include file path')
+    suffix = line[end:].strip()
+    if suffix.casefold().startswith('/n'):
+        suffix = suffix[2:].lstrip()
+    if suffix and not suffix.startswith('!'):
+        raise ValueError('invalid Gaussian include file path suffix')
+    return path, start, end
+
+
+def _orca_code_mask(text: str) -> str:
+    """Mask native #...# / end-of-line comments without moving source spans."""
+    masked = []
+    for line in text.splitlines(keepends=True):
+        quote, comment, escaped = '', False, False
+        for char in line:
+            if char in '\r\n':
+                masked.append(char)
+            elif comment:
+                masked.append(' ')
+                if char == '#':
+                    comment = False
+            elif escaped:
+                masked.append(char)
+                escaped = False
+            elif char == '\\' and quote != "'":
+                masked.append(char)
+                escaped = True
+            elif quote:
+                masked.append(char)
+                if char == quote:
+                    quote = ''
+            elif char in {'"', "'"}:
+                masked.append(char)
+                quote = char
+            elif char == '#':
+                masked.append(' ')
+                comment = True
+            else:
+                masked.append(char)
+    return ''.join(masked)
 
 
 def _orca_file_tokens(text: str) -> list[tuple[int, int, str | None]]:
     """Use native shlex rules while retaining each token's original span."""
     tokens = []
     offset = 0
-    for line in text.splitlines(keepends=True):
-        stream = _OrcaTokenSource(line)
+    for line in _orca_code_mask(text).splitlines(keepends=True):
+        stream = io.StringIO(line)
         lexer = shlex.shlex(stream, posix=True, punctuation_chars='=')
         lexer.whitespace_split = True
-        lexer.commenters = '#'
+        lexer.commenters = ''
         while True:
             # shlex buffers punctuation lookahead outside its input stream.
             start = stream.tell() - len(lexer._pushback_chars)
             while start < len(line) and line[start].isspace():
                 start += 1
-            stream.comment_start = None
             try:
                 value = lexer.get_token()
             except ValueError:
@@ -405,10 +464,8 @@ def _orca_file_tokens(text: str) -> list[tuple[int, int, str | None]]:
                 break
             if value is None:
                 break
-            end = (stream.comment_start if stream.comment_start is not None
-                   else stream.tell() - len(lexer._pushback_chars))
-            if (stream.comment_start is None and lexer.state == ' '
-                    and end > start and line[end - 1].isspace()):
+            end = stream.tell() - len(lexer._pushback_chars)
+            if lexer.state == ' ' and end > start and line[end - 1].isspace():
                 end -= 1
             tokens.append((offset + start, offset + end, value))
         offset += len(line)
@@ -418,6 +475,7 @@ def _orca_file_tokens(text: str) -> list[tuple[int, int, str | None]]:
 def _orca_file_references(text: str) -> list[tuple[str, str, int, int]]:
     """Return native file directives and their decoded paths/original spans."""
     tokens = _orca_file_tokens(text)
+    code = _orca_code_mask(text)
     references = []
     consumed = set()
     block = ''
@@ -426,7 +484,7 @@ def _orca_file_references(text: str) -> list[tuple[str, str, int, int]]:
             continue
         keyword = value.casefold()
         line_start = text.rfind('\n', 0, token_start) + 1
-        starts_line = not text[line_start:token_start].strip()
+        starts_line = not code[line_start:token_start].strip()
         starts_statement = starts_line or (
             index > 0 and (tokens[index - 1][2] or '').casefold() == 'end'
             and not text[tokens[index - 1][0]:tokens[index - 1][1]].startswith(('"', "'")))
@@ -436,6 +494,8 @@ def _orca_file_references(text: str) -> list[tuple[str, str, int, int]]:
             block = ''
         target_index = None
         if keyword in {'%base', '%moinp', '%pointcharges'} and starts_statement:
+            target_index = index + 1
+        elif keyword == 'moinp' and block == 'scf':
             target_index = index + 1
         elif keyword in {'hess_filename', 'inhessname'} and block in {'irc', 'geom'}:
             target_index = index + 1

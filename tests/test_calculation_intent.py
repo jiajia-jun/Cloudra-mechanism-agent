@@ -399,7 +399,9 @@ def test_gaussian_tail_comments_preserve_real_modredundant_scan_cards():
 def test_gaussian_tail_comments_compare_settings_without_hiding_basis_changes(changed_basis):
     expected_tail = '! declared basis (\nH 0\nSTO-3G\n****\n'
     actual_tail = '! observed basis "\nH 0\n' + ('6-31G' if changed_basis else 'STO-3G') + '\n****\n'
-    expected = dict(engine='gaussian', method='HF', basis_set='Gen', end_setting=expected_tail)
+    # The complete native contract includes the task present in the input.
+    expected = dict(engine='gaussian', method='HF', basis_set='Gen',
+        keywords='Opt=TS', end_setting=expected_tail)
     text = '# HF/Gen Opt=TS\n\ntrial\n\n0 1\nH 0 0 0\n\n' + actual_tail
 
     differences = compare_calculation_input(text, expected, charge=0, multiplicity=1)

@@ -9,7 +9,7 @@ from cloudra.tools.core.ts_inputs import TsInput
 from cloudra.tools.core.ts_process import TsProcessRecord, _guess_scan
 
 WATER = "3\nwater\nO 0 0 0\nH 0 0 1\nH 1 0 0\n"
-CALCULATION = dict(engine="orca", method="B3LYP", basis_set="def2-SVP", keywords="D3BJ TightSCF")
+CALCULATION = dict(engine="orca", method="B3LYP", basis_set="def2-SVP", keywords="Opt D3BJ TightSCF")
 SCANS = [dict(atoms=[0, 1], scan_start=1., scan_end=2., scan_steps=3),
          dict(atoms=[0, 2], scan_start=1., scan_end=2., scan_steps=3)]
 
@@ -44,11 +44,11 @@ def test_ts_scan_execution_budget_matches_native_qm_resources(tmp_path, monkeypa
     from cloudra.tools.core.molecule import read_molecule
     writer = QmInputWriter._build_orca_input(QmInputWriter_input_schema(
         source_type="xyz_file", source_value=str(source), output_path=str(tmp_path / "reference.inp"),
-        task_type=[{"opt": None}],
+        task_type=[],
         nproc=cpus, mem=f"{memory_mb}MB", **CALCULATION), read_molecule(str(source)))
     expected_resources = [line for line in writer.splitlines() if line.startswith(("%pal", "%maxcore"))]
     assert [line for line in native.splitlines() if line.startswith(("%pal", "%maxcore"))] == expected_resources
-    assert native.splitlines()[0] == "! Opt B3LYP def2-SVP D3BJ TightSCF"
+    assert native.splitlines()[0] == "! B3LYP def2-SVP Opt D3BJ TightSCF"
     assert "Scan\n        B 0 1 = 1.000000, 2.000000, 3\n" in native
     assert ("Simul_Scan true" in native) is concerted
     coordinates = [line.split() for line in native[native.index("* xyz"):].splitlines()[1:4]]

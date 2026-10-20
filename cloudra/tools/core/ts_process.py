@@ -1582,14 +1582,15 @@ def _writer_render_error(record, purpose, request, content):
 
 
 def _stage_writer_tasks(calculation, default_tasks):
-    """A stage supplies its basic task only in the absence of a native declaration."""
-    from cloudra.tools.core.calculation_intent import declared_native_tasks
-    tasks, unknown = declared_native_tasks(calculation.model_dump())
-    if tasks or unknown:
+    """Only an empty native declaration receives the stage's basic task.
+
+    Native text belongs to the declaring agent, including unclassified tasks and
+    case-sensitive values. Classification supplies advice, never a replacement
+    task or a rewritten keyword string.
+    """
+    if any((getattr(calculation, field) or '').strip()
+           for field in ('keywords', 'orca_blocks', 'end_setting')):
         return calculation, []
-    if calculation.engine == 'gaussian' and default_tasks == [{'irc': None}]:
-        suboptions, remaining, _ = _extract_gaussian_irc_keywords(calculation.keywords)
-        return calculation.model_copy(update={'keywords': remaining}), [{'irc': suboptions}]
     return calculation, default_tasks
 
 
@@ -2116,153 +2117,6 @@ def _write_frequency_input(record: TsProcessRecord, job_dir: str) -> tuple[str, 
     return "", input_path
 
 
-def _extract_gaussian_opt_keywords(keywords: str | None, *, is_ts: bool = True) -> tuple[str | None, str, str | None]:
-    """Extract declared Gaussian Opt options; only an absent task gets the stage task."""
-    if not keywords or not keywords.strip():
-        if is_ts:
-            return "TS", "", None
-        return None, "", None
-
-    from cloudra.tools.core.calculation_intent import native_tokens
-
-    try:
-        tokens = native_tokens(keywords)
-    except ValueError:
-        tokens = keywords.split()
-
-    opt_subopts: list[str] = []
-    other_tokens: list[str] = []
-    found_opt = False
-
-    for raw_token in tokens:
-        token = raw_token.strip().rstrip(",")
-        if not token:
-            continue
-        token_lower = token.lower()
-        if token_lower == "opt" or token_lower.startswith("opt=") or token_lower.startswith("opt("):
-            found_opt = True
-            if token_lower.startswith("opt="):
-                val = token[4:].strip()
-            elif token_lower.startswith("opt("):
-                val = token[3:].strip()
-            else:
-                val = ""
-            if val.startswith("(") and val.endswith(")"):
-                val = val[1:-1].strip()
-            if val:
-                for sub in val.split(","):
-                    s = sub.strip()
-                    if s:
-                        opt_subopts.append(s)
-        else:
-            other_tokens.append(token)
-
-    warning = None
-    if found_opt:
-        if is_ts and not any(option.lower() in {'ts', 'qst2', 'qst3'} for option in opt_subopts):
-            warning = 'The declared Gaussian Opt does not request TS optimization; options were preserved.'
-        return ','.join(opt_subopts) or None, ' '.join(other_tokens), warning
-    return 'TS' if is_ts else None, ' '.join(other_tokens), None
-
-
-def _extract_gaussian_freq_keywords(keywords: str | None) -> tuple[str | None, str, str | None]:
-    """从关键字中解析 Gaussian 的 freq 子参数，并返回剥离了 freq 后的其余关键字。
-
-    返回: (freq_suboptions, remaining_keywords, warning_message)
-    严格遵守 AGENTS.md 规范：不使用正则表达式 (re)，采用显式 token 与字符串拆分。
-    """
-    if not keywords or not keywords.strip():
-        return None, "", None
-
-    from cloudra.tools.core.calculation_intent import native_tokens
-
-    try:
-        tokens = native_tokens(keywords)
-    except ValueError:
-        tokens = keywords.split()
-
-    freq_subopts: list[str] = []
-    other_tokens: list[str] = []
-    found_freq = False
-
-    for raw_token in tokens:
-        token = raw_token.strip().rstrip(",")
-        if not token:
-            continue
-        token_lower = token.lower()
-        if token_lower == "freq" or token_lower.startswith("freq=") or token_lower.startswith("freq("):
-            found_freq = True
-            if token_lower.startswith("freq="):
-                val = token[5:].strip()
-            elif token_lower.startswith("freq("):
-                val = token[4:].strip()
-            else:
-                val = ""
-            if val.startswith("(") and val.endswith(")"):
-                val = val[1:-1].strip()
-            if val:
-                for sub in val.split(","):
-                    s = sub.strip()
-                    if s:
-                        freq_subopts.append(s)
-        else:
-            other_tokens.append(token)
-
-    if found_freq:
-        sub = ",".join(freq_subopts) if freq_subopts else None
-        return sub, " ".join(other_tokens), None
-    return None, " ".join(other_tokens), None
-
-
-def _extract_gaussian_irc_keywords(keywords: str | None) -> tuple[str | None, str, str | None]:
-    """Extract Gaussian IRC options without inventing force-constant settings.
-
-    返回: (irc_suboptions, remaining_keywords, warning_message)
-    严格遵守 AGENTS.md 规范：不使用正则表达式 (re)，采用显式 token 与字符串拆分。
-    """
-    if not keywords or not keywords.strip():
-        return None, "", None
-
-    from cloudra.tools.core.calculation_intent import native_tokens
-
-    try:
-        tokens = native_tokens(keywords)
-    except ValueError:
-        tokens = keywords.split()
-
-    irc_subopts: list[str] = []
-    other_tokens: list[str] = []
-
-    for raw_token in tokens:
-        token = raw_token.strip().rstrip(",")
-        if not token:
-            continue
-        token_lower = token.lower()
-        if token_lower == "irc" or token_lower.startswith("irc=") or token_lower.startswith("irc("):
-            if token_lower.startswith("irc="):
-                val = token[4:].strip()
-            elif token_lower.startswith("irc("):
-                val = token[3:].strip()
-            else:
-                val = ""
-            if val.startswith("(") and val.endswith(")"):
-                val = val[1:-1].strip()
-            if val:
-                for sub in val.split(","):
-                    s = sub.strip()
-                    if s:
-                        irc_subopts.append(s)
-        elif any(token_lower.startswith(prefix) for prefix in ("maxpoints=", "stepsize=", "recalc=")):
-            for sub in token.split(","):
-                s = sub.strip()
-                if s:
-                    irc_subopts.append(s)
-        else:
-            other_tokens.append(token)
-
-    return ','.join(irc_subopts) or None, ' '.join(other_tokens), None
-
-
 def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
     """Write the declared IRC using the accepted frequency geometry."""
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
@@ -2309,6 +2163,22 @@ def _write_irc_input(record: TsProcessRecord, job_dir: str) -> tuple[str, str]:
     error = _writer_render_error(record, 'irc', request, content)
     if error:
         return error, ''
+    if calculation.engine == 'gaussian':
+        from cloudra.tools.core.native_input_sections import gaussian_option, gaussian_sections
+
+        section = gaussian_sections(content)[0]
+        checkpoint_reads = {option
+            for key, options in map(gaussian_option, section.route) if key == 'irc'
+            for option in options & {'readfc', 'rcfc', 'readcartesianfc'}}
+        checkpoint = Path(input_path).resolve().with_suffix('.chk')
+        if checkpoint_reads and not checkpoint.is_file():
+            return (
+                f"Missing Gaussian IRC checkpoint dependency: {checkpoint}. "
+                f"The declared {', '.join(sorted(checkpoint_reads))} requests checkpoint force constants. "
+                "Pre-stage the explicitly sourced compatible checkpoint at this path; "
+                "the workflow does not select or copy a neighboring checkpoint.",
+                '',
+            )
     _write_immutable_input(input_path, content)
     return "", input_path
 
