@@ -1,0 +1,150 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C=CC#N"
+      ],
+      "properties": {
+        "energy_hartree": -364.463871431511,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/reactant_frequency/.cloudra/calc-42.out.log",
+        "gibbs_free_energy_hartree": -364.35535918,
+        "imaginary_frequencies": "none (0 imaginary modes)",
+        "note": "Lowest verified cyclopentadiene/acrylonitrile pre-reaction complex minimum; single common barrier reference for both channels. A second verified conformer of the same complex, reached by the endo IRC, lies 0.44 kcal/mol higher (E = -364.463168377659 Ha, G = -364.35483008 Ha, ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/calc-41.out.log)."
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -364.441025442681,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/calc-30.out.log",
+        "gibbs_free_energy_hartree": -364.3270123,
+        "imaginary_frequencies": "-457.1 cm-1 (exactly one imaginary mode, aligned with the C2-C7 and C4-C6 forming pairs)",
+        "note": "endo saddle; OptTS log ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/calc-15.out.log, IRC log ts/ts_0002/jobs/declaration_0001/irc/.cloudra/calc-34.out.log. Declared step barrier endo_DA = 14.34 kcal/mol (electronic, no ZPE) against RC -364.463871431511 Ha; Gibbs barrier 17.79 kcal/mol (TS G -364.32701230, RC G -364.35535918)."
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "N#C[C@H]1C[C@H]2C=C[C@@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -364.500703995727,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/calc-49.out.log",
+        "gibbs_free_energy_hartree": -364.38053704,
+        "imaginary_frequencies": "none (0 imaginary modes)",
+        "note": "endo-5-norbornene-2-carbonitrile; nitrile syn to the C1=C5 double bond (N...C1 3.67 A vs N...C3 4.83 A). Opt log ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/calc-44.out.log"
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -364.44136578259,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/frequency/.cloudra/calc-31.out.log",
+        "gibbs_free_energy_hartree": -364.32726455,
+        "imaginary_frequencies": "-456.87 cm-1 (exactly one imaginary mode, aligned with the C2-C7 and C4-C6 forming pairs)",
+        "note": "exo saddle; OptTS log ts/ts_0003/jobs/declaration_0001/ts_opt/.cloudra/calc-16.out.log, IRC log ts/ts_0003/jobs/declaration_0001/irc/.cloudra/calc-35.out.log. Declared step barrier exo_DA = 14.12 kcal/mol (electronic, no ZPE) against RC -364.463871431511 Ha; Gibbs barrier 17.63 kcal/mol (TS G -364.32726455, RC G -364.35535918)."
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "N#C[C@@H]1C[C@H]2C=C[C@@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -364.500488969555,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/product_frequency/.cloudra/calc-50.out.log",
+        "gibbs_free_energy_hartree": -364.38036867,
+        "imaginary_frequencies": "none (0 imaginary modes)",
+        "note": "exo-5-norbornene-2-carbonitrile; nitrile toward the methylene bridge (N...C1 4.88 A, C8...C3 3.10 A). Opt log ts/ts_0003/jobs/declaration_0001/product_opt/.cloudra/calc-45.out.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "endo_DA",
+      "from": "RC",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            7
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.34,
+      "channel": "endo",
+      "favored": false
+    },
+    {
+      "id": "exo_DA",
+      "from": "RC",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            7
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.12,
+      "channel": "exo",
+      "favored": false
+    }
+  ]
+}

@@ -33,7 +33,11 @@ async def test_stale_file_review_retires_wakes_and_requires_real_resubmission(tm
     from cloudra.dag.models import UpdateEdge
     from cloudra.dag.store import DagStore
     from cloudra.persistence.database import ConversationDB
-    from cloudra.runtime_v2.supervision import flush_review_notifications
+    from cloudra.runtime_v2.supervision import (
+        find_project_supervisor,
+        flush_review_notifications,
+        notify_supervisor,
+    )
     from tests.agent_scenarios import stale_review_resubmit_steps
     from tests.test_dag_file_review_contract import _mutate
 
@@ -42,7 +46,7 @@ async def test_stale_file_review_retires_wakes_and_requires_real_resubmission(tm
     fixture = Path(__file__).parent / "fixtures/benchmark_synthetic/ts_freq.out"
     provider = ScriptedProvider(by_role={
         "coordinator": stale_review_resubmit_steps(fixture.name, resubmit, finish, park),
-        "supervisor": [Step(stop=True), old_step, new_step, Step(wait_for=finish, text="await more evidence")],
+        "supervisor": [Step(stop=True)],
     })
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
     try:
@@ -60,11 +64,18 @@ async def test_stale_file_review_retires_wakes_and_requires_real_resubmission(tm
                                           for a in harness.core.agents.values()), 'Supervisor idle after initial submission')
         park.set()
         await harness.wait_for(lambda: coordinator.state.value == "waiting_approval", "Coordinator parked awaiting review")
+        await harness.wait_for(lambda: all(a.state.value == "succeeded" for a in harness.core.agents.values()
+            if a.role_id == "supervisor"), "process and final reviewers are idle")
+        process = find_project_supervisor(harness.core, harness.project.id)
+        assert process is not None and process.final_review_request_id is None
+        provider.script("supervisor", old_step, new_step, Step(wait_for=finish, text="await more evidence"))
         submitted = next(t for t in harness.tool_events(coordinator) if t["tool_name"] == "dag_submit_step_evidence")
         old_id = submitted["result_data"]["result"]["review_id"]
         old_request = await asyncio.to_thread(store.get_review_request, old_id)
         await asyncio.to_thread(store.record_facts, [EvidenceFact(fact_id="new-related-fact", check="path", outcome="refutes",
             subject=FactSubject(target_hint="step1"), source_refs=old_request.supporting_refs, details={"missing_direction": True})])
+        await notify_supervisor(harness.core, harness.project.id,
+                                observation="A new related path fact requires process review.")
         old_step.tools = [("dag_review_evidence", {"request_id": old_id, "verdict": "accept", "reason": "review old file snapshot"})]
         review_old.set()
         await harness.wait_for(lambda: any(t["tool_name"] == "dag_review_evidence" and t["status"] in {"completed", "failed"}
@@ -2082,10 +2093,12 @@ async def test_complete_final_supervisor_review_controls_delivery(tmp_path, verd
         if verdict == "accept":
             await harness.wait_terminal(agent)
             assert agent.state.value == "succeeded"
+            assert provider.call_count("coordinator") == 1
             assert gates[1].data["basis"] == "supervisor_supported"
             assert await asyncio.to_thread(dispositions) == [("complete",)]
         else:
             assert agent.state.value == "running"
+            assert provider.call_count("coordinator") >= 2
             assert await asyncio.to_thread(dispositions) == []
             assert not any(e.type == "agent.message_emitted" for e in harness.events(agent))
         assert not any(t["tool_name"] == "submit_compute_job" for a in harness.core.agents.values()

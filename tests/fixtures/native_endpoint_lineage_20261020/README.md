@@ -1,4 +1,4 @@
-# Historical native endpoint lineage: L1, M17 and M3
+# Historical native endpoint lineage: L1, M17, M3 and HB10
 
 These are complete, unchanged ORCA outputs from real calculations on
 2026-10-20. L1/M17 originated in `batch_33673755b17b4a55` with Cloudra
@@ -6,7 +6,7 @@ These are complete, unchanged ORCA outputs from real calculations on
 They are historical calculation replays, **not a new calculation, a simulated
 quantum result, or a new end-to-end model Benchmark run**.
 
-The package retains 27 complete TS Opt/Freq, IRC, and endpoint Opt/Freq logs,
+The L1/M17/M3 cases retain 27 complete TS Opt/Freq, IRC, and endpoint Opt/Freq logs,
 the four original frozen IRC bundles (including their original endpoint
 sidecars, atom correspondence and XYZ bytes), and the original delivered
 mechanism graphs. There are no cropped native logs or edited calculations.
@@ -15,8 +15,9 @@ convention.
 
 `manifest.json` records every source path, original SHA256, archive SHA256,
 byte count, job number, formal task snapshot and original scoring result.
-Decompression restores the exact original sandbox-relative paths. Native
-archive bytes total 1,134,900 bytes; decompressed evidence totals 6,546,038 bytes.
+Decompression restores the exact original sandbox-relative paths. For those
+three cases, native archive bytes total 1,134,900 bytes; decompressed evidence
+totals 6,546,038 bytes.
 The manifest's original top-level batch/revision describe L1/M17; the M3 case
 records its separate original batch and source revision explicitly.
 
@@ -94,3 +95,49 @@ The source run's original complete archive remains separate from this small
 test package. These fixtures retain all native evidence needed by these
 regressions, rather than the run's unrelated trial calculations and binary
 working files. Running the tests never launches a QM executable.
+
+## HB10: native evidence passes, original delivery remains partial
+
+`HB10/` preserves the separate DeepSeek run `batch_159a23ad57b64073`.
+It started on `81def568` and continued on `b88e702b`; the original delivery
+was formally scored with `0aaf68b7`. The manifest records these distinct
+versions, the complete source archive SHA256, the unchanged final graph and
+formal task, and the source formal report SHA256. It is a historical native
+replay, not another model Benchmark or a new QM calculation.
+
+The package adds 14 complete native logs: endo TS Opt/Freq 15/30 and IRC 34,
+exo TS Opt/Freq 16/31 and IRC 35, reactant endpoint Opt/Freq 38/41 and 39/42,
+and product endpoint Opt/Freq 44/49 and 45/50. It also retains the actual IRC
+manifests and outer frames, four Opt inputs and their source-geometry and
+provenance records. Identical original snapshot/execution paths reuse the
+same gzip bytes by SHA256; no native outputs are cropped or changed.
+The 78 original evidence paths restore from 34 unique gzip files totaling
+2,578,169 bytes. Together with the original task/graph and the selected DAG
+rows, the HB10 directory adds 2,715,520 bytes.
+
+`dag_snapshot.json` contains only the original materialized DAG rows needed
+by the replay: graph/stage and coverage contracts, the accepted mechanism
+draft, immutable evidence and bindings/facts, and the three node plus two
+step evidence requests and their actual accept decisions. Values are copied
+from the retrieved conversation database without inventing verdicts. The
+test restores these rows in an isolated database and translates VM paths
+only while reading evidence; captured payloads and hashes remain unchanged.
+
+Both real step submissions pass the production `file_scientific_checks`
+TS optimization, frequency and same-TS IRC endpoint checks. The original
+coverage contract nevertheless requires thermochemistry, while neither
+step declares that stage. The real delivery report remains incomplete with
+exactly two `missing_thermochemistry` gaps. The task explicitly requests
+electronic barriers without ZPE or thermal corrections. The earlier missing
+Supervisor task context and extra thermal-contract call already live in
+`supervisor_task_context_20261020`; they are not duplicated here.
+
+The unchanged final graph binds its single `RC` to exo endpoint 39/42. The
+failed commit never exported a per-step `mechanism_evidence.json`; this case
+preserves that absence and never runs the endpoint-index writer. Offline
+scoring therefore cannot select the separately proven endo endpoint 38/41:
+exo is covered, endo is not. The original formal result is graph **0.8**,
+self-consistency **false**, accuracy **0.999998643769128**, and composite
+**0.68**. This is a partial-delivery regression, separate from the successful
+automatic-export test; it does not reinterpret the native endo QM as wrong
+or silently repair the original artifact.

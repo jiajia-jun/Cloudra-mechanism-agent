@@ -637,6 +637,7 @@ async def flush_review_notifications(
         subject_id = item["decision_id"]
         kind = item.get("kind") or "review_decision"
         try:
+            manifest = None
             if kind == 'review_superseded':
                 payload = json.loads(item.get('payload') or '{}')
                 content = (f"[Review superseded] request_id={subject_id} "
@@ -656,6 +657,12 @@ async def flush_review_notifications(
                 decision = await asyncio.to_thread(
                     store.get_review_decision, subject_id
                 )
+                request = await asyncio.to_thread(store.get_review_request, item["request_id"])
+                if decision is not None and request is not None and request.kind == "exit":
+                    manifest = {
+                        "kind": "exit_review_decision", "request_id": request.request_id,
+                        "decision_id": decision.decision_id, "verdict": decision.verdict,
+                    }
                 content = (
                     f"[Supervisor review decision] decision_id={subject_id} "
                     f"request_id={item['request_id']} "
@@ -682,6 +689,7 @@ async def flush_review_notifications(
                     project_id=project_id,
                     content=content,
                     sender="supervisor",
+                    manifest=manifest,
                     wake=WakePolicy.PARK_WAITING if auto_wake else WakePolicy.NEVER,
                 )
                 await asyncio.to_thread(store.mark_review_notification_sent, subject_id)

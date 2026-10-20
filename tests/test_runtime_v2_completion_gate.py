@@ -37,6 +37,12 @@ from cloudra.runtime_v2.policies.base import PolicyResult, ToolCall, ToolResult
 from cloudra.runtime_v2.schemas import AgentState, Command
 from cloudra.runtime_v2.supervision import flush_review_notifications
 from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
+from tests.agent_scenarios import (
+    ScenarioHarness,
+    ScriptedProvider,
+    Step,
+    frozen_exit_confirmation_steps,
+)
 
 
 class _OkTools:
@@ -419,6 +425,139 @@ async def test_valid_exit_approval_allows_finish(tmp_path):
         assert any("verdict=accept" in m["content"] for m in pinned)
     finally:
         await _teardown(core)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("disposition", ["partial", "complete"])
+async def test_matching_exit_accept_finishes_frozen_submission_without_a_second_llm_turn(tmp_path, disposition):
+    """真实裁决工具接受已提交答复后，运行时结题，不让模型重写退出提案。"""
+    frozen_answer = "frozen-reviewed-delivery-marker"
+    unreviewed_answer = "unreviewed-accept-acknowledgement-marker"
+    review_ready = asyncio.Event()
+    review = Step(wait_for=review_ready)
+    continuation = Step(text=unreviewed_answer, tools=[("stop", {
+        "delivery_disposition": disposition, "reason": "The Supervisor accepted; finalize the result.",
+        "final_answer": unreviewed_answer,
+    })])
+    provider = ScriptedProvider(by_role=frozen_exit_confirmation_steps(
+        review, continuation, answer=frozen_answer, disposition=disposition))
+    harness = await ScenarioHarness.start(tmp_path, provider=provider, workspace_dir=tmp_path)
+    try:
+        await harness.bus.execute(Command(type="role.update", target={"role_id": "supervisor"},
+            payload={"default_settings": {
+                "orchestration_mode": "dag_guided", "invocation_protocol": "traditional",
+            }}))
+        if disposition == "complete":
+            await _seed_complete_delivery(harness.project.id)
+        coordinator = await harness.spawn("coordinator", "Report the observed evidence honestly.",
+            protocol="traditional", orchestration_mode="dag_guided")
+        await harness.wait_for(lambda: coordinator.state is AgentState.WAITING_APPROVAL,
+                               "partial submission waiting for independent review")
+        requests = await _review_requests(harness.project.id)
+        assert len(requests) == 1
+        request = requests[0]
+        assert request.proposal["final_answer"] == frozen_answer
+        review.tools = [
+            ("dag_view_evidence", {"review_id": request.request_id}),
+            ("dag_review_evidence", {"request_id": request.request_id, "verdict": "accept",
+                "reason": "The frozen partial delivery accurately states its evidence limits."}),
+        ]
+        review_ready.set()
+        await harness.wait_for(lambda: coordinator.state is AgentState.SUCCEEDED
+            or provider.call_count("coordinator") > 1, "programmatic confirmation of accepted delivery")
+        assert provider.call_count("coordinator") == 1, "accepted delivery must not re-enter the model"
+        await harness.wait_terminal(coordinator)
+        assert coordinator.state is AgentState.SUCCEEDED
+        all_requests = await _review_requests(harness.project.id, state=None)
+        assert [item.request_id for item in all_requests] == [request.request_id]
+        finals = [agent for agent in harness.core.agents.values() if agent.final_review_request_id]
+        assert len(finals) == 1
+        assert finals[0].final_review_request_id == request.request_id
+        verdict = next(tool for tool in harness.tool_events(finals[0])
+                       if tool["tool_name"] == "dag_review_evidence")
+        assert verdict["is_success"]
+        assert _gate_events(harness.core, coordinator.id)[-1].data["action"] == "allow_final"
+        assert await _dispositions(harness.project.id) == [disposition]
+        emitted = [event.data.get("content") for event in harness.events(coordinator)
+                   if event.type == "agent.message_emitted"]
+        assert frozen_answer in emitted
+        assert unreviewed_answer not in emitted
+        assert len([tool for tool in harness.tool_events(coordinator) if tool["tool_name"] == "stop"]) == 1
+    finally:
+        review_ready.set()
+        await harness.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("arrival", ["same_inbox", "during_confirmation_audit"])
+async def test_new_user_instruction_prevents_automatic_exit_confirmation(tmp_path, monkeypatch, arrival):
+    """接受回执不能吞掉同批或门禁等待期间到达的新用户要求。"""
+    frozen_answer = "accepted-before-new-instruction-marker"
+    user_instruction = "New user constraint: inspect the original endpoint before final delivery."
+    review_ready, continue_release, audit_entered, audit_release = [asyncio.Event() for _ in range(4)]
+    review = Step(wait_for=review_ready)
+    provider = ScriptedProvider(by_role=frozen_exit_confirmation_steps(
+        review, Step(wait_for=continue_release), answer=frozen_answer))
+    harness = await ScenarioHarness.start(tmp_path, provider=provider, workspace_dir=tmp_path)
+    try:
+        await harness.bus.execute(Command(type="role.update", target={"role_id": "supervisor"},
+            payload={"default_settings": {
+                "orchestration_mode": "dag_guided", "invocation_protocol": "traditional",
+            }}))
+        coordinator = await harness.spawn("coordinator", "Report the observed evidence honestly.",
+            protocol="traditional", orchestration_mode="dag_guided")
+        await harness.wait_for(lambda: coordinator.state is AgentState.WAITING_APPROVAL,
+                               "initial submission waiting for review")
+        request = (await _review_requests(harness.project.id))[0]
+
+        async def send_user_instruction():
+            await harness.bus.execute(Command(type="agent.message", actor="user",
+                target={"session_id": coordinator.id}, payload={"content": user_instruction}))
+
+        if arrival == "same_inbox":
+            original_deliver = harness.core.dispatcher.commit_and_deliver
+
+            async def deliver_with_user(*args, **kwargs):
+                manifest = kwargs.get("manifest") or {}
+                if (kwargs.get("to_session_id") == coordinator.id
+                        and manifest.get("kind") == "exit_review_decision"):
+                    receipt = await original_deliver(*args, **{**kwargs, "wake": WakePolicy.NEVER})
+                    await send_user_instruction()
+                    return receipt
+                return await original_deliver(*args, **kwargs)
+
+            monkeypatch.setattr(harness.core.dispatcher, "commit_and_deliver", deliver_with_user)
+        else:
+            original_audit = harness.runner._evaluate_completion_gate
+
+            async def paused_audit(agent, run_id, **kwargs):
+                if agent.id == coordinator.id and not audit_entered.is_set():
+                    audit_entered.set()
+                    await audit_release.wait()
+                return await original_audit(agent, run_id, **kwargs)
+
+            monkeypatch.setattr(harness.runner, "_evaluate_completion_gate", paused_audit)
+
+        review.tools = [("dag_review_evidence", {"request_id": request.request_id, "verdict": "accept",
+            "reason": "The original frozen partial delivery states the observed evidence."})]
+        review_ready.set()
+        if arrival == "during_confirmation_audit":
+            await asyncio.wait_for(audit_entered.wait(), timeout=5)
+            await send_user_instruction()
+            audit_release.set()
+        await harness.wait_for(lambda: provider.call_count("coordinator") == 2,
+                               "model receives the newer user instruction")
+        messages = [messages for role, messages in provider.calls if role == "coordinator"][-1]
+        assert any(user_instruction in str(message.get("content")) for message in messages)
+        assert coordinator.state is AgentState.RUNNING
+        assert await _dispositions(harness.project.id) == []
+        assert not any(event.type == "agent.message_emitted"
+            and event.data.get("content") == frozen_answer for event in harness.events(coordinator))
+        assert len(await _review_requests(harness.project.id, state=None)) == 1
+    finally:
+        for release in (review_ready, continue_release, audit_release):
+            release.set()
+        await harness.aclose()
 
 
 @pytest.mark.asyncio

@@ -31,6 +31,7 @@ import asyncio
 import logging
 import math
 import os
+from contextlib import nullcontext
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
@@ -294,6 +295,11 @@ class AgentRunner:
                     message = await inbox.get()
                     inbox_messages.append(message)
                 turns += 1
+                if await self._confirm_reviewed_exit(agent, run_id, inbox_messages):
+                    break
+                # The confirmation audit can await native evidence checks. New
+                # instructions received in that interval belong to this turn.
+                inbox_messages.extend(self._drain_inbox(agent))
                 inbox_messages = await asyncio.to_thread(
                     self._prepare_inbox_messages, agent, inbox_messages
                 )
@@ -479,24 +485,11 @@ class AgentRunner:
                     # boundary, which starts a fresh run for late user/child input.
                     # Share the target lock with MessageDispatcher so a delivery
                     # cannot slip between this check and finish_run.
-                    async with core.dispatcher.target_lock(agent.id):
-                        if agent.parent_session_id and self._inbox_has_pending(agent):
-                            continue
-                        for stage in getattr(self.pipeline, "stages", ()):
-                            hook = getattr(stage, "on_run_end", None)
-                            if hook is not None:
-                                await hook(agent, explicit_stop=explicit_stop)
-                        final_answer = gate.final_answer if gate.final_answer is not None else outcome.content
-                        if gate.action == "allow_final" and final_answer:
-                            self._emit_run_message(agent, run_id, final_answer)
-                        elif gate.action == "wait_background":
-                            self._emit_run_message(agent, run_id, gate.reason or "Run paused awaiting background work.")
-                        await core.agent_host.finish_run(agent, outcome="succeeded")
-                        # CommandBus may enqueue outside MessageDispatcher; keep
-                        # the existing post-finish wake handshake for that path.
-                        if self._inbox_has_pending(agent):
-                            await core.agent_host.wake(agent, runner=core.runner)
-                    await self._deliver_completion(agent)
+                    if not await self._finish_gated_run(
+                        agent, run_id, gate, explicit_stop=explicit_stop,
+                        candidate_answer=outcome.content,
+                    ):
+                        continue
                     break
                 if outcome.decision in {"wait_input", "wait_approval"}:
                     await core.agent_host.transition(
@@ -697,6 +690,98 @@ class AgentRunner:
             data={"sender": agent.role_id, "content": content},
         )
 
+    async def _confirm_reviewed_exit(self, agent: AgentSession, run_id: str, messages: list[dict]) -> bool:
+        """Confirm a frozen accepted submission before asking for another LLM turn."""
+        ids = {item.get("message_id") for item in messages}
+        events = [event for event in self.core.mailbox.unread()
+                  if event.session_id == agent.id and event.data.get("message_id") in ids]
+        receipts = []
+        for event in events:
+            manifest = event.data.get("manifest") or {}
+            if manifest.get("kind") == "exit_review_decision":
+                receipts.append(manifest)
+            elif event.data.get("sender") != "completion_gate":
+                return False
+        if not receipts or len(events) != len(messages):
+            return False
+
+        def accepted_submission():
+            from cloudra.dag.store import DagStore
+            from cloudra.persistence.database import ConversationDB
+
+            gates = self.core.event_log.query_session(agent.id, types={"agent.completion_gate"}, limit=1)
+            if not gates or gates[-1].run_id != run_id or gates[-1].data.get("action") != "wait_review":
+                return None
+            request_id = gates[-1].data.get("request_id")
+            receipt = next((item for item in reversed(receipts) if item.get("request_id") == request_id), None)
+            if receipt is None:
+                return None
+            store = DagStore(ConversationDB(agent.project_id))
+            request = store.get_review_request(request_id)
+            decision = store.get_review_decision(receipt.get("decision_id", ""))
+            if (request is None or request.kind != "exit" or request.state != "resolved"
+                    or request.requester != agent.id or decision is None
+                    or decision.request_id != request_id or decision.verdict != "accept"
+                    or decision.basis_fingerprint != store.review_basis(request)):
+                return None
+            return request, bool(gates[-1].data.get("explicit_stop"))
+
+        submission = await asyncio.to_thread(accepted_submission)
+        if submission is None:
+            return False
+        request, explicit_stop = submission
+        gate, _source = await self._evaluate_completion_gate(
+            agent, run_id, explicit_stop=explicit_stop,
+            stop_arguments={"delivery_disposition": request.proposal["disposition"]},
+        )
+        if gate.action != "allow_final" or gate.request_id != request.request_id:
+            return False
+        return await self._finish_gated_run(
+            agent, run_id, gate, explicit_stop=explicit_stop,
+            confirmation_messages=messages,
+        )
+
+    async def _finish_gated_run(
+        self, agent: AgentSession, run_id: str, gate, *, explicit_stop: bool,
+        candidate_answer: str = "", confirmation_messages: list[dict] | None = None,
+    ) -> bool:
+        """One commit/output boundary for model exits and accepted frozen exits."""
+        core = self.core
+        # CommandBus user messages do not take the dispatcher target lock.
+        # Serialize automatic confirmation with that existing command boundary.
+        async with core.command_lock if confirmation_messages is not None else nullcontext():
+            async with core.dispatcher.target_lock(agent.id):
+                if self._inbox_has_pending(agent) and (
+                    agent.parent_session_id or confirmation_messages is not None
+                ):
+                    return False
+                if confirmation_messages is not None:
+                    consumed = {item.get("message_id") for item in confirmation_messages}
+                    if any(event.session_id == agent.id and event.data.get("message_id") not in consumed
+                           for event in core.mailbox.unread()):
+                        return False
+                for stage in getattr(self.pipeline, "stages", ()):
+                    hook = getattr(stage, "on_run_end", None)
+                    if hook is not None:
+                        await hook(agent, explicit_stop=explicit_stop)
+                if confirmation_messages is not None:
+                    # Consume the durable receipt without fabricating an LLM
+                    # response or another stop tool call. Recovery uses these ids.
+                    await core.contexts.append_output(agent=agent, run_id=run_id, messages=[
+                        {"role": "user", "content": item.get("content", ""),
+                         "message_id": item["message_id"]} for item in confirmation_messages
+                    ])
+                final_answer = gate.final_answer if gate.final_answer is not None else candidate_answer
+                if gate.action == "allow_final" and final_answer:
+                    self._emit_run_message(agent, run_id, final_answer)
+                elif gate.action == "wait_background":
+                    self._emit_run_message(agent, run_id, gate.reason or "Run paused awaiting background work.")
+                await core.agent_host.finish_run(agent, outcome="succeeded")
+                if self._inbox_has_pending(agent):
+                    await core.agent_host.wake(agent, runner=core.runner)
+        await self._deliver_completion(agent)
+        return True
+
     async def _evaluate_completion_gate(self, agent: AgentSession, run_id: str, *, explicit_stop: bool, stop_arguments: dict | None, candidate_answer: str = ""):
         """唯一的运行结束判定边界（Task 4A，计划 §6）。
 
@@ -800,8 +885,8 @@ class AgentRunner:
             "the stop tool only acknowledged the request. What happens next:\n"
             "- The Supervisor's decision arrives as a [Supervisor review decision] "
             "notice and wakes you.\n"
-            "- On accept: call stop again with the same declared delivery_disposition; "
-            "the runtime binds the current Supervisor approval automatically.\n"
+            "- On accept: the runtime rechecks and commits the frozen submitted delivery directly; "
+            "no rewritten stop or final answer is needed.\n"
             "- On reject or needs_evidence: the reason and next action arrive as feedback; resolve "
             "them (or close the gaps) and stop again."
         )

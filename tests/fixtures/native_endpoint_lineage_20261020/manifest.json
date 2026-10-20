@@ -2,7 +2,7 @@
   "source_batch_id": "batch_33673755b17b4a55",
   "source_program_revision": "fae430ab",
   "scoring_regression_revision": "87685c5e",
-  "meaning": "Historical real ORCA calculation replays, not new QM calculations or new model benchmark runs. L1/M17 preserve original failed deliveries, diagnostic endpoint-index reconstructions and later actual automatic exports. M3 preserves only its actual automatic successful delivery from the separate batch and revision recorded in that case. Native logs, frozen IRC bundles, captured graph and automatic endpoint-index bytes are unchanged.",
+  "meaning": "Historical real ORCA calculation replays, not new QM calculations or new model benchmark runs. L1/M17 preserve original failed deliveries, diagnostic endpoint-index reconstructions and later actual automatic exports. M3 preserves only its actual automatic successful delivery from the separate batch and revision recorded in that case. Native logs, frozen IRC bundles, captured graph and automatic endpoint-index bytes are unchanged. HB10 preserves its separate original partial delivery and native per-step review facts; no sidecar is reconstructed.",
   "cases": {
     "L1": {
       "files": [
@@ -845,6 +845,794 @@
           "accuracy_score": 0.9999998175672095,
           "final_score": 1.0
         }
+      }
+    },
+    "HB10": {
+      "source_batch_id": "batch_159a23ad57b64073",
+      "source_workspace": "/home/cloudra/benchmark-runs/deepseek-three-20261020-81def568/data/sandboxes/HB10/batch_159a23ad57b64073",
+      "source_program_revisions": [
+        "81def5682875a4fffbc5af9fe89a235d57798c27",
+        "b88e702b7981b5ef7906bc6d333a32cbbd6f6c7e"
+      ],
+      "scoring_revision": "0aaf68b70d5151076705816b0ae0063bb35a5402",
+      "original_archive": {
+        "path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned.tar",
+        "sha256": "80a5bfe39e496c1be2f2eabddac6e77a7c957b988d112491782eb9c774d333d6"
+      },
+      "meaning": "Actual partial delivery: native per-step evidence passes, but the extra thermochemistry contract prevents delivery and no per-step endpoint sidecar was exported. No endpoint metadata reconstruction.",
+      "files": [
+        {
+          "archive": "HB10/job35.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/9635d5b9d06e9e22_calc-35.out.log",
+          "sandbox_path": ".cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/9635d5b9d06e9e22_calc-35.out.log",
+          "sha256": "9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76",
+          "gzip_sha256": "40565ea4bf1444466467f36e0f6ec92fa77f2a8f6d683cc41cb6d6c8cf672e8f",
+          "uncompressed_bytes": 93278,
+          "compressed_bytes": 25489,
+          "job_id": 35
+        },
+        {
+          "archive": "HB10/aux/8cc2c699d4a34e1f_irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-a.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-a.xyz",
+          "sandbox_path": ".cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-a.xyz",
+          "sha256": "8cc2c699d4a34e1f96a953770ab2f389d895d3a7b90f1e6144a92190f35f8f74",
+          "gzip_sha256": "c70da1211db501bcd5568cd03d2bceb10f8e3769f35eb1b3ebf0b2baeaa31c9f",
+          "uncompressed_bytes": 936,
+          "compressed_bytes": 531
+        },
+        {
+          "archive": "HB10/aux/f653dbfdc5cca5fd_irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-b.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-b.xyz",
+          "sandbox_path": ".cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc-9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76.end-b.xyz",
+          "sha256": "f653dbfdc5cca5fdc388e56cbeaef9189b64501bd142760441ed8af4a426c2cb",
+          "gzip_sha256": "945aaf274e222dae0345bef2384b9ef52f178eb3c0088590b3230f45f5b25dba",
+          "uncompressed_bytes": 934,
+          "compressed_bytes": 532
+        },
+        {
+          "archive": "HB10/aux/00c27cdf8e3018a4_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_IRC_B.xyz",
+          "sandbox_path": ".cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_IRC_B.xyz",
+          "sha256": "00c27cdf8e3018a4591a8218535410413f0529dd30792bbb0243f131b35c8947",
+          "gzip_sha256": "47d22557d813076f7cd7f94f86344f69c4a0d08f138869258e751fd55429d748",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 622
+        },
+        {
+          "archive": "HB10/aux/9dde49b75c17e9ea_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_IRC_F.xyz",
+          "sandbox_path": ".cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_IRC_F.xyz",
+          "sha256": "9dde49b75c17e9ea314748c47325dc0fb621447cccb78fe900f55660f59850a2",
+          "gzip_sha256": "1d5bbd9bcc8be6847acc8084653dbea979ddd56abdaa0e3ccff21526d0babe8c",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 615
+        },
+        {
+          "archive": "HB10/aux/0849daffd5578525_irc_endpoints.json.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_endpoints.json",
+          "sandbox_path": ".cloudra/evidence/0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3/irc_endpoints.json",
+          "sha256": "0849daffd5578525fdcba635234a03e14b79059fade62d0a7578288e2f5125a3",
+          "gzip_sha256": "72346eb72eda0ac2b906b3b17020f32f04b55fe5baa5b525ed065f438e956cd9",
+          "uncompressed_bytes": 444,
+          "compressed_bytes": 273
+        },
+        {
+          "archive": "HB10/job38.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/0b11ee103925a381_calc-38.out.log",
+          "sandbox_path": ".cloudra/evidence/0b11ee103925a381_calc-38.out.log",
+          "sha256": "0b11ee103925a38182423c2e645d53dc1424a4dcf2d2c4656155bd2ee16fcbae",
+          "gzip_sha256": "73a06c35ea996164bf227d4c4bd8d8e795b76b394f9ffb3efd280f6f4671e836",
+          "uncompressed_bytes": 2341895,
+          "compressed_bytes": 577831,
+          "job_id": 38
+        },
+        {
+          "archive": "HB10/job31.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/2895a3771e464ba8_calc-31.out.log",
+          "sandbox_path": ".cloudra/evidence/2895a3771e464ba8_calc-31.out.log",
+          "sha256": "2895a3771e464ba86078b93e10988f31d1abc83e085d421c2c47ace3bb66afec",
+          "gzip_sha256": "3039f1ab9a73bf5ab84797a452ca1e23165c8c9695cea19f51f7f39942975ca2",
+          "uncompressed_bytes": 129440,
+          "compressed_bytes": 37660,
+          "job_id": 31
+        },
+        {
+          "archive": "HB10/job16.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/3f38a0816a7f7b71_calc-16.out.log",
+          "sandbox_path": ".cloudra/evidence/3f38a0816a7f7b71_calc-16.out.log",
+          "sha256": "3f38a0816a7f7b717b164e22b8121a396c2ba2ed3911385323d5c0c53226963f",
+          "gzip_sha256": "244b7970bd208a5ef371094ded0e72473f670f535c03b9ad3fd10289513fe0af",
+          "uncompressed_bytes": 1828813,
+          "compressed_bytes": 480362,
+          "job_id": 16
+        },
+        {
+          "archive": "HB10/job44.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/48dad6180d965ba6_calc-44.out.log",
+          "sandbox_path": ".cloudra/evidence/48dad6180d965ba6_calc-44.out.log",
+          "sha256": "48dad6180d965ba644c7a2399661364ac34bfb0fd47b076651f0d1242122afa0",
+          "gzip_sha256": "6e6839aa88cb0d6d865c4f1a3fac89f8ab4e07dfcdaa2da6898813fb2503a1e5",
+          "uncompressed_bytes": 424033,
+          "compressed_bytes": 109485,
+          "job_id": 44
+        },
+        {
+          "archive": "HB10/job50.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/57ccb90963f61d09_calc-50.out.log",
+          "sandbox_path": ".cloudra/evidence/57ccb90963f61d09_calc-50.out.log",
+          "sha256": "57ccb90963f61d09673a942ec1ba93fff2516ac03a020e53b3f96b878980375e",
+          "gzip_sha256": "b99731a0c01606eb42e379a7edbed8c9da617f3a173274cf4fe9aac37731e11c",
+          "uncompressed_bytes": 129425,
+          "compressed_bytes": 37618,
+          "job_id": 50
+        },
+        {
+          "archive": "HB10/job41.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/7e1a315f566c31e3_calc-41.out.log",
+          "sandbox_path": ".cloudra/evidence/7e1a315f566c31e3_calc-41.out.log",
+          "sha256": "7e1a315f566c31e3b27c0983c22145013a6afbc5fae259e76a7f62b16131e918",
+          "gzip_sha256": "620c430df2f6831c4e5539687211486ee26cc69f01f8f16886d508e116947466",
+          "uncompressed_bytes": 129532,
+          "compressed_bytes": 37279,
+          "job_id": 41
+        },
+        {
+          "archive": "HB10/job45.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/87cb245c78a07619_calc-45.out.log",
+          "sandbox_path": ".cloudra/evidence/87cb245c78a07619_calc-45.out.log",
+          "sha256": "87cb245c78a07619e0a9ce2cbbbea6cf787a9d035ecf30a73c129a9d121d34db",
+          "gzip_sha256": "c02bbffb865db2cc4c3608b5fe0b356796e60861347cca098a66b470553b1013",
+          "uncompressed_bytes": 424151,
+          "compressed_bytes": 109627,
+          "job_id": 45
+        },
+        {
+          "archive": "HB10/job49.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/90faeb4d908b99ac_calc-49.out.log",
+          "sandbox_path": ".cloudra/evidence/90faeb4d908b99ac_calc-49.out.log",
+          "sha256": "90faeb4d908b99ac8a87edbca7f5174b67667a5d2876d1cf53d38e23d733c21c",
+          "gzip_sha256": "d02c76b2ddc8231d07208ce930910750c46dcef08c21f90c3f718ebbd49d6a37",
+          "uncompressed_bytes": 129423,
+          "compressed_bytes": 37585,
+          "job_id": 49
+        },
+        {
+          "archive": "HB10/job39.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/ab55fe79974b384b_calc-39.out.log",
+          "sandbox_path": ".cloudra/evidence/ab55fe79974b384b_calc-39.out.log",
+          "sha256": "ab55fe79974b384bde2bcd491e13206a520886299fddbb7061fced3f9513ef5d",
+          "gzip_sha256": "c8d2b5f2e4a703ad3c845507745026ed53b7016dd85614d51d41b1753439aadc",
+          "uncompressed_bytes": 2011236,
+          "compressed_bytes": 493000,
+          "job_id": 39
+        },
+        {
+          "archive": "HB10/job30.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/b47e1fe5dd13f694_calc-30.out.log",
+          "sandbox_path": ".cloudra/evidence/b47e1fe5dd13f694_calc-30.out.log",
+          "sha256": "b47e1fe5dd13f694a4465deb82045951a6fd188ca1cafb452f2d61a073456337",
+          "gzip_sha256": "8b7ecab08fc700e7a25c9981df11a41843eca56ea149b87968f83b9edd82d549",
+          "uncompressed_bytes": 129440,
+          "compressed_bytes": 37586,
+          "job_id": 30
+        },
+        {
+          "archive": "HB10/job34.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/f79f9efb5ca5f60c_calc-34.out.log",
+          "sandbox_path": ".cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/f79f9efb5ca5f60c_calc-34.out.log",
+          "sha256": "f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd",
+          "gzip_sha256": "8f233f41a63c630809200f1b075350d9d2789bc7666d4f8fbd7724f90abcca9b",
+          "uncompressed_bytes": 93278,
+          "compressed_bytes": 25466,
+          "job_id": 34
+        },
+        {
+          "archive": "HB10/aux/77a70dc73c14db11_irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-a.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-a.xyz",
+          "sandbox_path": ".cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-a.xyz",
+          "sha256": "77a70dc73c14db1121ce74564f77aa38b74bb2022e46f6433b252b9802561ba9",
+          "gzip_sha256": "fa5a1f104010e30b2854766a3a78050da2d02b3f0bd66c008d781b92fa4fadab",
+          "uncompressed_bytes": 935,
+          "compressed_bytes": 531
+        },
+        {
+          "archive": "HB10/aux/9adfa1ba53cf89dd_irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-b.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-b.xyz",
+          "sandbox_path": ".cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc-f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd.end-b.xyz",
+          "sha256": "9adfa1ba53cf89dd643c328644b5983b0ebd783b256ebf2f03bb619785cb71ea",
+          "gzip_sha256": "9a3b3c52882de3773cd3690536416726fe05a5f128dc4e4de17747c28c0dc11b",
+          "uncompressed_bytes": 934,
+          "compressed_bytes": 528
+        },
+        {
+          "archive": "HB10/aux/42535160fbd70055_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_IRC_B.xyz",
+          "sandbox_path": ".cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_IRC_B.xyz",
+          "sha256": "42535160fbd70055bad9bc694ac9fcc7b281ebc5011979ba240a6793f0524efe",
+          "gzip_sha256": "c2c8f1ff417d7fcfa6adc99850a12bc8f40f677af931f974d25f490cc22962c1",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 625
+        },
+        {
+          "archive": "HB10/aux/a1e7f79947c197e1_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_IRC_F.xyz",
+          "sandbox_path": ".cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_IRC_F.xyz",
+          "sha256": "a1e7f79947c197e19ae649a0388ac4c8df0359bcc3ea916d81aa82abf8d45349",
+          "gzip_sha256": "9ad4e731ca0fe401891700233fa0b2348b9df8c45b1234f70f802b03a33ee465",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 623
+        },
+        {
+          "archive": "HB10/aux/df78d84202ef2458_irc_endpoints.json.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_endpoints.json",
+          "sandbox_path": ".cloudra/evidence/df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7/irc_endpoints.json",
+          "sha256": "df78d84202ef24586c05a78900d185e4983bf4a1dd76c610931cfaa75458d5f7",
+          "gzip_sha256": "a9b9a4134092cd575beefa1194e1a8cf8bf2d14fe066b73412e52cb2c5cff0fa",
+          "uncompressed_bytes": 444,
+          "compressed_bytes": 269
+        },
+        {
+          "archive": "HB10/job42.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/e006549b497e5eef_calc-42.out.log",
+          "sandbox_path": ".cloudra/evidence/e006549b497e5eef_calc-42.out.log",
+          "sha256": "e006549b497e5eef0f7f47b12d037c8619d1e71f53f4b2668d26eeff96534da9",
+          "gzip_sha256": "eb5e37b01ed575b7b4453ab3f6ac8adbb33d9b2f9b585f28de5bbe3292117118",
+          "uncompressed_bytes": 129368,
+          "compressed_bytes": 37272,
+          "job_id": 42
+        },
+        {
+          "archive": "HB10/job15.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/.cloudra/evidence/fb694b996a98cd91_calc-15.out.log",
+          "sandbox_path": ".cloudra/evidence/fb694b996a98cd91_calc-15.out.log",
+          "sha256": "fb694b996a98cd9178a48aa9cf53097107d2b814a35029de5fd11a4a0cb62fc0",
+          "gzip_sha256": "663cd7c3eace5f5e4267713db9d78204ff5f94ff1b3236f3413d2b2e07e909f4",
+          "uncompressed_bytes": 1984782,
+          "compressed_bytes": 522644,
+          "job_id": 15
+        },
+        {
+          "archive": "HB10/job30.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/calc-30.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/calc-30.out.log",
+          "sha256": "b47e1fe5dd13f694a4465deb82045951a6fd188ca1cafb452f2d61a073456337",
+          "gzip_sha256": "8b7ecab08fc700e7a25c9981df11a41843eca56ea149b87968f83b9edd82d549",
+          "uncompressed_bytes": 129440,
+          "compressed_bytes": 37586,
+          "job_id": 30
+        },
+        {
+          "archive": "HB10/job30.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/execution-30/results/calc-30.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/frequency/.cloudra/execution-30/results/calc-30.out.log",
+          "sha256": "b47e1fe5dd13f694a4465deb82045951a6fd188ca1cafb452f2d61a073456337",
+          "gzip_sha256": "8b7ecab08fc700e7a25c9981df11a41843eca56ea149b87968f83b9edd82d549",
+          "uncompressed_bytes": 129440,
+          "compressed_bytes": 37586,
+          "job_id": 30
+        },
+        {
+          "archive": "HB10/job34.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/calc-34.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/.cloudra/calc-34.out.log",
+          "sha256": "f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd",
+          "gzip_sha256": "8f233f41a63c630809200f1b075350d9d2789bc7666d4f8fbd7724f90abcca9b",
+          "uncompressed_bytes": 93278,
+          "compressed_bytes": 25466,
+          "job_id": 34
+        },
+        {
+          "archive": "HB10/aux/42535160fbd70055_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/42535160fbd70055_irc_IRC_B.xyz",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/42535160fbd70055_irc_IRC_B.xyz",
+          "sha256": "42535160fbd70055bad9bc694ac9fcc7b281ebc5011979ba240a6793f0524efe",
+          "gzip_sha256": "c2c8f1ff417d7fcfa6adc99850a12bc8f40f677af931f974d25f490cc22962c1",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 625
+        },
+        {
+          "archive": "HB10/aux/a1e7f79947c197e1_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/a1e7f79947c197e1_irc_IRC_F.xyz",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/a1e7f79947c197e1_irc_IRC_F.xyz",
+          "sha256": "a1e7f79947c197e19ae649a0388ac4c8df0359bcc3ea916d81aa82abf8d45349",
+          "gzip_sha256": "9ad4e731ca0fe401891700233fa0b2348b9df8c45b1234f70f802b03a33ee465",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 623
+        },
+        {
+          "archive": "HB10/job34.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/calc-34.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/calc-34.out.log",
+          "sha256": "f79f9efb5ca5f60c8a70a520749373f84593eee4d316c26d21d82365f937b0cd",
+          "gzip_sha256": "8f233f41a63c630809200f1b075350d9d2789bc7666d4f8fbd7724f90abcca9b",
+          "uncompressed_bytes": 93278,
+          "compressed_bytes": 25466,
+          "job_id": 34
+        },
+        {
+          "archive": "HB10/aux/42535160fbd70055_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/irc_IRC_B.xyz",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/irc_IRC_B.xyz",
+          "sha256": "42535160fbd70055bad9bc694ac9fcc7b281ebc5011979ba240a6793f0524efe",
+          "gzip_sha256": "c2c8f1ff417d7fcfa6adc99850a12bc8f40f677af931f974d25f490cc22962c1",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 625
+        },
+        {
+          "archive": "HB10/aux/a1e7f79947c197e1_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/irc_IRC_F.xyz",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/irc_IRC_F.xyz",
+          "sha256": "a1e7f79947c197e19ae649a0388ac4c8df0359bcc3ea916d81aa82abf8d45349",
+          "gzip_sha256": "9ad4e731ca0fe401891700233fa0b2348b9df8c45b1234f70f802b03a33ee465",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 623
+        },
+        {
+          "archive": "HB10/aux/fe53b9ee7d69c481_irc_endpoints.json.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/irc_endpoints.json",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/.cloudra/execution-34/results/irc_endpoints.json",
+          "sha256": "fe53b9ee7d69c481f3ea95362099c6cd0e7fef6f18f58f1b854966e27457504c",
+          "gzip_sha256": "f6c9c895c440ef7f947b0ebf486c45a1a9835402916e4b8cdc51e678293f668a",
+          "uncompressed_bytes": 580,
+          "compressed_bytes": 308
+        },
+        {
+          "archive": "HB10/aux/42535160fbd70055_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/irc_IRC_B.xyz",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/irc_IRC_B.xyz",
+          "sha256": "42535160fbd70055bad9bc694ac9fcc7b281ebc5011979ba240a6793f0524efe",
+          "gzip_sha256": "c2c8f1ff417d7fcfa6adc99850a12bc8f40f677af931f974d25f490cc22962c1",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 625
+        },
+        {
+          "archive": "HB10/aux/a1e7f79947c197e1_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/irc/irc_IRC_F.xyz",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/irc/irc_IRC_F.xyz",
+          "sha256": "a1e7f79947c197e19ae649a0388ac4c8df0359bcc3ea916d81aa82abf8d45349",
+          "gzip_sha256": "9ad4e731ca0fe401891700233fa0b2348b9df8c45b1234f70f802b03a33ee465",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 623
+        },
+        {
+          "archive": "HB10/job49.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/calc-49.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/calc-49.out.log",
+          "sha256": "90faeb4d908b99ac8a87edbca7f5174b67667a5d2876d1cf53d38e23d733c21c",
+          "gzip_sha256": "d02c76b2ddc8231d07208ce930910750c46dcef08c21f90c3f718ebbd49d6a37",
+          "uncompressed_bytes": 129423,
+          "compressed_bytes": 37585,
+          "job_id": 49
+        },
+        {
+          "archive": "HB10/job49.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/execution-49/results/calc-49.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_frequency/.cloudra/execution-49/results/calc-49.out.log",
+          "sha256": "90faeb4d908b99ac8a87edbca7f5174b67667a5d2876d1cf53d38e23d733c21c",
+          "gzip_sha256": "d02c76b2ddc8231d07208ce930910750c46dcef08c21f90c3f718ebbd49d6a37",
+          "uncompressed_bytes": 129423,
+          "compressed_bytes": 37585,
+          "job_id": 49
+        },
+        {
+          "archive": "HB10/job44.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/calc-44.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/calc-44.out.log",
+          "sha256": "48dad6180d965ba644c7a2399661364ac34bfb0fd47b076651f0d1242122afa0",
+          "gzip_sha256": "6e6839aa88cb0d6d865c4f1a3fac89f8ab4e07dfcdaa2da6898813fb2503a1e5",
+          "uncompressed_bytes": 424033,
+          "compressed_bytes": 109485,
+          "job_id": 44
+        },
+        {
+          "archive": "HB10/job44.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/execution-44/results/calc-44.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_opt/.cloudra/execution-44/results/calc-44.out.log",
+          "sha256": "48dad6180d965ba644c7a2399661364ac34bfb0fd47b076651f0d1242122afa0",
+          "gzip_sha256": "6e6839aa88cb0d6d865c4f1a3fac89f8ab4e07dfcdaa2da6898813fb2503a1e5",
+          "uncompressed_bytes": 424033,
+          "compressed_bytes": 109485,
+          "job_id": 44
+        },
+        {
+          "archive": "HB10/aux/d0eca198c75e6c3c_endpoint_source.json.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_opt/endpoint_source.json",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_opt/endpoint_source.json",
+          "sha256": "d0eca198c75e6c3c1d93d3e57cc4577f7112ee118a6c2886fdc0d287e79880e1",
+          "gzip_sha256": "b621f0ab266cf3d16b668f25d2bf19e88578e9ae9b33e508ed6833b351aeddd6",
+          "uncompressed_bytes": 399,
+          "compressed_bytes": 298
+        },
+        {
+          "archive": "HB10/aux/b77de592d51d9eb6_product_opt.inp.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_opt/product_opt.inp",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_opt/product_opt.inp",
+          "sha256": "b77de592d51d9eb6319f9f919ea571a8c162d300a9c1b617ad9d89c36be88a9c",
+          "gzip_sha256": "8f77314c0e4a188eaa07ba2f5498c84cac4b6c69eb61c98692347348a40efec2",
+          "uncompressed_bytes": 1108,
+          "compressed_bytes": 580
+        },
+        {
+          "archive": "HB10/aux/42535160fbd70055_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/product_opt/product_source.xyz",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/product_opt/product_source.xyz",
+          "sha256": "42535160fbd70055bad9bc694ac9fcc7b281ebc5011979ba240a6793f0524efe",
+          "gzip_sha256": "c2c8f1ff417d7fcfa6adc99850a12bc8f40f677af931f974d25f490cc22962c1",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 625
+        },
+        {
+          "archive": "HB10/job41.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/calc-41.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/calc-41.out.log",
+          "sha256": "7e1a315f566c31e3b27c0983c22145013a6afbc5fae259e76a7f62b16131e918",
+          "gzip_sha256": "620c430df2f6831c4e5539687211486ee26cc69f01f8f16886d508e116947466",
+          "uncompressed_bytes": 129532,
+          "compressed_bytes": 37279,
+          "job_id": 41
+        },
+        {
+          "archive": "HB10/job41.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/execution-41/results/calc-41.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_frequency/.cloudra/execution-41/results/calc-41.out.log",
+          "sha256": "7e1a315f566c31e3b27c0983c22145013a6afbc5fae259e76a7f62b16131e918",
+          "gzip_sha256": "620c430df2f6831c4e5539687211486ee26cc69f01f8f16886d508e116947466",
+          "uncompressed_bytes": 129532,
+          "compressed_bytes": 37279,
+          "job_id": 41
+        },
+        {
+          "archive": "HB10/job38.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/calc-38.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/calc-38.out.log",
+          "sha256": "0b11ee103925a38182423c2e645d53dc1424a4dcf2d2c4656155bd2ee16fcbae",
+          "gzip_sha256": "73a06c35ea996164bf227d4c4bd8d8e795b76b394f9ffb3efd280f6f4671e836",
+          "uncompressed_bytes": 2341895,
+          "compressed_bytes": 577831,
+          "job_id": 38
+        },
+        {
+          "archive": "HB10/job38.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/execution-38/results/calc-38.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_opt/.cloudra/execution-38/results/calc-38.out.log",
+          "sha256": "0b11ee103925a38182423c2e645d53dc1424a4dcf2d2c4656155bd2ee16fcbae",
+          "gzip_sha256": "73a06c35ea996164bf227d4c4bd8d8e795b76b394f9ffb3efd280f6f4671e836",
+          "uncompressed_bytes": 2341895,
+          "compressed_bytes": 577831,
+          "job_id": 38
+        },
+        {
+          "archive": "HB10/aux/38e654d770beef7e_endpoint_source.json.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/reactant_opt/endpoint_source.json",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_opt/endpoint_source.json",
+          "sha256": "38e654d770beef7e4732aa94afec18046e4f2c0c4631e6d088d87866ae37a38a",
+          "gzip_sha256": "a88207547c925cc60fbdd92c77a7da488b67e4271bda2e038329baa57c13fdaa",
+          "uncompressed_bytes": 401,
+          "compressed_bytes": 298
+        },
+        {
+          "archive": "HB10/aux/57e91a524d13c577_reactant_opt.inp.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/reactant_opt/reactant_opt.inp",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_opt/reactant_opt.inp",
+          "sha256": "57e91a524d13c577c378a4c6880b2576e8282658402adc57829a14e0223fd5d5",
+          "gzip_sha256": "015d2bfb379bd6a78d0e89400b5b59e989a09471e474e967cf189d9a4b95a957",
+          "uncompressed_bytes": 1097,
+          "compressed_bytes": 576
+        },
+        {
+          "archive": "HB10/aux/a1e7f79947c197e1_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/reactant_opt/reactant_source.xyz",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/reactant_opt/reactant_source.xyz",
+          "sha256": "a1e7f79947c197e19ae649a0388ac4c8df0359bcc3ea916d81aa82abf8d45349",
+          "gzip_sha256": "9ad4e731ca0fe401891700233fa0b2348b9df8c45b1234f70f802b03a33ee465",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 623
+        },
+        {
+          "archive": "HB10/job15.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/calc-15.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/calc-15.out.log",
+          "sha256": "fb694b996a98cd9178a48aa9cf53097107d2b814a35029de5fd11a4a0cb62fc0",
+          "gzip_sha256": "663cd7c3eace5f5e4267713db9d78204ff5f94ff1b3236f3413d2b2e07e909f4",
+          "uncompressed_bytes": 1984782,
+          "compressed_bytes": 522644,
+          "job_id": 15
+        },
+        {
+          "archive": "HB10/job15.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/execution-15/results/calc-15.out.log",
+          "sandbox_path": "ts/ts_0002/jobs/declaration_0001/ts_opt/.cloudra/execution-15/results/calc-15.out.log",
+          "sha256": "fb694b996a98cd9178a48aa9cf53097107d2b814a35029de5fd11a4a0cb62fc0",
+          "gzip_sha256": "663cd7c3eace5f5e4267713db9d78204ff5f94ff1b3236f3413d2b2e07e909f4",
+          "uncompressed_bytes": 1984782,
+          "compressed_bytes": 522644,
+          "job_id": 15
+        },
+        {
+          "archive": "HB10/job31.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/frequency/.cloudra/calc-31.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/frequency/.cloudra/calc-31.out.log",
+          "sha256": "2895a3771e464ba86078b93e10988f31d1abc83e085d421c2c47ace3bb66afec",
+          "gzip_sha256": "3039f1ab9a73bf5ab84797a452ca1e23165c8c9695cea19f51f7f39942975ca2",
+          "uncompressed_bytes": 129440,
+          "compressed_bytes": 37660,
+          "job_id": 31
+        },
+        {
+          "archive": "HB10/job31.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/frequency/.cloudra/execution-31/results/calc-31.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/frequency/.cloudra/execution-31/results/calc-31.out.log",
+          "sha256": "2895a3771e464ba86078b93e10988f31d1abc83e085d421c2c47ace3bb66afec",
+          "gzip_sha256": "3039f1ab9a73bf5ab84797a452ca1e23165c8c9695cea19f51f7f39942975ca2",
+          "uncompressed_bytes": 129440,
+          "compressed_bytes": 37660,
+          "job_id": 31
+        },
+        {
+          "archive": "HB10/job35.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/calc-35.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/.cloudra/calc-35.out.log",
+          "sha256": "9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76",
+          "gzip_sha256": "40565ea4bf1444466467f36e0f6ec92fa77f2a8f6d683cc41cb6d6c8cf672e8f",
+          "uncompressed_bytes": 93278,
+          "compressed_bytes": 25489,
+          "job_id": 35
+        },
+        {
+          "archive": "HB10/aux/00c27cdf8e3018a4_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/00c27cdf8e3018a4_irc_IRC_B.xyz",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/00c27cdf8e3018a4_irc_IRC_B.xyz",
+          "sha256": "00c27cdf8e3018a4591a8218535410413f0529dd30792bbb0243f131b35c8947",
+          "gzip_sha256": "47d22557d813076f7cd7f94f86344f69c4a0d08f138869258e751fd55429d748",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 622
+        },
+        {
+          "archive": "HB10/aux/9dde49b75c17e9ea_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/9dde49b75c17e9ea_irc_IRC_F.xyz",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/9dde49b75c17e9ea_irc_IRC_F.xyz",
+          "sha256": "9dde49b75c17e9ea314748c47325dc0fb621447cccb78fe900f55660f59850a2",
+          "gzip_sha256": "1d5bbd9bcc8be6847acc8084653dbea979ddd56abdaa0e3ccff21526d0babe8c",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 615
+        },
+        {
+          "archive": "HB10/job35.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/calc-35.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/calc-35.out.log",
+          "sha256": "9635d5b9d06e9e22d808670de6fab829257be1802ad5b0b935a0689da87c3b76",
+          "gzip_sha256": "40565ea4bf1444466467f36e0f6ec92fa77f2a8f6d683cc41cb6d6c8cf672e8f",
+          "uncompressed_bytes": 93278,
+          "compressed_bytes": 25489,
+          "job_id": 35
+        },
+        {
+          "archive": "HB10/aux/00c27cdf8e3018a4_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/irc_IRC_B.xyz",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/irc_IRC_B.xyz",
+          "sha256": "00c27cdf8e3018a4591a8218535410413f0529dd30792bbb0243f131b35c8947",
+          "gzip_sha256": "47d22557d813076f7cd7f94f86344f69c4a0d08f138869258e751fd55429d748",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 622
+        },
+        {
+          "archive": "HB10/aux/9dde49b75c17e9ea_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/irc_IRC_F.xyz",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/irc_IRC_F.xyz",
+          "sha256": "9dde49b75c17e9ea314748c47325dc0fb621447cccb78fe900f55660f59850a2",
+          "gzip_sha256": "1d5bbd9bcc8be6847acc8084653dbea979ddd56abdaa0e3ccff21526d0babe8c",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 615
+        },
+        {
+          "archive": "HB10/aux/54771bcae6ba03f3_irc_endpoints.json.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/irc_endpoints.json",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/.cloudra/execution-35/results/irc_endpoints.json",
+          "sha256": "54771bcae6ba03f337ee9698579d9a6824f2aec976de4b7ccbb1f82fc700179f",
+          "gzip_sha256": "96c210622dac74048304756798adb58588a9e0401ab4b99cd8af93269715f439",
+          "uncompressed_bytes": 580,
+          "compressed_bytes": 312
+        },
+        {
+          "archive": "HB10/aux/00c27cdf8e3018a4_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/irc_IRC_B.xyz",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/irc_IRC_B.xyz",
+          "sha256": "00c27cdf8e3018a4591a8218535410413f0529dd30792bbb0243f131b35c8947",
+          "gzip_sha256": "47d22557d813076f7cd7f94f86344f69c4a0d08f138869258e751fd55429d748",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 622
+        },
+        {
+          "archive": "HB10/aux/9dde49b75c17e9ea_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/irc/irc_IRC_F.xyz",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/irc/irc_IRC_F.xyz",
+          "sha256": "9dde49b75c17e9ea314748c47325dc0fb621447cccb78fe900f55660f59850a2",
+          "gzip_sha256": "1d5bbd9bcc8be6847acc8084653dbea979ddd56abdaa0e3ccff21526d0babe8c",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 615
+        },
+        {
+          "archive": "HB10/job50.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_frequency/.cloudra/calc-50.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/product_frequency/.cloudra/calc-50.out.log",
+          "sha256": "57ccb90963f61d09673a942ec1ba93fff2516ac03a020e53b3f96b878980375e",
+          "gzip_sha256": "b99731a0c01606eb42e379a7edbed8c9da617f3a173274cf4fe9aac37731e11c",
+          "uncompressed_bytes": 129425,
+          "compressed_bytes": 37618,
+          "job_id": 50
+        },
+        {
+          "archive": "HB10/job50.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_frequency/.cloudra/execution-50/results/calc-50.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/product_frequency/.cloudra/execution-50/results/calc-50.out.log",
+          "sha256": "57ccb90963f61d09673a942ec1ba93fff2516ac03a020e53b3f96b878980375e",
+          "gzip_sha256": "b99731a0c01606eb42e379a7edbed8c9da617f3a173274cf4fe9aac37731e11c",
+          "uncompressed_bytes": 129425,
+          "compressed_bytes": 37618,
+          "job_id": 50
+        },
+        {
+          "archive": "HB10/job45.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_opt/.cloudra/calc-45.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/product_opt/.cloudra/calc-45.out.log",
+          "sha256": "87cb245c78a07619e0a9ce2cbbbea6cf787a9d035ecf30a73c129a9d121d34db",
+          "gzip_sha256": "c02bbffb865db2cc4c3608b5fe0b356796e60861347cca098a66b470553b1013",
+          "uncompressed_bytes": 424151,
+          "compressed_bytes": 109627,
+          "job_id": 45
+        },
+        {
+          "archive": "HB10/job45.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_opt/.cloudra/execution-45/results/calc-45.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/product_opt/.cloudra/execution-45/results/calc-45.out.log",
+          "sha256": "87cb245c78a07619e0a9ce2cbbbea6cf787a9d035ecf30a73c129a9d121d34db",
+          "gzip_sha256": "c02bbffb865db2cc4c3608b5fe0b356796e60861347cca098a66b470553b1013",
+          "uncompressed_bytes": 424151,
+          "compressed_bytes": 109627,
+          "job_id": 45
+        },
+        {
+          "archive": "HB10/aux/a082e0e2d758abf0_endpoint_source.json.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_opt/endpoint_source.json",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/product_opt/endpoint_source.json",
+          "sha256": "a082e0e2d758abf07ec00d0cf151234d4fb87f98caec78fe4b305349f7669721",
+          "gzip_sha256": "78925af4a73fe2f817d5cb82502461bfba2b9e7af1a460eb0e09504a86e31d66",
+          "uncompressed_bytes": 399,
+          "compressed_bytes": 299
+        },
+        {
+          "archive": "HB10/aux/c778a8e0cca07412_product_opt.inp.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_opt/product_opt.inp",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/product_opt/product_opt.inp",
+          "sha256": "c778a8e0cca07412f30137088383cd52be7f028c523ee0f3c0a2e4971b56118c",
+          "gzip_sha256": "9dd06de76a74b0ffc13fea3fcb730b5addc54fa7128dce20d0bf17cfffbcdfb6",
+          "uncompressed_bytes": 1109,
+          "compressed_bytes": 576
+        },
+        {
+          "archive": "HB10/aux/9dde49b75c17e9ea_irc_IRC_F.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/product_opt/product_source.xyz",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/product_opt/product_source.xyz",
+          "sha256": "9dde49b75c17e9ea314748c47325dc0fb621447cccb78fe900f55660f59850a2",
+          "gzip_sha256": "1d5bbd9bcc8be6847acc8084653dbea979ddd56abdaa0e3ccff21526d0babe8c",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 615
+        },
+        {
+          "archive": "HB10/job42.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_frequency/.cloudra/calc-42.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/reactant_frequency/.cloudra/calc-42.out.log",
+          "sha256": "e006549b497e5eef0f7f47b12d037c8619d1e71f53f4b2668d26eeff96534da9",
+          "gzip_sha256": "eb5e37b01ed575b7b4453ab3f6ac8adbb33d9b2f9b585f28de5bbe3292117118",
+          "uncompressed_bytes": 129368,
+          "compressed_bytes": 37272,
+          "job_id": 42
+        },
+        {
+          "archive": "HB10/job42.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_frequency/.cloudra/execution-42/results/calc-42.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/reactant_frequency/.cloudra/execution-42/results/calc-42.out.log",
+          "sha256": "e006549b497e5eef0f7f47b12d037c8619d1e71f53f4b2668d26eeff96534da9",
+          "gzip_sha256": "eb5e37b01ed575b7b4453ab3f6ac8adbb33d9b2f9b585f28de5bbe3292117118",
+          "uncompressed_bytes": 129368,
+          "compressed_bytes": 37272,
+          "job_id": 42
+        },
+        {
+          "archive": "HB10/job39.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_opt/.cloudra/calc-39.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/reactant_opt/.cloudra/calc-39.out.log",
+          "sha256": "ab55fe79974b384bde2bcd491e13206a520886299fddbb7061fced3f9513ef5d",
+          "gzip_sha256": "c8d2b5f2e4a703ad3c845507745026ed53b7016dd85614d51d41b1753439aadc",
+          "uncompressed_bytes": 2011236,
+          "compressed_bytes": 493000,
+          "job_id": 39
+        },
+        {
+          "archive": "HB10/job39.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_opt/.cloudra/execution-39/results/calc-39.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/reactant_opt/.cloudra/execution-39/results/calc-39.out.log",
+          "sha256": "ab55fe79974b384bde2bcd491e13206a520886299fddbb7061fced3f9513ef5d",
+          "gzip_sha256": "c8d2b5f2e4a703ad3c845507745026ed53b7016dd85614d51d41b1753439aadc",
+          "uncompressed_bytes": 2011236,
+          "compressed_bytes": 493000,
+          "job_id": 39
+        },
+        {
+          "archive": "HB10/aux/168bff9415e02af2_endpoint_source.json.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_opt/endpoint_source.json",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/reactant_opt/endpoint_source.json",
+          "sha256": "168bff9415e02af221cdcc9a65c2235a2f8d714777bf707115bee59eda9ffcc9",
+          "gzip_sha256": "319a29e26c60db77c214a4782884bd0ec312e46b2eca88e2d9153854d2bcbd24",
+          "uncompressed_bytes": 401,
+          "compressed_bytes": 299
+        },
+        {
+          "archive": "HB10/aux/650a6a5634288f53_reactant_opt.inp.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_opt/reactant_opt.inp",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/reactant_opt/reactant_opt.inp",
+          "sha256": "650a6a5634288f5347f0529657a00838b069813595558c62ab2e36aeeccc9cbd",
+          "gzip_sha256": "a37f66be3d31cde3149bbccb49f977a8bc05f1a9411b6d6ffa0efa972a9e6167",
+          "uncompressed_bytes": 1097,
+          "compressed_bytes": 570
+        },
+        {
+          "archive": "HB10/aux/00c27cdf8e3018a4_irc_IRC_B.xyz.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/reactant_opt/reactant_source.xyz",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/reactant_opt/reactant_source.xyz",
+          "sha256": "00c27cdf8e3018a4591a8218535410413f0529dd30792bbb0243f131b35c8947",
+          "gzip_sha256": "47d22557d813076f7cd7f94f86344f69c4a0d08f138869258e751fd55429d748",
+          "uncompressed_bytes": 1409,
+          "compressed_bytes": 622
+        },
+        {
+          "archive": "HB10/job16.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/ts_opt/.cloudra/calc-16.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/ts_opt/.cloudra/calc-16.out.log",
+          "sha256": "3f38a0816a7f7b717b164e22b8121a396c2ba2ed3911385323d5c0c53226963f",
+          "gzip_sha256": "244b7970bd208a5ef371094ded0e72473f670f535c03b9ad3fd10289513fe0af",
+          "uncompressed_bytes": 1828813,
+          "compressed_bytes": 480362,
+          "job_id": 16
+        },
+        {
+          "archive": "HB10/job16.out.gz",
+          "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/ts/ts_0003/jobs/declaration_0001/ts_opt/.cloudra/execution-16/results/calc-16.out.log",
+          "sandbox_path": "ts/ts_0003/jobs/declaration_0001/ts_opt/.cloudra/execution-16/results/calc-16.out.log",
+          "sha256": "3f38a0816a7f7b717b164e22b8121a396c2ba2ed3911385323d5c0c53226963f",
+          "gzip_sha256": "244b7970bd208a5ef371094ded0e72473f670f535c03b9ad3fd10289513fe0af",
+          "uncompressed_bytes": 1828813,
+          "compressed_bytes": 480362,
+          "job_id": 16
+        }
+      ],
+      "graph": {
+        "archive": "HB10/mechanism_graph.json",
+        "sha256": "cff8f418b17ec100d8eb84641712077204fab4d0aaf65e6d335b4a445e133afa",
+        "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/returned/data/sandboxes/HB10/batch_159a23ad57b64073/mechanism_graph.json"
+      },
+      "task": {
+        "archive": "HB10/task.json",
+        "sha256": "22319d101e809d23ebf1b5ee62d22c20f5a0e203bf7c6956e774249ed902003f",
+        "source_path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/formal-tasks/hard/HB10.json"
+      },
+      "formal_gold_result": {
+        "graph_score": 0.8,
+        "selfconsistency_passed": false,
+        "accuracy_score": 0.999998643769128,
+        "final_score": 0.68
+      },
+      "formal_gold_result_source": {
+        "path": "benchmark_smoke_data/vm-deepseek-three-20261020-81def568/final-scores.json",
+        "sha256": "df415a76d368840d548b0afc7574b9d65d2e78b8142a60c3222f2fd418783428"
+      },
+      "accepted_step_reviews": {
+        "endo_DA": "rev_f635fe86e93b44b9986923b96bca59a1",
+        "exo_DA": "rev_f1e10e3eb30d4516a1a2b102100e84d5"
+      },
+      "dag_snapshot": {
+        "archive": "HB10/dag_snapshot.json",
+        "sha256": "88393dc0e0f90f1bc516b160646bf67d0229ee1e848ee37811cb17becedbfd1d"
       }
     }
   }

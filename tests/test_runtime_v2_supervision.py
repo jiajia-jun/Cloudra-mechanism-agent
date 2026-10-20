@@ -964,8 +964,7 @@ async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_me
 class _ExitReviewLLM:
     """退出审批全环的 fake LLM。
 
-    coordinator：第一次 stop partial 无批准（进 wait_review 挂起）；被裁决
-    通知唤醒后再 stop 一次 partial（同 basis 复用已接受的退出裁决）。
+    coordinator：提交冻结的 partial 答复；接受裁决后程序直接复用旧门禁结题。
     supervisor：读出 queued 退出请求，dag_review_evidence 接受后 stop。
     """
 
@@ -973,7 +972,6 @@ class _ExitReviewLLM:
         self.project_id = project_id
         self.coordinator_calls = 0
         self.supervisor_calls = 0
-        self._supervisor = None
 
     def _queued_exit_request_id(self) -> str:
         store = DagStore(ConversationDB(self.project_id))
@@ -1011,38 +1009,13 @@ class _ExitReviewLLM:
                     ToolCall(
                         id="stop-1",
                         name="stop",
-                        arguments={"delivery_disposition": "partial", "reason": "partial"},
+                        arguments={"delivery_disposition": "partial", "reason": "partial",
+                                   "final_answer": "frozen-roundtrip-answer"},
                     )
                 ],
             )
-        # 第二拍：裁决已落库；等督导完全终态再 stop，避免 wait_background
-        # 把这次 stop 判成"挂起"而非交付（ sibling 非终态时不做交付审计）。
-        # Task 4A 时序注记：统一结束边界里 notify 与挂起的相对次序让第二拍
-        # 可能早于测试主体回填 self._supervisor——这里把"引用已回填"也并入
-        # 等待条件（测试设施修复，不是行为契约）。
-        from cloudra.runtime_v2.schemas import AgentState as _AS
-
-        deadline = asyncio.get_running_loop().time() + 5.0
-        while True:
-            supervisor = self._supervisor
-            if supervisor is not None and supervisor.state in {
-                _AS.SUCCEEDED,
-                _AS.FAILED,
-                _AS.CANCELLED,
-            }:
-                break
-            if asyncio.get_running_loop().time() > deadline:
-                raise AssertionError("supervisor did not reach a terminal state")
-            await asyncio.sleep(0.01)
         return LLMResponse(
-            content="",
-            tool_calls=[
-                ToolCall(
-                    id="stop-2",
-                    name="stop",
-                    arguments={"delivery_disposition": "partial", "reason": "partial"},
-                )
-            ],
+            content="unreviewed-roundtrip-confirmation", stop_requested=True,
         )
 
 
@@ -1052,8 +1025,8 @@ async def test_exit_review_roundtrip_drives_coordinator_to_approved_partial(tmp_
 
     coordinator stop partial → 持久化退出请求 + 通知 Supervisor（不再轮询
     daemon）→ 真实 Supervisor agent 经 dag_review_evidence 裁决接受 →
-    裁决通知非轮询投递（pin + mailbox + wake）→ coordinator 恢复后同一
-    版本复用已接受裁决，partial 交付落 allow_final。
+    裁决通知非轮询投递（pin + mailbox + wake）→ runner 复查同一版本，
+    无第二轮模型或 stop 工具就将冻结答复交付为 allow_final。
     """
     from cloudra.runtime_v2.adapters import LegacyToolExecutor
     from cloudra.runtime_v2.invocation import InvocationService
@@ -1149,14 +1122,14 @@ async def test_exit_review_roundtrip_drives_coordinator_to_approved_partial(tmp_
         request_ids = await asyncio.to_thread(_request_ids)
         supervisor = find_final_review_supervisor(core, project.id, request_ids[0])
         assert supervisor is not None
-        llm._supervisor = supervisor
 
         # Supervisor 裁决 → 通知投递 → coordinator 恢复 → 批准结束。
         await _wait_state(coordinator, "succeeded")
-        # 第二拍是裁决通知唤醒后的重 stop（复用已接受裁决放行）；supervisor
-        # （parent=coordinator）的完成回传会再唤醒一轮，故只断言至少两拍，
-        # 不把轮次顺序当时序契约。
-        assert llm.coordinator_calls >= 2
+        assert llm.coordinator_calls == 1
+        emitted = [event.data.get("content") for event in core.event_log.query_session(
+            coordinator.id, types={"agent.message_emitted"})]
+        assert "frozen-roundtrip-answer" in emitted
+        assert "unreviewed-roundtrip-confirmation" not in emitted
 
         def _read_back():
             db = ConversationDB(project.id)
