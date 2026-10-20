@@ -11,11 +11,13 @@ from cloudra.base.session_class import Session
 from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
 from cloudra.dag.controller import DagController
-from cloudra.dag.models import GraphKind, OrchestrationMode
+from cloudra.dag.models import GraphActor, GraphKind, OrchestrationMode
 from cloudra.tools.Plantool.dag_tools._common import (
     DagToolBase,
     DagToolOutput,
+    final_review_request_id,
     render_subgraph_view,
+    review_scope_allows,
 )
 
 
@@ -67,6 +69,7 @@ class DagView(DagToolBase):
         ctx = await self._prepare(session)
         snapshot = await asyncio.to_thread(ctx.engine.snapshot)
         if user_input.graph_kind == "both":
+            final_review = ctx.actor is GraphActor.SUPERVISOR and final_review_request_id(self.subagent) is not None
             delivery = snapshot.delivery
             controller = DagController(ctx.db, session.id, ctx.mode,
                 conversation_id=ctx.conversation_id,
@@ -120,7 +123,7 @@ class DagView(DagToolBase):
                         "step_count": len([op for op in draft.operations if getattr(op, "op", "") == "add_edge"]),
                         "status": draft.state,
                     }
-                    for draft_id, draft in ctx.store.list_open_drafts()
+                    for draft_id, draft in ([] if final_review else ctx.store.list_open_drafts())
                 ]
             )
 
@@ -135,7 +138,7 @@ class DagView(DagToolBase):
                         "claim": review.claim,
                         "status": getattr(review, "state", getattr(review, "status", "pending")),
                     }
-                    for review in ctx.store.list_call_reviews("pending", source="explicit")
+                    for review in ([] if final_review else ctx.store.list_call_reviews("pending", source="explicit"))
                 ]
             )
 
@@ -155,6 +158,7 @@ class DagView(DagToolBase):
                         "created_at": req.created_at,
                     }
                     for req in ctx.store.list_review_requests("queued")
+                    if review_scope_allows(self.subagent, req.kind, req.request_id)
                 ]
             )
 

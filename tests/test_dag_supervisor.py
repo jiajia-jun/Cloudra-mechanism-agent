@@ -14,6 +14,8 @@ Supervisor agent（spawn + 信箱变更消息），哪些必须保持安静。
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from cloudra.dag.controller import DagController
@@ -21,9 +23,11 @@ from cloudra.dag.engine import DagEngine
 from cloudra.dag.models import (
     CoverageContract,
     GraphActor,
+    MechanismDraft,
     MutationBatch,
     SetCoverageContract,
 )
+from cloudra.dag.review_requests import ReviewRequest
 from cloudra.dag.store import DagStore
 from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.commands import CommandBus
@@ -80,7 +84,12 @@ async def test_guided_propose_draft_notifies_supervisor():
     """dag_propose_mechanism 草稿落库（guided 返回 accepted=False + draft_id）
     → 项目唯一 Supervisor 被 spawn 并收到信箱变更消息；裁决不在此等待。"""
     core, project = await _core_project("supervision-propose")
-    controller = _guided_controller(project.id, core)
+    controller = await asyncio.to_thread(_guided_controller, project.id, core)
+    draft_id = await asyncio.to_thread(
+        controller.store.save_draft,
+        MechanismDraft(operations=[], rationale="Claisen chair hypothesis"),
+        actor_id="a-0",
+    )
 
     await controller.on_tool_finished(
         "tc-propose",
@@ -89,7 +98,7 @@ async def test_guided_propose_draft_notifies_supervisor():
         {
             "is_success": True,
             "accepted": False,
-            "result": {"draft_id": "draft_1", "state": "open", "accepted": False},
+            "result": {"draft_id": draft_id, "state": "open", "accepted": False},
         },
     )
 
@@ -98,7 +107,7 @@ async def test_guided_propose_draft_notifies_supervisor():
     assert supervisor.role_id == "supervisor"
     messages = _supervisor_messages(core, supervisor.id)
     assert len(messages) == 1
-    assert "mailbox changed" in str(messages[0].data.get("content", ""))
+    assert messages[0].data["manifest"]["kind"] == "supervision_work"
 
 
 @pytest.mark.asyncio
@@ -254,7 +263,20 @@ async def test_submit_evidence_tools_with_review_receipt_notify():
     与 dag_bind_evidence 同一纪律：新建 queued review 的回执
     （review_id + enqueued=True）触达项目唯一 Supervisor。"""
     core, project = await _core_project("supervision-submit-evidence")
-    controller = _guided_controller(project.id, core)
+    controller = await asyncio.to_thread(_guided_controller, project.id, core)
+    await controller.initialize()
+
+    async def persist_review(review_id, element_type, target_id):
+        request = ReviewRequest(
+            request_id=review_id, kind="evidence", requester="s1", target_ids=[target_id],
+            question=f"Review {target_id}", proposal={"element_type": element_type},
+            basis_fingerprint="pending",
+        )
+        basis = await asyncio.to_thread(controller.store.review_basis, request)
+        return await asyncio.to_thread(controller.store.enqueue_review,
+            request.model_copy(update={"basis_fingerprint": basis}))
+
+    species_review_id = await persist_review("rev_sp1", "species", "ReactantComplex")
 
     await controller.on_tool_finished(
         "tc-submit-species",
@@ -266,7 +288,7 @@ async def test_submit_evidence_tools_with_review_receipt_notify():
             "result": {
                 "species_name": "ReactantComplex",
                 "status": "submitted_for_review",
-                "review_id": "rev_sp1",
+                "review_id": species_review_id,
                 "enqueued": True,
             },
         },
@@ -276,6 +298,7 @@ async def test_submit_evidence_tools_with_review_receipt_notify():
     assert supervisor is not None
     assert len(_supervisor_messages(core, supervisor.id)) == 1
 
+    step_review_id = await persist_review("rev_st1", "step", "SN2_F_attack_CH3Cl")
     await controller.on_tool_finished(
         "tc-submit-step",
         "dag_submit_step_evidence",
@@ -286,7 +309,7 @@ async def test_submit_evidence_tools_with_review_receipt_notify():
             "result": {
                 "step_name": "SN2_F_attack_CH3Cl",
                 "status": "submitted_for_review",
-                "review_id": "rev_st1",
+                "review_id": step_review_id,
                 "enqueued": True,
             },
         },

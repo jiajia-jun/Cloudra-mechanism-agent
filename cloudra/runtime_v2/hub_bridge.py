@@ -86,7 +86,11 @@ def _resolve_live_target(
             if not wakeable_role_only or parent.state not in {AgentState.FAILED, AgentState.CANCELLED}:
                 return parent
     matches = [a for a in sessions if a.role_id == clean]
-    if matches:
+    if clean == "supervisor":
+        # The role alias belongs to the ongoing research discussion. A final
+        # reviewer stays addressable through its explicit session id above.
+        matches = [a for a in matches if a.final_review_request_id is None]
+    if matches or clean == "supervisor":
         if wakeable_role_only:
             matches = [
                 a for a in matches if a.state not in {AgentState.FAILED, AgentState.CANCELLED}
@@ -570,8 +574,8 @@ async def _call(core, author: AgentSession, args: dict[str, Any]) -> ToolResult:
         return _ok(f"Called {target.id} (non-blocking).", session_id=target.id, notifications=[notification])
 
     # A missing role is a request for a new peer, independent of the caller's
-    # role, settings, and cancellation tree. Supervisor is system-managed and
-    # has one instance per project; every caller uses the same rule for it.
+    # role, settings, and cancellation tree. Process and final Supervisors are
+    # system-managed; callers cannot create them through a missing role alias.
     role_id = raw_to.lstrip("@").lower()
     try:
         core.roles.require(role_id)

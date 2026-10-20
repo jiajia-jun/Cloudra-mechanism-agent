@@ -297,6 +297,12 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
                 "invalid_request", "a peer requester and a child parent cannot both be set"
             )
         role = core.roles.require(role_id)
+        final_review_request_id = payload.get("final_review_request_id")
+        if final_review_request_id is not None and (
+            command.actor != "system" or role_id != "supervisor"
+            or not isinstance(final_review_request_id, str) or not final_review_request_id
+        ):
+            raise CommandRejected("forbidden", "final reviewers are bound by the runtime only")
         query_sender = "system"
         if requested_by_session_id is not None:
             requester = core.require_agent(requested_by_session_id)
@@ -312,6 +318,8 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
             core.require_agent(caller_id)
         elif command.actor == "agent":
             raise CommandRejected("forbidden", "Agent delegation requires a bound requester identity")
+        if command.actor == "user":
+            query_sender = "user"
         settings_patch = RuntimeSettingsPatch.model_validate(payload.get("settings") or {})
         settings = core.agent_host.effective_settings(project, role, settings_patch)
         agent = core.agent_host.build(
@@ -319,6 +327,7 @@ def _decide_spawn_agent(core: RuntimeCore, command: Command) -> Decision:
             role=role,
             parent_session_id=parent_session_id,
             requested_by_session_id=requested_by_session_id,
+            final_review_request_id=final_review_request_id,
             display_name=payload.get("display_name"),
             settings=settings,
         )

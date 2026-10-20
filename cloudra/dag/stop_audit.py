@@ -89,6 +89,7 @@ def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
     parent and child wait on each other after both successful run transitions.
     """
     from cloudra.runtime_v2.agent_host import is_background_parked
+    from cloudra.runtime_v2.supervision import pending_supervision_for_agent
 
     # History probes can release the GIL for SQLite. Freeze registry membership
     # and values before probing rather than traversing a live dict across I/O.
@@ -115,26 +116,13 @@ def has_running_siblings(core, *, project_id: str, session_id: str) -> bool:
     # Coordinator audits the whole project (including legacy unowned agents).
     # A child must only wait on work it owns, never its active parent/siblings.
     project_wide = current is not None and current.role_id == "coordinator"
-    scientific_supervision_pending = False
-    if any(
-        agent.role_id == "supervisor"
-        and agent.id != session_id
-        and agent.project_id == project_id
-        and agent.state.value not in terminal
-        for agent in agents.values()
-    ):
-        from cloudra.runtime_v2.supervision import pending_supervision_counts
 
-        pending = pending_supervision_counts(project_id)
-        scientific_supervision_pending = any(
-            pending[kind] for kind in ("call_reviews", "open_drafts", "review_requests")
-        )
     if any(
         agent.id != session_id
         and agent.project_id == project_id
         # Scientific review still counts as background work. Notebook tidying
         # alone must not hold delivery open.
-        and (agent.role_id != "supervisor" or scientific_supervision_pending)
+        and (agent.role_id != "supervisor" or pending_supervision_for_agent(project_id, agent))
         and (
             (agent.state.value not in terminal and (project_wide or is_descendant(agent)))
             or (is_descendant(agent) and is_background_parked(core, agent))
@@ -324,14 +312,14 @@ class StopAuditMixin:
                     reused = await self._reused_exit_review(request.request_id, disposition, report)
                     if reused is not None:
                         return reused
-        request_id, created = await self._enqueue_exit_review(disposition, report,
+        request_id, _created = await self._enqueue_exit_review(disposition, report,
             reason=reason, final_answer=final_answer, candidate_answer=candidate_answer)
         reused = await self._reused_exit_review(request_id, disposition, report)
         if reused is not None:
             return reused
-        if created:
-            # Reusing unchanged material does not wake the Supervisor again.
-            await self._notify_supervisor("exit review requested")
+        # The notifier owns deduplication and repairs a request committed just
+        # before interruption, when no reviewer notification reached the log.
+        await self._notify_supervisor("exit review requested")
         return StopGate(
             action="wait_review",
             report=report,
@@ -342,8 +330,7 @@ class StopAuditMixin:
     async def _enqueue_exit_review(self, disposition: str, report: Any, *,
                                    reason: str | None = None, final_answer: str | None = None,
                                    candidate_answer: str = "") -> tuple[str, bool]:
-        """持久化退出审查请求；同 kind+scope+basis 去重。返回 (request_id,
-        是否新建）——只有新建才值得通知 Supervisor。"""
+        """持久化退出审查请求；同 kind+scope+basis 去重，返回 ID 与是否新建。"""
         snapshot = await asyncio.to_thread(self.engine.snapshot)
         target_ids = [
             *(node.node_id for node in snapshot.delivery.nodes),

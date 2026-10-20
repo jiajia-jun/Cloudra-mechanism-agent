@@ -944,6 +944,7 @@ def test_legacy_agent_bridge_falls_back_to_default_workspace():
 
     agent = SimpleNamespace(
         id="agent-1",
+        final_review_request_id=None,
         role_id="coordinator",
         project_id="prj-legacy",
         settings=SimpleNamespace(orchestration_mode=SimpleNamespace(value="standard")),

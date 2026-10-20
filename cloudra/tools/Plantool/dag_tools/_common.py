@@ -201,6 +201,21 @@ def fail(action: str, error: str, *, accepted: bool | None = None) -> DagToolOut
     )
 
 
+def final_review_request_id(actor: Any) -> str | None:
+    """Read the runtime-owned assignment, including the existing tool bridge."""
+    return getattr(actor, "final_review_request_id", None) or getattr(
+        getattr(actor, "_runtime_agent", None), "final_review_request_id", None
+    )
+
+
+def review_scope_allows(actor: Any, kind: str, request_id: str) -> bool:
+    """Research agents can inspect all requests; each reviewer has one inbox."""
+    if getattr(actor, "type", None) != "supervisor":
+        return True
+    assigned = final_review_request_id(actor)
+    return kind != "exit" if assigned is None else kind == "exit" and request_id == assigned
+
+
 @dataclass
 class PreparedDag:
     db: ConversationDB

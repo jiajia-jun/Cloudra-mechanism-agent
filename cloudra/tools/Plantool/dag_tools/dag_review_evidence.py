@@ -12,7 +12,7 @@ from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
 from cloudra.dag.models import GraphActor, GraphRef, OrchestrationMode
 from cloudra.dag.review_requests import ReviewDecision
-from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail
+from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail, review_scope_allows
 
 
 class DagReviewEvidenceInput(input_schema):
@@ -79,6 +79,12 @@ class DagReviewEvidence(DagToolBase):
             return fail(
                 "dag_review_evidence",
                 f"review request {user_input.request_id!r} does not exist",
+            )
+        if not review_scope_allows(self.subagent, request.kind, request.request_id):
+            return fail(
+                "dag_review_evidence",
+                "This request is outside this Supervisor's assigned review scope",
+                accepted=False,
             )
         reconsider = False
         if (

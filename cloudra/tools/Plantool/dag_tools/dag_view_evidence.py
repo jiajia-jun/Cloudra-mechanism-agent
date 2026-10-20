@@ -19,7 +19,7 @@ from cloudra.base.tool_actor import ToolActorContext
 from cloudra.base.tools_class import input_schema
 from cloudra.dag.models import GraphRef, OrchestrationMode
 from cloudra.dag.store import InvalidGraphReference
-from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail
+from cloudra.tools.Plantool.dag_tools._common import DagToolBase, DagToolOutput, fail, review_scope_allows
 
 
 class DagViewEvidenceInput(input_schema):
@@ -71,6 +71,8 @@ class DagViewEvidence(DagToolBase):
                 request = await asyncio.to_thread(store.get_review_request, user_input.review_id.strip())
                 if request is None or request.kind not in {"evidence", "exception", "exit"}:
                     return fail("dag_view_evidence", f"evidence review {user_input.review_id!r} does not exist")
+                if not review_scope_allows(self.subagent, request.kind, request.request_id):
+                    return fail("dag_view_evidence", "This request is outside this Supervisor's assigned review scope", accepted=False)
                 decision = await asyncio.to_thread(store.get_review_decision_for_request, request.request_id)
                 result = {"review_id": request.request_id, "state": request.state,
                           "kind": request.kind, "question": request.question, "target_ids": request.target_ids,
@@ -91,6 +93,8 @@ class DagViewEvidence(DagToolBase):
                             "they do not validate or grant evidence credit to a replacement target."
                         )
                 return DagToolOutput(is_success=True, action="dag_view_evidence", result=result)
+            if not review_scope_allows(self.subagent, "call", review.review_id):
+                return fail("dag_view_evidence", "This call review is outside this Supervisor's assigned review scope", accepted=False)
             ref = await asyncio.to_thread(
                 store.resolve_evidence_for_call, review.tool_call_id
             )

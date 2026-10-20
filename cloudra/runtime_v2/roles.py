@@ -94,12 +94,11 @@ BUILTIN_ROLES: tuple[RoleProfile, ...] = (
         legacy_agent_id=legacy_agent_id_for_role("supervisor"),
         display_name="Supervisor",
         description=(
-            "Scientific supervisor in dag_guided mode: a real runtime_v2 agent "
-            "driven by the normal LLM pipeline. Each turn it reads the persisted "
-            "supervision mailbox (pending call reviews / open drafts / queued "
-            "requests) and adjudicates around the submitted claims, then "
-            "asynchronously maintains PROCESS.md research notes. Its tool surface is the registry "
-            "supervisor_access projection (read-only on the delivery graph)."
+            "Scientific supervisor in dag_guided mode, driven by the normal LLM pipeline. "
+            "The process Supervisor reviews submitted evidence and maintains PROCESS.md. "
+            "Each final delivery request has a separate Supervisor session that reviews only "
+            "that submission against the complete human task and constraints. Tools come from "
+            "the registry supervisor_access projection (read-only on the delivery graph)."
         ),
         # PROCESS.md uses a scoped executor capability, not general write or delegation authority.
         permissions=PermissionSet(read=True),

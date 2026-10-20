@@ -361,11 +361,19 @@ async def test_complete_delivery_plain_text_requires_final_supervisor_review(tmp
     llm = _RoutingLLM([LLMResponse(content="mechanism fully supported")])
     core, bus, project = await _new_core(llm, workspace_dir=tmp_path)
     await _seed_complete_delivery(project.id)
+    process = (await bus.execute(Command(type="agent.spawn", actor="system",
+        target={"project_id": project.id}, payload={"role_id": "supervisor"}))).data
     coordinator = await _spawn_coordinator(bus, project, mode="dag_guided")
     try:
         await _wait_parked(coordinator, llm)
         requests = await _review_requests(project.id)
         assert len(requests) == 1 and requests[0].proposal["disposition"] == "complete"
+        from cloudra.runtime_v2.supervision import find_final_review_supervisor, find_project_supervisor
+
+        final = find_final_review_supervisor(core, project.id, requests[0].request_id)
+        assert final is not None and final.id != process.id
+        assert final.parent_session_id == coordinator.id
+        assert find_project_supervisor(core, project.id).id == process.id
         assert await _dispositions(project.id) == []
         injected = [e for e in core.event_log.query_session(coordinator.id)
                     if e.type == "agent.message_injected" and e.data.get("sender") == "completion_gate"]

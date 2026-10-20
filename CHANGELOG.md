@@ -1,18 +1,69 @@
 # Changelog
 
-## [Unreleased]
+All notable changes to the Cloudra project will be documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-### 2026-10-18 · 题库、证据交付与现行文档
+## [Unreleased] (2026-09-22 ~ 2026-10-20)
 
-- 正式 Benchmark 固定为50题：简单20、普通10、困难10、IMP10。以 `ideapool/tasks/{easy,normal,hard,impossible}/` 和对应生成源为准，过期题库快照不覆盖正式数据。
-- 原始证据改为 [Google Drive交付包](gold_compute/evidence/DELIVERY.md)，仓库保留下载入口、版本/校验清单、逐题索引和[复现说明](gold_compute/evidence/REPRODUCE.md)。本包包含886份整理证据，试错记录、缓存和重复run移出当前证据包；缺原件、端点来源限制和人工采信项继续明示。
-- 用户确认反应能垒相对对应稳定中间体；IRC实际连接与能量参照分别记录。构象转换沿用自身起点，不合并独立立体底物或通道接触体。评分权重仍为图结构0.1、自洽0.3、准确度0.6。
-- IMP按最终交付判定评分：正确否定得分；最终误报可达或可信数值失分；尝试计算后正确否定不扣。NB1_E2/NQ5_E2既定PT空参考不作为IMP负例或待算题。
-- 根README对齐当前DAG实现：默认反应步要求 `ts_opt + frequency + short_irc`，`ts_guess`仅建议；同一TS真实双向IRC末帧分别优化到正确零虚频端点可构成方向证明，几何区间仅作提示。
-- 更新角色与督导说明：Coordinator维护机理图，专门角色按权限执行工作；Supervisor是正常runtime_v2 Agent，自读持久信箱审查，对交付图只读。移除README中未经当前证据支撑的“全自主完成”概括和将插值写成必经流程的表述。
-- 知识检索说明对齐当前chem-kb：图关键词匹配定位来源并返回完整知识正文；不再把旧BGE向量服务当作运行时自动拉起的依赖。
-- 清理分子Agent提示、DFT技能和机理SOP里过期的“手动TS/IRC禁用”说明，对齐现有计算队列能力，科学证据要求不变。原始证据本地缓存不再入Git，相关绑定回归改为检查Drive清单；下载、还原与回读步骤已在无原件的干净副本上验证。
-- 更新[50题运行入口](cloudra/benchmark/README.md)与本地开发检查指引；默认CLI空运行、工程回归、原生日志回读、真实Agent运行和科学验收分别说明。历史版本条目保留当时记录，现行行为以源码和当前文档为准。
+### 多后端量化计算一致性与底层单源 (Multi-Backend QM Consistency)
+- **多后端行为一致性与逻辑单源权威原则**：
+  - 确立同一业务含义只维护一套权威实现的工程红线。意图识别、参数校验、单位转换、状态判定与科学验收共用权威单源，各后端（Gaussian / ORCA、本地 / SSH / Slurm）仅负责原生语法、编号与执行机制差异。
+  - 严禁在调用入口处分散复制打补丁；发现重复实现必须在本次涉及范围内合并并迁移调用方，共用问题统一在共同入口修复。
+- **Gaussian 与 ORCA 原生参数与执行保真**：
+  - 保留 Agent 原生声明的量化参数与基组配置（如 def2 族基组拼写规范、CPCM 溶剂化参数），统一输入生成（`qm_input_writer`）、作业提交与执行校验。
+  - 修复 Gaussian 优化步数预算（step budgets）与内存/核心数分配策略；严格识别 Gaussian 与 ORCA 的正常终止原生文本标记（如 ORCA `TERMINATED NORMALLY` 与 Gaussian `Normal termination`），避免单纯依赖 cclib 解析导致的误判。
+- **IRC 双向端点与方向证明单源统一**：
+  - 确立端点优化确证标准：同一个 TS 的真实双向 IRC 末帧经收敛优化至正确的零虚频极小值（0 imaginary modes），即构成物理成立的方向证明；几何区间仅作辅助提示，不否决已成立的端点优化事实。
+  - 提取规范化端点证据（canonical endpoints）：修复直接计算作业的端点来源识别，严格保留配对电荷态与自旋多重度，记录量化自洽审计信息。
+- **Slurm 与计算作业守卫加固**：
+  - 计算作业取消严格走数据库账本标记（`cancel_requested`）与底层文件排他锁（flock）探测，在确认底层进程真正退出前，严禁将持有锁的作业标记为失败。
+  - 配置并注入 ORCA MPI 运行环境与集群环境 modules，Slurm 资源校验从脆弱的正则表达式全面重构为显式规则检查。
+
+### 反应机理图 (DAG) 证据交付与科学验收体系
+- **科学证据与流程督导分权**：
+  - 彻底解耦流程记录与科学验收：阶段绑定或 Supervisor 审阅不能充抵缺失的物理证据。稳定物种极小值必须具备零虚频（0 imaginary modes），过渡态（TS）必须且仅允许一阶鞍点（1 imaginary mode），并绑定不可变的原始日志字节凭据。
+  - 移除流程介入配额（intervention quotas），规范退出审计门禁（StopGate），结题时严格审查所有声明边与物种的绑定事实。
+- **物种状态与反应拓扑单点维护**：
+  - 在全流程保持分子结构的 RDKit Mol 原生状态与原子拓扑对应关系，推断的键级变化仅作建议；修复分离产物（separated products）基于 IRC 端点证据的自动验证。
+  - 彻底废弃历史过渡过程模型、`AddLink` 与事件重放垫片，精简数据结构。
+
+### 50 题 Benchmark 体系与 3 级法医评分
+- **正式 50 题 Benchmark 题库定版**：
+  - 题库结构收敛为 50 道正式基准题：简单（Easy, 20题）、普通（Normal, 10题）、困难（Hard, 10题）、不可达/排阻（Impossible, 10题）；淘汰并替换旧题目（如 NR1, NY3, HI1, HL1 等）。
+  - 方法白名单策略严格限制在标有 Benchmark 属性的项目中生效，普通科研探索不再受限。
+- **3 级法医评分模型（Forensic Scoring Pipeline）**：
+  - 综合得分公式严格执行用户裁定权重：`Composite = 0.1 * Graph + 0.3 * Self-consistency + 0.6 * Accuracy`。
+  - **金标准边自洽回捞（Gold-edge Clawback）**：声明命中 Gold 关键反应步但虚频错误或 IRC 跑偏时，自洽性得 0 分并倒扣图结构分。
+  - **造假/数据不一致 Fail-Loud 短路**：声明能垒无法从真实日志中闭环推导且与标准答案冲突时，触发短路保护，自洽性与准确度归零。
+  - **IMP 负例题目交付判定**：以最终交付事实为准；正确否定不可达通道得满分，错误宣称可达或虚构能垒重罚，探索尝试后正确否定不扣分。
+  - 能垒分母统一以对应物种的稳定极小值（稳定中间体）为基准，实际 IRC 拓扑连通与能量参照分别独立记录。
+- **Google Drive 证据交付包与原件解耦**：
+  - 将 886 份经验证的真实量化输出日志与几何结构归档至 Google Drive 独立交付包（`gold_compute/evidence/DELIVERY.md`），仓库内只保留不可变 SHA-256 校验清单、逐题索引与复现指南（`REPRODUCE.md`），保持代码库轻量。
+  - 归档并回放真实 Benchmark 运行中的 ORCA/Gaussian 成功与失败用例（M3, NU3, L1, M17 等），保证打分引擎的确定性。
+
+### 过渡态 (TS) 搜索流水线与化学工具箱强化
+- **TS 初猜与质量诊断规范 (`ts-initial-guess` skill)**：
+  - 确立过渡态初猜的三级梯队纪律（`ts_prepare` → 映射插值/NEB → 松弛扫描），确立首步熔断机制（first-step circuit breaker）与接受度核算。
+  - 新增虚频振动模成分分析（imaginary mode composition）：提取并展示虚模主要移动原子的贡献，严格拦截落在反应中心重原子之外的伪鞍点或软模。
+- **计算准备自动化与断点续跑**：
+  - `ts_prepare` 支持自动补全遗漏的准备输入并回显动作，具备基于不可变字节指纹的断点恢复机制，无需冗余重跑扫描。
+  - 强化内坐标变换中的基团替换功能（`replace_group`），以及基于预算感知的构象筛选。
+
+### Runtime v2 事件驱动内核与通信加固
+- **事件计数器与快照解耦**：
+  - 事件序列计数器完全独立于私有快照的高水位线，增量流（SSE）恢复严格基于有界窗口重放，彻底修复在多项目交错写入或重启时丢事件的隐患。
+  - 新增结构化运行失败分类（`failure_kind`），使“执行过程终止”与“科学目标已验证完成”在状态与 UI 上明确区隔。
+- **协作子系统与 Launch Group 事务化**：
+  - 规范 Agent 间消息投递的唯一步骤；子 Agent 派发通过 Launch Group 事件持久化，重启时对账恢复且不重复执行。
+  - 子 Agent 完成时返回结构化 manifest，明确汇报执行结论与证据归属。
+  - 引入离线 Token 估算器与上下文压缩预算控制，避免大上下文下的异常截断。
+- **MCP (Model Context Protocol) 工具投影**：
+  - 新增 MCP 协议支持，允许外部智能体客户端通过标准 MCP 规范调用 Cloudra 的化学与量化工具箱。
+- **知识库 Chem-KB 架构精简**：
+  - 全面转向基于知识图谱关键词直接定位并检索完整原文字段的极简模式，剔除旧版离线 BGE 向量微服务的运行时强依赖。
+- **工程交规与开源协议变更**：
+  - 仓库核心代码开源协议正式由 MIT 变更为 **AGPL-3.0-or-later**（`cloudra/skills/` 保持 MIT）。
+  - 更新工程规范与协作指南（`AGENTS.md`），明确“做减法”、“逻辑单源”、“严禁过度工程”与“不向下兼容”的研发原则。
 
 ## [0.1.0rc1] - 2026-09-21
 
@@ -128,6 +179,35 @@
 - v1 运行时整体删除：旧 FastAPI 面（`services/api.py`/`api_v1.py`）、`services/service.py` 应用服务层、legacy 执行核心（`runtime/runner|executor|workers|compute_executor|mobile_tasks`、`core/react.py`）、Flet GUI（`ui/`、`flet_app.py`）、Android 全家桶（`android/`、`extensions/cloudra_native/`、`device/`、`device_broker`、mobile/remote 相关 infra 与文档）、legacy 论坛存储（hub_posts）、`control_store`/`interactions`/`conversation_repo`/`case_bank`/`context_stats` 及对应测试。Managetool 四个跨 agent 工具只保留 schema（执行由 runtime_v2 桥接拦截）。
 - CLI 收敛为启动器与运维命令（`web`/`config`/`logs`/`skills`/`backup`）；`run`/`gui`/`sessions`/`history`/`devices`/`android` 子命令移除。
 
+## [2.0.0-beta] - 2026-07-26 ~ 2026-09-20
+
+### 新增与核心重构
+- **事件驱动架构全面重构 (Event-Driven Rewrite)**：
+  - 废弃历史基于 ReAct 状态循环与阻塞式串行执行的旧内核，实现纯事件溯源驱动的 `runtime_v2`。
+  - 引入 `CommandBus` 四阶段管线（决定 decider → 先持久化后生效 append+persist → 唯一无守卫状态更新 `apply_event` → 副作用 effect 执行）。
+  - 支持会话无损增量重放与从事件日志确定性恢复。
+- **DAG 反应机理图编排子系统 (DAG-Guided Orchestration)**：
+  - 首次将化学反应机理探索形式化为有向无环图，以科学证据交付（Delivery-only）为核心契约。
+  - 规范基态物种（极小值）与过渡态（一阶鞍点）的数据模型，支持阶段式证据绑定（`ts_guess`、`ts_opt`、`frequency`、`short_irc`、`thermochemistry`）。
+  - 引入独立只读科学督导员（Supervisor），基于持久化信箱机制进行图结构检查与证据审核。
+  - 建立严格的退出门禁（StopGate），在结题时对交付覆盖率与虚频合法性进行全自动审计。
+- **科学子 Agent 团队矩阵与 AgentHub 协作网络**：
+  - 确立统一的角色画像架构（`RoleProfile`），将 Agent 职责拆分为 8 个专业领域角色：`coordinator`（统筹）、`explorer`（探索审查）、`writer`（论文写作）、`researcher`（文献检索）、`small_mol`（小分子量化）、`md`（分子动力学）、`dft`（第一性原理材料）、`experiment`（实验设计）。
+  - 新增 AgentHub 共享论坛与 Mailbox 消息信箱，支持多智能体异步协作发帖、检索与互唤醒。
+  - 引入 `SubAgentSwarm` 批量并行派发与取消级联机制。
+- **交互界面体系迭代**：
+  - **Textual 全屏 TUI**：重写终端全屏界面，支持虚拟滚动（virtual transcript renderer）、KaTeX 数学公式渲染、流式 Markdown 折叠以及绿黄工业风格主题。
+  - **React Web 控制台**：基于 Vite + React 构建现代化 Web 前端，集成 DAG 交互图谱可视化（dagre+SVG）、分子 SMILES 与 3D 构型渲染、会话与日志实时观察面板。
+- **化学与量化计算工具集扩充**：
+  - 新增 `cdxml_to_graph` 工具，基于 molli 与 RDKit 解析 ChemDraw CDXML 反应路线并自动生成反应机理图骨架。
+  - 集成 CREST 构象搜索（NCI 弱相互作用、QCG 溶剂壳生长、互变异构体枚举）。
+  - 集成 xTB 反应路径扫描（`xtb_path_runner`）与多维松弛扫描。
+  - 集成 FlowER 机器学习反应机理预测（`mechanism_predict`）。
+- **知识库 Chem-KB 体系构建**：
+  - 导入包含 1.5 万化学实体与 1 万反应关系的知识图谱，构建混合检索通道与前端知识探索面板。
+- **Benchmark 评测体系原型**：
+  - 确立 3 层法医级评测架构原型（图同构 GED 覆盖率、物理自洽性、能垒准确度），构建包含 Easy / Normal / Hard / Impossible 的阶梯式候选题库。
+
 ## [1.8.0] - 2026-07-18
 
 ### 新增
@@ -210,13 +290,60 @@
 ## [1.6.0] - 2026-06-18
 
 ### 新增
-- 异步计算任务基础设施。
-- `ContextManager` 统一上下文管理。
-- sqlite 迁到 aiosqlite。
+- 异步计算任务基础设施：引入 `submit_compute_job` 异步执行与后台守卫，支持长周期量子化学作业在后台排队运行。
+- `ContextManager` 统一上下文管理：重构会话历史构建，实现消息组装与视图渲染的单点维护。
+- 数据库异步化改造：底层 SQLite 驱动由同步 `sqlite3` 全面迁移至 `aiosqlite`，消除事件循环阻塞风险。
+- 异步任务假失败检测与异常隔离机制。
 
-## [1.5.1] - 2026-05-23
+## [1.5.1] - 2026-06-30
 
 ### 改进
-- 重构 prompts。
-- 限制 Coordinator 可用工具范围。
-- 改进 UX 反馈。
+- 系统提示词重构：精简各 Agent 提示词结构，规范工具使用边界与科学严谨度。
+- 限制 Coordinator 工具暴露范围，引导其将具体计算工作委派给专业子 Agent。
+- 优化用户交互反馈：改进流式输出呈现，修复空消息与重复数值问题。
+- 更新 DFT 第一性原理计算 skill 与环境配置。
+- 修复子 Agent 在 reAct 停止后未清理上下文导致模板污染的问题。
+
+## [1.5.0] - 2026-06-25
+
+### 新增
+- 邮件远程监听器功能升级：支持任务邮件全文正文解析与自动化分发。
+
+### 修复
+- 子 Agent 上下文隔离：按任务独立分配子 Agent 上下文，彻底杜绝提示词模板污染。
+
+## [1.2.1] - 2026-06-18
+
+### 新增
+- 新增系统自动化演示脚本（automated demo script）。
+
+### 修复
+- 修复工具权限验证漏洞与部分边缘场景下的调用崩溃。
+
+## [1.2.0] - 2026-06-01
+
+### 新增
+- **波谱分析套件**：引入 `IRProcessor` 红外光谱分析模块与 NMR 核磁共振数据解析能力。
+- **多模态化学工具**：新增 `image_to_smiles`（化学结构图像转 SMILES）、`smiles_to_mol` 与 `ask_user` 人机交互工具。
+- **专业化子 Agent 矩阵**：初步引入领域子智能体（Visionary、Operator、Coder 等）。
+- **上下文懒加载**：实现会话上下文懒加载机制，显著降低长会话内存与 Token 开销。
+- **本地 API 服务**：新增基于 FastAPI 的本地控制面 API 服务。
+- **远程邮件唤醒**：实现基于邮件监听的远程任务唤醒机制。
+
+### 修复
+- 数据库并发与乐观锁优化：解决多任务并发写入 SQLite 时的冲突与锁死问题。
+- 修复 Windows 平台下 Bashtools 路径与执行兼容性问题。
+
+## [1.0.0] - 2026-05-20
+
+### 新增
+- CLI 工具全面重构：规范化 Python 包结构与安装分发机制。
+- 撰写多语言文档：全面更新 README，支持中英双语详细使用说明与 CLI 手册。
+- 建立测试基建：引入基于 pytest 的单元测试套件，包含 IRProcessor 等核心组件回归测试。
+
+## [0.1.0-alpha] - 2026-05-12
+
+### 新增
+- 仓库初始化（Initial commit: Cloudra - an AI agent for chemists）。
+- 搭建基础 ReAct 智能体循环与大模型调用适配层。
+- 实现初步分子结构绘制（molecule drawer）、化学图像解析（image reader）与多模态上下文接入。

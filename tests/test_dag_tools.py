@@ -58,6 +58,8 @@ async def test_supervisor_can_follow_inbox_link_to_submitted_diagnostic_material
         assert submitted.is_success
         request_id = submitted.result['request_id']
     supervisor = make_supervisor(conversation_id, workspace_dir=str(tmp_path))
+    if kind == 'exit':
+        supervisor._runtime_agent.final_review_request_id = request_id
     supervisor_session = make_session(conversation_id, 'supervisor')
     inbox = await _call(DagView, supervisor, supervisor_session)
     item = next(item for item in inbox.result['queued_requests'] if item['request_id'] == request_id)
@@ -2298,6 +2300,7 @@ async def test_exit_review_material_is_readable_by_supervisor(tmp_path):
         question="Review the whole proposed final delivery", proposal=proposal, basis_fingerprint="basis1")
     request_id = await asyncio.to_thread(store.enqueue_review, request)
     supervisor = make_supervisor(db.conversation_id, workspace_dir=str(tmp_path))
+    supervisor._runtime_agent.final_review_request_id = request_id
     session = Session("s1", str(tmp_path / "session.json"))
     queued = await _call(DagViewEvidence, supervisor, session, review_id=request_id)
     assert queued.is_success

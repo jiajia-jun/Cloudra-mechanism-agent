@@ -1,0 +1,107 @@
+{
+  "task_id": "HB10",
+  "batch_id": "batch_159a23ad57b64073",
+  "original_root_message": {
+    "rowid": 8,
+    "event_id": "evt_3e8e84b376f84b74",
+    "project_id": "prj_f6b449fe54d740d8",
+    "session_id": "as_b02861f53fd74201",
+    "run_id": null,
+    "type": "agent.message_injected",
+    "created_at": "2026-10-20T15:45:17.498128+00:00",
+    "data": {
+      "message_id": "msg_530b732b47394d9f",
+      "sender": "system",
+      "content": "Determine the mechanism of the following reaction: cyclopentadiene + acrylonitrile Diels-Alder reaction: determine both stereochemical pathways. Reactant SMILES: C1=CCC=C1.C=CC#N; product SMILES: N#CC1CC2C=CC1C2; total charge 0, multiplicity 1; conditions: gas phase; concerted Diels-Alder addition; compare both endo/exo channels using a common reactant-complex reference. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH2:6]=[CH:7][C:8]#[N:9].[CH:1]1=[CH:2][CH2:3][CH:4]=[CH:5]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the stereochemical pathways compatible with the stated conditions; a forbidden counterfactual pathway is not required. Make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections. For a bond-changing step, use the lowest-energy verified minimum of the corresponding reactant or intermediate state found in your evidence, including its connected conformers; this reference need not be the conformer directly reached by IRC. Preserve the actual IRC connection in the mechanism graph. A conformational-transition barrier uses its own initial conformer. Keep separate stereochemical substrates and disconnected channel-specific reactant complexes as separate references; do not replace a complex by separated-monomer energies. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Every species node and transition-state node must declare `properties.energy_hartree` (the electronic energy of the geometry you delivered for that node, in Hartree, exactly as it appears in that node's evidence log) and `properties.evidence_log` (the sandbox-relative path of that log). The scorer uses the declared energy to identify which evidence file you delivered for each node; a node missing either field violates the delivery contract. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. For each stereochemical channel you investigate, state its identity and barrier. Report any energy difference and its uncertainty; no favored-channel assignment is scored for this task. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted."
+    }
+  },
+  "first_supervisor_notice": {
+    "rowid": 2720,
+    "event_id": "evt_e012ba04c7174225",
+    "project_id": "prj_f6b449fe54d740d8",
+    "session_id": "as_2b7484eb474747cd",
+    "run_id": null,
+    "type": "agent.message_injected",
+    "created_at": "2026-10-20T16:01:19.083120+00:00",
+    "data": {
+      "message_id": "msg_032e76efbabe4710",
+      "sender": "system",
+      "content": "[Supervision] Project research notes or supervision work changed (Terminal TS observation recorded). Read the DAG store for the current pending reviews, open drafts and queued review requests — the store is the source of truth and this notification may be stale by the time you read it. Read the named changed research note, the current pinned TS observation when present, and the current project-root PROCESS.md. Promptly merge evidence, counterevidence and changed hypotheses into the shared current account, with concrete source links. Document maintenance does not require a scientific review request or wait for one; finish pending scientific decisions first when there are any.",
+      "manifest": {
+        "kind": "supervision_work",
+        "fingerprint": "70370d8246c62bece6c6cdd51f37d80692c972e3c7ea722571ae96fecc423cc0",
+        "notes": {},
+        "observation": "f6436c5a84d687d49feed2effd68b7f187e1c24a76195f940c34ac317ed34723"
+      }
+    }
+  },
+  "first_supervisor_input_message": {
+    "event": 2725,
+    "at": "2026-10-20T16:01:19.123216+00:00",
+    "role": "user",
+    "content": "[Supervision] Project research notes or supervision work changed (Terminal TS observation recorded). Read the DAG store for the current pending reviews, open drafts and queued review requests — the store is the source of truth and this notification may be stale by the time you read it. Read the named changed research note, the current pinned TS observation when present, and the current project-root PROCESS.md. Promptly merge evidence, counterevidence and changed hypotheses into the shared current account, with concrete source links. Document maintenance does not require a scientific review request or wait for one; finish pending scientific decisions first when there are any.",
+    "event_id": "evt_3fc60f1b27274b85",
+    "source_sender": "system"
+  },
+  "pre_contract_input_audit": {
+    "message_count": 34,
+    "required_clause": "without ZPE or thermal corrections",
+    "required_clause_present": false,
+    "complete_original_request_present": false,
+    "first_source_event_id": "evt_e638f452c4e94764",
+    "last_source_event_id": "evt_fa963f586c5545fc",
+    "last_input_at": "2026-10-20T16:02:32.437683+00:00"
+  },
+  "coverage_contract_call": {
+    "rowid": 3680,
+    "event_id": "evt_fa2a8659d10b4ca6",
+    "project_id": "prj_f6b449fe54d740d8",
+    "session_id": "as_2b7484eb474747cd",
+    "run_id": "run_77c5c51b640d46c4",
+    "type": "tool.requested",
+    "created_at": "2026-10-20T16:02:40.969106+00:00",
+    "data": {
+      "tool_call_id": "tc_9efb18ddcb464607",
+      "tool_name": "dag_set_coverage_contract",
+      "arguments_summary": {
+        "require_thermochemistry": true,
+        "rationale": "The draft's only quantitative claim is a comparison of the endo and exo barrier heights against one shared RC reference. An electronic-energy comparison alone is not a defensible selectivity statement, so frequency-derived thermal corrections (Gibbs barrier at the same level, B3LYP-D3(BJ)/def2-SVP) are required for both channels. Strengthening only; no stage or check is waived."
+      },
+      "execution_id": "exec_f031255741ad41a3"
+    }
+  },
+  "coverage_contract_result": {
+    "rowid": 3682,
+    "event_id": "evt_a63319741aeb4bd4",
+    "project_id": "prj_f6b449fe54d740d8",
+    "session_id": "as_2b7484eb474747cd",
+    "run_id": "run_77c5c51b640d46c4",
+    "type": "tool.result_recorded",
+    "created_at": "2026-10-20T16:02:40.994216+00:00",
+    "data": {
+      "tool_call_id": "tc_9efb18ddcb464607",
+      "tool_name": "dag_set_coverage_contract",
+      "execution_id": "exec_f031255741ad41a3",
+      "result": {
+        "is_success": true,
+        "summary": "{\"is_success\": true, \"action\": \"dag_set_coverage_contract\", \"result\": {\"mutation_id\": \"mut_eb3f3cb3c139444c89cfaf7d06aa9b0a\", \"revisions\": {\"process\": 0, \"delivery\": 2}}, \"accepted\": true, \"rejection_code\": null, \"error\": \"\"}",
+        "data": {
+          "is_success": true,
+          "action": "dag_set_coverage_contract",
+          "result": {
+            "mutation_id": "mut_eb3f3cb3c139444c89cfaf7d06aa9b0a",
+            "revisions": {
+              "process": 0,
+              "delivery": 2
+            }
+          },
+          "accepted": true,
+          "rejection_code": null,
+          "error": ""
+        },
+        "duration_ms": 13
+      },
+      "request_event_id": "evt_fa2a8659d10b4ca6"
+    }
+  }
+}
