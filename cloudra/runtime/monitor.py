@@ -3,7 +3,6 @@ import asyncio
 import io
 import json
 import os
-import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -21,6 +20,7 @@ from cloudra.infra.compute_utils import (
 from cloudra.infra.flocks import try_acquire_lock
 from cloudra.persistence.database import ComputeDB
 from cloudra.persistence.fs_utils import atomic_write_json
+from cloudra.runtime.calc_lock_wrapper import cancellation_path
 from cloudra.services.compute_store import (
     acancel_compute_job,
     afinalize_compute_job,
@@ -679,14 +679,9 @@ async def run_guard(
                 if row is None:
                     raise RuntimeError(f"compute job {taskid} disappeared while calculator runs")
                 if row["state"] == "cancel_requested" and not cancel_sent:
-                    # Only the freshly created session belongs to this owner.
-                    # Never infer a group from a persisted PID, an exception,
-                    # scheduler shutdown, or Agent task cancellation.
-                    if calc_proc.returncode is None:
-                        try:
-                            os.killpg(calc_proc.pid, signal.SIGTERM)
-                        except ProcessLookupError:
-                            pass
+                    # The live wrapper owns the session and resolves its current
+                    # members. Observers only forward the explicit request.
+                    await asyncio.to_thread(cancellation_path(calc_lock).touch)
                     cancel_sent = True
                 try:
                     returncode = await asyncio.wait_for(calc_proc.wait(), _CANCEL_POLL_SECONDS)
@@ -757,6 +752,9 @@ async def run_adopt(
             calc_fd = await asyncio.to_thread(try_acquire_lock, calc_lock)
             if calc_fd is not None:
                 break
+            row = await aget_compute_job(db, taskid)
+            if row is not None and row["state"] == "cancel_requested":
+                await asyncio.to_thread(cancellation_path(calc_lock).touch)
             print(f'[guard adopt] calc 锁仍被持有，calculator 还在跑；{_ADOPT_POLL_SECONDS}s 后再探...')
             await asyncio.sleep(_ADOPT_POLL_SECONDS)
         try:

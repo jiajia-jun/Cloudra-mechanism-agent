@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-import time
 from contextlib import closing
 from pathlib import Path
 from typing import Literal
@@ -12,6 +11,7 @@ from typing import Literal
 from pydantic import Field
 
 from cloudra.persistence.database import ComputeDB, retry_on_locked
+from cloudra.services.compute_store import request_compute_cancellations_in_transaction
 from cloudra.services.exploration_budget_store import ExplorationBudget
 from cloudra.tools.core.conformer_catalog import CatalogModel, content_digest
 from cloudra.tools.core.ts_inputs import TsInput, TsResumeRequest
@@ -84,11 +84,10 @@ def _persist_prepared_revision(con, process_id, record, receipt):
                          (process_id,)).fetchone()
     if active:
         raise ValueError('active stage job prevents input revision')
-    for ref in receipt.invalidated:
-        if ref.job_id is not None:
-            con.execute("UPDATE compute_jobs SET state='cancelled', end_timestamp=?, "
-                        "last_error='superseded by TS input revision' WHERE id=? AND state='ready'",
-                        (time.time(), ref.job_id))
+    request_compute_cancellations_in_transaction(
+        con, [ref.job_id for ref in receipt.invalidated if ref.job_id is not None],
+        reason='superseded by TS input revision',
+    )
     value = TsInput.model_validate(record['input'])
     budget = _check_revision_budget(con, process_id, value)
     if budget:
@@ -321,12 +320,12 @@ def stop_process(db: ComputeDB, *, process_id: str, project_id: str,
             state = TsProcessRecord.model_validate_json(row[3])
             if state.is_terminal or state.stop_reason:
                 return state.model_dump(mode='json')
-            con.execute("UPDATE compute_jobs SET state='cancelled', end_timestamp=?, "
-                        "last_error='TS pipeline stopped' WHERE state='ready' AND id IN "
-                        '(SELECT job_id FROM ts_pipeline_stages WHERE process_id=?)',
-                        (time.time(), process_id))
-            con.execute("UPDATE compute_jobs SET state='cancel_requested' WHERE state='running' AND id IN "
-                        '(SELECT job_id FROM ts_pipeline_stages WHERE process_id=?)', (process_id,))
+            request_compute_cancellations_in_transaction(
+                con, [row[0] for row in con.execute(
+                    'SELECT job_id FROM ts_pipeline_stages WHERE process_id=? AND job_id IS NOT NULL',
+                    (process_id,),
+                )], reason='TS pipeline stopped',
+            )
             jobs = dict(con.execute('SELECT j.id,j.state FROM ts_pipeline_stages s '
                                     'JOIN compute_jobs j ON j.id=s.job_id WHERE s.process_id=?', (process_id,)))
             for step in [*state.job_steps, *([state.scan_step] if state.scan_step else [])]:

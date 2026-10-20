@@ -1,7 +1,8 @@
 """远端计算执行器：``ssh_local`` / ``ssh_slurm`` 作业的看守 poller（唯一实现）。
 
 形状对齐 ``infra/slurm.py:run_slurm_compute``：认领进程内 async 轮询即看守，
-远端**不起 guard、不需要远端 Python/cloudra**（只要求 bash + 引擎 + rsync）。
+远端不起 guard。ssh_local 使用随任务发送的独立 Python 3.11+ owner（不安装
+cloudra），与本地共享进程归属和取消实现；ssh_slurm 仍只需 bash + 引擎 + rsync。
 生命周期：
 
     stage   rsync 推整棵本地 workdir（VASP 的 INCAR/POSCAR 等邻接文件必须同行；
@@ -17,8 +18,8 @@
             ``infra/slurm.py:_engine_success_from_log`` 引擎文本闸门复核，
             afinalize_compute_job CAS 落账本
 
-取消只走账本 cancel_requested。ssh_local 作业由 runner 消费取消请求文件，
-终止自己启动的作业进程组，写出退出文件后账本才确认取消；ssh_slurm 发出
+取消只走账本 cancel_requested。ssh_local 的 owner 消费取消请求文件，
+终止自己启动的计算家族，写出退出文件后账本才确认取消；ssh_slurm 发出
 scancel 后等待调度终态。传输错误按瞬态容忍（下一轮重试）；重启恢复由 scheduler 对账器
 调本模块的 recover/probe 函数找回句柄后重挂 poller。
 """
@@ -156,40 +157,14 @@ def build_remote_runner_script(
         "mkdir -p .cloudra",
         *scheduler_setup_lines(scheduler),
     ]
-    # Only the live runner owns this job group; persisted PIDs never authorize kill.
-    lines.append("set -m")
+    # The same standalone owner as local execution reserves its fresh session.
+    # This shell waits for its receipt; it never guesses ownership from a PID.
     lines.extend([
+        "python3 .cloudra/calc_lock_wrapper.py "
+        f"{shlex.quote(f'.cloudra/calc-{task_id}.lock')} -- "
         f"{shlex.join(calculator_cmd or remote_calculator_argv(input_name, job_type, xtb_params))}"
-        f" > {shlex.quote(capture)} 2>&1 &",
-        "calc_pid=$!",
-    ])
-    cancel_file = shlex.quote(f".cloudra-cancel-{task_id}")
-    lines.extend([
-        "cancel_sent=0",
-        'while [ -n "$(jobs -pr)" ]; do',
-        f"    if [ -f {cancel_file} ]; then",
-        "        if kill -TERM %1 2>/dev/null; then cancel_sent=1; fi",
-        "        break",
-        "    fi",
-        "    sleep 0.1",
-        "done",
-    ])
-    lines.extend([
-        "wait $calc_pid",
+        f" > {shlex.quote(capture)} 2>&1",
         "rc=$?",
-    ])
-    # The calculator may exit before an engine child. Keep the receipt pending
-    # until every member of the group owned by this runner has exited.
-    lines.extend([
-        'while kill -0 -- "-$calc_pid" 2>/dev/null; do',
-        f'    if [ "$cancel_sent" -eq 0 ] && [ -f {cancel_file} ]; then',
-        '        kill -TERM -- "-$calc_pid" 2>/dev/null || true',
-        "        cancel_sent=1",
-        "    fi",
-        "    sleep 0.1",
-        "done",
-    ])
-    lines.extend([
         f"echo \"$rc\" > {shlex.quote(f'.cloudra-exit-{task_id}')}",
         "",
     ])
@@ -255,9 +230,9 @@ def _cancel_remote(transport, kind: str, remote_dir: str, task_id: int, handle: 
         if kind == "ssh_slurm":
             transport.checked(f"scancel {handle}", timeout=30)
         else:
-            # The live runner kills its owned job group and records actual exit.
+            # The live owner consumes the request and records actual family exit.
             # Repeating a request after an SSH interruption is harmless.
-            cancel_file = shlex.quote(f"{remote_dir}/.cloudra-cancel-{task_id}")
+            cancel_file = shlex.quote(f"{remote_dir}/.cloudra/calc-{task_id}.cancel")
             transport.checked(f"touch {cancel_file}", timeout=30)
     except SshError:
         logger.warning("remote cancel failed for job %s (%s)", task_id, handle, exc_info=True)
@@ -679,7 +654,8 @@ def _pull_remote_artifacts(transport, remote_dir: str, workdir: Path, input_file
         if not source.is_file() or source.is_symlink():
             continue
         relative = source.relative_to(results)
-        if (relative == Path('calculator.sh') or relative.parts[0].startswith('.cloudra-files-')
+        if (relative in {Path('calculator.sh'), Path('.cloudra/calc_lock_wrapper.py')}
+                or relative.parts[0].startswith('.cloudra-files-')
                 or relative.parts[:2] == ('.cloudra', f'remote-{task_id}')):
             continue
         publish(source, workdir / relative)
@@ -722,6 +698,11 @@ def _stage_and_submit(
     options: dict,
 ) -> tuple[str, str]:
     """推 stage 并远端提交；返回 ``(句柄, 本地脚本路径)``。"""
+    if kind == "ssh_local":
+        transport.checked(
+            shlex.join(["python3", "-c", "import fcntl,sys; assert sys.version_info >= (3,11), 'ssh_local requires Python 3.11+ for its calculation owner'"]),
+            timeout=30,
+        )
     xtb_params = XtbParams.from_row(row) if job_type == "xtb" else None
     calc_argv = remote_calculator_argv(input_file.name, job_type, xtb_params)
     if job_type == "chem_task":
@@ -766,6 +747,10 @@ def _stage_and_submit(
                      '*_im[0-9]*.xyz', '*_NEB-TS_converged.xyz')
     transport.push_dir(workdir, remote_dir, excludes=excludes)
     transport.push_files([_default_calculator_path()], remote_dir)
+    if kind == "ssh_local":
+        owner_dir = remote_dir + "/.cloudra"
+        transport.checked("mkdir -p " + shlex.quote(owner_dir), timeout=30)
+        transport.push_files([Path(__file__).with_name("calc_lock_wrapper.py")], owner_dir)
     if native_stage:
         transport.push_dir(native_stage, remote_dir)
     if kind == "ssh_slurm":

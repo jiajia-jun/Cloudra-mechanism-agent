@@ -220,6 +220,14 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         summary='Inspect compute-node capacity and queued or running jobs.',
     ),
     ToolRegistration(
+        module='cloudra.tools.Chemtool.cancel_compute_job',
+        class_name='CancelComputeJob',
+        tool_name='cancel_compute_job',
+        dag_observe=False,
+        role_allowlist=_SCIENCE_ROLES,
+        summary='Withdraw queued work or request execution-owned cancellation for one project compute job.',
+    ),
+    ToolRegistration(
         module='cloudra.tools.Chemtool.mark_compute_job_failed',
         class_name='MarkComputeJobFailed',
         tool_name='mark_compute_job_failed',

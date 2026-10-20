@@ -1,8 +1,10 @@
 """fcntl.flock 原语：执行面唯一的进程存活/互斥判定手段（POSIX only）。
 
 设计约定（AGENTS.md 铁律）：执行面判断"进程是否还活着"一律用锁探测，
-不读 PID、不解析 ps//proc 文本。进程死亡（含 kill -9）时内核自动放锁，
-因此锁探测不存在 PID 复用误判。guard/calculator/调度器单实例共用本模块。
+外部对账不依赖存盘 PID 或 ps//proc 文本。持锁的原执行 owner 可核对自己新建
+session 的成员，用于取消和确认其计算家族已退出；不能据此猜杀其它进程。
+进程死亡（含 kill -9）时内核自动放锁，因此锁探测不存在 PID 复用误判。
+guard/calculator/调度器单实例共用本模块。
 """
 
 from __future__ import annotations

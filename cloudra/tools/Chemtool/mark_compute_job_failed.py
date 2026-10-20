@@ -18,7 +18,8 @@ description = (
     "Reconcile a local orphan still recorded as running, with a recorded reason. "
     "The runtime checks calculator/guard locks and refuses to fail a live calculation. "
     "The scheduler also adopts and finalizes crashed workers automatically. "
-    "Do not use to withdraw queued work, cancel a calculation, free capacity, or declare scientific failure. "
+    "Do not use to withdraw queued work, cancel a calculation, free capacity, or declare scientific failure; "
+    "use cancel_compute_job(job_id, reason) for queued or running direct submissions. "
     "For a TS workflow use ts_stop to withdraw queued work/request safe cancellation. "
     "Remote/scheduler jobs must be finalized by their execution poller; absence of a local process is not proof of exit."
 )
@@ -84,7 +85,7 @@ class MarkComputeJobFailed(Tool):
             if previous_state == "ready":
                 return MarkComputeJobFailed_output_schema(
                     is_success=False, job_id=user_input.job_id, previous_state=previous_state,
-                    message="Queued work cannot be withdrawn as failed; use cancellation controls (ts_stop for a TS workflow).",
+                    message="Queued work cannot be withdrawn as failed; use cancel_compute_job(job_id, reason), or ts_stop for a TS workflow.",
                 )
             if (row.get("scheduler") or "local") != "local":
                 return MarkComputeJobFailed_output_schema(

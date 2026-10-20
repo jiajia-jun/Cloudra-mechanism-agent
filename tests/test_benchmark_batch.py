@@ -182,7 +182,7 @@ async def test_batch_stop_converges_with_succeeded_agent_and_live_compute(
     assert agent.state is (
         AgentState.CANCELLED if gate_action == "wait_background" else AgentState.SUCCEEDED
     )
-    assert (await aget_compute_job(db, job_id))["state"] == "ready"
+    assert (await aget_compute_job(db, job_id))["state"] == "cancelled"
 
 
 @pytest.mark.asyncio
@@ -631,3 +631,66 @@ async def test_router_catalog_and_tiers(tmp_path, monkeypatch):
         bad = await client.post("/api/v2/benchmark/start", json={"tiers": ["nope"]})
         assert bad.status_code == 400
         assert bad.json()["detail"]["code"] == "invalid_request"
+
+
+@pytest.mark.asyncio
+async def test_explicit_benchmark_stop_api_cancels_only_batch_compute(tmp_path):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.api_v2 import create_v2_app
+    from cloudra.services.compute_store import aget_compute_job, ainsert_compute_job
+
+    core = RuntimeCore(strict_events=True)
+    app = create_v2_app(core)
+    tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+    db = await ComputeDB().ainit()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+        await client.post("/api/v2/benchmark/start", json={"tasks_dirs": [tasks_dir]})
+        deadline = asyncio.get_running_loop().time() + 5
+        while True:
+            snapshot = (await client.get("/api/v2/benchmark/status")).json()
+            project = snapshot["tasks"][0].get("project_id")
+            if project:
+                break
+            assert asyncio.get_running_loop().time() < deadline
+            await asyncio.sleep(0.01)
+        jobs = {}
+        for name, state, owner in (("queued", "ready", project), ("live", "running", project),
+                                   ("unrelated", "running", "unrelated-project")):
+            jobs[name] = await ainsert_compute_job(
+                db, node_id="node-local", conversation_id=owner, session_id="producer",
+                path=str(tmp_path / (name + ".inp")), state=state, jobtype="orca",
+                scheduler="local", scheduler_options="{}",
+            )
+        response = await client.post("/api/v2/benchmark/stop")
+        assert response.status_code == 200
+        assert (await aget_compute_job(db, jobs["queued"]))["state"] == "cancelled"
+        assert (await aget_compute_job(db, jobs["live"]))["state"] == "cancel_requested"
+        assert (await aget_compute_job(db, jobs["unrelated"]))["state"] == "running"
+        while (await client.get("/api/v2/benchmark/status")).json()["status"] != "stopped":
+            assert asyncio.get_running_loop().time() < deadline
+            await asyncio.sleep(0.01)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["batch_stop", "service_shutdown"])
+async def test_internal_benchmark_shutdown_preserves_compute(tmp_path, operation):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import aget_compute_job, ainsert_compute_job
+
+    _core, _bus, service = _service(tmp_path)
+    await service.start(tasks_dirs=[_write_tasks(tmp_path / "tasks", "T1")], only="", concurrency=1)
+    batch = service._batch
+    await _wait_until(lambda: batch.task_states[0].agent_id)
+    db = await ComputeDB().ainit()
+    jobs = [await ainsert_compute_job(
+        db, node_id="node-local", conversation_id=batch.task_states[0].project_id,
+        session_id=batch.task_states[0].agent_id, path=str(tmp_path / (state + ".inp")),
+        state=state, jobtype="orca", scheduler="local", scheduler_options="{}",
+    ) for state in ("ready", "running")]
+    if operation == "batch_stop":
+        await batch.stop()
+    else:
+        await service.shutdown()
+    await asyncio.wait_for(batch._task, timeout=5)
+    assert (await aget_compute_job(db, jobs[0]))["state"] == "ready"
+    assert (await aget_compute_job(db, jobs[1]))["state"] == "running"
