@@ -98,6 +98,38 @@ def test_store_metadata_keeps_late_events_outside_the_state_snapshot(history):
     assert store.event_metadata() == (151, {"p0": 76, "p1": 75}, {"a0": 76, "a1": 75})
 
 
+def test_durable_metadata_tracks_only_acknowledged_events_without_storage_reads(history):
+    log, store, _, statements = history
+    expected = {"count": 150, "projects": {"p0": 75, "p1": 75}, "sessions": {"a0": 75, "a1": 75}}
+    statements.clear()
+    metadata = log.durable_metadata()
+    assert metadata == expected
+    metadata["projects"]["p0"] = -1
+    metadata["sessions"].clear()
+    assert log.durable_metadata() == expected, "callers must receive detached counter copies"
+    assert statements == [], "async observability must not synchronously query SQLite"
+
+    pending = log.append("agent.warning", stream="agent", project_id="p0", session_id="a0")
+    assert log.high_watermarks["p0"] == 76
+    assert log.high_session_watermarks["a0"] == 76
+    assert log.durable_metadata() == expected
+    store.append_event(pending)
+    assert log.durable_metadata() == expected, "the writer must acknowledge the committed prefix"
+    log.mark_persisted(151, pending)
+    expected = {"count": 151, "projects": {"p0": 76, "p1": 75}, "sessions": {"a0": 76, "a1": 75}}
+    assert log.durable_metadata() == expected
+
+    restored = EventLog(strict=True)
+    restored.restore_from_store(store)
+    statements.clear()
+    assert restored.durable_metadata() == expected
+    restored.append("agent.warning", stream="agent", project_id="new", session_id="new-agent")
+    assert restored.durable_metadata() == expected
+    restored.discard_tail(151)
+    assert restored.durable_metadata() == expected
+    assert statements == []
+
+
 def test_notice_snapshot_keeps_only_current_pins_and_unconsumed_changes():
     log = EventLog(strict=True)
     notices = NoticeManager()

@@ -1,5 +1,7 @@
 """Native calculation settings are preserved and questionable options warn."""
 
+from copy import deepcopy
+
 import pytest
 
 pytest.importorskip("rdkit", reason="qm_input_writer requires RDKit (chem extra)")
@@ -89,6 +91,39 @@ def test_gaussian_opt_suboptions_warn_for_orca():
     )
     assert "gaussian_only_suboption" in _codes(entries)
     assert "orca_blocks" in entries[0]["message"]
+
+
+@pytest.mark.parametrize("task,option,needs_hessian", [
+    ("opt", "CalcFC", False),
+    ("opt", "ModRedundant", False),
+    ("opt", "ReadCartesianFC", True),
+    ("opt", "FCCards", True),
+    ("irc", "CalcFC", False),
+    ("irc", "ReadCartesianFC", False),
+    ("irc", "FCCards", False),
+    ("irc", "ModRedundant", True),
+])
+@pytest.mark.parametrize("option_in_keywords", [False, True])
+def test_gaussian_hessian_declarations_remain_task_specific(task, option, needs_hessian, option_in_keywords):
+    # A declaration in either field must use the same task-specific vocabulary.
+    arguments = {
+        "engine": "gaussian",
+        "task_type": [{task: "TS" if task == "opt" else "Forward"}],
+        "keywords": "SCF=Tight",
+    }
+    if option_in_keywords:
+        arguments["keywords"] += f" {task}=({option})"
+    else:
+        arguments["task_type"][0][task] += f",{option}"
+    original = deepcopy(arguments)
+    entries = validate_writer_request(arguments)
+    assert ("initial_hessian_unspecified" in _codes(entries)) is needs_hessian
+    assert all(entry["severity"] == "warning" for entry in entries)
+    assert arguments == original, "advice must not inject or rewrite native options"
+
+
+def test_gaussian_non_task_keyword_does_not_require_a_hessian():
+    assert validate_writer_request({"engine": "gaussian", "keywords": "SCF=Tight"}) == []
 
 
 def test_orca_end_setting_warns():

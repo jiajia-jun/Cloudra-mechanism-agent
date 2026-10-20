@@ -468,10 +468,11 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
                 "The original task and parameters are preserved."))
         opt_hessian_options = {'calcfc', 'calcall', 'readfc', 'rcfc', 'modredundant'}
         irc_hessian_options = {'calcfc', 'calcall', 'readfc', 'rcfc', 'readcartesianfc', 'fccards'}
+        hessian_options_by_task = {'opt': opt_hessian_options, 'irc': irc_hessian_options}
         task_tokens = [str(key) + '=' + str(value or '').lower() for key, value in seen.items() if key in {'opt', 'irc'}]
         declared_hessians = {key for token in tokens + task_tokens
             for key, value in [_gaussian_keyword(token)]
-            if set(value.strip('()').replace(' ', '').split(',')) & hessian_options}
+            if set(value.strip('()').replace(' ', '').split(',')) & hessian_options_by_task.get(key, set())}
         for token in tokens + task_tokens:
             key, value = _gaussian_keyword(token)
             if key in declared_hessians:

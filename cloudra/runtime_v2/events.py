@@ -181,6 +181,15 @@ class EventLog:
                 self._durable_sessions[envelope.session_id] = envelope.session_seq
             self._prune()
 
+    def durable_metadata(self) -> dict[str, Any]:
+        """Read the committed prefix counters without accessing durable storage."""
+        with self._lock:
+            return {
+                "count": self._durable_count,
+                "projects": dict(self._durable_projects),
+                "sessions": dict(self._durable_sessions),
+            }
+
     def restore_from_store(self, store) -> None:
         """Restore counters plus a finite payload cache, keeping history on disk."""
         self.attach_store(store)
