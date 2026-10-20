@@ -1,0 +1,149 @@
+{
+  "source": {
+    "commit": "81def5682875a4fffbc5af9fe89a235d57798c27",
+    "task_id": "NU3",
+    "batch_id": "batch_06889167511143ee",
+    "job_ids": {
+      "irc": 108,
+      "optimization": 124,
+      "frequency": 125
+    },
+    "engine": "ORCA",
+    "run_started_at": "2026-10-20T12:04:07Z",
+    "run_finished_at": "2026-10-20T15:31:41Z",
+    "fixture_recorded_at": "2026-10-20T15:36:24.802568+00:00",
+    "sandbox": "data/sandboxes/NU3/batch_06889167511143ee"
+  },
+  "scope": "Historical native evidence replay; no new quantum-chemistry calculation.",
+  "limitation": "TightOpt was not attempted in this evidence set; this fixture does not establish that the physical pathway is absent.",
+  "files": [
+    {
+      "archive": "irc/calc-108.out.log.gz",
+      "restore_path": "irc/calc-108.out.log",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/irc/.cloudra/execution-108/results/calc-108.out.log",
+      "sha256": "ba6bb9f0865c0d655af1773c370435d114880f02c2be00c5bba062e643df06f7",
+      "gzip_sha256": "a9f0651b563b34274059729c98cc2bf48ac164923d2ed3f0c28b481643917451",
+      "uncompressed_bytes": 84450
+    },
+    {
+      "archive": "irc/irc_endpoints.json.gz",
+      "restore_path": "irc/irc_endpoints.json",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/irc/.cloudra/execution-108/results/irc_endpoints.json",
+      "sha256": "794b545b50e6b2b6c9215575fe9ebe6aa663e04feefe27bf8fae977fd06a71b3",
+      "gzip_sha256": "7ae02066af99c4cc16eb195e9827281a8de80eef4dcd7ad14beaf3671c2162da",
+      "uncompressed_bytes": 578
+    },
+    {
+      "archive": "irc/f39011ab2d50d81d_irc_IRC_F.xyz.gz",
+      "restore_path": "irc/f39011ab2d50d81d_irc_IRC_F.xyz",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/irc/.cloudra/execution-108/results/f39011ab2d50d81d_irc_IRC_F.xyz",
+      "sha256": "f39011ab2d50d81d108914cbf065f1cb49e129e1183ce99a2f729cbf59519a7b",
+      "gzip_sha256": "cd78239d45c38a0054c2f75f53e36bacbec43c690a2f40dffe03a1fd1b14a350",
+      "uncompressed_bytes": 884
+    },
+    {
+      "archive": "irc/505714b59df47a7a_irc_IRC_B.xyz.gz",
+      "restore_path": "irc/505714b59df47a7a_irc_IRC_B.xyz",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/irc/.cloudra/execution-108/results/505714b59df47a7a_irc_IRC_B.xyz",
+      "sha256": "505714b59df47a7a7571d822f7a27246ba971715dcaa9ab0f6649f67a96dd08c",
+      "gzip_sha256": "9e7c65da9b4f441653788f0d4d297652e86fc9b60a7777600dfdb4247fa20e82",
+      "uncompressed_bytes": 884
+    },
+    {
+      "archive": "irc/irc.inp.gz",
+      "restore_path": "irc/irc.inp",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/irc/irc.inp",
+      "sha256": "64414f3489f30294e9fcd28592f861aedb589d355a43676951128811d2e7ae2d",
+      "gzip_sha256": "f83e81cfef04b74b25655d3f0c2fb2a521163a3a78f4cd1ec75804afd12d7c7b",
+      "uncompressed_bytes": 748
+    },
+    {
+      "archive": "irc/state_108.json.gz",
+      "restore_path": "irc/state_108.json",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/irc/state_108.json",
+      "sha256": "826aa318b0a61651756a57386d570936117bbca1017a92d195996054b7856375",
+      "gzip_sha256": "c6f93ba441a30fdbea388504637ab4d565268ff7461b9210ac1593a905466d9a",
+      "uncompressed_bytes": 472
+    },
+    {
+      "archive": "opt/calc-124.out.log.gz",
+      "restore_path": "opt/calc-124.out.log",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_opt/.cloudra/execution-124/results/calc-124.out.log",
+      "sha256": "d94d909eeb2601456632dca3408c35fc2d003f6a32053aef1b0e9c39526ac823",
+      "gzip_sha256": "085cea83a1bfda9e1a1bdc03659da1f66325e8e4f64e287b0f4542e85ca7a3ca",
+      "uncompressed_bytes": 238871
+    },
+    {
+      "archive": "opt/reactant_opt.inp.gz",
+      "restore_path": "opt/reactant_opt.inp",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_opt/reactant_opt.inp",
+      "sha256": "a4d65f575ed32f2f44d981a11ec1b81031b6ddd5863cc58279918095e9b4809b",
+      "gzip_sha256": "ca8cd5f47e9b3595f077d1d4dc0b3dcf918ad78d5931a978114c48ecc935195e",
+      "uncompressed_bytes": 742
+    },
+    {
+      "archive": "opt/reactant_source.xyz.gz",
+      "restore_path": "opt/reactant_source.xyz",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_opt/reactant_source.xyz",
+      "sha256": "f39011ab2d50d81d108914cbf065f1cb49e129e1183ce99a2f729cbf59519a7b",
+      "gzip_sha256": "cd78239d45c38a0054c2f75f53e36bacbec43c690a2f40dffe03a1fd1b14a350",
+      "uncompressed_bytes": 884
+    },
+    {
+      "archive": "opt/endpoint_source.json.gz",
+      "restore_path": "opt/endpoint_source.json",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_opt/endpoint_source.json",
+      "sha256": "c00d3b2e0ee6db50394db900566860991ba48ddfab30388ecf58964a1ab18f2d",
+      "gzip_sha256": "b7bc476fb2199ea8e9318ee564633dc9392683ec9744e9dc901391c9f566b51f",
+      "uncompressed_bytes": 392
+    },
+    {
+      "archive": "opt/state_124.json.gz",
+      "restore_path": "opt/state_124.json",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_opt/state_124.json",
+      "sha256": "ba37d3f497a3723aad0e9b2943785e8a3b986ed9b6683c1a220033b255165218",
+      "gzip_sha256": "d52eaf4e0711cdf593256007aacf0f6e3d505767b9d97456c20626beb7879545",
+      "uncompressed_bytes": 481
+    },
+    {
+      "archive": "freq/calc-125.out.log.gz",
+      "restore_path": "freq/calc-125.out.log",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_frequency/.cloudra/execution-125/results/calc-125.out.log",
+      "sha256": "3df39c2f2d30b4588dbfa88fb5a5480233464fefa85bba03adc4bbe9da3e5bce",
+      "gzip_sha256": "f7e0d22708e1c8e16bed2d79a1da5e31937576061684e79423058bb067b20965",
+      "uncompressed_bytes": 94704
+    },
+    {
+      "archive": "freq/reactant_frequency.inp.gz",
+      "restore_path": "freq/reactant_frequency.inp",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_frequency/reactant_frequency.inp",
+      "sha256": "10cd4b720a7cf9664d0f0c01440b641d09a0c69939553585793783701ba1160e",
+      "gzip_sha256": "64f269bb0b5de3957280f02276d6ef3f55caa9af1e75efe784b9f09a152eeeca",
+      "uncompressed_bytes": 749
+    },
+    {
+      "archive": "freq/optimized.xyz.gz",
+      "restore_path": "freq/optimized.xyz",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_frequency/optimized.xyz",
+      "sha256": "2961e7bd5ec5007529ce72778bbe29eca3e417269ea965a286c8d554330ca6b3",
+      "gzip_sha256": "9ce4f348c6b07cbffc47935f20d9ea638613cbf835160099fb726954f32b68d7",
+      "uncompressed_bytes": 443
+    },
+    {
+      "archive": "freq/endpoint_source.json.gz",
+      "restore_path": "freq/endpoint_source.json",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_frequency/endpoint_source.json",
+      "sha256": "c00d3b2e0ee6db50394db900566860991ba48ddfab30388ecf58964a1ab18f2d",
+      "gzip_sha256": "b7bc476fb2199ea8e9318ee564633dc9392683ec9744e9dc901391c9f566b51f",
+      "uncompressed_bytes": 392
+    },
+    {
+      "archive": "freq/state_125.json.gz",
+      "restore_path": "freq/state_125.json",
+      "source_path": "ts/ts_0002/jobs/declaration_0009/reactant_frequency/state_125.json",
+      "sha256": "b27e50fef7a91aaf1a42ad95003a7d5f870e2f3bd400beb51fa63e71ede28d98",
+      "gzip_sha256": "76f8567dba3208718208aa5db623815842aa24905f6bf7dd5c649f7d0bb45eaf",
+      "uncompressed_bytes": 486
+    }
+  ]
+}
