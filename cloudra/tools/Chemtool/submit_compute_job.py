@@ -52,6 +52,7 @@ class SubmitComputeJob_input_schema(input_schema):
     job_type: Literal["gaussian", "vasp", "orca", "cp2k", "xtb", "chem_task", "shell"] = Field(
         default="gaussian",
         description="Job type. For 'xtb' the input is a plain XYZ; 'chem_task' accepts only a typed xtb_scan manifest prepared by ts_guess. "
+                    "Gaussian/ORCA submissions reject a conflicting native input engine; the file is not rewritten. "
                     "For 'shell', input_file is a Bash script; it runs in the script's directory and manages its own environment."
     )
     is_async: bool = Field(
@@ -80,7 +81,7 @@ class SubmitComputeJob_input_schema(input_schema):
         ge=1,
         le=1024,
         description=(
-            "CPU cores to reserve on the node. Omit to infer Gaussian %nprocshared/%nproc "
+            "CPU cores to reserve on the node. Omit to infer Gaussian %nprocshared/%nproc or %CPU lists/ranges "
             "or ORCA PALn/%pal nprocs from the input; when absent there too, defaults to 1. "
             "An explicit value must be at least the input's request. Shell scripts are not parsed for resources; "
             "declare the cores their commands need, or omit for 1 CPU."

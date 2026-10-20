@@ -12,7 +12,6 @@ SOP 在自己的工作线程里走同步入库）。
 from __future__ import annotations
 
 import os
-import shlex
 from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
 from typing import Optional
@@ -49,35 +48,33 @@ def _record_resource(resources: dict[str, int], name: str, value: int) -> None:
 
 
 def _orca_resources(content: str) -> tuple[Optional[int], Optional[int]]:
+    from cloudra.infra.compute_utils import _orca_code_mask, _orca_file_tokens
+
     resources: dict[str, int] = {}
     sections = [resources]
     in_pal = False
-    for line in content.splitlines():
+    for line in _orca_code_mask(content).splitlines():
         stripped = line.strip()
-        if stripped.partition('#')[0].strip().lower() == '$new_job':
+        if stripped.lower() == '$new_job':
             if in_pal:
                 raise ValueError('Invalid resource declaration %pal: missing end before $new_job')
             resources = {}
             sections.append(resources)
             continue
         if not in_pal:
-            command = stripped.split(maxsplit=1)[0].lower().partition("=")[0].partition("#")[0] if stripped else ""
+            command = stripped.split(maxsplit=1)[0].lower().partition("=")[0] if stripped else ""
             if not stripped.startswith("!") and command not in ("%pal", "%maxcore"):
                 continue
-        # Keep quoted strings as quoted tokens, so native string arguments cannot
-        # become resource declarations; # comments have no resource meaning.
-        lexer = shlex.shlex(stripped, posix=False, punctuation_chars="=")
-        lexer.whitespace_split = True
-        lexer.commenters = "#"
+        # Reuse native file tokenization, including escaped quotes. Retain raw
+        # quoted/escaped tokens so a scientific string cannot declare resources.
         tokens = []
-        try:
-            tokens.extend(lexer)
-        except ValueError:
-            # A malformed scientific string is outside resource validation.
-            # Parse the complete tokens before it. Missing resource values or a
-            # missing %pal end still fail below; an unrelated later block must
-            # not invalidate an already complete declaration.
-            pass
+        for start, end, value in _orca_file_tokens(stripped):
+            if value is None:
+                # An unrelated malformed scientific suffix does not invalidate
+                # complete resources; missing values/end still fail below.
+                break
+            raw = stripped[start:end]
+            tokens.append(raw if any(char in raw for char in ('\\', '"', "'")) else value)
         if not tokens:
             continue
         if not in_pal and tokens[0].startswith("!"):
@@ -153,6 +150,25 @@ def _gaussian_memory_mb(value: str) -> int:
     return int((Decimal(number) * scales[unit]).to_integral_value(rounding=ROUND_CEILING))
 
 
+def _gaussian_cpu_count(value: str) -> int:
+    """Count Gaussian's zero-based processor list without expanding ranges."""
+    intervals = []
+    for item in value.split(','):
+        bounds = [bound.strip() for bound in item.strip().split('-')]
+        if (len(bounds) not in (1, 2)
+                or any(not bound.isascii() or not bound.isdecimal() for bound in bounds)):
+            raise ValueError(f'Invalid resource declaration %cpu={value!r}: expected processor indices or ranges')
+        start, end = int(bounds[0]), int(bounds[-1])
+        if end < start:
+            raise ValueError(f'Invalid resource declaration %cpu={value!r}: descending processor range')
+        intervals.append((start, end))
+    intervals.sort()
+    for previous, current in zip(intervals, intervals[1:]):
+        if current[0] <= previous[1]:
+            raise ValueError(f'Invalid resource declaration %cpu={value!r}: duplicate or overlapping processors')
+    return sum(end - start + 1 for start, end in intervals)
+
+
 def _gaussian_resources(content: str) -> tuple[Optional[int], Optional[int]]:
     sections: list[dict[str, int]] = [{}]
     in_link0 = True
@@ -167,17 +183,50 @@ def _gaussian_resources(content: str) -> tuple[Optional[int], Optional[int]]:
             key, equals, value = stripped.partition("=")
             key = key.strip().lower()
             # Match whole Link 0 command names, never text in titles/geometry.
-            if key.split()[0] not in ("%nprocshared", "%nproc", "%mem"):
+            if key.split()[0] not in ("%nprocshared", "%nproc", "%cpu", "%mem"):
                 continue
-            if not equals or key not in ("%nprocshared", "%nproc", "%mem"):
+            if not equals or key not in ("%nprocshared", "%nproc", "%cpu", "%mem"):
                 raise ValueError(f"Invalid resource declaration {stripped!r}: expected command=value")
             name = "memory_mb" if key == "%mem" else "cpus"
-            amount = _gaussian_memory_mb(value) if key == "%mem" else _resource_integer(value.strip(), key)
+            if key == '%mem':
+                amount = _gaussian_memory_mb(value)
+            elif key == '%cpu':
+                amount = _gaussian_cpu_count(value)
+            else:
+                amount = _resource_integer(value.strip(), key)
             _record_resource(sections[-1], name, amount)
     # Link1 jobs execute sequentially; reserve each resource's largest declaration.
     cpus = max((section["cpus"] for section in sections if "cpus" in section), default=None)
     memory_mb = max((section["memory_mb"] for section in sections if "memory_mb" in section), default=None)
     return cpus, memory_mb
+
+
+def _gaussian_included_content(content: str, workdir: Path, active: tuple[Path, ...]) -> str:
+    """Expand native includes for inspection, using the engine's fixed workdir."""
+    from cloudra.infra.compute_utils import _gaussian_include_reference
+
+    expanded = []
+    for line in content.splitlines(keepends=True):
+        reference = _gaussian_include_reference(line)
+        if reference is None:
+            expanded.append(line)
+            continue
+        path, _start, _end = reference
+        try:
+            local = (workdir / path).resolve()
+            if local in active:
+                raise ValueError(f'Gaussian include cycle: {local}')
+            if not local.is_file():
+                raise ValueError(f'Gaussian include dependency is missing or not a regular file: {local}')
+            included = local.read_text(encoding='utf-8', errors='surrogateescape')
+        except OSError as exc:
+            raise ValueError(f'Cannot read Gaussian include {path!r}: {exc}') from exc
+        body = _gaussian_included_content(included, workdir, (*active, local))
+        expanded.append(body)
+        # Include EOF resumes at the next input line, even without a final EOL.
+        if body and not body.endswith(('\n', '\r')):
+            expanded.append('\n')
+    return ''.join(expanded)
 
 
 def _read_declared_requirements(
@@ -191,6 +240,19 @@ def _read_declared_requirements(
             content = handle.read()
     except OSError:
         return None, None
+    if job_type == 'gaussian':
+        source = Path(input_file)
+        content = _gaussian_included_content(content, source.parent.resolve(), (source.resolve(),))
+    from cloudra.runtime_v2.method_policy import _detect_input_engine
+
+    # Content alone must establish a conflict; a filename suffix cannot choose
+    # or replace the engine declared by the caller.
+    native_engine = _detect_input_engine('', content)
+    if native_engine is not None and native_engine != job_type:
+        raise ValueError(
+            f"Native input engine {native_engine!r} conflicts with job_type={job_type!r}; "
+            "declare the matching job_type or provide its native input. The file was not changed."
+        )
     return _orca_resources(content) if job_type == "orca" else _gaussian_resources(content)
 
 

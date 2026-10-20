@@ -720,18 +720,19 @@ def test_gaussian_irc_has_only_the_stage_task_by_default(tmp_path):
     assert "%irc" not in content
 
 
-def test_extract_gaussian_irc_keywords():
-    """Extract native IRC settings without supplying undeclared options."""
-    from cloudra.tools.core.ts_process import _extract_gaussian_irc_keywords
-    assert _extract_gaussian_irc_keywords('') == (None, '', None)
-    assert _extract_gaussian_irc_keywords(None) == (None, '', None)
-    assert _extract_gaussian_irc_keywords('irc=(calcfc,maxpoints=40,stepsize=10) nosymm') == (
-        'calcfc,maxpoints=40,stepsize=10', 'nosymm', None)
-    assert _extract_gaussian_irc_keywords('irc=(maxpoints=40,stepsize=10)') == (
-        'maxpoints=40,stepsize=10', '', None)
-    assert _extract_gaussian_irc_keywords('irc') == (None, '', None)
-    assert _extract_gaussian_irc_keywords('maxpoints=50,stepsize=5') == (
-        'maxpoints=50,stepsize=5', '', None)
+@pytest.mark.parametrize("keywords", ['IRC=(CalcFC,MaxPoints=40,StepSize=10) NoSymm', 'IRC=(MaxPoints=40,StepSize=10)', 'IRC', 'MaxPoints=50,StepSize=5'])
+def test_gaussian_irc_keywords_are_rendered_verbatim(tmp_path, keywords):
+    """Exercise native rendering instead of an unused keyword-rewriting helper."""
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+    from cloudra.tools.core.molecule import read_molecule
+
+    request = QmInputWriter_input_schema(engine="gaussian", method="HF", basis_set="STO-3G",
+        source_type="xyz_file", source_value="water.xyz", output_path=str(tmp_path / "native.gjf"),
+        charge=0, task_type=[], keywords=keywords)
+    molecule = read_molecule(input_text="3\nwater\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n", charge=0)
+    content = QmInputWriter.render_input(request, molecule)
+    route = next(line for line in content.splitlines() if line.startswith("#p"))
+    assert route == f"#p HF/STO-3G {keywords}"
 
 
 def test_gaussian_irc_custom_options_missing_calcfc_preserves_input_and_warns(tmp_path):
@@ -799,62 +800,34 @@ def test_gaussian_irc_custom_options_with_calcfc_clean_route(tmp_path, recwarn):
     assert route.count("irc") == 1
 
 
-def test_extract_gaussian_opt_keywords():
-    """Only an absent optimization task gets the basic stage task."""
-    from cloudra.tools.core.ts_process import _extract_gaussian_opt_keywords
+@pytest.mark.parametrize("keywords", ['Opt=(TS,CalcFC,NoEigen,MaxStep=10) NoSymm', 'Opt=(MaxStep=10)', 'Opt=(Tight,CalcFC) NoSymm', 'Opt NoSymm'])
+def test_gaussian_opt_keywords_are_rendered_verbatim(tmp_path, keywords):
+    """Exercise native rendering instead of an unused keyword-rewriting helper."""
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+    from cloudra.tools.core.molecule import read_molecule
 
-    # An absent task gets TS only; a minimum stage gets bare Opt.
-    assert _extract_gaussian_opt_keywords("", is_ts=True) == ("TS", "", None)
-    assert _extract_gaussian_opt_keywords(None, is_ts=True) == ("TS", "", None)
-    assert _extract_gaussian_opt_keywords("", is_ts=False) == (None, "", None)
-
-    # 2. TS opt 完整指定 -> 无警告，剥离其余关键字
-    subopts, rem, warn = _extract_gaussian_opt_keywords("opt=(ts,calcfc,noeigen,maxstep=10) nosymm", is_ts=True)
-    assert subopts == "ts,calcfc,noeigen,maxstep=10"
-    assert rem == "nosymm"
-    assert warn is None
-
-    # An explicit minimum optimization keeps every option and receives advice.
-    subopts, rem, warn = _extract_gaussian_opt_keywords("opt=(maxstep=10)", is_ts=True)
-    assert subopts == "maxstep=10"
-    assert rem == ""
-    assert warn is not None
-    assert "does not request TS optimization" in warn
-
-    # 4. 极小值优化提取自定义 opt 选项，无多余补齐与警告
-    subopts, rem, warn = _extract_gaussian_opt_keywords("opt=(tight,calcfc) nosymm", is_ts=False)
-    assert subopts == "tight,calcfc"
-    assert rem == "nosymm"
-    assert warn is None
-
-    # 5. 极小值优化传裸 opt
-    subopts, rem, warn = _extract_gaussian_opt_keywords("opt nosymm", is_ts=False)
-    assert subopts is None
-    assert rem == "nosymm"
-    assert warn is None
+    request = QmInputWriter_input_schema(engine="gaussian", method="HF", basis_set="STO-3G",
+        source_type="xyz_file", source_value="water.xyz", output_path=str(tmp_path / "native.gjf"),
+        charge=0, task_type=[], keywords=keywords)
+    molecule = read_molecule(input_text="3\nwater\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n", charge=0)
+    content = QmInputWriter.render_input(request, molecule)
+    route = next(line for line in content.splitlines() if line.startswith("#p"))
+    assert route == f"#p HF/STO-3G {keywords}"
 
 
-def test_extract_gaussian_freq_keywords():
-    """解析 Gaussian freq 关键词，提取子选项并保留其余关键字。"""
-    from cloudra.tools.core.ts_process import _extract_gaussian_freq_keywords
+@pytest.mark.parametrize("keywords", ['Freq=NoRaman NoSymm', 'Freq=(NoRaman) NoSymm', 'Freq NoSymm'])
+def test_gaussian_freq_keywords_are_rendered_verbatim(tmp_path, keywords):
+    """Exercise native rendering instead of an unused keyword-rewriting helper."""
+    from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
+    from cloudra.tools.core.molecule import read_molecule
 
-    assert _extract_gaussian_freq_keywords("") == (None, "", None)
-    assert _extract_gaussian_freq_keywords(None) == (None, "", None)
-
-    subopts, rem, warn = _extract_gaussian_freq_keywords("freq=noraman nosymm")
-    assert subopts == "noraman"
-    assert rem == "nosymm"
-    assert warn is None
-
-    subopts, rem, warn = _extract_gaussian_freq_keywords("freq=(noraman) nosymm")
-    assert subopts == "noraman"
-    assert rem == "nosymm"
-    assert warn is None
-
-    subopts, rem, warn = _extract_gaussian_freq_keywords("freq nosymm")
-    assert subopts is None
-    assert rem == "nosymm"
-    assert warn is None
+    request = QmInputWriter_input_schema(engine="gaussian", method="HF", basis_set="STO-3G",
+        source_type="xyz_file", source_value="water.xyz", output_path=str(tmp_path / "native.gjf"),
+        charge=0, task_type=[], keywords=keywords)
+    molecule = read_molecule(input_text="3\nwater\nO 0 0 0\nH .96 0 0\nH -.24 .93 0\n", charge=0)
+    content = QmInputWriter.render_input(request, molecule)
+    route = next(line for line in content.splitlines() if line.startswith("#p"))
+    assert route == f"#p HF/STO-3G {keywords}"
 
 
 def test_gaussian_refinement_input_merges_keywords_without_duplicate_opt(tmp_path):

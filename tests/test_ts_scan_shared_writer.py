@@ -71,8 +71,9 @@ def test_gaussian_scan_uses_shared_electronic_state_resources_and_checkpoint(tmp
 @pytest.mark.parametrize("engine", ["gaussian", "orca"])
 def test_independent_xyz_scan_requires_explicit_charge(tmp_path, engine):
     arguments = _arguments(tmp_path, engine=engine)
-    with pytest.raises(ValueError, match="charge"):
-        TsGuess()._scan_prepare(TsGuess_input_schema.model_validate(arguments))
+    result = TsGuess()._scan_prepare(TsGuess_input_schema.model_validate(arguments))
+    assert not result.is_success
+    assert "charge" in result.message
     assert not Path(arguments["output_path"]).exists()
 
 

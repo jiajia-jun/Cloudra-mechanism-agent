@@ -31,10 +31,12 @@ def test_cpcm_ts_submission_keeps_native_settings_and_bound_job(tmp_path, monkey
     request = QmInputWriter_input_schema(engine='orca', source_type='xyz_file', source_value='unused.xyz',
         method='B3LYP', basis_set='def2svp', task_type=[{'opt': 'ts'}], keywords=keywords,
         nproc=record.compute_cpus, mem=f'{record.compute_memory_mb}MB', output_path=str(source))
+    record.input.ts_optimization = QmInputWriter._written_calculation(request)
     native = QmInputWriter._build_orca_input(request, read_molecule(input_text='1\n\nO 0 0 0\n'))
     source.write_text(native)
     policy = MethodPolicy(allowed_methods=['b3lyp/def2svp'],
-        calculation_contracts={'ts_opt': calculation.model_dump(mode='json')})
+        calculation_contracts={'ts_opt': {**calculation.model_dump(mode='json'),
+            'task_type': [{'opt': 'ts'}]}})
     admissions = []
 
     def admit(**parameters):
@@ -57,7 +59,8 @@ def test_cpcm_ts_submission_keeps_native_settings_and_bound_job(tmp_path, monkey
     assert set(tokens) >= set(keywords.lower().split())
     assert blocks['pal'] == ['nprocs', '2', 'end']
     assert blocks['maxcore'] == ['1024']
-    assert intent.compare_calculation_input(native, calculation.model_dump(), charge=0, multiplicity=1) == []
+    assert intent.compare_calculation_input(native,
+        QmInputWriter._written_calculation(request).model_dump(), charge=0, multiplicity=1) == []
     assert verify_stage_input(db, job_id) is not None
     assert record.method_checks[str(source)]['matched'] is True
 
@@ -122,7 +125,7 @@ def test_ordinary_ts_records_native_declaration_differences(tmp_path):
 
 
 def expected(engine='orca', **changes):
-    return dict(basis_set='def2-SVP', engine=engine, method='B3LYP', keywords='D3BJ CPCM(water)', frequency_mode='auto', orca_blocks=None, end_setting='', **changes)
+    return dict(basis_set='def2-SVP', engine=engine, method='B3LYP', keywords='OptTS D3BJ CPCM(water)', frequency_mode='auto', orca_blocks=None, end_setting='', **changes)
 
 
 def test_missing_required_keywords_and_actual_charge_spin_are_differences():
@@ -134,7 +137,7 @@ def test_equivalent_basis_spelling_and_multiline_native_input():
     text = '! OptTS B3LYP\n! def2SVP D3BJ CPCM(water)\n%pal nprocs 2 end\n* xyz 0 1\nO 0 0 0\n*\n'
     assert intent.compare_calculation_input(text, expected(), charge=0, multiplicity=1) == []
     gaussian = '#p opt=(ts, calcfc) B3LYP/def2svp\n emp=gd3bj scrf=(solvent=water)\n\ntitle\n\n0 1\nO 0 0 0\n\n'
-    declaration = dict(basis_set='def2-SVP', engine='gaussian', method='B3LYP', keywords='emp=gd3bj scrf=(solvent=water)', frequency_mode='auto', orca_blocks=None, end_setting='')
+    declaration = dict(basis_set='def2-SVP', engine='gaussian', method='B3LYP', keywords='opt=(ts,calcfc) emp=gd3bj scrf=(solvent=water)', frequency_mode='auto', orca_blocks=None, end_setting='')
     assert intent.compare_calculation_input(gaussian, declaration, charge=0, multiplicity=1) == []
 
 
@@ -223,7 +226,7 @@ def test_whitelist_checks_complete_native_method_and_explicit_basis(tmp_path):
     from tests.test_ts_stage_inputs import record_fixture
 
     record = record_fixture(tmp_path)
-    record.input.ts_optimization = QmCalculation(basis_set='def2-SVP', engine="orca", method="B3LYP", keywords="D3BJ")
+    record.input.ts_optimization = QmCalculation(basis_set='def2-SVP', engine="orca", method="B3LYP", keywords="OptTS D3BJ")
     source = tmp_path / "ts.inp"
     source.write_text("! OptTS B3LYP def2-SVP D3BJ\n* xyz 0 1\nO 0 0 0\n*\n")
     policy = MethodPolicy(allowed_methods=["b3lyp/def2svp"])

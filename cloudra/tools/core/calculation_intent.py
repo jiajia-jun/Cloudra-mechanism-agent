@@ -69,6 +69,15 @@ def _entry(code: str, field: str, message: str, *, severity: str = 'warning') ->
     return {"code": code, "field": field, "message": message, "severity": severity}
 
 
+def _native_keyword_code(text: str, engine: str) -> str:
+    """Interpret request comments with the same native rules as input files."""
+    if engine == 'gaussian':
+        return gaussian_code(text)
+    if engine == 'orca':
+        return _orca_code(text)
+    return text
+
+
 # ----------------------------------------------------------------------
 # writer arguments -> intent / validation
 # ----------------------------------------------------------------------
@@ -167,7 +176,8 @@ def declared_native_tasks(arguments: Mapping[str, Any]) -> tuple[set[str], list[
             elif key_l in ("sp", "single_point"):
                 tasks.add("single_point")
     try:
-        tokens = native_tokens(str(arguments.get('keywords') or ''))
+        keywords = str(arguments.get('keywords') or '')
+        tokens = native_tokens(_native_keyword_code(keywords, engine))
         if engine == 'gaussian':
             tasks.update(_gaussian_tasks(tokens))
             if ('minimum_opt' in tasks and _gaussian_modredundant(opt_tokens + tokens)
@@ -175,12 +185,8 @@ def declared_native_tasks(arguments: Mapping[str, Any]) -> tuple[set[str], list[
                 tasks.remove('minimum_opt')
                 tasks.add('relaxed_scan')
         elif engine == 'orca':
-            tasks.update(_ORCA_SIMPLE_TASK_TOKENS[_orca_task_head(token)] for token in tokens
-                         if _orca_task_head(token) in _ORCA_SIMPLE_TASK_TOKENS)
-            geom = orca_directives(str(arguments.get('orca_blocks') or ''))[1].get('geom', [])
-            if 'scan' in geom:
-                tasks.discard('minimum_opt')
-                tasks.add('relaxed_scan')
+            blocks = orca_directives(str(arguments.get('orca_blocks') or ''))[1]
+            tasks = _orca_tasks(tokens, blocks, tasks)
         unknown.extend(token for token in tokens
                        if token.partition('=')[0].partition('(')[0] in _NATIVE_UNCLASSIFIED_TASK_TOKENS.get(engine, set()))
     except ValueError as exc:
@@ -190,6 +196,7 @@ def declared_native_tasks(arguments: Mapping[str, Any]) -> tuple[set[str], list[
 
 def _frequency_declarations(arguments: dict[str, Any]) -> list[tuple[str, str]]:
     declarations = []
+    engine = str(arguments.get('engine') or 'gaussian').lower()
     mode = str(arguments.get('frequency_mode') or 'auto').lower()
     if mode in {'numeric', 'analytic'}:
         declarations.append(('frequency_mode', mode))
@@ -206,8 +213,9 @@ def _frequency_declarations(arguments: dict[str, Any]) -> list[tuple[str, str]]:
                     for option in str(value).strip(' ()').lower().split(','):
                         if option in _FREQ_NUMERIC_ALIASES or option == 'analytic':
                             declarations.append(('task_type', 'numeric' if option in _FREQ_NUMERIC_ALIASES else 'analytic'))
-    tokens = native_tokens(str(arguments.get('keywords') or ''))
-    if str(arguments.get('engine') or 'gaussian').lower() == 'gaussian':
+    keywords = str(arguments.get('keywords') or '')
+    tokens = native_tokens(_native_keyword_code(keywords, engine))
+    if engine == 'gaussian':
         for key, value in map(_gaussian_keyword, tokens):
             if key == 'freq':
                 options = set(value.strip('()').split(','))
@@ -269,6 +277,8 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
     entries: list[dict] = []
     engine = str(arguments.get("engine") or "gaussian").lower()
     task_type = arguments.get("task_type") or []
+    keywords = str(arguments.get('keywords') or '')
+    native_keywords = _native_keyword_code(keywords, engine)
     from cloudra.tools.core.qm_keywords import is_basis_keyword
 
     method = str(arguments.get('method') or '')
@@ -280,7 +290,7 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
     if any(character.isspace() for character in basis):
         entries.append(_entry('native_basis_layout', 'basis_set',
             'basis_set contains multiple native tokens. Its text is preserved; check the engine basis syntax.'))
-    for token in str(arguments.get('keywords') or '').split():
+    for token in native_keywords.split():
         head, slash, tail = token.rpartition('/')
         auxiliary = slash and is_basis_keyword(head) and tail.lower() in {'j', 'jk', 'jksmall', 'c'}
         if not auxiliary and (is_basis_keyword(token) or (slash and is_basis_keyword(tail))):
@@ -331,7 +341,7 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
 
     tasks, _ = declared_native_tasks(arguments)
     try:
-        tokens = native_tokens(str(arguments.get('keywords') or ''))
+        tokens = native_tokens(native_keywords)
         declarations = _frequency_declarations(arguments)
     except ValueError as exc:
         entries.append(_entry('malformed_native_keywords', 'keywords', str(exc)))
@@ -340,6 +350,21 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
         entries.append(_entry('conflicting_frequency_mode', 'keywords' if any(field == 'keywords' for field, _ in declarations) else 'frequency_mode',
             'Conflicting frequency evaluation settings: ' + ', '.join(f'{field}={mode}' for field, mode in declarations)
             + '; declare one consistent analytic/numeric evaluation.'))
+    for key, value in seen.items():
+        alias_tasks, _ = declared_native_tasks({'engine': engine, 'task_type': [{key: value}]})
+        alias_families = {'opt' if task in {'minimum_opt', 'ts_opt'} else task for task in alias_tasks}
+        overlapping = []
+        for token in tokens:
+            native_tasks = (_gaussian_tasks([token]) if engine == 'gaussian' else
+                {_ORCA_SIMPLE_TASK_TOKENS[_orca_task_head(token)]}
+                if _orca_task_head(token) in _ORCA_SIMPLE_TASK_TOKENS else set())
+            native_families = {'opt' if task in {'minimum_opt', 'ts_opt'} else task for task in native_tasks}
+            if alias_families & native_families:
+                overlapping.append(token)
+        if overlapping:
+            entries.append(_entry('duplicate_task_sources', 'task_type',
+                f'task_type declares {key!r}: {value!r}, while keywords declares {overlapping!r}. '
+                'Keep the task declaration in one source; different native parameters are preserved, not combined.'))
     if engine == 'gaussian':
         opt_tasks = _gaussian_tasks(tokens) & {'minimum_opt', 'ts_opt'}
         if 'opt' in seen:
@@ -443,8 +468,13 @@ def validate_writer_request(arguments: dict[str, Any]) -> list[dict]:
                 "The original task and parameters are preserved."))
         hessian_options = {'calcfc', 'calcall', 'readfc', 'rcfc'}
         task_tokens = [str(key) + '=' + str(value or '').lower() for key, value in seen.items() if key in {'opt', 'irc'}]
+        declared_hessians = {key for token in tokens + task_tokens
+            for key, value in [_gaussian_keyword(token)]
+            if set(value.strip('()').replace(' ', '').split(',')) & hessian_options}
         for token in tokens + task_tokens:
             key, value = _gaussian_keyword(token)
+            if key in declared_hessians:
+                continue
             options = set(value.strip('()').replace(' ', '').split(','))
             if key == 'opt' and 'ts' in options and not options & hessian_options:
                 entries.append(_entry('initial_hessian_unspecified', 'task_type' if 'opt' in seen else 'keywords',
@@ -478,7 +508,7 @@ _ORCA_SIMPLE_TASK_TOKENS = {
 
 
 def native_tokens(text: str) -> list[str]:
-    """Tokenize native directives, keeping parenthesized and quoted values intact."""
+    """Normalize unquoted directives while preserving quoted native values."""
     tokens, current = [], []
     quote = ""
     depth = 0
@@ -500,14 +530,14 @@ def native_tokens(text: str) -> list[str]:
             current.append(char)
         elif char.isspace() and depth == 0:
             if current:
-                tokens.append("".join(current).lower())
+                tokens.append("".join(current))
                 current = []
         else:
-            current.append(char)
+            current.append(char.lower())
     if quote or depth:
         raise ValueError("unclosed native quote or parentheses")
     if current:
-        tokens.append("".join(current).lower())
+        tokens.append("".join(current))
     joined = []
     i = 0
     while i < len(tokens):
@@ -582,10 +612,10 @@ def _native_charges(text: str, engine: str) -> list[tuple[int, int]]:
     return [section.charge for section in gaussian_sections(text) if section.charge is not None]
 
 
-def _inspect_orca(text: str) -> CalculationIntent:
-    tokens, blocks = orca_directives(text)
+def _orca_tasks(tokens: list[str], blocks: Mapping[str, list[str]], tasks: set[str] | None = None) -> set[str]:
+    """Apply the same native task/block overrides to declarations and files."""
     task_heads = {_orca_task_head(token) for token in tokens}
-    tasks = {_ORCA_SIMPLE_TASK_TOKENS[head] for head in task_heads if head in _ORCA_SIMPLE_TASK_TOKENS}
+    tasks = set(tasks or ()) | {_ORCA_SIMPLE_TASK_TOKENS[head] for head in task_heads if head in _ORCA_SIMPLE_TASK_TOKENS}
     geom = blocks.get("geom", [])
     neb = blocks.get("neb", [])
     for i, token in enumerate(neb):
@@ -598,6 +628,13 @@ def _inspect_orca(text: str) -> CalculationIntent:
     if "scan" in geom:
         tasks.discard("minimum_opt")
         tasks.add("relaxed_scan")
+    return tasks
+
+
+def _inspect_orca(text: str) -> CalculationIntent:
+    tokens, blocks = orca_directives(text)
+    task_heads = {_orca_task_head(token) for token in tokens}
+    tasks = _orca_tasks(tokens, blocks)
     constraints, _ = _orca_constraints(text)
     provider = None
     method_tokens = blocks.get("method", [])
@@ -732,6 +769,22 @@ class MethodDifference(BaseModel):
     message: str
 
 
+def _comparison_token(token: str) -> str:
+    """Ignore route layout spaces without changing quoted native values."""
+    result, quote = [], ''
+    for char in token:
+        if quote:
+            result.append(char)
+            if char == quote:
+                quote = ''
+        elif char in {'"', "'"}:
+            quote = char
+            result.append(char)
+        elif char != ' ':
+            result.append(char)
+    return ''.join(result)
+
+
 def compare_calculation_input(content: str, expected: Mapping[str, object], *, charge: int, multiplicity: int) -> list[MethodDifference]:
     """Compare the complete accepted declaration with every native method card.
 
@@ -753,13 +806,20 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
         family = str(expected["method"]).strip().lower()
         basis = str(expected["basis_set"]).strip()
         want_method = [family] + ([_norm_basis(basis)] if basis else [])
-        want_keywords = sorted(t.replace(" ", "") for t in native_tokens(str(expected.get("keywords") or "")))
+        keywords = str(expected.get('keywords') or '')
+        want_keywords = sorted(_comparison_token(t) for t in
+            native_tokens(_native_keyword_code(keywords, engine)))
+        explicit_native = any(str(expected.get(field) or '').strip()
+            for field in ('keywords', 'orca_blocks', 'end_setting'))
+        mode = expected.get('frequency_mode', 'auto')
         if engine == "orca":
             tokens, blocks = orca_directives(content)
-            native_cards = [tokens]
-            cards = [[t for t in tokens if _orca_task_head(t) not in _ORCA_SIMPLE_TASK_TOKENS]]
-            declared_tasks = [t for t in want_keywords if _orca_task_head(t) in _ORCA_SIMPLE_TASK_TOKENS]
-            expected_blocks = orca_directives(str(expected.get("orca_blocks") or ""))[1]
+            # These are only the renderer's basic stage controls, not a list of
+            # all native tasks or of allowed solver options.
+            basic_tasks = {'opt', 'optts', 'irc', 'numfreq' if mode == 'numeric' else 'freq'}
+            cards = [list(tokens) if explicit_native else
+                [t for t in tokens if _comparison_token(t) not in basic_tasks]]
+            expected_blocks = orca_directives(str(expected.get('orca_blocks') or ''))[1]
             # These blocks are generated by the writer for the requested task;
             # other blocks must exactly match the explicit native declaration.
             owned = {'pal', 'maxcore', 'geom', 'irc'}
@@ -798,19 +858,16 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
                 else:
                     diff('end_setting', expected_tail, tail)
             native_cards = gaussian_routes(content)
-            cards = [[t for t in card if _gaussian_keyword(t)[0] not in {"opt", "freq", "irc", "scan", "sp"}] for card in native_cards]
-            declared_tasks = [t for t in want_keywords if _gaussian_keyword(t)[0] in {'opt', 'freq', 'irc', 'scan', 'sp'}]
+            basic_tasks = {'opt', 'opt=ts', 'opt=modredundant', 'irc'}
+            basic_tasks.add('freq=numer' if mode == 'numeric' else 'freq=analytic' if mode == 'analytic' else 'freq')
+            cards = [list(card) if explicit_native else
+                [t for t in card if _comparison_token(t) not in basic_tasks]
+                for card in native_cards]
         else:
             diff("engine", "native ORCA or Gaussian input", engine)
             return differences
-        # Writer-owned task controls may be added independently, but a task
-        # explicitly present in keywords must survive with its exact options.
-        for native_card, card in zip(native_cards, cards, strict=True):
-            available = [token.replace(' ', '') for token in native_card]
-            for token in declared_tasks:
-                if token in available:
-                    card.append(token)
-                    available.remove(token)
+        # Only an empty native declaration permits basic stage task controls.
+        # Otherwise compare every native task, including duplicates and options.
         for card in cards:
             remaining = list(card)
             if engine == "gaussian":
@@ -833,8 +890,7 @@ def compare_calculation_input(content: str, expected: Mapping[str, object], *, c
                     diff("method", token, (matched if token == family else _norm_basis(matched)) if matched else None)
                     if matched:
                         remaining.remove(matched)
-            diff("keywords", want_keywords, sorted(t.replace(" ", "") for t in remaining))
-        mode = expected.get("frequency_mode", "auto")
+            diff("keywords", want_keywords, sorted(_comparison_token(t) for t in remaining))
         if "frequency" in actual.tasks and mode != "auto":
             diff("frequency_mode", mode, actual.frequency_mode)
         if engine == 'orca' and expected.get("end_setting"):

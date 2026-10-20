@@ -96,13 +96,71 @@ _resolve_symlink_chain() {
     printf '%s/%s\n' "$dir" "$(basename "$path")"
 }
 
+_orca_uses_external_program() {
+    # Keep the remote entry point self-contained: ORCA keywords are
+    # case-insensitive, quoted values are data, and # comments may close on
+    # the same line. Only native ! ExtOpt / %method ProgExt controls count.
+    awk '
+        function consume(    keyword) {
+            if (word == "") return
+            if (!quoted) {
+                keyword = tolower(word)
+                if (first) {
+                    simple = substr(keyword, 1, 1) == "!"
+                    if (simple) keyword = substr(keyword, 2)
+                    first = 0
+                }
+                if (substr(keyword, 1, 1) == "%") {
+                    block = substr(keyword, 2)
+                    simple = 0
+                } else if (keyword == "end") {
+                    block = ""
+                } else if ((simple && keyword == "extopt") ||
+                           (block == "method" && keyword == "progext")) {
+                    found = 1
+                }
+            }
+            word = ""
+            quoted = 0
+        }
+        {
+            first = 1
+            simple = 0
+            comment = 0
+            for (i = 1; i <= length($0); i++) {
+                char = substr($0, i, 1)
+                if (quote != "") {
+                    if (escaped) escaped = 0
+                    else if (char == "\\") escaped = 1
+                    else if (char == quote) quote = ""
+                } else if (comment) {
+                    if (char == "#") comment = 0
+                } else if (char == "#") {
+                    consume()
+                    comment = 1
+                } else if (char == "\"" || char == sprintf("%c", 39)) {
+                    quote = char
+                    quoted = 1
+                    word = word char
+                } else if (index(" \t\r=;", char)) {
+                    consume()
+                } else {
+                    word = word char
+                }
+            }
+            if (quote == "") consume()
+        }
+        END { exit(found ? 0 : 1) }
+    ' "$1"
+}
+
 run_orca() {
     # ORCA external MLIP（输入含 `%method ProgExt`，如 MACE-OMol25）会把能量/梯度
     # 卸载给 Python 侧的 mace/ase：macOS 上其 libomp 与 ORCA 自带 OpenMP 重复装载
     # 会报 OMP Error #15，且 MACE 需要单线程调用（OMP Error #15 探针见
     # deploy/mace_omol25_orca_external_setup.md §3.1）。仅在输入声明外部 MLIP 时注入，
     # 普通 DFT 任务不设 OMP_NUM_THREADS=1，避免锁死 ORCA 的 OpenMP 线程层。
-    if grep -qE 'ExtOpt|ProgExt' "$INPUT_FILE"; then
+    if _orca_uses_external_program "$INPUT_FILE"; then
         export KMP_DUPLICATE_LIB_OK=TRUE
         export OMP_NUM_THREADS=1
         echo "[calculator] MLIP external route detected: KMP_DUPLICATE_LIB_OK=TRUE OMP_NUM_THREADS=1" >&2

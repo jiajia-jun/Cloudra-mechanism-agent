@@ -150,33 +150,51 @@ def orca_xyz_sections(text: str) -> list[tuple[tuple[int, int], list[str]]]:
 
 def orca_coordinate_units(text: str) -> Literal['angstrom', 'bohr', 'unknown']:
     """Read inline Cartesian units from simple input or the native %coords block."""
-    from cloudra.tools.core.calculation_intent import _orca_code
+    from cloudra.tools.core.calculation_intent import _orca_code, native_tokens
 
     unit_names = {'angs': 'angstrom', 'angstrom': 'angstrom', 'angstroms': 'angstrom',
                   'bohrs': 'bohr', 'bohr': 'bohr', 'au': 'bohr'}
     declared = set()
-    in_coords = False
+    coords_depth = 0
     for line in _orca_code(text).splitlines():
-        tokens = line.lower().split()
+        try:
+            tokens = native_tokens(line)
+        except ValueError:
+            # Unrelated malformed scientific options must not hide a separate
+            # units declaration or make absent units cease to mean Angstrom.
+            tokens = line.lower().replace('=', ' = ').split()
         if not tokens:
             continue
         if tokens[0] == '!':
             declared.update(unit_names[token] for token in tokens[1:] if token in unit_names)
         elif tokens[0].startswith('!'):
             declared.update(unit_names[token] for token in [tokens[0][1:], *tokens[1:]] if token in unit_names)
-        if tokens[0] == '%coords':
-            in_coords = True
-            tokens = tokens[1:]
-        if in_coords:
-            for index, token in enumerate(tokens):
-                if token != 'units':
-                    continue
-                unit = unit_names.get(tokens[index + 1]) if index + 1 < len(tokens) else None
-                if unit is None:
-                    return 'unknown'
-                declared.add(unit)
-            if 'end' in tokens:
-                in_coords = False
+        for index, token in enumerate(tokens):
+            if token == '%coords':
+                coords_depth = 1
+                continue
+            if token.startswith('%'):
+                coords_depth = 0
+            if not coords_depth:
+                continue
+            if token in {'coords', 'pardef'}:
+                coords_depth += 1
+                continue
+            if token == 'end':
+                coords_depth -= 1
+                continue
+            key, separator, value = token.partition('=')
+            if coords_depth != 1 or key != 'units':
+                continue
+            if not separator:
+                following = index + 1
+                if following < len(tokens) and tokens[following] == '=':
+                    following += 1
+                value = tokens[following] if following < len(tokens) else ''
+            unit = unit_names.get(value)
+            if unit is None:
+                return 'unknown'
+            declared.add(unit)
     if len(declared) > 1:
         return 'unknown'
     return declared.pop() if declared else 'angstrom'

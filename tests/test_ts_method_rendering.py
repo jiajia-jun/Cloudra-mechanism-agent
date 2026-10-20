@@ -67,13 +67,13 @@ def test_gaussian_scan_renders_native_basis_and_preserves_keywords(tmp_path):
         charge=0,  mode='scan_prepare', engine='gaussian',
         input_text='3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n',
         output_path=str(target), method='B3LYP', basis_set='def2-SVP',
-        keywords='EmpiricalDispersion=GD3BJ SCF=Tight SCRF=(CPCM,Solvent=Water)',
+        keywords='Opt=ModRedundant EmpiricalDispersion=GD3BJ SCF=Tight SCRF=(CPCM,Solvent=Water)',
         scans=[{'atoms': [1, 2], 'scan_end': 2, 'scan_steps': 4}],
     )
     result = TsGuess()._scan_prepare(request)
     assert result.is_success, result.message
     content = target.read_text()
-    assert ('#p opt=modredundant B3LYP/def2SVP '
+    assert ('#p B3LYP/def2SVP Opt=ModRedundant '
             'EmpiricalDispersion=GD3BJ SCF=Tight SCRF=(CPCM,Solvent=Water)\n') in content
     assert 'B 1 2 S 4 0.250000\n' in content
     assert request.basis_set == 'def2-SVP'
@@ -111,23 +111,29 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     extras = 'D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
     declaration = calculation_input(basis_set='def2svp',
         engine='orca', reactant_smiles='O', product_smiles='O', method='b3lyp', keywords=extras,
-        scan={'basis_set': 'def2svp', 'method': 'b3lyp', 'keywords': extras,
+        scan={'basis_set': 'def2svp', 'method': 'b3lyp', 'keywords': 'Opt ' + extras,
               'scans': [{'atoms': [0, 1], 'scan_end': 2, 'scan_steps': 5}]},
     )
+    declaration.ts_optimization.keywords = 'OptTS ' + extras
+    declaration.verification.frequency.keywords = 'Freq ' + extras
+    declaration.verification.irc.keywords = 'IRC ' + extras
+    for endpoint in (declaration.verification.reactant_endpoint, declaration.verification.product_endpoint):
+        endpoint.optimization.keywords = 'Opt ' + extras
+        endpoint.frequency.keywords = 'Freq ' + extras
     record = process.TsProcessRecord(run_id='scan', run_dir=str(tmp_path), workspace_dir=str(tmp_path),
         input=declaration, owner_conversation_id='test', stage='guess')
     from cloudra.tools.core.reaction_state import ReactionStructures
     record.structures = ReactionStructures(reactant=mol, product=mol, product_to_reactant=(0, 1, 2))
     monkeypatch.setattr(process, '_submit_step', lambda *_: ('', 42))
     process._guess(record)
-    paths = [record.scan_step.input_path]
+    paths = [(record.scan_step.input_path, 'Opt')]
     record.structures.candidate = Chem.Mol(mol)
     record.path_kind = 'scan'
     opt_dir = tmp_path / 'opt'
     opt_dir.mkdir()
     error, path = process._write_refinement_input(record, str(opt_dir))
     assert error == ''
-    paths.append(path)
+    paths.append((path, 'OptTS'))
     step = process.TsJobStep(purpose='ts_opt', job_id=43, input_path=path, state='done')
     record.job_steps.append(step)
     log = Path(process._refinement_log_path(record, step))
@@ -140,13 +146,13 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     freq_dir.mkdir()
     error, path = process._write_frequency_input(record, str(freq_dir))
     assert error == ''
-    paths.append(path)
+    paths.append((path, 'Freq'))
     record.job_steps.append(process.TsJobStep(purpose='frequency', job_id=44, input_path=path, state='done'))
     irc_dir = tmp_path / 'irc'
     irc_dir.mkdir()
     error, path = process._write_irc_input(record, str(irc_dir))
     assert error == ''
-    paths.append(path)
+    paths.append((path, 'IRC'))
     for role in ('reactant', 'product'):
         from cloudra.tools.core.ts_inputs import EndpointSeed
         evidence=tmp_path/'seed-provenance.txt'
@@ -156,7 +162,7 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
         endpoint_dir.mkdir()
         error, path = process._write_endpoint_input(record, str(endpoint_dir), role, 'opt')
         assert error == ''
-        paths.append(path)
+        paths.append((path, 'Opt'))
         record.job_steps.append(process.TsJobStep(purpose=role+'_opt', job_id=45, input_path=path, state='done',
             endpoint_source=process.EndpointSource.model_validate_json((endpoint_dir/'endpoint_source.json').read_text())))
         monkeypatch.setattr(process, '_endpoint_opt_frame', lambda *_: (xyz.read_text(), ''))
@@ -164,19 +170,19 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
         endpoint_freq_dir.mkdir()
         error, path = process._write_endpoint_input(record, str(endpoint_freq_dir), role, 'frequency')
         assert error == ''
-        paths.append(path)
-    for path in paths:
+        paths.append((path, 'Freq'))
+    for path, task in paths:
         header = next(line for line in Path(path).read_text().splitlines() if line.startswith('!')).split()
-        assert header[2:] == ['b3lyp', 'def2-SVP', 'D3BJ', 'RIJCOSX', 'def2/J', 'TightSCF', 'CPCM(DCM)'], path
+        assert header == ['!', 'b3lyp', 'def2-SVP', task, 'D3BJ', 'RIJCOSX', 'def2/J', 'TightSCF', 'CPCM(DCM)'], path
     assert record.input.ts_optimization.method == 'b3lyp'
     assert record.input.ts_optimization.basis_set == 'def2svp'
-    assert record.input.ts_optimization.keywords == extras
+    assert record.input.ts_optimization.keywords == 'OptTS ' + extras
 
 
 @pytest.mark.parametrize('method,basis_set,keywords,expected', [
-    ('b3lyp', 'def2svp', 'RIJCOSX def2/J', '! Opt b3lyp def2-SVP RIJCOSX def2/J'),
-    ('b3lyp', 'def2svp', 'RIJK def2/JK', '! Opt b3lyp def2-SVP RIJK def2/JK'),
-    ('MP2', 'cc-pVDZ', 'cc-pVDZ/C', '! Opt MP2 cc-pVDZ cc-pVDZ/C'),
+    ('b3lyp', 'def2svp', 'Opt RIJCOSX def2/J', '! b3lyp def2-SVP Opt RIJCOSX def2/J'),
+    ('b3lyp', 'def2svp', 'Opt RIJK def2/JK', '! b3lyp def2-SVP Opt RIJK def2/JK'),
+    ('MP2', 'cc-pVDZ', 'Opt cc-pVDZ/C', '! MP2 cc-pVDZ Opt cc-pVDZ/C'),
 ])
 def test_scan_keeps_auxiliary_basis_slashes(tmp_path, method, basis_set, keywords, expected):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
