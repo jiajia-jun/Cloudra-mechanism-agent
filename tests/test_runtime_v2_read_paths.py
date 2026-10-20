@@ -54,11 +54,10 @@ def test_global_cached_prefix_uses_project_watermarks_without_offset(history):
     assert not any("OFFSET" in sql for sql in statements)
 
 
-def test_snapshot_event_metadata_only_reads_new_narrow_columns(history):
+def test_store_event_metadata_only_reads_new_narrow_columns(history):
     log, store, _, statements = history
     store.save_snapshot(projects={}, agents={}, roles={}, runtime_defaults=RuntimeSettings(),
-                        last_seqs=log.high_watermarks,
-                        projections={"event_metadata": log.durable_metadata()})
+                        last_seqs=log.high_watermarks)
     # The snapshot payload was frozen before this append became durable.
     extra = log.append("agent.warning", stream="agent", project_id="new", session_id="new-agent")
     store.append_event(extra)
@@ -70,17 +69,17 @@ def test_snapshot_event_metadata_only_reads_new_narrow_columns(history):
     assert not any("COUNT(" in sql or "GROUP BY" in sql for sql in statements)
     event_selects = [sql for sql in statements if "FROM events" in sql]
     assert len(event_selects) == 1
-    assert event_selects[0].startswith("SELECT project_id, session_id, seq, session_seq")
+    assert event_selects[0].startswith("SELECT rowid, project_id, session_id, seq, session_seq")
     assert "rowid > 150" in event_selects[0]
 
 
-def test_snapshot_metadata_anchor_does_not_include_a_late_append(history):
+def test_store_metadata_keeps_late_events_outside_the_state_snapshot(history):
     log, store, _, _ = history
-    metadata, marks = log.durable_metadata(), log.high_watermarks
+    marks = log.high_watermarks
     late = log.append("agent.warning", stream="agent", project_id="p0", session_id="a0")
     store.append_event(late)
     store.save_snapshot(projects={}, agents={}, roles={}, runtime_defaults=RuntimeSettings(),
-                        last_seqs=marks, projections={"event_metadata": metadata})
+                        last_seqs=marks)
     assert store.event_metadata() == (151, {"p0": 76, "p1": 75}, {"a0": 76, "a1": 75})
 
 
@@ -154,8 +153,7 @@ def test_metadata_anchor_preserves_counts_when_sqlite_rowids_have_gaps(tmp_path)
     with store._connect() as con:
         con.execute("UPDATE events SET rowid = 100")
     store.save_snapshot(projects={}, agents={}, roles={}, runtime_defaults=RuntimeSettings(),
-                        last_seqs=log.high_watermarks,
-                        projections={"event_metadata": log.durable_metadata()})
+                        last_seqs=log.high_watermarks)
     later = log.append("agent.warning", stream="agent", project_id="p", session_id="a")
     store.append_event(later)
     assert store.event_metadata() == (2, {"p": 2}, {"a": 2})

@@ -1,0 +1,7 @@
+# L1/M17 real runtime restore fixture (2026-10-20)
+
+This contains the 11,723 unmodified event headers (in SQLite row order) from the original real ORCA L1/M17 VM batch `batch_33673755b17b4a55`. All event data payloads are omitted: the regression exercises event-store counters and lazy history, not chemistry or model wording. Project/session IDs, sequence numbers, event IDs and times are retained. The gzip is deterministic. Source database SHA256 values and the observed failed continuation headers are inside the document.
+
+Two private runtime cores shared one durable store. The last state snapshot described M17, but its `event_metadata.rowid` covered the whole store prefix. Reusing its partial counters lost L1's high watermark (5,803), so the first resumed L1 event received seq 1. The existing child-completion projection discarded new events as already seen; the final delivery completed but the serial runner never reached M17.
+
+The regression reconstructs only the original event headers with empty payloads and the exact stale snapshot metadata. It verifies the full store counters, then a resumed L1 append continues at 5,804. This is historical runtime evidence replay, not a new Benchmark or a scientific acceptance claim. Complete databases and native logs remain in the ignored local run archive; `archives/continuation-stalled-seq-20261020/raw-evidence.tar` captures the stalled continuation without OAuth credentials.
