@@ -209,3 +209,43 @@ async def test_real_hb10_blind_task_replay_reaches_process_and_final_supervisors
             assert old_notice["content"] not in scope
     finally:
         await core.aclose()
+
+
+@pytest.mark.asyncio
+async def test_partial_final_reviewer_receives_untried_work_and_stopping_reason_contract(tmp_path):
+    """真实最终模型输入必须区分科学限制、暂未找到与尚未尝试，不能只审停机措辞。"""
+    from cloudra.runtime_v2.adapters import LegacyPromptProvider
+    from tests.agent_scenarios import ScenarioHarness, ScriptedProvider, Step
+
+    query = "Find the requested path using the permitted method; preserve unresolved evidence honestly."
+    provider = ScriptedProvider(by_role={
+        "coordinator": [Step(tools=[("stop", {
+            "delivery_disposition": "partial", "reason": "A validated path has not been found.",
+        })])],
+        "supervisor": [Step(stop=True)],
+    })
+    harness = await ScenarioHarness.start(tmp_path, provider=provider, workspace_dir=tmp_path)
+    harness.pipeline.prompt_provider = LegacyPromptProvider()
+    try:
+        await harness.spawn("coordinator", query, protocol="traditional", orchestration_mode="dag_guided")
+        await harness.wait_for(lambda: provider.call_count("supervisor") > 0,
+                               "independent partial-delivery review receives its actual model input")
+        reviewers = [agent for agent in harness.core.agents.values() if agent.final_review_request_id]
+        assert len(reviewers) == 1
+        messages = next(messages for role, messages in provider.calls if role == "supervisor")
+        model_input = "\n".join(message["content"] for message in messages
+                                if isinstance(message.get("content"), str))
+        assert query in model_input
+        for requirement in (
+            "evidence-supported scientific/allowed-method limits",
+            "tried-but-unresolved searches",
+            "reasonable permitted next steps not attempted",
+            "why work stopped: user instruction, explicit budget/resource limit, or the Agent's own choice",
+            "what each could resolve",
+            "within scope and available budget/resources, return needs_evidence",
+            "Stopping or finite failures do not prove infeasibility/inaccessibility",
+            "without demanding exhaustive or out-of-scope research",
+        ):
+            assert requirement in model_input
+    finally:
+        await harness.aclose()
