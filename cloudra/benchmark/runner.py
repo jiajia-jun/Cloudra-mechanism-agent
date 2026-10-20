@@ -145,6 +145,16 @@ _RUNS_COLS = (
 )
 
 
+def task_project_settings(task: TaskSpec) -> dict:
+    """CLI/Web task settings shared by every agent created in the project."""
+    return {
+        "benchmark_task_id": task.task_id,
+        "orchestration_mode": task.prompt.orchestration_mode.value,
+        "method_policy": task.method_policy.model_dump(mode="json"),
+        "defaults": {"yolo": True, "unattended": True, "clean_context": True},
+    }
+
+
 def provenance_config(backend: str, tasks: list[TaskSpec]) -> dict:
     """批次溯源快照（CLI 与 Web 批次共用）：消融臂事后区分靠它。
 

@@ -1387,6 +1387,123 @@ def test_cli_child_inherits_unattended_and_ask_user_blocked(tmp_path, monkeypatc
     assert child.state is AgentState.SUCCEEDED
 
 
+@_REQUIRES_HOST
+@pytest.mark.asyncio
+@pytest.mark.parametrize("entrypoint", ["cli", "web"])
+async def test_benchmark_hub_peer_runs_unattended_without_manual_approval(
+    tmp_path, monkeypatch, entrypoint,
+):
+    """Benchmark 的独立 peer 服从项目无人值守设置，真实只读 Bash 不挂审批。"""
+    from cloudra.infra.yolo_guard import YoloGuard
+    from tests.agent_scenarios import benchmark_peer_unattended_provider
+
+    async def approve(self, tool_name, tool_args, agent, session, **_kwargs):
+        return True, ""
+
+    # 仅替换外部审查服务；命令分类、审批分流和 Bash 执行器保持真实。
+    monkeypatch.setattr(YoloGuard, "judge", approve)
+    bash_arguments = json.loads((
+        _HERE / "fixtures" / "benchmark_peer_approval_20261020" / "approval-request.json"
+    ).read_text(encoding="utf-8"))["normalized_arguments"]
+    llm = benchmark_peer_unattended_provider(bash_arguments)
+
+    stop_event = threading.Event()
+    execution = None
+    batch = scheduler = broker = None
+    core = None
+    try:
+        if entrypoint == "cli":
+            backend = RuntimeV2Backend(
+                llm=llm, start_scheduler=False, stop_event=stop_event,
+                poll_interval_s=0.05, stuck_grace_s=10.0,
+            )
+            execution = asyncio.create_task(asyncio.to_thread(
+                _run_cli_task, tmp_path, monkeypatch, llm, backend=backend,
+            ))
+            await wait_until(
+                lambda: backend.core_by_task("T1") is not None,
+                timeout=10.0, what="CLI benchmark core",
+            )
+            core = backend.core_by_task("T1")
+        else:
+            core = RuntimeCore(strict_events=True)
+            _, scheduler, broker, service = await _web_harness(core, llm, tmp_path)
+            tasks_dir = _write_tasks(tmp_path / "tasks", "T1")
+            await service.start(tasks_dirs=[tasks_dir], only="", concurrency=1)
+            batch = service._batch
+
+        def bash_dispatched():
+            return any(e.type == "approval.requested" for e in core.event_log) or any(
+                "BASH finished" in output
+                for agent in core.agents.values() if agent.role_id == "small_mol"
+                for output in _program_outputs(core, agent)
+            )
+
+        # 等真正到达 Bash 审批或执行结果，旧实现会稳定复现 waiting_approval。
+        try:
+            await wait_until(bash_dispatched, timeout=20.0, what="peer Bash dispatch")
+        except AssertionError:
+            pytest.fail("Peer did not reach Bash:\n" + "\n".join(
+                f"{e.type}: {e.data}" for e in core.event_log
+                if e.type in {"program.finished", "tool.finished", "tool.blocked", "llm.failed"}
+            ))
+        peer = next(a for a in core.agents.values() if a.role_id == "small_mol")
+        parent = next(a for a in core.agents.values() if a.role_id == "coordinator")
+        approvals = [e.data for e in core.event_log if e.type == "approval.requested"]
+        assert approvals == [], f"Benchmark peer entered manual approval: {approvals}"
+        assert peer.parent_session_id is None  # Hub peer 仍是独立会话，不伪装成子树。
+        assert peer.requested_by_session_id == parent.id
+        assert peer.settings.yolo is True
+        assert peer.settings.unattended is True
+        assert peer.settings.clean_context is True
+
+        if execution is not None:
+            await asyncio.wait_for(asyncio.shield(execution), timeout=20.0)
+        else:
+            await wait_until(
+                lambda: service.status()["status"] == "done",
+                timeout=20.0, what="Web benchmark completion",
+            )
+            assert service.status()["tasks"][0]["status"] == "scored"
+
+        assert peer.state is AgentState.SUCCEEDED, _dump_session(core, peer.id)
+        assert len(_tool_call_ids(core, peer.id, "bash")) == 1
+        assert any(
+            e.type == "tool.finished" and e.data.get("tool_name") == "bash"
+            for e in core.event_log.query_session(peer.id)
+        )
+        assert len(_tool_call_ids(core, peer.id, "ask_user")) == 1
+        outputs = _program_outputs(core, peer)
+        assert any("BASH finished" in o and "=== graph" in o for o in outputs), outputs
+        assert any(
+            e.type == "tool.blocked" and e.data.get("tool_name") == "ask_user"
+            and e.data.get("stage") == "unattended"
+            for e in core.event_log.query_session(peer.id)
+        )
+        assert not any(
+            e.type == "interaction.requested" for e in core.event_log.query_session(peer.id)
+        )
+        states = {
+            e.data.get("to") for e in core.event_log.query_session(peer.id)
+            if e.type == "agent.state_changed"
+        }
+        assert states.isdisjoint({"waiting_approval", "waiting_input"}), states
+    finally:
+        # RED 也必须收尾：停止测试推理等待，不启动也不终止任何 QM 进程。
+        if execution is not None:
+            stop_event.set()
+            await asyncio.wait_for(
+                asyncio.gather(execution, return_exceptions=True), timeout=20.0,
+            )
+        if batch is not None:
+            await batch.shutdown()
+            await core.runner.cancel_all()
+        if broker is not None:
+            await broker.close()
+        if scheduler is not None:
+            await scheduler.close()
+
+
 @_REQUIRES_HOST_AND_RDKIT
 def test_cli_method_policy_blocks_before_compute(tmp_path, monkeypatch):
     """白名单在链路上先于入库：非白名单方法（含外部 MLIP 路由）被拦截且不创建

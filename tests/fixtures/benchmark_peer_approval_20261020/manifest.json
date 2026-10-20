@@ -1,0 +1,12 @@
+{
+  "source_commit": "81def5682875a4fffbc5af9fe89a235d57798c27",
+  "batch_id": "batch_159a23ad57b64073",
+  "task_id": "M3",
+  "project_id": "prj_813298b380044857",
+  "session_id": "as_6ac16ce7360043e3",
+  "source": "runtime-v2.db events.data, approval.requested",
+  "requested_at": "2026-10-20T16:06:28.471907+00:00",
+  "approval_id": "apv_f67f21348dca4797",
+  "sha256": "7e828d9bc4245cd14c7ed9918ae5d72f6cd05b9d4b0bdfbcb000c4ebdb38ad92",
+  "scope": "Original approval payload; no model response, Gold or quantum-calculation result is synthesized."
+}
