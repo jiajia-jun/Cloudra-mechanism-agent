@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import itertools
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -387,6 +388,99 @@ def _usable_minimum_geometries(logs, *, side: str, details: list[str]) -> list[t
                 f"got n_imag={n_imag}, geometry={'yes' if geometry else 'no'}."
             )
     return geometries
+
+
+def diagnose_short_irc_materials(irc_log, ts_logs, *, workspace=None,
+                                    candidate_limit: int = 400) -> list[str]:
+    """Explain a failed short_irc proof; never changes the verdict.
+
+    Names logs that were bound as the TS witness but cannot be one (IRC
+    trajectories, Opt-only logs, minima, higher-order saddles), then looks for
+    a usable saddle log: a normally terminated Freq log with exactly one
+    imaginary frequency whose final geometry matches this IRC's starting
+    saddle. Returns short English hints for the existing details audience.
+    """
+    import hashlib
+
+    hints: list[str] = []
+    irc_path = Path(irc_log)
+    try:
+        anchor_geometry = irc_start_geometry(irc_path)
+    except (OSError, ValueError):
+        anchor_geometry = None
+
+    def job_types(path):
+        try:
+            return gaussian_frames.detect_job_types(str(path))
+        except (OSError, ValueError):
+            return set()
+
+    bound = list(dict.fromkeys(str(path) for path in ts_logs))
+    for path in bound:
+        kinds = job_types(path)
+        n_imag, _geometry = probe_log(path)
+        name = Path(path).name
+        if 'irc' in kinds:
+            hints.append(f"{name} is an IRC trajectory; native IRC output has no frequency "
+                         f"block, so it cannot be the first-order saddle witness.")
+        elif n_imag is None:
+            hints.append(f"{name} carries a geometry but no frequency block (Opt-only); the "
+                         f"saddle witness must be a Freq log at the converged geometry.")
+        elif n_imag == 0:
+            hints.append(f"{name} has zero imaginary frequencies: it is a minimum, not the saddle.")
+        elif n_imag > 1:
+            hints.append(f"{name} has {n_imag} imaginary frequencies: a higher-order saddle, not "
+                         f"the first-order TS this step needs.")
+
+    if anchor_geometry is None:
+        return hints[:3]
+
+    def digest(path):
+        try:
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            return None
+
+    best_match: dict[str, str] = {}
+    near_misses: list[str] = []
+    seen = set(bound)
+    roots = [Path(workspace)] if workspace is not None else []
+    roots.append(irc_path.parent)
+    for root in roots:
+        if not root.is_dir():
+            continue
+        try:
+            candidates = list(itertools.islice(root.rglob('*freq*.log'), candidate_limit))
+        except OSError:
+            continue
+        for path in candidates:
+            try:
+                key = str(path.resolve())
+            except OSError:
+                continue
+            if key in seen or not path.is_file():
+                continue
+            seen.add(key)
+            n_imag, geometry = probe_log(path)
+            if n_imag != 1 or geometry is None:
+                continue
+            if same_geometry(geometry, anchor_geometry):
+                digest_value = digest(path)
+                current = best_match.get(digest_value) if digest_value else None
+                if digest_value and (current is None or len(str(path)) < len(current)):
+                    best_match[digest_value] = str(path)
+            elif len(near_misses) < 3:
+                near_misses.append(str(path))
+    if best_match:
+        paths = sorted(best_match.values(), key=len)[:2]
+        hints.append("Did you mean " + ", ".join(paths) + "? That log has exactly one imaginary "
+                     "frequency and its final geometry matches this IRC's starting saddle; bind it "
+                     "as the ts_opt/frequency evidence and stop again.")
+    elif near_misses:
+        hints.append("Frequency logs exist but none matches this IRC's starting saddle, e.g. "
+                     + ", ".join(sorted(near_misses, key=len)[:2])
+                     + "; run Freq at the saddle geometry that produced this IRC.")
+    return hints[:4]
 
 
 def _optimization_geometries(path):
