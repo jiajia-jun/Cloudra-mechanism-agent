@@ -60,7 +60,7 @@ class SandboxEvidence:
                 continue
             try:
                 facts = read_qm_log(path)
-            except (OSError, ValueError):
+            except Exception:  # one unreadable log must not fail the whole score
                 continue
             energy = facts.electronic_energy_hartree or facts.scf_energy_hartree
             frequencies = facts.frequencies_cm
@@ -79,7 +79,7 @@ class SandboxEvidence:
         if fact.path not in self._opt:
             try:
                 self._opt[fact.path] = _optimization_geometries(fact.path)
-            except (OSError, ValueError):
+            except Exception:
                 self._opt[fact.path] = None
         return self._opt[fact.path]
 
@@ -92,7 +92,7 @@ class SandboxEvidence:
                 try:
                     start = irc_start_geometry(fact.path)
                     ends = irc_endpoint_geometries(fact.path)
-                except (OSError, ValueError):
+                except Exception:
                     continue
                 if start is not None and ends is not None:
                     found.append((fact, start, ends))
@@ -108,6 +108,7 @@ def _node_energy(node) -> float | None:
 
 def discover_edge_proof(
     evidence: SandboxEvidence, graph, edge, *, charge: int = 0,
+    used_chains: set[str] | None = None,
 ) -> DiscoveryResult:
     """Search for a passing proof of one edge; never accept a mere match."""
     nodes = {node.id: node for node in graph.nodes}
@@ -119,12 +120,19 @@ def discover_edge_proof(
         result.notes.append("no TS node on this edge")
         return result
 
-    saddles = [f for f in evidence.by_energy(_node_energy(ts_node)) if f.n_imag == 1]
-    if not saddles:
+    ts_energy = _node_energy(ts_node)
+    if ts_energy is not None:
+        # A declared energy identifies the saddle; never substitute another TS.
+        saddles = [f for f in evidence.by_energy(ts_energy) if f.n_imag == 1]
+        if not saddles:
+            result.notes.append(
+                "no first-order saddle log matches the declared TS energy; refusing to "
+                "substitute an unrelated saddle")
+            return result
+    else:
         saddles = [f for f in evidence.logs if f.n_imag == 1][:3]
         if saddles:
-            result.notes.append(
-                "no saddle log matches the declared TS energy; trying other single-imaginary logs")
+            result.notes.append("no TS energy declared; scanning for single-imaginary candidates")
     if not saddles:
         result.notes.append("no first-order saddle (exactly one imaginary frequency) anywhere in the sandbox")
         return result
@@ -177,10 +185,17 @@ def discover_edge_proof(
                             reactant_smiles=reactant_smiles,
                             product_smiles=product_smiles,
                         )
-                    except (OSError, ValueError) as exc:
+                    except Exception as exc:
                         result.notes.append(f"discovery proof could not be evaluated: {exc}")
                         continue
                     if passed:
+                        chain_key = f"{saddle.path}|{irc_fact.path}"
+                        if used_chains is not None and chain_key in used_chains:
+                            result.notes.append(
+                                "the discovered chain is already used by another edge")
+                            continue
+                        if used_chains is not None:
+                            used_chains.add(chain_key)
                         result.passed = True
                         result.score = 1.0
                         result.evidence = [str(saddle.path), str(irc_fact.path),
