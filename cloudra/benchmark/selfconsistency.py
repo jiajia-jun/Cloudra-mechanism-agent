@@ -423,8 +423,9 @@ def audit_self_consistency(
                 break
         if not irc_ok and ts_files:
             if endpoint_error is not None:
+                # A missing/broken step-endpoint index is a hint problem, not a
+                # scientific failure: keep going and let discovery find the chain.
                 chk.notes.append(endpoint_error)
-                continue
             from_binding = bmap.get(edge.from_node)
             to_binding = bmap.get(edge.to_node)
             from_files = (
