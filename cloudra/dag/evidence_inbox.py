@@ -649,7 +649,14 @@ class EvidenceInboxMixin:
             return False, prefix + f"the direction proof could not be evaluated: {exc}"
         if passed:
             return True, ' '.join(details)
-        return False, prefix + " ".join(details + problems)
+        from cloudra.tools.core.irc_evidence import diagnose_short_irc_materials
+
+        hints = diagnose_short_irc_materials(
+            irc_log, ts_logs, workspace=self.working_directory)
+        reason = prefix + " ".join(details + problems)
+        if hints:
+            reason += " Did you mean: " + " ".join(hints)
+        return False, reason
 
     def _passes_thermochemistry_check(self, ref: GraphRef | None) -> bool:
         """thermochemistry 只认 thermo_analysis 的 complete 结果。"""
