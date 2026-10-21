@@ -1,55 +1,72 @@
-# 能力评价设计（单命题版）
+# 三臂消融设计（v1）
 
-## 1. 创新点
+## 1. 被检验的命题（唯一一个）
 
-> **第一个用 agent 自己跑出来的 QM 原始日志来判定机理对错的端到端基准。**
+> **把"持久计算契约 + 化学证据图 + 独立评分交付"耦合起来，是否提升可靠性、并让成本更可控？**
 
-评的不是它"说"了什么机理，而是它"算"过什么、以及这些计算能不能复算出它声称的机理与能垒：
+不谈评分器宽严、不谈基准本身是不是创新——那些是方法与仪器。这里只回答耦合有没有用。
 
-1. **开放任务**：只给反应式、条件、允许的方法；agent 自己决定跑什么（TS 猜测 → Opt/Freq → IRC → 端点优化），没有提示下一步。
-2. **取证式判分**：能垒必须从它自己的原生日志推出（`E(TS) − E(最低点)`），机理边必须由同一 TS 的 IRC 链撑住；编数字、借别题日志都拿不到分。
-3. **不可达题**：部分题目的正确答案是"此路不通"，考否定判断，不是记忆。
+## 2. 三个臂（同一套题，只改执行方式）
 
-## 2. 唯一评价：四档科学通过率
+| 臂 | 代码开关 | 保留 | 去掉 |
+|---|---|---|---|
+| **standard**（普通） | `--orchestration-mode standard` | 全部几何/路径工具；原生日志可自行读取解析 | `ts_guess` 的 `verify`/`strict` 判定（harness 不再告诉它对错）；DAG 工具对模型隐藏 |
+| **dag_record**（记录） | `--orchestration-mode dag_record` | 工具 + 机理图 + 主动化学校验；DAG 工具可**主动调用**，用来自查计算是否正确 | supervisor 审核；完成门禁——不要求交付工件/证据索引，`complete`/`partial` 都可收工 |
+| **dag_guided**（完整） | `--orchestration-mode dag_guided` | supervisor 对抗性审查 + DAG 护栏（阶段契约、证据绑定、完成度判定） | — |
 
-| 档 | 题数 | 通过定义 |
-|---|---|---|
-| easy | 20 | 机理图覆盖 Gold + 每条 Gold 边能垒在容差内 + 证据链自洽 |
-| normal | 10 | 同上 |
-| hard | 10 | 同上（立体化学计入图匹配） |
-| impossible | 10 | 正确否定：可达性声明与 Gold 一致 |
+三臂共用同一题库与同一评分器；任务 JSON 不改，`with_orchestration_mode()` 只在运行时强制臂。
 
-**报告内容**：每档 `通过数/总数`，一张表；附四档平均 `final` 作辅助；失败题逐题列 `task_id + 一句归因`（描述性，不单独立项）。
+## 3. 指标（可靠性 + 成本）
 
-这就是全部评价。P2（证据纪律）、P3（评分松紧）、P4（区分度）不再作为独立命题去跑实验——它们是这台"测量仪器"的构造，写进方法一节即可。
+**可靠性**
+- `accuracy`：能垒与 Gold 的加权分；
+- `graph`：机理图 GED；
+- `passed`：证据链自洽（布尔）；
+- **幻觉率**：交付里声称完成/可达、但 `passed=False` 或 `accuracy` 无日志支撑的比例（"说得比算得多"）。
 
-## 3. 为什么这样就够
+**成本**
+- 计算作业数、工具调用数、wall time；tokens 仅作参考（上下文注入策略会污染它）。
 
-- **通过判据本身就要求证据**：不跑计算、不交日志、或日志对不上声明的题，`passed` 不可能为真。所以"通过率"天然包含了证据纪律，不需要另设负控实验。
-- **评分口径只决定"已算对的工作能不能被记进来"**：这次改动（分级自洽、沙箱发现、去 clawback）只影响这一点，不影响"通过"的定义——通过仍然要求完整证据链。
-- **难度档本身提供区分度**：四档通过率放在一起就是能力边界。
+**交付完备性**
+- `undelivered` 比例；
+- 每臂失败归因分布（`short_irc` / TS 选错 / 参考态定义 / 格式 / 基建）。
 
-## 4. 可选：能力构成消融（仅在需要解释"为什么停在这里"时做）
+## 4. 运行
 
-不是"证明评分器没错"，而是回答"能力来自哪里"。每臂的评价仍是第 2 节的通过率，只改 agent 的能力构成：
+```bash
+cd /home/ly/cloudra-bench-20261019
+export PATH=/home/ly/.local/bin:/home/ly/bin:/home/ly/g16:/home/ly/xtb-6.5.0/bin:$PATH
+export g16root=/home/ly GAUSS_SCRDIR=/home/ly/g16/scratch
+export GAUSS_EXEDIR=/home/ly/g16/bsd:/home/ly/g16
 
-| 臂 | 改动 | 想回答的问题 |
-|---|---|---|
-| B0 | 基线 | — |
-| B1 | 只允许 xTB（禁 DFT） | 高精度计算是不是瓶颈 |
-| B2 | 交付纪律：绑定 required vs optional | "把工作变成可复算证据"是不是瓶颈 |
-| B3 | 编排模式 dag_guided vs record | 结构化流程是否必要 |
+for ARM in standard dag_record dag_guided; do
+  .venv/bin/python -m cloudra.benchmark \
+    --backend runtime_v2 --tasks-dir ideapool/tasks/easy \
+    --orchestration-mode "$ARM" \
+    --data-dir ~/cloudra-ablation-$(date +%Y%m%d)-$ARM \
+    --concurrency 6 > ~/cloudra-ablation-$(date +%Y%m%d)-$ARM/benchmark.log 2>&1
+done
+```
 
-若不做，报告就只给四档曲线，不解释原因——也成立。
+每臂记录 commit、`--orchestration-mode`、batch_id；数据目录独立，旧批次不清。
 
-## 5. 执行顺序与成本
+## 5. 预期与反证
 
-1. **easy 复跑 1 臂**（确认新评分口径下与离线重算一致：约 4–6 h / 6 并发）；
-2. **normal / hard / impossible 各 1 臂**（估 8–12 h/臂，含真实 QM）；
-3. 只有需要写"能力来自哪里"时，才加第 4 节的臂。
+| 观察 | 结论 |
+|---|---|
+| guided 的幻觉率/undelivered 明显低于另两臂，正确率不降 | 耦合有价值（护栏换来可靠交付） |
+| guided 正确率与 record 持平但成本显著更高 | 护栏的代价大于收益 → 需要重新设计门禁粒度 |
+| standard 正确率不低于 guided | 化学校验与护栏没有增益，核心主张被推翻 |
+| record ≈ guided 且更便宜 | 门禁可以退化为"建议"（本次松绑方向正确） |
 
-每臂固定：同一 commit、同一环境（PATH/g16）、同一并发；数据目录 `~/cloudra-ablation-<date>-<arm>/`，记录 `arm.json`（commit、配置、batch_id）。旧批次与沙箱永久保留。
+**在任何一臂跑完前，不预设结论。**
 
-## 6. 一句话
+## 6. 规模与预算
 
-> 一个创新点（自身证据判定的机理基准）、一个评价（四档通过率）、一个可选的解释性消融（能力构成）。其它都不做。
+- 第一轮：**easy 20 题 × 3 臂**（先验证差异是否存在，再扩档）；
+- 预计每臂 4–6 h（6 并发，含真实 QM）；总计约 15–20 h 墙钟；
+- `dag_record` 不写 `mechanism_evidence.json`，这些行会标 `undelivered=True`，属预期行为。
+
+## 7. 与旧文档的关系
+
+本文件取代此前的"单命题能力评价"版本：能力评价是仪器读数，这里才是论文要回答的因果问题。
