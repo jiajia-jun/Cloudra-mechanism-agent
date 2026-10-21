@@ -230,20 +230,6 @@ class StopAuditMixin:
             self._pending_stop = (disposition, None, None, state)
             return StopGate(action="allow_final", report=None, basis="user_terminated")
 
-        # Record arm (ablation): the DAG is a tool the agent may consult, not a
-        # gate. Any disposition ends the run; the delivery report still records
-        # what was proven.
-        if self.mode is OrchestrationMode.DAG_RECORD:
-            state = await asyncio.to_thread(self.store.delivery_state_fingerprint)
-            report = await asyncio.to_thread(self.delivery_report)
-            self._pending_stop = (disposition, report, None, state)
-            return StopGate(
-                action="allow_final",
-                report=report,
-                reason="record mode: DAG is advisory; delivery is not gated",
-                basis="dag_recorded",
-            )
-
         if await self._has_pending_background():
             return StopGate(
                 action="wait_background",
@@ -472,12 +458,6 @@ class StopAuditMixin:
             raise RuntimeError('DAG evidence or review state changed after audit; re-audit the delivery.')
         if approval_id and not await self._valid_exit_approval(approval_id, disposition, report):
             raise RuntimeError('Exit approval changed after audit; re-audit the delivery.')
-        if self.mode is OrchestrationMode.DAG_RECORD:
-            # No artifact / evidence publication is required in the record arm.
-            await asyncio.to_thread(self.store.record_delivery_disposition,
-                self.session_id, disposition, report, expected_state=state)
-            self._pending_stop = None
-            return
         artifact = getattr(self, '_delivery_artifact', None)
         if disposition != 'user_terminated':
             from cloudra.dag.delivery_artifact import prepare_delivery_artifact

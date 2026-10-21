@@ -225,21 +225,6 @@ def task_project_settings(task: TaskSpec) -> dict:
     }
 
 
-def with_orchestration_mode(tasks: list[TaskSpec], mode) -> list[TaskSpec]:
-    """Return the same tasks forced into one orchestration arm.
-
-    The ablation compares standard / dag_record / dag_guided on the identical
-    question set, so the mode is an execution override, not part of the task
-    data.
-    """
-    return [
-        task.model_copy(update={
-            "prompt": task.prompt.model_copy(update={"orchestration_mode": mode})
-        })
-        for task in tasks
-    ]
-
-
 def provenance_config(backend: str, tasks: list[TaskSpec]) -> dict:
     """批次溯源快照（CLI 与 Web 批次共用）：消融臂事后区分靠它。
 

@@ -32,9 +32,6 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--only", default="", help="comma-separated task ids (default: all)")
     ap.add_argument("--concurrency", type=int, default=1,
                     help="parallel tasks (threads, per-task event loop + sandbox; default 1 = serial)")
-    ap.add_argument("--orchestration-mode",
-                        choices=["standard", "dag_record", "dag_guided"], default=None,
-                        help="override every task's orchestration mode (ablation arm)")
     ap.add_argument("--api-pool", type=Path, default=None,
                     help='JSON endpoint pool for anti-429: [{"base_url","api_key","label"}, ...]; '
                          "each LLM call picks a random endpoint, 429 fails over to the next")
@@ -46,11 +43,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.only:
         wanted = {t.strip() for t in args.only.split(",") if t.strip()}
         tasks = [t for t in tasks if t.task_id in wanted]
-    if args.orchestration_mode:
-        from cloudra.benchmark.runner import with_orchestration_mode
-        from cloudra.runtime_v2.schemas import OrchestrationMode
-
-        tasks = with_orchestration_mode(tasks, OrchestrationMode(args.orchestration_mode))
     if not tasks:
         print("no tasks matched", file=sys.stderr)
         return 2
