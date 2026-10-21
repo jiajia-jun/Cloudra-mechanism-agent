@@ -459,8 +459,12 @@ class ComputeNotifyBroker:
         reaction = value.get('reaction') or {}
         for role in ('reactant', 'product'):
             facts = []
-            if reaction.get(f'{role}_smiles'):
-                facts.append(reaction[f'{role}_smiles'])
+            declared = reaction.get(f'{role}_smiles')
+            if declared:
+                if isinstance(declared, (list, tuple)):
+                    facts.extend(str(item) for item in declared)
+                else:
+                    facts.append(str(declared))
             structure = view.get('structures', {}).get(role) or {}
             for field, label in (('atom_count', 'atoms'), ('components', 'components')):
                 if isinstance(structure.get(field), int):
