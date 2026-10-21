@@ -78,6 +78,7 @@ class ElementCheck:
     declared_inaccessible: bool = False
     bound: bool = False
     covered: bool = False
+    score: float = 0.0
     evidence_used: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
 
@@ -86,6 +87,7 @@ class ElementCheck:
 class SelfConsistencyReport:
     checks: list[ElementCheck] = field(default_factory=list)
     passed: bool = False
+    score: float = 0.0
     notes: list[str] = field(default_factory=list)
 
 
@@ -308,6 +310,7 @@ def audit_self_consistency(
     bmap = {b.node_id: b for b in bindings}
     species_covered: dict[str, bool] = {}
     edge_checks: dict[str, ElementCheck] = {}
+    sandbox_evidence = None
 
     # 物种节点：极小值证据须覆盖整络合物或每个分开交付的组分。
     for node in graph.nodes:
@@ -359,6 +362,7 @@ def audit_self_consistency(
                         "no verified minimum (frequency block with zero "
                         "imaginary frequencies) among bound evidence"
                     )
+        chk.score = 1.0 if chk.covered else 0.0
         species_covered[node.id] = chk.covered
 
     # 边：TS 步查一阶鞍点 + IRC 方向区间证明（各按 rubric 开关），任一合格证据即覆盖
@@ -404,8 +408,7 @@ def audit_self_consistency(
             chk.notes.append(
                 f"no evidence explicitly associated with TS {edge.via}; declare its evidence_log or energy_hartree"
             )
-            continue
-        saddle_ok = not rubric.ts_first_order_saddle
+        saddle_ok = bool(ts_files) and not rubric.ts_first_order_saddle
         irc_ok = not rubric.irc_connects_endpoints
         for p in sorted(ts_files):
             witness = probe.ts_witness(p, pool)
@@ -413,7 +416,7 @@ def audit_self_consistency(
                 saddle_ok = True
                 chk.evidence_used.extend(dict.fromkeys([p, witness]))
                 break
-        if not irc_ok:
+        if not irc_ok and ts_files:
             if endpoint_error is not None:
                 chk.notes.append(endpoint_error)
                 continue
@@ -438,7 +441,23 @@ def audit_self_consistency(
                 saddle_ok = True
                 chk.evidence_used, details = proof
                 chk.notes.extend(details)
-        chk.covered = saddle_ok and irc_ok
+        chk.covered = bool(saddle_ok and irc_ok)
+        if not chk.covered:
+            from cloudra.benchmark.evidence_search import (
+                SandboxEvidence,
+                discover_edge_proof,
+            )
+
+            if sandbox_evidence is None:
+                sandbox_evidence = SandboxEvidence(sandbox)
+            discovery = discover_edge_proof(sandbox_evidence, graph, edge, charge=charge)
+            chk.notes.extend(discovery.notes)
+            if discovery.passed:
+                chk.covered = True
+                chk.evidence_used.extend(discovery.evidence)
+            chk.score = 1.0 if chk.covered else discovery.score
+        else:
+            chk.score = 1.0
         if not saddle_ok:
             chk.notes.append(
                 "no first-order saddle (exactly one imaginary frequency) "
@@ -463,6 +482,7 @@ def audit_self_consistency(
         if covering:
             chk.bound = True
             chk.covered = True
+            chk.score = 1.0
         elif not node.accessible:
             chk.declared_inaccessible = True
             chk.covered = True
@@ -473,6 +493,15 @@ def audit_self_consistency(
             chk.notes.append("no accessible edge through this TS is covered")
 
     report.passed = all(c.covered for c in report.checks)
+    edge_scores = [c.score for c in report.checks if c.kind == "edge"]
+    if edge_scores:
+        report.score = sum(edge_scores) / len(edge_scores)
+    else:
+        species_scores = [c.score for c in report.checks if c.kind == "species"]
+        report.score = (
+            sum(species_scores) / len(species_scores)
+            if species_scores else (1.0 if report.passed else 0.0)
+        )
     for c in report.checks:
         if not c.covered:
             for n in c.notes:

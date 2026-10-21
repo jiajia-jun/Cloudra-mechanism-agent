@@ -66,15 +66,18 @@ from cloudra.benchmark.accuracy import (
     score_accuracy,
     score_qualitative_selectivity,
 )
-from cloudra.benchmark.barrier_evidence import BarrierEvidence, collect_barrier_evidence
+from cloudra.benchmark.barrier_evidence import (
+    HARTREE_TO_KCAL_MOL,
+    BarrierEvidence,
+    collect_barrier_evidence,
+)
 from cloudra.benchmark.graph_similarity import (
     GedConfig,
     GedResult,
     mechanism_similarity,
-    species_substitution_cost,
 )
 from cloudra.benchmark.integrity import IntegrityReport, audit_integrity
-from cloudra.benchmark.schema import GoldMechanismGraph, MechanismEdge, NodeRole, TaskSpec
+from cloudra.benchmark.schema import NodeRole, TaskSpec
 from cloudra.benchmark.selfconsistency import SelfConsistencyReport, audit_self_consistency
 
 # composite 权重（2026-09-25 用户裁决）：final = 0.1·图 + 0.3·自洽 + 0.6·accuracy。
@@ -82,6 +85,67 @@ from cloudra.benchmark.selfconsistency import SelfConsistencyReport, audit_self_
 # accuracy 双来源核对 fail-loud 时自洽/accuracy 分量清零、只保留图分
 # （final = W_GRAPH·graph）；图不可解析或没有任何 accessible 物种节点绑到
 # 证据时倒扣 -rubric.integrity.no_evidence_penalty。
+def derived_barrier_graph(graph):
+    """Fill missing edge barriers from declared node energies (TS - source).
+
+    The delivery gate refuses edge barriers before their step passes, so an
+    otherwise complete graph can end up with barriers only on the TS nodes.
+    This is still the program's own declared energy difference; the accuracy
+    layer keeps requiring log support for the declared values.
+    """
+    if graph is None:
+        return graph
+    energies = {
+        node.id: (node.properties or {}).get("energy_hartree")
+        for node in graph.nodes
+    }
+    changed = False
+    edges = []
+    for edge in graph.edges:
+        if edge.barrier_kcal_mol is not None:
+            edges.append(edge)
+            continue
+        source = energies.get(edge.from_node)
+        transition = energies.get(edge.via) if edge.via else None
+        if not isinstance(source, (int, float)) or not isinstance(transition, (int, float)):
+            edges.append(edge)
+            continue
+        edges.append(edge.model_copy(
+            update={"barrier_kcal_mol": (transition - source) * HARTREE_TO_KCAL_MOL}))
+        changed = True
+    return graph.model_copy(update={"edges": edges}) if changed else graph
+
+
+def _apply_declared_barriers(barriers, graph):
+    """Carry derived edge barriers into the barrier evidence as declarations.
+
+    ``collect_barrier_evidence`` re-reads mechanism_graph.json from the sandbox,
+    so an edge whose barrier only exists as node energies (the delivery gate
+    refused the edge field) would look undeclared. The values are still the
+    program's own declared energy difference.
+    """
+    if graph is None or not getattr(barriers, "steps", None):
+        return barriers
+    declared = {edge.id: edge.barrier_kcal_mol for edge in graph.edges}
+
+    def with_declaration(step):
+        if step.declared_kcal_mol is not None:
+            return step
+        value = declared.get(step.edge_id)
+        if value is None:
+            return step
+        return replace(step, declared_kcal_mol=value)
+
+    return replace(
+        barriers,
+        steps=[with_declaration(step) for step in barriers.steps],
+        alternatives={
+            edge_id: [with_declaration(step) for step in steps]
+            for edge_id, steps in barriers.alternatives.items()
+        },
+    )
+
+
 W_GRAPH = 0.1
 W_SELFCONSISTENCY = 0.3
 W_ACCURACY = 0.6
@@ -102,6 +166,8 @@ class RunResult:
     sandbox: str
     graph_score: float = 0.0
     selfconsistency_passed: bool = False
+    selfconsistency_score: float = 0.0
+    undelivered: bool = False
     accuracy_score: float = 0.0
     final_score: float = 0.0
     notes: list[str] = field(default_factory=list)
@@ -116,6 +182,8 @@ class RunResult:
             self.sandbox,
             self.graph_score,
             int(self.selfconsistency_passed),
+            self.selfconsistency_score,
+            int(self.undelivered),
             self.accuracy_score,
             self.final_score,
             json.dumps(self.notes, ensure_ascii=False),
@@ -127,7 +195,8 @@ class RunResult:
 
 _RUNS_DDL = """CREATE TABLE IF NOT EXISTS runs (
     task_id TEXT, sandbox TEXT, graph_score REAL,
-    selfconsistency_passed INTEGER, accuracy_score REAL,
+    selfconsistency_passed INTEGER, selfconsistency_score REAL,
+    undelivered INTEGER, accuracy_score REAL,
     final_score REAL, notes TEXT, ts INTEGER,
     batch_id TEXT, orchestration_mode TEXT
 )"""
@@ -140,7 +209,8 @@ _BATCHES_DDL = """CREATE TABLE IF NOT EXISTS batches (
 # runs 表列序（与 RunResult.to_row 对齐）：迁移重建以它为准。
 _RUNS_COLS = (
     "task_id", "sandbox", "graph_score", "selfconsistency_passed",
-    "accuracy_score", "final_score", "notes", "ts",
+    "selfconsistency_score", "undelivered", "accuracy_score",
+    "final_score", "notes", "ts",
     "batch_id", "orchestration_mode",
 )
 
@@ -292,35 +362,6 @@ def _default_backend(task: TaskSpec, sandbox: Path) -> None:
     sandbox.mkdir(parents=True, exist_ok=True)
 
 
-def _covering_delivered_edge_ids(
-    gold_edge: MechanismEdge,
-    gold_graph: GoldMechanismGraph,
-    delivered_graph: GoldMechanismGraph,
-    cfg: GedConfig,
-    match_threshold: float,
-) -> list[str]:
-    """覆盖某 gold 边的交付边 id 列表——accuracy 层 gold↔delivered 匹配的
-    同口径（`_find_matching_step` 的端点物种判定：同向端点分别
-    species_substitution_cost ≤ match_threshold；edge id 不参与匹配）。"""
-    gold_nodes = {n.id: n for n in gold_graph.nodes}
-    delivered_nodes = {n.id: n for n in delivered_graph.nodes}
-    g_from, g_to = gold_nodes.get(gold_edge.from_node), gold_nodes.get(gold_edge.to_node)
-    if g_from is None or g_to is None:
-        return []
-    out = []
-    for e in delivered_graph.edges:
-        d_from = delivered_nodes.get(e.from_node)
-        d_to = delivered_nodes.get(e.to_node)
-        if d_from is None or d_to is None:
-            continue
-        if species_substitution_cost(g_from.smiles, d_from.smiles, cfg) > match_threshold:
-            continue
-        if species_substitution_cost(g_to.smiles, d_to.smiles, cfg) > match_threshold:
-            continue
-        out.append(e.id)
-    return out
-
-
 class BenchmarkRunner:
     def __init__(
         self,
@@ -365,6 +406,7 @@ class BenchmarkRunner:
             orchestration_mode=task.prompt.orchestration_mode.value,
         )
         ged_config = self._ged_config_for(task)
+        res.undelivered = not (Path(sandbox) / ".cloudra" / "mechanism_evidence.json").is_file()
 
         integ: IntegrityReport = audit_integrity(sandbox, task.rubric.integrity, ged_config)
         res.notes.extend(integ.notes)
@@ -396,55 +438,12 @@ class BenchmarkRunner:
             ged_config=ged_config,
         )
         res.selfconsistency_passed = sc.passed
+        res.selfconsistency_score = sc.score
         res.notes.extend(sc.notes)
 
-        # 自洽回捞（2026-09-25 用户裁决）：gold 边被交付步覆盖、但覆盖它的
-        # 交付步全部自洽不合格 → 该 gold 边赢下的图分覆盖贡献倒扣（违规交付
-        # 边剔出交付图后重算 GED——同一 gold 边另有自洽合格的覆盖步时保留
-        # 覆盖；有效不可达/accessible=false 的交付边本就被自洽豁免，不会进
-        # 倒扣集）。不在 gold 子图里的额外交付边自洽不合格只落自洽层零分，
-        # 不倒扣图分——gold 边出错与其他边出错严重程度不同。
-        if integ.delivered_graph is not None and res.graph_score > 0.0:
-            failed_edges = {
-                c.element_id
-                for c in sc.checks
-                if c.kind == "edge" and not c.covered
-            }
-            if failed_edges:
-                remove: set[str] = set()
-                for g_edge in task.gold.mechanism_graph.edges:
-                    covering = _covering_delivered_edge_ids(
-                        g_edge,
-                        task.gold.mechanism_graph,
-                        integ.delivered_graph,
-                        ged_config,
-                        task.rubric.integrity.match_threshold,
-                    )
-                    failing = [e for e in covering if e in failed_edges]
-                    if covering and len(failing) == len(covering):
-                        remove.update(failing)
-                        for eid in sorted(failing):
-                            res.notes.append(
-                                f"edge {eid}: selfconsistency failed, graph "
-                                f"credit for gold edge {g_edge.id} clawed back"
-                            )
-                if remove:
-                    pruned = GoldMechanismGraph(
-                        nodes=list(integ.delivered_graph.nodes),
-                        edges=[
-                            e
-                            for e in integ.delivered_graph.edges
-                            if e.id not in remove
-                        ],
-                    )
-                    res.graph_score = mechanism_similarity(
-                        pruned,
-                        task.gold.mechanism_graph,
-                        ged_config,
-                        binding_quality=binding_quality,
-                    ).score
-
+        scoring_graph = derived_barrier_graph(integ.delivered_graph)
         barriers: BarrierEvidence = collect_barrier_evidence(sandbox)
+        barriers = _apply_declared_barriers(barriers, scoring_graph)
         res.notes.extend(barriers.notes)
         # hard 档定性选择性：gold.selectivity 带 favored_channel 时替代 accuracy
         # 槽位（composite 的 accuracy 权重给选择性分；barrier spread 数值不评分）
@@ -461,7 +460,7 @@ class BenchmarkRunner:
                 evidence=barriers,
                 gold=task.gold,
                 rubric=task.rubric.accuracy,
-                delivered_graph=integ.delivered_graph,
+                delivered_graph=scoring_graph,
                 cfg=ged_config,
                 match_threshold=task.rubric.integrity.match_threshold,
             )
@@ -506,7 +505,7 @@ class BenchmarkRunner:
             return res
         res.final_score = round(
             W_GRAPH * res.graph_score
-            + W_SELFCONSISTENCY * (1.0 if res.selfconsistency_passed else 0.0)
+            + W_SELFCONSISTENCY * res.selfconsistency_score
             + W_ACCURACY * res.accuracy_score,
             4,
         )
