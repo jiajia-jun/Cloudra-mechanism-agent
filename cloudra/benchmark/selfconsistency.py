@@ -311,6 +311,7 @@ def audit_self_consistency(
     species_covered: dict[str, bool] = {}
     edge_checks: dict[str, ElementCheck] = {}
     sandbox_evidence = None
+    used_chains: set[str] = set()
 
     # 物种节点：极小值证据须覆盖整络合物或每个分开交付的组分。
     for node in graph.nodes:
@@ -321,6 +322,7 @@ def audit_self_consistency(
         if not node.accessible:
             chk.declared_inaccessible = True
             chk.covered = True
+            chk.score = 1.0
             chk.notes.append("declared inaccessible; evidence not required")
         else:
             b = bmap.get(node.id)
@@ -376,6 +378,7 @@ def audit_self_consistency(
             # （schema.edge_effectively_accessible）
             chk.declared_inaccessible = True
             chk.covered = True
+            chk.score = 1.0
             chk.notes.append(
                 "effectively inaccessible (the edge or its via transition state); "
                 "evidence not required"
@@ -392,6 +395,7 @@ def audit_self_consistency(
             )
             if not chk.covered:
                 chk.notes.append("no TS node on this edge; endpoint species not both covered")
+            chk.score = 1.0 if chk.covered else 0.0
             continue
         pool: set[str] = set()
         for nid in (edge.via, edge.from_node, edge.to_node):
@@ -450,7 +454,8 @@ def audit_self_consistency(
 
             if sandbox_evidence is None:
                 sandbox_evidence = SandboxEvidence(sandbox)
-            discovery = discover_edge_proof(sandbox_evidence, graph, edge, charge=charge)
+            discovery = discover_edge_proof(
+                sandbox_evidence, graph, edge, charge=charge, used_chains=used_chains)
             chk.notes.extend(discovery.notes)
             if discovery.passed:
                 chk.covered = True
@@ -486,6 +491,7 @@ def audit_self_consistency(
         elif not node.accessible:
             chk.declared_inaccessible = True
             chk.covered = True
+            chk.score = 1.0
             chk.notes.append("declared inaccessible; evidence not required")
         else:
             b = bmap.get(node.id)

@@ -2612,14 +2612,12 @@ def test_composite_partial_evidence_is_graded_not_zero(tmp_path):
     assert res.final_score > 0.0
 
 
-def test_composite_sc_failed_step_claws_back_gold_edge_graph_credit(tmp_path):
-    """自洽回捞（用户裁决）：gold 边被交付步覆盖、但该交付步自洽不合格
-    （绑定证据里无一阶鞍点/IRC 证明）→ 这条 gold 边赢下的图分覆盖贡献倒扣
-    （交付边剔出后重算 GED），notes 逐条写明；自洽层保持全有或全无判负。
+def test_composite_sc_failure_keeps_graph_credit(tmp_path):
+    """自洽失败不再倒扣图分：图分只由 graph_similarity 决定，自洽层按分级扣分。
 
     交付 = gold（R→P 经 TS），证据是无频率块的假日志：物种绑定质量 1.0、
-    图分原本 1.0；倒扣后边按未覆盖计 -> distance 1/3 -> graph = 2/3，
-    final = 0.1·(2/3) + 0.3·0 + 0.6·1.0（accuracy 无参考边）≈ 0.6667。"""
+    图分保持 1.0；没有鞍点/IRC -> selfconsistency_score = 0，
+    final = 0.1·1 + 0.3·0 + 0.6·1.0（accuracy 无参考边）= 0.7。"""
     from cloudra.benchmark.runner import BenchmarkRunner
 
     graph = _graph_with_ts(["C"], ["O"])
@@ -2630,13 +2628,11 @@ def test_composite_sc_failed_step_claws_back_gold_edge_graph_credit(tmp_path):
 
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
-    assert res.graph_score == pytest.approx(2 / 3, abs=1e-4)
     assert res.selfconsistency_passed is False
-    assert any(
-        "edge E: selfconsistency failed, graph credit for gold edge E clawed back"
-        in n for n in res.notes
-    ), res.notes
-    assert res.final_score == pytest.approx(0.1 * (2 / 3) + 0.6, abs=1e-4)
+    assert res.graph_score == pytest.approx(1.0, abs=1e-4)
+    assert not any("clawed back" in n for n in res.notes), res.notes
+    assert res.selfconsistency_score == pytest.approx(0.0, abs=1e-4)
+    assert res.final_score == pytest.approx(0.1 + 0.6, abs=1e-4)
 
 
 # --- 自洽全有或全无 + 额外边不倒扣图分（用户裁决） ---
@@ -2825,11 +2821,13 @@ def test_extra_edge_sc_failure_zeroes_layer_but_keeps_graph(tmp_path, monkeypatc
         "tsx.log": [100.0],               # 额外边无鞍点 -> EX 不合格
     }, tmp_path)
     res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
-    assert res.selfconsistency_passed is False       # 全有或全无：一条边不合格整层 0
+    assert res.selfconsistency_passed is False       # 全有或全无：一条边不合格整层判负
     assert res.graph_score == pytest.approx(1.0, abs=1e-4)  # 额外边不倒扣图分
     assert not any("clawed back" in n for n in res.notes), res.notes
-    # accuracy 无参考边记 1.0 -> final = 0.1·1 + 0.3·0 + 0.6·1 = 0.7
-    assert res.final_score == pytest.approx(0.7, abs=1e-4)
+    # accuracy 无参考边记 1.0；自洽层按分级给部分分
+    assert 0.0 <= res.selfconsistency_score < 1.0
+    assert res.final_score == pytest.approx(
+        0.1 + 0.3 * res.selfconsistency_score + 0.6, abs=1e-4)
 
 
 def test_all_elements_sc_pass_keeps_bool_and_full_graph(tmp_path, monkeypatch):
