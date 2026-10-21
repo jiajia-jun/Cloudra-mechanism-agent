@@ -1875,27 +1875,25 @@ def test_existing_hard_replacements_keep_their_references():
     assert da.gold.selectivity.favored_channel == "endo"
 
 
-def test_hh1_shared_endpoint_channels():
+def test_hh1_single_favored_channel():
+    """HH1 只保留 syn 消旋通道：单边、无 channel/favored、题面不再要求竞争通道。"""
     pytest.importorskip("rdkit")
     from cloudra.benchmark import gen_hard_tasks
 
     task = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC, only={"H1"})[0]
     graph = task.gold.mechanism_graph
-    assert len(graph.nodes) == 4  # R, P, and two distinct transition states
-    assert len(graph.edges) == 2
-    assert {e.channel: e.barrier_kcal_mol for e in graph.edges} == {
-        "syn": 23.01, "anti": 32.36,
-    }
-    assert len({(e.from_node, e.to_node) for e in graph.edges}) == 1
-    assert len({e.via for e in graph.edges}) == 2
+    assert len(graph.nodes) == 3  # R, P, one transition state
+    assert len(graph.edges) == 1
+    edge = graph.edges[0]
+    assert edge.barrier_kcal_mol == pytest.approx(23.01)
+    assert edge.channel is None and edge.favored is None
+    assert edge.weight == pytest.approx(1.0)
+    assert "competing stereochemical channels" not in task.prompt.query
+    assert "`channel` field" not in task.prompt.query
+    assert "no favored-channel assignment is scored" in task.prompt.query
     committed = json.loads((gen_hard_tasks.DEFAULT_OUT / "HH1.json").read_text(encoding="utf-8"))
     assert committed == task.model_dump(mode="json", by_alias=True)
-    one_path = GoldMechanismGraph(
-        nodes=[n for n in graph.nodes if n.id != "HH1_TSM1"],
-        edges=[graph.edges[0]],
-    )
     assert mechanism_similarity(graph, graph, GedConfig()).score == pytest.approx(1.0)
-    assert mechanism_similarity(one_path, graph, GedConfig()).score < 1.0
 
 
 def test_hf1_regenerated_gold_scores_barriers():
@@ -2012,6 +2010,14 @@ def test_hard_selectivity_qualitative_contract():
 
     tasks = gen_hard_tasks.parse_hard_md(gen_hard_tasks.DEFAULT_SRC)
     for t in tasks:
+        if t.task_id == "HH1":
+            assert t.gold.selectivity is None
+            assert t.rubric.accuracy.enabled
+            assert len(t.gold.mechanism_graph.edges) == 1
+            assert all(e.favored is None for e in t.gold.mechanism_graph.edges)
+            assert "no favored-channel assignment is scored" in t.prompt.query
+            assert "`favored: true`" not in t.prompt.query
+            continue
         if t.task_id in {"HI1", "HL1"}:
             assert t.gold.selectivity is None
             assert t.rubric.accuracy.enabled
@@ -2505,12 +2511,13 @@ def test_integrity_report_binding_quality_enters_graph_score(tmp_path):
     )
     runner = BenchmarkRunner(tmp_path / "data")
     res = runner.score_sandbox(task, tmp_path)
-    # 绑定质量并进图分：R 有效代价 1-(1-0)·0.7 = 0.3，P = 0.15；交付步无鞍点
-    # 证据 → 自洽不合格 → 该 gold 边覆盖贡献倒扣（edge 代价 0 → 1.0）：
-    # distance 1.45 / max 3 -> graph ≈ 0.5167；sc 判负；accuracy 无 gold 参考
-    # 边记 1.0 -> final = 0.1·0.5167 + 0.6·1.0 ≈ 0.6517
-    assert res.graph_score == pytest.approx(1 - 1.45 / 3, abs=1e-4)
-    assert res.final_score == pytest.approx(0.1 * (1 - 1.45 / 3) + 0.6, abs=1e-4)
+    # 绑定质量并进图分：R 有效代价 1-(1-0)·0.7 = 0.3，P = 0.15，TS 0；
+    # distance 0.45 / max 3 -> graph = 0.85。自洽失败不再倒扣图分（无 clawback），
+    # 该步没有鞍点证据 -> selfconsistency_score = 0；accuracy 无 gold 参考边 1.0
+    # -> final = 0.1·0.85 + 0.6·1.0 = 0.685
+    assert res.graph_score == pytest.approx(1 - 0.45 / 3, abs=1e-4)
+    assert res.selfconsistency_score == pytest.approx(0.0, abs=1e-4)
+    assert res.final_score == pytest.approx(0.1 * (1 - 0.45 / 3) + 0.6, abs=1e-4)
     assert any("partial-credit" in n for n in res.notes)
 
 
@@ -2635,7 +2642,7 @@ def test_composite_sc_failure_keeps_graph_credit(tmp_path):
     assert res.final_score == pytest.approx(0.1 + 0.6, abs=1e-4)
 
 
-# --- 自洽全有或全无 + 额外边不倒扣图分（用户裁决） ---
+# --- 自洽布尔记录 + 分级分 + 额外边不倒扣图分 ---
 
 
 def _sc_task(graph, *, saddle=True, irc=False):
@@ -2806,9 +2813,9 @@ def _extra_edge_delivery(tmp_path):
 
 
 def test_extra_edge_sc_failure_zeroes_layer_but_keeps_graph(tmp_path, monkeypatch):
-    """③额外边（不在 gold 子图里）自洽不合格：自洽层保持全有或全无 → 整层
-    判负，但图分**不倒扣**（gold 边由合格交付步覆盖）——gold 边出错与其他边
-    出错严重程度不同。"""
+    """③额外边（不在 gold 子图里）自洽不合格：selfconsistency_passed 仍按
+    布尔判负（一条边不合格），但 composite 用分级分，且图分不倒扣——gold 边
+    出错与其他边出错严重程度不同。"""
     from cloudra.benchmark.runner import BenchmarkRunner
 
     task = _sc_task(_graph_with_ts(["C"], ["O"]))
@@ -2821,7 +2828,7 @@ def test_extra_edge_sc_failure_zeroes_layer_but_keeps_graph(tmp_path, monkeypatc
         "tsx.log": [100.0],               # 额外边无鞍点 -> EX 不合格
     }, tmp_path)
     res = BenchmarkRunner(tmp_path / "data").score_sandbox(task, tmp_path)
-    assert res.selfconsistency_passed is False       # 全有或全无：一条边不合格整层判负
+    assert res.selfconsistency_passed is False       # 布尔记录：一条边不合格即判负
     assert res.graph_score == pytest.approx(1.0, abs=1e-4)  # 额外边不倒扣图分
     assert not any("clawed back" in n for n in res.notes), res.notes
     # accuracy 无参考边记 1.0；自洽层按分级给部分分
@@ -2831,8 +2838,8 @@ def test_extra_edge_sc_failure_zeroes_layer_but_keeps_graph(tmp_path, monkeypatc
 
 
 def test_all_elements_sc_pass_keeps_bool_and_full_graph(tmp_path, monkeypatch):
-    """①自洽全有或全无的"全有"侧：全部元素合格 -> selfconsistency_passed
-    为 True（布尔语义不变），无任何倒扣，图分保持 1.0。"""
+    """①自洽全通过侧：全部元素合格 -> selfconsistency_passed 为 True、
+    分级分 1.0，无任何倒扣，图分保持 1.0。"""
     from cloudra.benchmark.runner import BenchmarkRunner
 
     task = _sc_task(_graph_with_ts(["C"], ["O"]))
@@ -3503,7 +3510,9 @@ def test_partial_delivery_preserves_log_backed_barrier_in_composite(tmp_path):
     result = BenchmarkRunner(tmp_path / "bench").score_sandbox(task, sandbox)
     assert result.selfconsistency_passed, result.notes
     assert result.accuracy_score == pytest.approx(0.5), result.notes
-    assert result.final_score == pytest.approx(0.1 * result.graph_score + 0.6, abs=1e-4)
+    # sc 通过 -> 0.3·1.0；accuracy 0.5 -> 0.3
+    assert result.final_score == pytest.approx(
+        0.1 * result.graph_score + 0.3 * 1.0 + 0.6 * 0.5, abs=1e-4)
     assert not any("accuracy fail-loud" in note for note in result.notes)
 
 

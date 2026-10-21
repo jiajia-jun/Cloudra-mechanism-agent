@@ -274,8 +274,36 @@ def _find_matching_step(
     证据；最佳键变化候选中若有正断言，优先返回它，不能用重复负声明掩盖。"""
     from cloudra.benchmark.graph_similarity import species_substitution_cost
 
-    if delivered_graph is None:
+    candidates = _rank_matching_steps(
+        gold_edge, gold_nodes, steps, delivered_graph, cfg, match_threshold,
+        require_channel,
+    )
+    if not candidates:
         return None
+    if steps is None:
+        best_bond_cost = candidates[0][0]
+        for bond_cost, _, _, candidate in candidates:
+            if bond_cost == best_bond_cost and not _negative_edge_claim_correct(
+                gold_edge, gold_nodes, candidate, delivered_graph
+            ):
+                return candidate
+    return candidates[0][3]
+
+
+def _rank_matching_steps(
+    gold_edge,
+    gold_nodes: dict,
+    steps: list | None,
+    delivered_graph: Optional[GoldMechanismGraph],
+    cfg,
+    match_threshold: float,
+    require_channel: bool = False,
+):
+    """All legal deliveries for one gold edge, ranked by the matching rules."""
+    from cloudra.benchmark.graph_similarity import species_substitution_cost
+
+    if delivered_graph is None:
+        return []
     delivered_nodes = {n.id: n for n in delivered_graph.nodes}
     delivered_edges = {e.id: e for e in delivered_graph.edges}
     gold_from = gold_nodes.get(gold_edge.from_node)
@@ -300,17 +328,44 @@ def _find_matching_step(
             continue
         symdiff = len(gold_pairs ^ d_edge.bond_changes.pairs())
         candidates.append((symdiff, cost_from + cost_to, d_edge.id, step))
-    if not candidates:
-        return None
     candidates.sort(key=lambda item: (item[0], item[1], item[2]))
-    if steps is None:
-        best_bond_cost = candidates[0][0]
-        for bond_cost, _, _, candidate in candidates:
-            if bond_cost == best_bond_cost and not _negative_edge_claim_correct(
-                gold_edge, gold_nodes, candidate, delivered_graph
-            ):
-                return candidate
-    return candidates[0][3]
+    return candidates
+
+
+def _assign_matching_steps(
+    scored_edges,
+    edge_signatures,
+    gold_nodes: dict,
+    evidence,
+    delivered_graph,
+    cfg,
+    match_threshold: float,
+) -> dict:
+    """Global one-to-one assignment: a delivered step is used by one gold edge.
+
+    Every gold edge's legal deliveries are ranked with the same rules as
+    ``_find_matching_step``; the cheapest pair wins, and a step already assigned
+    is skipped. Without this, two gold edges sharing endpoints could both score
+    the same delivered step.
+    """
+    steps = evidence.steps if evidence is not None else None
+    ranked = []
+    for edge, signature in zip(scored_edges, edge_signatures):
+        require_channel = edge.channel is not None and edge_signatures.count(signature) > 1
+        for symdiff, cost, step_id, step in _rank_matching_steps(
+            edge, gold_nodes, steps, delivered_graph, cfg, match_threshold,
+            require_channel,
+        ):
+            ranked.append((symdiff, cost, edge.id, step_id, step))
+    ranked.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
+    assigned: dict = {}
+    used: set = set()
+    for _symdiff, _cost, edge_id, step_id, step in ranked:
+        if edge_id in assigned or step_id in used:
+            continue
+        assigned[edge_id] = step
+        used.add(step_id)
+    return assigned
 
 
 def score_accuracy(
@@ -394,6 +449,11 @@ def score_accuracy(
         for e in scored_edges
     ]
 
+    assigned_steps = _assign_matching_steps(
+        scored_edges, edge_signatures, gold_nodes, evidence, delivered_graph,
+        cfg, match_threshold,
+    )
+
     failures: list[str] = []
     weighted_sum = 0.0
     graded_weight = 0.0        # 已交付双来源参考边的权重和（高斯/定义差异罚分）
@@ -423,10 +483,7 @@ def score_accuracy(
                     f"scored {int(correct)}"
                 )
             continue
-        step = _find_matching_step(
-            edge, gold_nodes, evidence.steps, delivered_graph, cfg, match_threshold,
-            require_channel=edge.channel is not None and edge_signatures.count(signature) > 1,
-        )
+        step = assigned_steps.get(edge.id)
         if step is None:
             rep.edge_scores[edge.id] = 0.0
             uncapped_penalty += weights[edge.id]

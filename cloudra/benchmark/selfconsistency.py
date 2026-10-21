@@ -286,6 +286,7 @@ def audit_self_consistency(
     report = SelfConsistencyReport()
     if not (rubric.ts_first_order_saddle or rubric.irc_connects_endpoints):
         report.passed = True
+        report.score = 1.0  # passthrough must not read as "failed evidence"
         report.notes.append("self-consistency checks disabled by rubric; passthrough")
         return report
     if graph is None:

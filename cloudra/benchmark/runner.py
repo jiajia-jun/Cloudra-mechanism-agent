@@ -283,8 +283,10 @@ class BenchmarkDB:
         # append-only：benchmark 数据珍贵，历史行永不由框架删除；"每题最新"
         # 只是查询语义（按 ts 取），不落为破坏性写。
         with self._lock, closing(self._connect()) as c, c:
+            placeholders = ",".join("?" * len(_RUNS_COLS))
             c.execute(
-                "INSERT INTO runs VALUES (?,?,?,?,?,?,?,?,?,?)", result.to_row()
+                f"INSERT INTO runs ({', '.join(_RUNS_COLS)}) VALUES ({placeholders})",
+                result.to_row(),
             )
 
     def record_batch(self, batch_id: str, status: str, config: dict) -> None:

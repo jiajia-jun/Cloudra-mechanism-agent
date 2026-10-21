@@ -11,26 +11,15 @@ TASKS = {
         "name_en": "1,1'-binaphthyl thermal racemization",
         "conditions_en": "thermal racemization, ~50 degC, DMF",
         "anchor": "barrier",
+        "score_selectivity": False,
         "mapped_reactants": "[cH:1]1[cH:2][cH:3][c:4]2[c:5]([cH:6]1)[cH:7][cH:8][cH:9][c:10]2-[c:11]1[cH:12][cH:13][cH:14][c:15]2[cH:16][cH:17][cH:18][cH:19][c:20]12",
         "steps": [
             {
                 "out": "[cH:1]1[cH:2][cH:3][c:4]2[c:5]([cH:6]1)[cH:7][cH:8][cH:9][c:10]2-[c:11]1[cH:12][cH:13][cH:14][c:15]2[cH:16][cH:17][cH:18][cH:19][c:20]12",
                 "type": "atropisomerization through the lower syn peri-H crossing (torsion near 0 deg)",
                 "barrier": 23.01,
-                "weight": 0.5,
+                "weight": 1.0,
                 "conformational": True,
-                "channel": "syn",
-            },
-        ],
-        "competing": [
-            {
-                "out": "[cH:1]1[cH:2][cH:3][c:4]2[c:5]([cH:6]1)[cH:7][cH:8][cH:9][c:10]2-[c:11]1[cH:12][cH:13][cH:14][c:15]2[cH:16][cH:17][cH:18][cH:19][c:20]12",
-                "type": "atropisomerization through the higher anti peri-H crossing (torsion near 180 deg)",
-                "barrier": 32.36,
-                "weight": 0.5,
-                "conformational": True,
-                "same_endpoint": True,
-                "channel": "anti",
             },
         ],
     },
