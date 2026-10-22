@@ -244,7 +244,8 @@ async def test_run_guess_checks_write_permission_before_loading_state(tmp_path, 
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('ts_producer_authority')
-async def test_run_interpolation_commits_provided_candidate_and_keeps_science_unverified(tmp_path):
+@pytest.mark.parametrize('method, idpp_mode', [('linear', 'standard'), ('idpp', 'standard'), ('idpp', 'light')])
+async def test_run_interpolation_commits_provided_candidate_and_keeps_science_unverified(tmp_path, method, idpp_mode):
     import asyncio
     from types import SimpleNamespace
 
@@ -257,9 +258,9 @@ async def test_run_interpolation_commits_provided_candidate_and_keeps_science_un
     try:
         with use_pipeline_database(db):
             result = await run_tool(tmp_path).tool_call(TsGuess_input_schema(
-                mode='interpolate', run_id=record.run_id, n_images=4, interp_method='linear'), SimpleNamespace(id='owner'))
+                mode='interpolate', run_id=record.run_id, n_images=4, interp_method=method, idpp_mode=idpp_mode), SimpleNamespace(id='owner'))
             replay = await run_tool(tmp_path).tool_call(TsGuess_input_schema(
-                mode='interpolate', run_id=record.run_id, n_images=4, interp_method='linear'), SimpleNamespace(id='owner'))
+                mode='interpolate', run_id=record.run_id, n_images=4, interp_method=method, idpp_mode=idpp_mode), SimpleNamespace(id='owner'))
     finally:
         reset_invocation_scope(token)
     assert result.is_success, result.message
@@ -272,6 +273,13 @@ async def test_run_interpolation_commits_provided_candidate_and_keeps_science_un
     assert state['record']['terminal'] is None
     assert state['record']['blocked']['needs'] == ['ts_optimization']
     assert result.process['result'] is None
+    import json
+    assert result.interpolation['method'] == method
+    assert result.interpolation['idpp_mode'] == (idpp_mode if method == 'idpp' else None)
+    assert replay.interpolation == result.interpolation
+    refs = state['record']['input']['guess']['evidence_refs']
+    manifest = next(Path(ref) for ref in refs if str(ref).endswith('/interpolation.json'))
+    assert json.loads(manifest.read_text()) == result.interpolation
 
 
 @pytest.mark.asyncio
@@ -368,3 +376,4 @@ async def test_run_provided_candidate_is_accepted_through_the_same_revision(tmp_
     assert state['record']['input']['guess']['kind'] == 'provided'
     assert state['record']['structures']['candidate'] is not None
     assert state['record']['declaration_revision'] == 2
+

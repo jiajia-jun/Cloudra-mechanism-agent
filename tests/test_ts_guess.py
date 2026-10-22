@@ -335,7 +335,7 @@ def test_idpp_relax_broadcasts_when_pair_count_is_not_three():
     """C6H10 一类体系 npair=n(n-1)/2 ≠ 3 时，旧实现 (npair,)*(npair,3) 广播崩溃。"""
     rng = np.random.default_rng(0)
     images = rng.normal(size=(5, 4, 3))
-    out = _idpp_relax(images, max_iter=8)
+    out, _ = _idpp_relax(images, mode="light", max_iter=8)
     assert out.shape == (5, 4, 3)
     assert np.allclose(out[0], images[0])
     assert np.allclose(out[-1], images[-1])
@@ -2250,7 +2250,8 @@ async def test_explicit_xtb_path_reports_path_kind(fake_xtb_for_ts, tmp_path, mo
 
 
 @pytest.mark.asyncio
-async def test_xtb_missing_falls_back_to_idpp_and_says_so(tmp_path, monkeypatch, mock_session):
+@pytest.mark.parametrize("idpp_mode", ["standard", "light"])
+async def test_xtb_missing_falls_back_to_idpp_and_says_so(tmp_path, monkeypatch, mock_session, idpp_mode):
     """xTB 缺失时退回 IDPP 插值，但**必须显式标注**走了兜底，不许静默降级。"""
     empty = tmp_path / "empty-path"
     empty.mkdir()
@@ -2261,12 +2262,16 @@ async def test_xtb_missing_falls_back_to_idpp_and_says_so(tmp_path, monkeypatch,
         "reactant_text": _path_mol(_R_XYZ),
         "product_text": _path_mol(_P_XYZ),
         "n_images": 4,
+        "idpp_mode": idpp_mode,
         "output_dir": str(out_dir),
     }), mock_session)
     assert res.is_success, res.message
     assert res.path_kind == "idpp_fallback"
     assert "fallback" in res.message.lower() or "idpp" in res.message.lower()
     assert res.ts_candidate_path and Path(res.ts_candidate_path).is_file()
+
+    assert res.interpolation["idpp_mode"] == idpp_mode
+    assert "convergence=" in res.message
 
 
 @pytest.mark.asyncio
@@ -3141,3 +3146,4 @@ async def test_ts_guess_unknown_mode_fuzzy_suggestion(mock_session):
     assert res.is_success is False
     assert "Did you mean 'interpolate'?" in res.message
     assert "Allowed modes:" in res.message
+

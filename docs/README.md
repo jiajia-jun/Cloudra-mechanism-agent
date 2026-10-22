@@ -12,6 +12,7 @@
 | 根 `README.md` / `AGENTS.md` / `CHANGELOG.md` | 项目定位、仓库地图（模块职责与坑点）、演进记录 |
 | [`DAG_ORCHESTRATION.md`](DAG_ORCHESTRATION.md) | 机理交付图编排规范（runtime_v2 核心编排） |
 | [`RUNTIME_OBSERVABILITY.md`](RUNTIME_OBSERVABILITY.md) | Agent 活动、工具完整回执、实时阶段与计算关联 API |
+| [`IDPP_MODES.md`](IDPP_MODES.md) | IDPP standard/light 路径模式、数值停止与证据语义 |
 | [`TS_PROCESS_SOP.md`](TS_PROCESS_SOP.md) | TS 搜索自动化流程 SOP（`ts_prepare`/`ts_resume`） |
 | [`TS_STATE_MACHINE_ACCEPTANCE.md`](TS_STATE_MACHINE_ACCEPTANCE.md) | TS 状态机阶段、证据关联与验收语义 |
 | [`KNOWLEDGE_TAGS.md`](KNOWLEDGE_TAGS.md) | 知识库标签体系 |
@@ -62,3 +63,4 @@
 - `assets/`：标志原图；前端使用的静态资源仍在 `frontend/public/`；
 - `知识卡片/`：知识卡片源档案，保持原路径。
 - 申报材料、软著交付副本、答辩 PPT 及制作工作区已移出当前版本；需要旧材料时从 Git 历史恢复。
+

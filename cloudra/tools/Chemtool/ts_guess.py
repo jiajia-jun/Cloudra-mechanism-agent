@@ -14,6 +14,7 @@ agent 无需啃日志格式。
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 from collections import Counter
@@ -110,10 +111,10 @@ description = (
 
 _MODE_FIELDS = {
     'interpolate': {'engine', 'reactant_path', 'reactant_text', 'product_path', 'product_text',
-                    'n_images', 'interp_method', 'watch_pairs', 'output_dir', 'selected_candidate',
+                    'n_images', 'interp_method', 'idpp_mode', 'watch_pairs', 'output_dir', 'selected_candidate',
                     'charge', 'multiplicity', 'electronic_character'},
     'xtb_path': {'engine', 'reactant_path', 'reactant_text', 'product_path', 'product_text',
-                 'n_images', 'interp_method', 'watch_pairs', 'output_dir', 'timeout',
+                 'n_images', 'interp_method', 'idpp_mode', 'watch_pairs', 'output_dir', 'timeout',
                  'refinement_runs', 'charge', 'multiplicity', 'electronic_character', 'selected_candidate'},
     'scan_prepare': {*QmCalculation.model_fields, 'input_path', 'input_text', 'scans', 'freeze',
                      *QmInputSettings.model_fields, 'output_path', 'force_constant', 'scan_mode', 'solvation'},
@@ -125,7 +126,7 @@ _MODE_FIELDS = {
 
 _RUN_MODE_FIELDS = {
     'xtb_path': {'method', 'refinement_runs', 'solvation'},
-    'interpolate': {'n_images', 'interp_method', 'watch_pairs'},
+    'interpolate': {'n_images', 'interp_method', 'idpp_mode', 'watch_pairs'},
     'scan_prepare': {*QmCalculation.model_fields, 'scans', 'freeze', 'force_constant', 'scan_mode', 'solvation'},
     'scan': {*QmCalculation.model_fields, 'scans', 'freeze', 'force_constant', 'scan_mode', 'solvation'},
     'provided': {'ts_candidate_path', 'evidence_refs'},
@@ -241,7 +242,14 @@ class TsGuess_input_schema(QmInputSettings, input_schema):
     )
     n_images: int = Field(default=10, description="interpolate: total image count (including endpoints), ≥2.")
     interp_method: Literal["idpp", "linear"] = Field(
-        default="idpp", description="interpolate: interpolation method. idpp relaxes inter-image pair distances per Smidtstrup 2014; linear is linear interpolation."
+        default="idpp", description="interpolate: interpolation method. idpp uses the selected idpp_mode; linear is Cartesian interpolation without relaxation."
+    )
+    idpp_mode: Literal["standard", "light"] = Field(
+        default="standard",
+        description="interpolate (also independent xtb_path fallback): standard uses ASE's current-distance^-4 "
+                    "IDPP potential with coupled NEB and MDMin; light preserves the original fixed-target-weight, "
+                    "independent-image Adam approximation. Only used when interp_method=idpp. "
+                    "Unrelated to agent experiment arms. Neither method verifies a TS.",
     )
     watch_pairs: list[list[int]] = Field(
         default_factory=list,
@@ -397,6 +405,10 @@ class TsGuess_output_schema(output_schema):
         description="scan_prepare: complete settings of the written input/manifest. Preparation is not a calculation result or TS validation.")
 
     # interpolate
+    interpolation: dict | None = Field(default=None,
+        description="Interpolation method and numerical termination record, also saved to interpolation.json. "
+                    "is_success means artifacts generated, not IDPP convergence or TS verification. "
+                    "Null for non-interpolation operations and older saved results.")
     images_dir: str = Field(default="", description="interpolate/xtb_path: image directory, or the retained run directory on an unsuccessful xTB path search")
     distance_table: str = Field(default="", description="interpolate/scan_parse: per-frame observed distance text table; scan_parse marks missing or unaligned geometries explicitly")
     ts_candidate_index: Optional[int] = Field(default=None, description="TS candidate frame index (0-based)")
@@ -671,18 +683,80 @@ def _scan_geometry_report(energies, frames, watch_pairs, *, index_base=1):
     ], ref_syms
 
 
-def _idpp_relax(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-7):
-    """IDPP（Smidtstrup 2014）：中间图像的对距离矩阵向线性目标弛豫。
+def _idpp_relax(images, mode: str = "standard", max_iter: int | None = None,
+                lr: float = 0.02, tol: float | None = None):
+    """Return coordinates and honest termination metadata, without a QM calculator.
 
-    images: (N, n, 3) 数组，首末帧固定。目标：第 k 帧对距离矩阵 = 两端对距离矩阵的线性插值，
-    权重 w = 1/d_target^4。Adam 优化，纯 numpy 实现。
+    standard delegates the current-distance-weighted potential and NEB optimization
+    to ASE. Its MDMin/fmax/step defaults are ASE idpp_interpolate defaults. Pin the
+    improved tangent method explicitly so ASE version changes cannot switch it.
+    light retains the original coordinate updates and stopping criterion.
     """
+    import numpy as np
+
+    if mode not in {"standard", "light"}:
+        raise ValueError(f"Unknown IDPP mode: {mode}")
+    images = np.asarray(images, dtype=float).copy()
+    if images.ndim != 3 or images.shape[0] < 2 or images.shape[1] < 2 or images.shape[2] != 3:
+        raise ValueError("IDPP requires at least two images and two atoms, shape (images, atoms, 3)")
+    if not np.isfinite(images).all():
+        raise ValueError("IDPP coordinates must be finite")
+    steps = (4000 if mode == "light" else 100) if max_iter is None else max_iter
+    threshold = (1e-7 if mode == "light" else 0.1) if tol is None else tol
+    if steps < 0 or not np.isfinite(threshold) or threshold <= 0:
+        raise ValueError("IDPP requires non-negative max_iter and positive finite tol")
+    report = {"method": "idpp", "idpp_mode": mode, "max_steps": steps,
+              "tolerance": threshold}
+    if mode == "light":
+        coordinates, status = _idpp_relax_light(images, max_iter=steps, lr=lr, tol=threshold)
+        report.update(optimizer="Adam", objective="fixed_target_distance^-4",
+                      criterion="max_abs_gradient_component", learning_rate=lr, **status)
+        return coordinates, report
+
+    import ase
+    from ase import Atoms
+    from ase.mep import NEB
+    from ase.mep.neb import idpp_interpolate
+    from ase.optimize import MDMin
+
+    report.update(optimizer="MDMin", objective="current_distance^-4", neb_method="improvedtangent",
+                  spring_constant=0.1, criterion="max_neb_force_norm", ase_version=ase.__version__)
+    pairs = np.triu_indices(images.shape[1], k=1)
+    if any(np.any(_dist_matrix(frame)[pairs] == 0) for frame in images):
+        raise ValueError("standard IDPP cannot start from coincident atoms; inspect endpoint mapping/geometry")
+    if len(images) == 2 or np.array_equal(images, np.broadcast_to(images[0], images.shape)):
+        report.update(converged=None, termination="not_required", steps=0, residual=None)
+        return images, report
+
+    atoms = [Atoms(numbers=[1] * len(frame), positions=frame) for frame in images]
+    neb = NEB(atoms, method="improvedtangent", k=0.1)
+
+    class RecordedMDMin(MDMin):
+        def run(self, fmax=0.1, steps=100):
+            converged = super().run(fmax=fmax, steps=steps)
+            residual = float(np.linalg.norm(neb.get_forces(), axis=1).max())
+            if not np.isfinite(residual):
+                raise ValueError("standard IDPP produced non-finite NEB forces")
+            report.update(converged=bool(converged), steps=self.nsteps, residual=residual,
+                          termination="converged" if converged else "max_steps")
+            return converged
+
+    idpp_interpolate(neb, optimizer=RecordedMDMin, fmax=threshold, steps=steps,
+                     traj=None, log=None, mic=False)
+    coordinates = np.asarray([image.positions for image in atoms])
+    if not np.isfinite(coordinates).all():
+        raise ValueError("standard IDPP produced non-finite coordinates")
+    return coordinates, report
+
+
+def _idpp_relax_light(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-7):
+    """Original fixed-target-weight Adam approximation; keep coordinate updates unchanged."""
     import numpy as np
 
     images = np.asarray(images, dtype=float).copy()
     n_img = len(images)
     if n_img <= 2:
-        return images
+        return images, {"converged": None, "termination": "not_required", "steps": 0, "residual": None}
 
     d_r = _dist_matrix(images[0])
     d_p = _dist_matrix(images[-1])
@@ -701,7 +775,7 @@ def _idpp_relax(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-
     v = np.zeros_like(images)
     beta1, beta2, eps = 0.9, 0.999, 1e-8
 
-    for it in range(1, max_iter + 1):
+    def gradient():
         grad = np.zeros_like(images)
         for k in range(1, n_img - 1):
             pos = images[k]
@@ -714,6 +788,11 @@ def _idpp_relax(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-
             np.add.at(grad[k], iu[0], g_pair)
             np.add.at(grad[k], iu[1], -g_pair)
 
+        return grad
+
+    steps = 0
+    for it in range(1, max_iter + 1):
+        grad = gradient()
         max_step = float(np.abs(grad[1:-1]).max()) if n_img > 2 else 0.0
         if max_step < tol:
             break
@@ -723,7 +802,14 @@ def _idpp_relax(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-
         v_hat = v / (1 - beta2 ** it)
         step = lr * m_hat / (np.sqrt(v_hat) + eps)
         images[1:-1] -= step[1:-1]
-    return images
+        steps = it
+    residual = float(np.abs(gradient()[1:-1]).max())
+    if not np.isfinite(images).all() or not np.isfinite(residual):
+        raise ValueError("light IDPP produced non-finite coordinates or gradient")
+    converged = residual < tol
+    return images, {"converged": converged,
+                    "termination": "converged" if converged else "max_steps",
+                    "steps": steps, "residual": residual}
 
 
 # ---------------------------------------------------------------------------
@@ -1342,6 +1428,7 @@ class TsGuess(Tool):
                 if previous is None or previous.input is None or previous.structures is None:
                     raise ValueError('Accepted TS guess has no original declaration and structure snapshot')
                 inputs, structures = previous.input, previous.structures
+        interpolation_result = None
         current = inputs.guess
         supplied = user_input.model_fields_set
         mode = user_input.mode
@@ -1391,7 +1478,8 @@ class TsGuess(Tool):
                 'output_dir': str(Path(record.run_dir) / 'interpolation' / identity),
             })
             result = await asyncio.to_thread(self._interpolate_molecules, request, reactant, product)
-            references = [result.ts_candidate_path]
+            interpolation_result = result
+            references = [result.ts_candidate_path, str(Path(result.images_dir) / 'interpolation.json')]
             source_record = record.model_copy(update={'structures': structures})
             for role in ('reactant', 'product'):
                 paths = await asyncio.to_thread(export_structure, source_record, role)
@@ -1400,7 +1488,8 @@ class TsGuess(Tool):
         output = await revise_run(self, user_input.run_id, {'guess': guess},
             f'Use the explicitly requested {mode} TS guess', session, expected_revision=record.revision)
         return TsGuess_output_schema(is_success=output.is_success, message=output.message,
-                                     process=output.model_dump(mode='json'))
+                                     process=output.model_dump(mode='json'),
+                                     interpolation=interpolation_result.interpolation if interpolation_result else None)
 
     # ---------- mode=interpolate ----------
 
@@ -1431,16 +1520,20 @@ class TsGuess(Tool):
             t = k / (n_img - 1)
             images[k] = (1.0 - t) * r_centered + t * p_aligned
 
+        interpolation = {"method": "linear", "idpp_mode": None, "converged": None,
+                         "termination": "not_required", "steps": 0, "residual": None}
         if user_input.interp_method == "idpp":
-            images = _idpp_relax(images)
+            images, interpolation = _idpp_relax(images, mode=user_input.idpp_mode)
 
         # 落盘
         out_dir = user_input.output_dir or resolve_tool_path(self, "./ts_interp")
         os.makedirs(out_dir, exist_ok=True)
+        atomic_write_text(os.path.join(out_dir, "interpolation.json"),
+                          json.dumps(interpolation, indent=2, allow_nan=False) + "\n")
         for k in range(n_img):
             atomic_write_text(
                 os.path.join(out_dir, f"img_{k:02d}.xyz"),
-                to_xyz(with_positions(reactant, images[k]), comment=f"ts_guess {user_input.interp_method} image {k}"),
+                to_xyz(with_positions(reactant, images[k]), comment=f"ts_guess {user_input.interp_method} image {k}; idpp_mode={interpolation['idpp_mode']}; termination={interpolation['termination']}"),
             )
 
         # 监测原子对
@@ -1474,11 +1567,14 @@ class TsGuess(Tool):
         return TsGuess_output_schema(
             is_success=True,
             images_dir=out_dir,
+            interpolation=interpolation,
             distance_table=distance_table,
             ts_candidate_index=ts_index,
             ts_candidate_path=ts_path,
             message=(
-                f"Generated {n_img} images ({user_input.interp_method}) in {out_dir}. "
+                f"Generated {n_img} images ({user_input.interp_method}, idpp_mode={interpolation['idpp_mode']}) in {out_dir}. "
+                f"Numerical termination: {interpolation['termination']}; convergence={interpolation['converged']}. "
+                "Generation success is not convergence or TS verification. "
                 f"TS candidate frame: img_{ts_index:02d}.xyz (watched pair {_pair_label(r_syms, key_pair, atom_index_base(user_input.engine))} crosses the endpoint midpoint). "
                 "These images can serve directly as a NEB initial path, or be optimized frame by frame with constraints to find a TS guess; "
                 "you can also use scan_prepare to generate a constrained-scan input to further locate the barrier top."
@@ -2806,3 +2902,4 @@ def derive_delivery_changes(
     ):
         changes["endpoint_direction_consistent"] = True
     return changes
+
