@@ -6,6 +6,7 @@ from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_
 from cloudra.tools.core.molecule import read_molecule
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('entry,method,allowed', [
     ('b3lyp/def2svp', 'B3LYP', True),
     ('b3lyp/def2svp', 'B3LYP/G', False),
@@ -59,6 +60,7 @@ def test_native_slash_method_still_requires_its_allowed_orbital_basis():
     assert not check_input_content(text, policy, filename='job.inp', strict=True).allowed
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('basis_set', ['6-31G(d)', 'aug-cc-pVDZ', 'ma-def2-SVP', 'pc-4'])
 @pytest.mark.parametrize('constrain_basis', [False, True])
 @pytest.mark.parametrize('engine', ['orca', 'gaussian'])

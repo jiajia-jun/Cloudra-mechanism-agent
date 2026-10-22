@@ -14,7 +14,7 @@ H  0.000000  0.758602 -0.504284
 
 
 @pytest.fixture
-def tool():
+def tool(rdkit_chemistry):
     pytest.importorskip("pyscf", reason="未安装 chem 额外依赖（pyscf）")
     return ElectronicAnalysis()
 
@@ -81,16 +81,19 @@ async def test_missing_pyscf_message(mock_session, monkeypatch):
     import cloudra.tools.Chemtool.electronic_analysis as mod
 
     monkeypatch.setattr(mod, "_PYSCF_AVAILABLE", False)
+    # Isolate the missing-backend response from optional structure parsing.
+    monkeypatch.setattr(mod, "_load_structure", lambda _tool, request: (object(), request))
     tool = ElectronicAnalysis()
     result = await tool.safe_call(
         ElectronicAnalysis_input_schema(input_text=WATER_XYZ), mock_session,
     )
     assert result.is_success is False
+    assert "PySCF is not installed" in result.message
     assert "pip install pyscf" in result.message or "cloudra[chem]" in result.message
 
 
 @pytest.mark.asyncio
-async def test_xtb_backend(mock_session, tmp_path):
+async def test_xtb_backend(mock_session, tmp_path, rdkit_chemistry):
     """xTB 后端集成测试：环境无 xtb 时跳过。"""
     if shutil.which("xtb") is None:
         pytest.skip("未安装 xtb，跳过 xTB 后端集成测试")

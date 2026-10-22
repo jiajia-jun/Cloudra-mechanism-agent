@@ -48,17 +48,20 @@ function byteLength(text) {
 function createLineQueue(stream) {
   const buffer = [];
   const waiters = [];
+  let closed = false;
   const rl = readline.createInterface({ input: stream, terminal: false, crlfDelay: Infinity });
   rl.on('line', (line) => {
     if (waiters.length > 0) waiters.shift()(line);
     else buffer.push(line);
   });
   rl.on('close', () => {
+    closed = true;
     while (waiters.length > 0) waiters.shift()(null);
   });
   return {
     next() {
       if (buffer.length > 0) return Promise.resolve(buffer.shift());
+      if (closed) return Promise.resolve(null);
       return new Promise((resolve) => waiters.push(resolve));
     },
   };

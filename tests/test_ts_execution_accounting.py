@@ -15,6 +15,7 @@ def test_ts_current_record_has_no_time_estimate_contract(tmp_path):
         TsProcessRecord.model_validate(dict(record.model_dump(),compute_estimates={'scan':2}))
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_ts_subjobs_admit_without_time_estimates_and_action_cap_remains(tmp_path, monkeypatch):
     from cloudra.runtime.chem_task import ChemTask
     from cloudra.services.compute_admission import AdmissionOutcome

@@ -57,6 +57,7 @@ def finish(db, step, *, failed=False):
         con.execute('UPDATE compute_jobs SET state=? WHERE id=?',('failed' if failed else 'done',step.job_id))
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_durable_constrained_queue_resumes_and_charges_each_point_once(tmp_path, monkeypatch):
     from cloudra.services.exploration_budget_store import ExplorationBudget, budget_usage
     from cloudra.tools.core.geometry_optimization import advance_optimization
@@ -81,6 +82,7 @@ def test_durable_constrained_queue_resumes_and_charges_each_point_once(tmp_path,
     assert advance_optimization(record,'selected',request)==result
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('failure',['cap','engine'])
 def test_constrained_queue_blocks_without_cancel_or_false_convergence(tmp_path,monkeypatch,failure):
     from cloudra.services.exploration_budget_store import ExplorationBudget
@@ -97,6 +99,7 @@ def test_constrained_queue_blocks_without_cancel_or_false_convergence(tmp_path,m
         assert con.execute('SELECT state FROM compute_jobs').fetchone()[0]==('failed' if failure=='engine' else 'done')
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('boundary',['ready','completed','next_point'])
 def test_constrained_crash_recovery_preserves_one_job_per_point(tmp_path,monkeypatch,boundary):
     from cloudra.services.ts_pipeline_store import get_process
@@ -137,6 +140,7 @@ def test_constrained_crash_recovery_preserves_one_job_per_point(tmp_path,monkeyp
     assert len(rows)=={'ready':1,'completed':2,'next_point':3}[boundary]
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_budget_revision_reuses_existing_derivative_and_numeric_state(tmp_path,monkeypatch):
     from cloudra.tools.core.geometry_optimization import advance_optimization
     db,record,request=setup_record(tmp_path,monkeypatch)
@@ -154,6 +158,7 @@ def test_budget_revision_reuses_existing_derivative_and_numeric_state(tmp_path,m
         assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0]==1
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_numeric_failure_records_candidate_attempt_before_blocking(tmp_path,monkeypatch):
     from cloudra.tools.core import geometry_optimization, ts_process
     db,record,request=setup_record(tmp_path,monkeypatch)
@@ -177,6 +182,7 @@ def test_numeric_failure_records_candidate_attempt_before_blocking(tmp_path,monk
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_failed_constrained_attempt_can_retry_without_repair_evidence(tmp_path, monkeypatch):
     from cloudra.tools.core.geometry_optimization import advance_optimization
     from cloudra.tools.core.ts_inputs import TsResumeRequest
@@ -204,8 +210,11 @@ def test_failed_constrained_attempt_can_retry_without_repair_evidence(tmp_path, 
 
 @pytest.mark.parametrize('electronic_character,multiplicity', [('closed_shell', 1), ('open_shell', 3)])
 def test_constrained_derivative_manifests_retain_declared_electronic_character(
-    tmp_path, monkeypatch, electronic_character, multiplicity,
+    request, tmp_path, monkeypatch, electronic_character, multiplicity,
 ):
+    if multiplicity == 1:
+        request.getfixturevalue('rdkit_chemistry')
+
     from cloudra.tools.core.geometry_optimization import advance_optimization
 
     db, record, request = setup_record(tmp_path, monkeypatch)

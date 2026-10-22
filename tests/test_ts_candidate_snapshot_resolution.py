@@ -13,7 +13,7 @@ from cloudra.tools.core.ts_inputs import CatalogConformer
 from tests.test_ts_selected_optimizer import catalog_seed
 from tests.test_ts_stage_inputs import record_fixture
 
-pytestmark = pytest.mark.usefixtures("ts_producer_authority")
+pytestmark = pytest.mark.usefixtures("ts_producer_authority", "rdkit_chemistry")
 
 
 def _source_and_record(tmp_path):

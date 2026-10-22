@@ -68,6 +68,7 @@ def test_trusted_irc_hessian_path_is_checked_before_compute_admission(tmp_path, 
         assert record.method_checks[str(source)]['matched']
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('comment', ['native route comment', 'Freq=(Numer)', 'unmatched ( "'])
 async def test_gaussian_comments_do_not_change_requested_tasks_or_frequency(tmp_path, mock_session, comment):
@@ -141,6 +142,7 @@ def test_orca_request_comments_use_the_same_native_interpretation_as_files():
     assert compare_calculation_input(text, written.model_dump(), charge=0, multiplicity=1) == []
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('keywords,blocks,tasks', [
     ('', '%neb\n NEB_TS true\nend', {'ts_opt'}),

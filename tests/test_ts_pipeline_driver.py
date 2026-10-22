@@ -46,6 +46,7 @@ def test_active_job_does_not_advance_or_resubmit(tmp_path):
         assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 1
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_terminal_event_advances_without_resume_and_repeated_event_reuses_job(tmp_path, monkeypatch):
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.tools.core import ts_process
@@ -152,6 +153,7 @@ def test_prepare_response_retry_returns_original_checkpoint(tmp_path, monkeypatc
         assert con.execute("SELECT COUNT(*) FROM ts_pipeline_processes").fetchone()[0] == 1
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_driver_uses_supplied_ledger_and_never_default_database(tmp_path, monkeypatch):
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.services.ts_pipeline_store import bind_stage_job, create_process, save_process_record

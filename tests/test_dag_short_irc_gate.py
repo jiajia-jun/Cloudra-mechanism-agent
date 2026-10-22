@@ -54,7 +54,8 @@ async def _native_controller(tmp_path, *, version=1, broken=None, mode='dag_reco
         AddNode(op='add_node', graph='delivery', node=OccurrenceNode(
             node_id='p', label='P', role='product',
             smiles='N#N' if broken == 'wrong_species' else paths['product_smiles'],
-            refs=[refs['product_opt']], stages=[StageState(kind='geometry')])),
+            refs=[] if broken == 'missing_product_opt' else [refs['product_opt']],
+            stages=[StageState(kind='geometry')])),
         AddEdge(op='add_edge', graph='delivery', edge=ElementaryStepEdge(
             edge_id='step1', source_node_id='r', target_node_id='p',
             stages=[StageState(kind=kind) for kind in ('ts_opt', 'frequency', 'short_irc')])),
@@ -126,6 +127,71 @@ async def test_valid_short_unconverged_irc_still_completes(tmp_path, rdkit_chemi
     gate = await controller.audit_stop('complete')
     assert gate.action == 'allow_final'
     assert gate.basis == 'dag_verified'
+
+
+@pytest.mark.parametrize('version', [1, 2])
+@pytest.mark.parametrize('batch', [False, True])
+@pytest.mark.parametrize('side,stage_kind', [('reactant', 'endpoint_b'), ('product', 'endpoint_a')])
+@pytest.mark.parametrize('endpoint_proof', ['valid', 'wrong_start', 'missing'])
+@pytest.mark.asyncio
+async def test_bound_endpoint_stage_proof_survives_complete_audit(
+        tmp_path, rdkit_chemistry, version, batch, side, stage_kind, endpoint_proof):
+    # A missing selected stage must not silently fall back to an older valid node proof.
+    missing_optimization = 'missing_opt' if side == 'reactant' else 'missing_product_opt'
+    controller, refs = await _native_controller(tmp_path, version=version,
+        broken=None if endpoint_proof == 'missing' else missing_optimization)
+
+    def write_endpoint():
+        frequency = (tmp_path / f'{side}_freq.out').read_text()
+        section = frequency[frequency.index('VIBRATIONAL FREQUENCIES'):
+                            frequency.index('****ORCA TERMINATED NORMALLY****')]
+        optimization = (tmp_path / f'{side}_opt.out').read_text()
+        if endpoint_proof == 'wrong_start':
+            optimization = optimization.replace('-1.25000000' if side == 'reactant' else '2.35000000',
+                                                '-1.65000000' if side == 'reactant' else '2.75000000', 1)
+        path = tmp_path / f'{side}_endpoint.out'
+        path.write_text(optimization.replace('****ORCA TERMINATED NORMALLY****',
+            section + '****ORCA TERMINATED NORMALLY****'))
+        return path, read_qm_log(path)
+
+    path, facts = await asyncio.to_thread(write_endpoint)
+    delta = await controller.on_tool_finished(side + '_endpoint', 'log_parser',
+        {'log_path': str(path)}, {'is_success': True,
+            'normal_termination': facts.normal_termination, 'opt_converged': facts.opt_converged,
+            'frequencies_cm': facts.frequencies_cm, 'imaginary_frequencies': []})
+    snapshot = await asyncio.to_thread(controller.store.load_snapshot)
+    edge = snapshot.delivery.edges[0]
+    # Version 1 binds in declared order; both versions use the same endpoint material.
+    stages = [*edge.stages[:-1], StageState(kind=stage_kind), edge.stages[-1]]
+    mutation = await asyncio.to_thread(controller.engine.apply_batch, MutationBatch(
+        session_id='s1', actor=GraphActor.HARNESS, actor_id='endpoint-proof',
+        base_revisions=snapshot.bundle.revisions, rationale='Bind endpoint optimization to its step stage',
+        operations=[UpdateEdge(op='update_edge', graph='delivery', edge_id='step1',
+            changes={'stages': [stage.model_dump(mode='json') for stage in stages]})]))
+    assert mutation.accepted, mutation
+    bound = await controller.apply_stage_bind(element_id='step1', stage_kind=stage_kind,
+        ref=delta.evidence_ref, verdict='agree', tool_succeeded=True)
+    assert bound.accepted, bound
+    if endpoint_proof == 'missing':
+        await asyncio.to_thread(path.unlink)
+
+    irc = await _bind_irc(controller, refs, batch=batch)
+    if endpoint_proof != 'valid':
+        assert not irc['accepted'], irc
+        assert irc['rejection_code'] == 'short_irc_check_failed'
+        assert (await controller.audit_stop('complete')).action == 'continue_work'
+        return
+
+    assert irc['accepted'], irc
+    assert (await asyncio.to_thread(controller.delivery_report)).complete
+    gate = await controller.audit_stop('complete')
+    assert gate.action == 'allow_final', gate
+    assert gate.basis == 'dag_verified'
+    # Commit must recheck the exact bound stage dependency, not only node files.
+    await asyncio.to_thread(path.unlink)
+    with pytest.raises(RuntimeError, match='Required IRC direction proof changed after audit'):
+        await controller.commit_stop()
+    assert await asyncio.to_thread(_recorded_dispositions, controller) == []
 
 
 @pytest.mark.parametrize('version', [1, 2])

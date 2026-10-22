@@ -250,7 +250,7 @@ def _start_training_runner(workdir, task_id, background=False, jobtype="shell"):
         )
 
 
-def _cleanup_training_runner(workdir, process):
+def _cleanup_training_runner(workdir, process, orphan_subreaper):
     (workdir / "allow-stop").touch()
     pid_file = workdir / "child.pid"
     if pid_file.exists():
@@ -263,12 +263,17 @@ def _cleanup_training_runner(workdir, process):
     except subprocess.TimeoutExpired:
         process.terminate()
         process.wait(timeout=3)
+    if orphan_subreaper and pid_file.exists():
+        try:
+            os.waitpid(int(pid_file.read_text()), 0)
+        except ChildProcessError:
+            pass  # Its original parent or the test already reaped it.
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("background", [False, True], ids=["foreground", "background"])
 @pytest.mark.parametrize("jobtype", ["shell", "xtb"])
-async def test_remote_cancel_waits_for_owned_group_and_leaves_other_job_running(tmp_path, background, jobtype):
+async def test_remote_cancel_waits_for_owned_group_and_leaves_other_job_running(tmp_path, background, jobtype, orphan_subreaper):
     if shutil.which("bash") is None:
         pytest.skip("requires bash")
     db, job_id, _ = await _running_shell(tmp_path, "ssh_local")
@@ -317,12 +322,27 @@ async def test_remote_cancel_waits_for_owned_group_and_leaves_other_job_running(
         assert (await aget_compute_job(db, job_id))["state"] == "cancelled"
         assert (workdir / "stopped").exists()
         assert (workdir / f".cloudra-exit-{job_id}").exists()
+        child_pid = int((workdir / "child.pid").read_text())
+
+        def child_gone():
+            if orphan_subreaper:
+                try:
+                    os.waitpid(child_pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass  # The original parent may have reaped its child.
+            try:
+                os.kill(child_pid, 0)
+            except ProcessLookupError:
+                return True
+            return False
+
+        await _wait_until(child_gone)
         with pytest.raises(ProcessLookupError):
-            os.kill(int((workdir / "child.pid").read_text()), 0)
+            os.kill(child_pid, 0)
         assert other.poll() is None
     finally:
         if poller is not None and not poller.done():
             poller.cancel()
             await asyncio.gather(poller, return_exceptions=True)
-        await asyncio.to_thread(_cleanup_training_runner, workdir, process)
-        await asyncio.to_thread(_cleanup_training_runner, other_workdir, other)
+        await asyncio.to_thread(_cleanup_training_runner, workdir, process, orphan_subreaper)
+        await asyncio.to_thread(_cleanup_training_runner, other_workdir, other, orphan_subreaper)

@@ -27,6 +27,7 @@ H -0.08161812386697 -2.11204925365809 -0.08140067223057
 """
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('electronic_character,multiplicity', [('closed_shell', 1), ('open_shell', 3)])
 def test_standalone_native_scan_manifest_preserves_declared_electronic_character(
     tmp_path, electronic_character, multiplicity,
@@ -45,6 +46,7 @@ def test_standalone_native_scan_manifest_preserves_declared_electronic_character
     assert task.multiplicity == multiplicity
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_standalone_native_scan_refuses_explicit_open_shell_singlet_before_manifest(tmp_path):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
 

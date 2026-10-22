@@ -4,6 +4,7 @@ from cloudra.tools.core import calculation_intent as intent
 from cloudra.tools.core.molecule import read_molecule
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('solvent', ['DCM', 'Water', 'DMSO'])
 def test_cpcm_ts_submission_keeps_native_settings_and_bound_job(tmp_path, monkeypatch, solvent):
     """Synthetic coordinates exercise submission contracts, without running an engine."""

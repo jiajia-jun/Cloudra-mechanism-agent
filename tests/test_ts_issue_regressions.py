@@ -208,6 +208,7 @@ def test_failed_scan_revision_receipt_is_durable_and_replay_does_not_duplicate_j
         assert con.execute("SELECT state FROM compute_jobs WHERE id=?", (job,)).fetchone()[0] == "failed"
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_revision_imported_source_is_immune_to_later_caller_file_changes(tmp_path):
     from cloudra.tools.core.molecule import serialize_molecule
     from cloudra.tools.core.reaction_state import source_snapshot

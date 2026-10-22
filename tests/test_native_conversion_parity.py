@@ -3,6 +3,9 @@
 import threading
 
 import pytest
+
+pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
+
 from ase.units import Bohr
 from rdkit import Chem
 

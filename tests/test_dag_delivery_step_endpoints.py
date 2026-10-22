@@ -78,7 +78,7 @@ async def _delivery(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_prepare_retains_each_steps_reviewed_endpoint_chain_without_publishing(tmp_path):
+async def test_prepare_retains_each_steps_reviewed_endpoint_chain_without_publishing(tmp_path, rdkit_chemistry):
     controller, expected = await _delivery(tmp_path)
     snapshot = await asyncio.to_thread(controller.engine.snapshot)
     report = await asyncio.to_thread(controller.delivery_report)
@@ -94,7 +94,7 @@ async def test_prepare_retains_each_steps_reviewed_endpoint_chain_without_publis
 
 
 @pytest.mark.asyncio
-async def test_only_committed_delivery_publishes_graph_bound_step_evidence(tmp_path):
+async def test_only_committed_delivery_publishes_graph_bound_step_evidence(tmp_path, rdkit_chemistry):
     from cloudra.benchmark.delivery_evidence import read_step_endpoint_evidence
     from cloudra.persistence.paths import mechanism_evidence_path
 

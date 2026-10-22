@@ -738,7 +738,7 @@ print(f"HOST_EXITED {proc.returncode}", flush=True)
 
 
 @pytest.mark.asyncio
-async def test_host_exits_when_parent_is_sigkilled():
+async def test_host_exits_when_parent_is_sigkilled(orphan_subreaper):
     """父进程被 SIGKILL 时 finally 不会执行——JS host 的兜底自清理是
     stdin 管道 EOF（宿主在等工具回复时读到 stdin 关闭即退出）。
 
@@ -767,6 +767,10 @@ async def test_host_exits_when_parent_is_sigkilled():
         await asyncio.wait_for(child.wait(), timeout=10)
 
         def host_gone() -> bool:
+            if orphan_subreaper:
+                # kill(pid, 0) also succeeds for zombies. waitpid both proves
+                # termination and reaps this test's adopted host process.
+                return os.waitpid(host_pid, os.WNOHANG)[0] == host_pid
             try:
                 os.kill(host_pid, 0)
             except ProcessLookupError:
@@ -780,6 +784,7 @@ async def test_host_exits_when_parent_is_sigkilled():
                     "js host survived parent SIGKILL (stdin EOF self-cleanup failed)"
                 )
             await asyncio.sleep(0.05)
+        host_pid = None
     finally:
         if child.returncode is None:
             child.kill()
@@ -789,6 +794,8 @@ async def test_host_exits_when_parent_is_sigkilled():
                 os.kill(host_pid, signal.SIGKILL)
             except (ProcessLookupError, PermissionError):
                 pass
+            if orphan_subreaper:
+                await asyncio.to_thread(os.waitpid, host_pid, 0)
 
 
 @pytest.mark.asyncio

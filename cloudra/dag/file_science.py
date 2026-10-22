@@ -341,28 +341,44 @@ def file_scientific_checks(store, graph, target_id: str, *, irc_files=None, work
 
 
 def _step_endpoint_logs(store, graph, element, workspace_root=None, *, endpoint_refs=None, parsed=None, problems=None):
-    """Select the same bound native endpoint logs for review and file delivery."""
+    """Select bound endpoint materials once for stage binding, review and delivery."""
     problems = problems if problems is not None else []
 
     def endpoint_candidates(key, node):
-        candidates, _ = _logs(store, node, workspace_root, parsed=parsed) if node else ([], [])
+        candidates, errors = _logs(store, node, workspace_root, parsed=parsed) if node else ([], [])
+        problems.extend(errors)
         node_candidates = candidates
+        stage_refs = [stage.ref for stage in element.stages
+                      if stage.kind.value == key and stage.status.value == 'supported' and stage.ref is not None]
+        selected_refs = stage_refs
         if endpoint_refs and key in endpoint_refs:
             from cloudra.dag.models import GraphRef
             ref = GraphRef.model_validate(endpoint_refs[key])
             if ref not in element.refs:
                 return []
-            candidates, errors = _logs(store, element.model_copy(update={'refs': [ref], 'stages': []}), workspace_root, parsed=parsed)
+            selected_refs = [ref]
+            stage_refs = []
+        if selected_refs:
+            candidates, errors = _logs(store, element.model_copy(update={'refs': selected_refs, 'stages': []}), workspace_root, parsed=parsed)
             problems.extend(errors)
+            if not candidates:
+                return []  # A missing selected endpoint must not recover an older node proof.
             # An explicit minimum fixes the final geometry, while a
             # separate bound Opt log supplies its native IRC starting frame.
             from cloudra.tools.core.irc_path import same_geometry
             minima = [_final_geometry(path) for path in candidates if _qm_data(path, parsed)[3] == []]
+            separated = bool(stage_refs and key == 'endpoint_a' and node
+                             and isinstance(node.smiles, list) and len(node.smiles) > 1)
             candidates = list(dict.fromkeys([*candidates, *[path for path in node_candidates
-                if any(same_geometry(_final_geometry(path), minimum) for minimum in minima)]]))
+                if separated or any(same_geometry(_final_geometry(path), minimum) for minimum in minima)]]))
         verified = []
         for path in candidates:
             try:
+                if stage_refs and (node is None or not node.smiles):
+                    # Undeclared identities stay unknown; the shared verifier
+                    # still requires native same-TS IRC/Opt/Freq lineage.
+                    verified.append(path)
+                    continue
                 data = _qm_data(path, parsed)
                 if (node and node.smiles
                         and (data[3] == [] or _optimization_converged(path, data[1]) is True)

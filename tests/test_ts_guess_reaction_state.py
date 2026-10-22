@@ -68,6 +68,7 @@ async def test_independent_interpolation_uses_proved_concrete_mapping(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_unresolved_xyz_does_not_establish_endpoint_identity(tmp_path):
     xyz = '3\nunknown graph\nH 0 0 0\nO 1 0 0\nF 2.8 .3 0\n'
     result = await TsGuess().tool_call(TsGuess_input_schema(mode='interpolate',

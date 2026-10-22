@@ -531,6 +531,8 @@ async def test_guided_file_verdict_notifies_coordinator_and_enforces_scientific_
     tmp_path, monkeypatch, complete_evidence
 ):
     """A verdict notifies once; only the full native evidence chain permits complete."""
+    if complete_evidence:
+        pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
     submit_evidence = asyncio.Event()
     review_file = asyncio.Event()
     finish_supervisor = asyncio.Event()
@@ -1545,7 +1547,7 @@ async def test_context_budget_compacts_once_then_short_turns_continue(tmp_path, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures('ts_producer_authority')
+@pytest.mark.usefixtures('ts_producer_authority', 'rdkit_chemistry')
 async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exhaustion(tmp_path, monkeypatch):
     """Failed scans retry once; active retries retain that job and failed evidence."""
     from cloudra.services.compute_admission import AdmissionOutcome
@@ -1593,7 +1595,7 @@ async def test_failed_ts_scan_unchanged_resume_keeps_failure_without_budget_exha
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("ts_producer_authority")
+@pytest.mark.usefixtures("ts_producer_authority", "rdkit_chemistry")
 async def test_ts_resume_repeated_irc_repairs_preserve_scientific_failure(tmp_path, monkeypatch):
     """Real Agent revisions keep one run, immutable failed evidence and one job per new input."""
     from cloudra.services.compute_admission import AdmissionOutcome
@@ -1676,7 +1678,7 @@ async def test_ts_resume_repeated_irc_repairs_preserve_scientific_failure(tmp_pa
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("ts_producer_authority")
+@pytest.mark.usefixtures("ts_producer_authority", "rdkit_chemistry")
 async def test_ts_resume_native_cclib_assertion_keeps_completed_ts(tmp_path, monkeypatch):
     """IA8 native ORCA log: real Agent/resume/parser/writer/ledger, no QM process."""
     from cloudra.services.compute_admission import AdmissionOutcome
@@ -1981,7 +1983,7 @@ async def test_reused_child_completes_new_task_after_compute_notice_and_wakes_pa
 
 
 @pytest.mark.asyncio
-@pytest.mark.usefixtures("ts_producer_authority")
+@pytest.mark.usefixtures("ts_producer_authority", "rdkit_chemistry")
 async def test_budgeted_ts_terminal_notice_resumes_background_wait_and_persists(tmp_path, monkeypatch):
     """Real budget + native frequency gate + notification + runner; no engine or API."""
     from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker

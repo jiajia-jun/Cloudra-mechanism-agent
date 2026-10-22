@@ -115,6 +115,7 @@ def test_optional_null_changes_do_not_reinterpret_internal_atom_numbers(tmp_path
     assert Path(record.run_dir) == tmp_path
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_source_revision_clears_replaced_molecule_and_numeric_checkpoints(tmp_path):
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
     from tests.test_ts_revision_identity import molecular_fixture
@@ -133,6 +134,7 @@ def test_source_revision_clears_replaced_molecule_and_numeric_checkpoints(tmp_pa
     assert record.structures.reactant is not None
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_mutable_external_file_changes_require_explicit_source_patch(tmp_path):
     from cloudra.tools.core.molecule import serialize_molecule
     from cloudra.tools.core.ts_revision import plan_input_revision, revise_record
@@ -154,6 +156,7 @@ def test_mutable_external_file_changes_require_explicit_source_patch(tmp_path):
     assert serialize_molecule(revised.attempt_history[-1].structures.reactant) == original
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('relative_source', [False, True])
 def test_repeated_method_revisions_retain_imported_source_binding(tmp_path, monkeypatch, relative_source):
     from cloudra.tools.core.molecule import serialize_molecule
@@ -183,6 +186,7 @@ def test_repeated_method_revisions_retain_imported_source_binding(tmp_path, monk
     assert serialize_molecule(revised.structures.reactant) == original
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_missing_external_source_can_be_explicitly_supplied_at_same_path(tmp_path):
     from cloudra.tools.core.ts_inputs import FileConformer
     from cloudra.tools.core.ts_process import TsBlocked

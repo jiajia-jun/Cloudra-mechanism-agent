@@ -2589,8 +2589,6 @@ class TsGuess(Tool):
     def _strict_path_verdict(self, user_input: TsGuess_input_schema,
                              checks: list[str], references) -> tuple[str, str, Optional[dict]]:
         """核对同一 TS 的 IRC 外侧帧实际优化到两侧身份正确的零虚频极小点。"""
-        from rdkit import Chem
-
         from cloudra.tools.core.irc_evidence import verify_short_irc_direction
 
         def inconclusive(reason: str, info):
@@ -2610,6 +2608,7 @@ class TsGuess(Tool):
             return inconclusive("missing actual endpoint optimization and zero-imaginary frequency logs.", info)
 
         def species(role):
+            from rdkit import Chem
             from rdkit.Chem import rdDetermineBonds
 
             molecule = Chem.Mol(references[role])

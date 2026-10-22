@@ -200,9 +200,7 @@ async def _dispositions(project_id: str) -> list[str]:
 
 
 async def _seed_complete_delivery(project_id: str) -> None:
-    """交付图种子：r/p 节点（structure_supported）+ step1 边（endpoint_supported，
-    无阶段契约）——默认 mechanism 契约下 coverage 通过（判据同
-    test_dag_completion.py::test_endpoint_supported_path_satisfies_default_contract）。"""
+    """Seed completed TS stages for final-review protocol tests without requiring IRC."""
 
     def _write() -> None:
         from cloudra.dag.engine import DagEngine
@@ -213,6 +211,7 @@ async def _seed_complete_delivery(project_id: str) -> None:
             GraphActor,
             MutationBatch,
             OccurrenceNode,
+            StageState,
         )
 
         db = ConversationDB(project_id).init()
@@ -258,7 +257,8 @@ async def _seed_complete_delivery(project_id: str) -> None:
                             source_node_id="r",
                             target_node_id="p",
                             label="step 1",
-                            evidence_level="endpoint_supported",
+                            stages=[StageState(kind=kind, status="supported")
+                                    for kind in ("ts_opt", "frequency")],
                         ),
                     )
                 ],

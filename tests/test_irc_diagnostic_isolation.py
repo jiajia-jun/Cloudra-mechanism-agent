@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.dag.evidence_inbox import EvidenceInboxMixin
-from cloudra.dag.models import GraphRef
+from cloudra.dag.models import ElementaryStepEdge, GraphRef
 from cloudra.tools.core.irc_evidence import diagnose_short_irc_materials
 from tests.test_irc_endpoint_optimization import write_lineage_bundle
 
@@ -41,7 +41,8 @@ def test_bad_unbound_log_preserves_structured_short_irc_failure(tmp_path, monkey
 
     passed, reason = inbox._passes_short_irc_check(
         GraphRef(ref_type='tool_result', ref_id='irc-ref'),
-        SimpleNamespace(source_node_id='R', target_node_id='P'), [], SimpleNamespace(nodes=[]))
+        ElementaryStepEdge(edge_id='step', source_node_id='R', target_node_id='P'),
+        [], SimpleNamespace(nodes=[]))
 
     assert not passed
     assert 'missing TS material' in reason

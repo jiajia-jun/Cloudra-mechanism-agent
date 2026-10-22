@@ -21,7 +21,7 @@ from cloudra.tools.core import ts_process as process
 from cloudra.tools.core.ts_pipeline_driver import advance_process, handle_process_job_terminal
 from tests.ts_fixtures import calculation_input
 
-pytestmark = pytest.mark.usefixtures("ts_producer_authority")
+pytestmark = pytest.mark.usefixtures("ts_producer_authority", "rdkit_chemistry")
 
 FIXTURES = Path(__file__).parent / "fixtures"
 CO2_XYZ = "3\nfixture CO2 final frame\nO 0 0 -1.252682\nC 0 0 0\nO 0 0 1.252682\n"

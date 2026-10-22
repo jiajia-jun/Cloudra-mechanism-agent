@@ -1234,7 +1234,7 @@ export default function App() {
         return;
       }
       setPendingImages([]);
-      if (target.kind === 'spawn_coordinator') {
+      if (!activeAgent) {
         // With images attached the spawn `query` cannot carry them, so spawn
         // idle and deliver text + images as the first message instead.
         const resp = await api.spawnAgent(activeProject.id, {
@@ -1271,7 +1271,7 @@ export default function App() {
           },
         ]);
         setDraft('');
-        const agentId = activeAgent!.id;
+        const agentId = activeAgent.id;
         const version = agentSelectionVersionRef.current;
         const receipt = await api.sendMessage(agentId, content, images, imageArtifactIds, lang);
         setPendingMessages((prev) => prev.filter((message) => message.id !== pendingId));

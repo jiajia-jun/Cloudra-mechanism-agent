@@ -330,48 +330,51 @@ async def test_group_lifecycle_is_event_sourced(tmp_path):
 
     store = RuntimeStore(tmp_path / "runtime-v2.db")
     core, project, parent = await _core_with_parent(store)
-    bus_calls: list[str] = []
+    try:
+        bus_calls: list[str] = []
 
-    async def spawner(query):
-        from cloudra.runtime_v2.commands import CommandBus
-        from cloudra.runtime_v2.schemas import Command
+        async def spawner(query):
+            from cloudra.runtime_v2.commands import CommandBus
+            from cloudra.runtime_v2.schemas import Command
 
-        bus_calls.append(query)
-        return (
-            await CommandBus(core).execute(
-                Command(
-                    type="agent.spawn",
-                    target={"project_id": project.id},
-                    payload={"role_id": "explorer", "parent_session_id": parent.id, "query": query},
+            bus_calls.append(query)
+            return (
+                await CommandBus(core).execute(
+                    Command(
+                        type="agent.spawn",
+                        target={"project_id": project.id},
+                        payload={"role_id": "explorer", "parent_session_id": parent.id, "query": query},
+                    )
                 )
-            )
-        ).data
+            ).data
 
-    group = await core.launch_groups.create(
-        group_id="grp_events",
-        parent_session_id=parent.id,
-        project_id=project.id,
-        items=[("i0", "q0"), ("i1", "q1")],
-        max_concurrency=2,
-        spawner=spawner,
-    )
-    for _ in range(300):
-        if group.state == "finished":
-            break
-        await asyncio.sleep(0.01)
-    assert group.state == "finished"
-    assert all(item.state == "succeeded" for item in group.items)
+        group = await core.launch_groups.create(
+            group_id="grp_events",
+            parent_session_id=parent.id,
+            project_id=project.id,
+            items=[("i0", "q0"), ("i1", "q1")],
+            max_concurrency=2,
+            spawner=spawner,
+        )
+        for _ in range(300):
+            if group.state == "finished":
+                break
+            await asyncio.sleep(0.01)
+        assert group.state == "finished"
+        assert all(item.state == "succeeded" for item in group.items)
 
-    types = [e["type"] for e in store.events_after({})]
-    assert types.count("launch_group.created") == 1
-    assert types.count("launch_group.item_dispatched") == 2
-    assert types.count("launch_group.item_finished") == 2
-    assert types.count("launch_group.finished") == 1
-    # child session 记进事件（重启后可对账）。
-    dispatched = [
-        e for e in store.events_after({}) if e["type"] == "launch_group.item_dispatched"
-    ]
-    assert all(e["data"]["child_session_id"].startswith("as_") for e in dispatched)
+        types = [e["type"] for e in store.events_after({})]
+        assert types.count("launch_group.created") == 1
+        assert types.count("launch_group.item_dispatched") == 2
+        assert types.count("launch_group.item_finished") == 2
+        assert types.count("launch_group.finished") == 1
+        # child session 记进事件（重启后可对账）。
+        dispatched = [
+            e for e in store.events_after({}) if e["type"] == "launch_group.item_dispatched"
+        ]
+        assert all(e["data"]["child_session_id"].startswith("as_") for e in dispatched)
+    finally:
+        await core.aclose()
 
 
 @pytest.mark.asyncio
@@ -404,64 +407,67 @@ async def test_dispatch_persistence_failure_does_not_orphan_spawned_child(
         event_log=core.event_log, stages=default_stages(), llm=_EchoLLM(),
         tools=LegacyToolExecutor(core),
     ))
-    original_append = store.append_event
-    failures = 0
+    try:
+        original_append = store.append_event
+        failures = 0
 
-    def fail_dispatch(envelope):
-        nonlocal failures
-        if envelope.type == "launch_group.item_dispatched" and (
-            not fail_once or failures == 0
-        ):
-            failures += 1
-            raise OSError("dispatch event unavailable")
-        if (
-            not fail_once and envelope.type == "agent.state_changed"
-            and envelope.data.get("to") == "cancelled"
-        ):
-            raise OSError("cancel event unavailable")
-        return original_append(envelope)
+        def fail_dispatch(envelope):
+            nonlocal failures
+            if envelope.type == "launch_group.item_dispatched" and (
+                not fail_once or failures == 0
+            ):
+                failures += 1
+                raise OSError("dispatch event unavailable")
+            if (
+                not fail_once and envelope.type == "agent.state_changed"
+                and envelope.data.get("to") == "cancelled"
+            ):
+                raise OSError("cancel event unavailable")
+            return original_append(envelope)
 
-    monkeypatch.setattr(store, "append_event", fail_dispatch)
-    spawned = []
+        monkeypatch.setattr(store, "append_event", fail_dispatch)
+        spawned = []
 
-    async def spawner(query):
-        child = (await CommandBus(core).execute(Command(
-            type="agent.spawn", target={"project_id": project.id},
-            payload={
-                "role_id": "explorer", "parent_session_id": parent.id,
-                "query": query, "defer_schedule": True,
-            },
-        ))).data
-        spawned.append(child.id)
-        return child
+        async def spawner(query):
+            child = (await CommandBus(core).execute(Command(
+                type="agent.spawn", target={"project_id": project.id},
+                payload={
+                    "role_id": "explorer", "parent_session_id": parent.id,
+                    "query": query, "defer_schedule": True,
+                },
+            ))).data
+            spawned.append(child.id)
+            return child
 
-    group = await core.launch_groups.create(
-        group_id="grp_dispatch_fail", parent_session_id=parent.id,
-        project_id=project.id, items=[("i0", "q0")], max_concurrency=1,
-        spawner=spawner,
-    )
-    await asyncio.wait_for(group._task, timeout=3)
-
-    assert spawned and len(spawned) == 1
-    child = core.agents[spawned[0]]
-    if fail_once:
-        assert child.state is AgentState.SUCCEEDED
-        assert group.item("i0").state == "succeeded"
-        assert group.item("i0").child_session_id == child.id
-        assert sum(
-            event["type"] == "launch_group.item_dispatched"
-            for event in store.events_after({})
-        ) == 1
-    else:
-        assert child.state is AgentState.QUEUED
-        assert core.runner.task_for(child.id) is None
-        assert group.item("i0").state == "failed"
-        assert group.item("i0").child_session_id == child.id
-        assert any(
-            event["type"] == "launch_group.item_finished"
-            and event["data"].get("child_session_id") == child.id
-            for event in store.events_after({})
+        group = await core.launch_groups.create(
+            group_id="grp_dispatch_fail", parent_session_id=parent.id,
+            project_id=project.id, items=[("i0", "q0")], max_concurrency=1,
+            spawner=spawner,
         )
+        await asyncio.wait_for(group._task, timeout=3)
+
+        assert spawned and len(spawned) == 1
+        child = core.agents[spawned[0]]
+        if fail_once:
+            assert child.state is AgentState.SUCCEEDED
+            assert group.item("i0").state == "succeeded"
+            assert group.item("i0").child_session_id == child.id
+            assert sum(
+                event["type"] == "launch_group.item_dispatched"
+                for event in store.events_after({})
+            ) == 1
+        else:
+            assert child.state is AgentState.QUEUED
+            assert core.runner.task_for(child.id) is None
+            assert group.item("i0").state == "failed"
+            assert group.item("i0").child_session_id == child.id
+            assert any(
+                event["type"] == "launch_group.item_finished"
+                and event["data"].get("child_session_id") == child.id
+                for event in store.events_after({})
+            )
+    finally:
+        await core.aclose()
 
 
 @pytest.mark.asyncio

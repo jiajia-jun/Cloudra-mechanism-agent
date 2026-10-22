@@ -14,6 +14,7 @@ SCANS = [dict(atoms=[0, 1], scan_start=1., scan_end=2., scan_steps=3),
          dict(atoms=[0, 2], scan_start=1., scan_end=2., scan_steps=3)]
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize("cpus,memory_mb,concerted", [(4, 4096, False), (8, 8192, True), (3, 8192, False)])
 def test_ts_scan_execution_budget_matches_native_qm_resources(tmp_path, monkeypatch, cpus, memory_mb, concerted):
     declaration = TsInput.model_validate(dict(
@@ -57,6 +58,7 @@ def test_ts_scan_execution_budget_matches_native_qm_resources(tmp_path, monkeypa
 
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_standalone_scan_uses_shared_resource_fields(tmp_path):
     assert {'mem', 'nproc'} <= TsGuess_input_schema.model_fields.keys()
     output = tmp_path / "scan.inp"

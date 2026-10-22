@@ -26,11 +26,15 @@ def test_rejects_stale_or_foreign_candidate(tmp_path):
         validate_selection(decision_for(cards,candidate_id='foreign'),context_for(cards))
 
 
-def test_ai_cannot_raise_hard_budget_or_change_method(tmp_path):
-    cards = cards_fixture(tmp_path)
+def test_ai_cannot_raise_hard_budget_or_change_method():
+    from cloudra.tools.core.conformer_selection import SelectionDecision
+
+    decision = SelectionDecision(decision_id='decision', catalog_id='cat', partition_revision='revision',
+                                 declaration_hash='declaration', reason='Validate decision fields')
     for override in [{'method_fingerprint':'different'},{'max_compute_actions':100}]:
-        with pytest.raises(ValidationError):
-            decision_for(cards,**override)
+        with pytest.raises(ValidationError) as error:
+            SelectionDecision(**decision.model_dump(), **override)
+        assert error.value.errors()[0]['type'] == 'extra_forbidden'
 
 
 def test_reason_requires_current_evidence(tmp_path):

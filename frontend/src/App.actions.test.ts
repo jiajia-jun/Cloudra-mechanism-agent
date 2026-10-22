@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import { parseSync, transformSync } from 'rolldown/utils';
+import { resolveComposerSendTarget } from './composerSend.ts';
 
 const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
 const appTree = parseSync('App.tsx', appSource, { lang: 'tsx' }).program;
@@ -22,8 +23,8 @@ const picker = nodes.find(node => node.type === 'ArrowFunctionExpression'
   && node.body.argument.callee.name === 'changeWorkspace')!;
 const pickerCallback = appSource.slice(picker.start, picker.end);
 function actions(globals: Record<string, unknown>) {
-  const code = `${action('changeWorkspace')}\n${action('createProject')}\n({ changeWorkspace, createProject, picked: ${pickerCallback} });`;
-  return vm.runInNewContext(transformSync('actions.ts', code, { lang: 'ts' }).code, globals);
+  const code = `${action('changeWorkspace')}\n${action('createProject')}\n${action('sendMessage')}\n({ changeWorkspace, createProject, sendMessage, picked: ${pickerCallback} });`;
+  return vm.runInNewContext(transformSync('actions.ts', code, { lang: 'ts' }).code, { resolveComposerSendTarget, ...globals });
 }
 
 // Exercise the actual sidebar callback while a different project is selected.
@@ -82,6 +83,38 @@ function actions(globals: Record<string, unknown>) {
   projects = [existing, { ...created, name: 'SSE snapshot' }];
   await pending;
   assert.deepEqual(structuredClone(projects), [existing, created]);
+}
+
+// Unknown slash input still starts a coordinator when no agent is selected.
+{
+  let draft = '/unknown hello';
+  let selected: string | undefined;
+  let pending: object[] = [];
+  const requests: { projectId: string; body: Record<string, unknown> }[] = [];
+  const errors: string[] = [];
+  const calls = actions({
+    p: {}, activeProject: { id: 'P', settings: { orchestration_mode: 'standard' } },
+    activeAgent: null, draft, sending: false, interactions: [],
+    pendingMessageSeqRef: { current: 0 }, pendingImages: [], lang: 'en',
+    api: { spawnAgent: async (projectId: string, body: Record<string, unknown>) => {
+      requests.push({ projectId, body });
+      return { data: { id: 'created-agent' } };
+    } },
+    setSending() {}, setPendingImages() {},
+    setPendingMessages: (update: (prev: object[]) => object[]) => { pending = update(pending); },
+    setDraft: (value: string) => { draft = value; },
+    selectAgent: async (id: string) => { selected = id; },
+    reportError: (error: Error) => errors.push(error.message),
+  });
+  await calls.sendMessage();
+  assert.deepEqual(errors, []);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].projectId, 'P');
+  assert.equal(requests[0].body.role_id, 'coordinator');
+  assert.equal(requests[0].body.query, '/unknown hello');
+  assert.equal(selected, 'created-agent');
+  assert.equal(draft, '');
+  assert.deepEqual(pending, []);
 }
 
 console.log('App.actions.test.ts: ok');

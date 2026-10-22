@@ -284,6 +284,7 @@ def test_seed_profile_revision_retains_independent_preparation_evidence(tmp_path
     assert record == original
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_product_seed_revision_retains_reactant_derivatives_and_checkpoint(tmp_path, monkeypatch):
     from cloudra.tools.core.constrained_optimization import OptimizationRequest, initialize_constrained_state
     from cloudra.tools.core.geometry_optimization import OptimizationCheckpoint

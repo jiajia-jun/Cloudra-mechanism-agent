@@ -86,6 +86,7 @@ def test_scan_schema_requires_explicit_calculation_fields(missing):
         TsGuess_input_schema(**arguments)
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_scan_preparation_reports_written_method_without_reselection_hint(tmp_path):
     keywords = 'D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
     target = tmp_path / 'scan.inp'
@@ -100,6 +101,7 @@ def test_scan_preparation_reports_written_method_without_reselection_hint(tmp_pa
     assert 'submit_compute_job' in result.run_hint and 'B3LYP' in result.message
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_scan_and_writer_preserve_native_method_slash_and_auxiliary_basis(tmp_path):
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
     from cloudra.tools.core.molecule import read_molecule
@@ -496,6 +498,7 @@ async def test_scan_prepare_accepts_declared_mol_geometry(tmp_path, mock_session
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_scan_prepare_gaussian(tmp_path, mock_session):
     """Gaussian gjf：modredundant 扫描块、路由、电荷自旋、步长符号正确，无 QST。"""
     tool = _make_tool()
@@ -533,6 +536,7 @@ async def test_scan_prepare_gaussian(tmp_path, mock_session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_scan_prepare_gaussian_two_grid_coordinates(tmp_path, mock_session):
     """Gaussian 双坐标耦合扫描：两个 S 行（2D 网格），各自步长独立。"""
     tool = _make_tool()
@@ -559,6 +563,7 @@ async def test_scan_prepare_gaussian_two_grid_coordinates(tmp_path, mock_session
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_scan_prepare_orca(tmp_path, mock_session):
     """ORCA inp：%geom Scan 块、原子序号 0-based、%pal，无 QST。"""
     tool = _make_tool()
@@ -593,6 +598,7 @@ async def test_scan_prepare_orca(tmp_path, mock_session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
     """ORCA external/MLIP 势通道：method='ExtOpt' + orca_blocks 注入 %method ProgExt 块。"""
     tool = _make_tool()
@@ -907,6 +913,7 @@ def _endpoint_optimization_logs(tmp_path, *, combined=True, reactant_xyz=_HCN_XY
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_ts_positive(tmp_path, mock_session):
     """默认 verify 只提供方向建议，即使频率与端点相符也只返回 candidate。"""
     tool = _make_tool()
@@ -981,6 +988,7 @@ async def test_verify_bad_reference_preserves_structured_frequency_result(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("strict", [False, True])
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_without_irc_uses_declared_molecule_charge(
     tmp_path, mock_session, monkeypatch, strict,
 ):
@@ -1055,6 +1063,7 @@ async def test_verify_irc_endpoints_without_expected(tmp_path, mock_session):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_geometry_interval_without_optimization_logs_is_inconclusive(tmp_path, mock_session):
     """几何区间相符不能代替真实端点优化和零虚频证据。"""
     tool = _make_tool()
@@ -1080,6 +1089,7 @@ async def test_verify_strict_geometry_interval_without_optimization_logs_is_inco
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("combined", [True, False], ids=["optfreq", "separate_opt_freq"])
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_accepts_irc_outer_frames_optimized_to_verified_minima(
     tmp_path, mock_session, combined,
 ):
@@ -1104,6 +1114,7 @@ async def test_verify_strict_accepts_irc_outer_frames_optimized_to_verified_mini
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_rejects_optimized_endpoint_with_wrong_identity(tmp_path, mock_session):
     freq_log = tmp_path / "ts_freq.log"
     freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
@@ -1119,6 +1130,7 @@ async def test_verify_strict_rejects_optimized_endpoint_with_wrong_identity(tmp_
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_accepts_optimized_minima_but_warns_about_failed_interval(tmp_path, mock_session):
     freq_log = tmp_path / "ts_freq.log"
     freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
@@ -1135,6 +1147,7 @@ async def test_verify_strict_accepts_optimized_minima_but_warns_about_failed_int
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_unresolved_xyz_identity_is_inconclusive(tmp_path, mock_session):
     freq_log = tmp_path / "ts_freq.log"
     freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
@@ -1151,8 +1164,11 @@ async def test_verify_strict_unresolved_xyz_identity_is_inconclusive(tmp_path, m
 
 
 @pytest.mark.asyncio
-async def test_verify_strict_without_optimized_intermediates_is_inconclusive(tmp_path, mock_session):
+async def test_verify_strict_without_optimized_intermediates_is_inconclusive(tmp_path, mock_session, monkeypatch):
     """strict 缺少优化中间体时证据不足，不能沿用默认模式的候选结论。"""
+    import sys
+
+    monkeypatch.setitem(sys.modules, "rdkit", None)
     tool = _make_tool()
     freq_log = tmp_path / "ts_freq_with_geometry.log"
     freq_log.write_text(_TS_FREQ_WITH_GEOMETRY)
@@ -1221,6 +1237,7 @@ async def test_verify_strict_rejects_non_first_order_stationary_points(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_reordered_intermediate_is_aligned(tmp_path, mock_session):
     """原子序重排但组成相同的中间体：距离指纹 + Hungarian 对齐后照常判定
     （对应层就是为此存在的，重排不再是 inconclusive 的理由）。"""
@@ -1288,6 +1305,7 @@ async def test_verify_strict_no_informative_pair_is_inconclusive(tmp_path, mock_
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_endpoint_proof_overrides_misaligned_mode_warning(tmp_path, mock_session):
     """模式比例可疑时仍核验真实端点，不让启发式否决已成立的方向证明。"""
     tool = _make_tool()
@@ -1316,6 +1334,7 @@ async def test_verify_strict_endpoint_proof_overrides_misaligned_mode_warning(tm
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_endpoint_proof_overrides_missing_mode_warning(tmp_path, mock_session):
     """缺模式位移不等于缺端点证据；真实端点方向证明仍可通过。"""
     tool = _make_tool()
@@ -1769,6 +1788,7 @@ async def test_scan_parse_misaligned_frame_preserves_only_trustworthy_peak(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_scan_prepare_gaussian_scan_start_mismatch_rejected(tmp_path, mock_session):
     """Gaussian：scan_start 与当前几何值不同 → start_geometry_mismatch，
     而不是静默只调增量扫错区间。"""
@@ -1795,6 +1815,7 @@ async def test_scan_prepare_gaussian_scan_start_mismatch_rejected(tmp_path, mock
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_scan_prepare_gaussian_scan_start_matching_current_accepted(tmp_path, mock_session):
     """scan_start 与当前几何值一致（容差内）时不误伤。"""
     import math as _math
@@ -2103,6 +2124,7 @@ def test_parse_freq_log_orca_convergence_dispatched_by_engine_markers(tmp_path):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_ts_guess_mode_aliases(tmp_path, mock_session):
     """测试 scan 别名映射至 scan_parse / scan_prepare。
 
@@ -2454,6 +2476,7 @@ def test_imag_mode_alignment_nonbonded_dominant_is_undecidable():
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_endpoint_proof_overrides_undecidable_mode_warning(tmp_path, mock_session):
     """模式比例不能判断扭转/角方向时，实际端点优化证据仍决定验收。"""
     tool = _make_tool()
@@ -2491,6 +2514,7 @@ async def test_verify_strict_endpoint_proof_overrides_undecidable_mode_warning(t
     ("missing_logs", "inconclusive"),
     ("wrong_outer_frame", "fail"),
 ])
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_mode_advisory_cannot_replace_endpoint_proof(
     tmp_path, mock_session, frequency_text, watch_pairs, endpoint_problem, expected_status,
 ):
@@ -2516,6 +2540,7 @@ async def test_verify_strict_mode_advisory_cannot_replace_endpoint_proof(
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_non_strict_nonbonded_dominant_mode_is_undecidable(tmp_path, mock_session):
     """默认档：非键对主导的虚频模式不再回 imag_mode_aligned=False（不再暗示方向不符），
     只把 undecidable 记进 checks；建议语义仍是 candidate。"""
@@ -2602,6 +2627,7 @@ def _connectivity_verdict(request, end_a, end_b, checks):
     return TsGuess._check_irc_connectivity(request, end_a, end_b, checks, _reference_molecules(request))
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_reference_mol_graph_is_not_reperceived(monkeypatch):
     from rdkit import Chem
 
@@ -2631,6 +2657,7 @@ def test_reference_mol_graph_is_not_reperceived(monkeypatch):
 
 
 @pytest.mark.parametrize("engine,base", [("gaussian", 1), ("orca", 0)])
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_scan_reads_mol_and_uses_molecule_charge(tmp_path, engine, base):
     from rdkit import Chem
 
@@ -2651,6 +2678,7 @@ def test_scan_reads_mol_and_uses_molecule_charge(tmp_path, engine, base):
     assert ("* xyz -1 1" if engine == "orca" else "\n-1 1\n") in output.read_text()
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_check_irc_connectivity_weak_contact_is_warning_not_failure():
     """键集差异在预期结构侧是弱接触（>1.25×共价半径和）时只记 warning、不判负。"""
     checks: list[str] = []
@@ -2663,6 +2691,7 @@ def test_check_irc_connectivity_weak_contact_is_warning_not_failure():
     assert any("connectivity is consistent" in c for c in checks)
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_check_irc_connectivity_covalent_difference_still_fails():
     """预期结构侧仍是共价键的键集差异：照旧判负（不降级）。"""
     checks: list[str] = []
@@ -2674,6 +2703,7 @@ def test_check_irc_connectivity_covalent_difference_still_fails():
     assert any("covalent" in c and "inconsistent" in c for c in checks)
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_check_irc_connectivity_endpoint_order_mismatch_is_inconclusive():
     """两端点帧的原子序/元素不一致：连通性不可判（不拿 A 的元素配 B 的坐标硬算键）。"""
     checks: list[str] = []
@@ -2687,6 +2717,7 @@ def test_check_irc_connectivity_endpoint_order_mismatch_is_inconclusive():
     assert any("undecidable" in c for c in checks)
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_check_irc_connectivity_uses_perceive_bonds_channel(monkeypatch):
     """端点/预期结构的键图来自 perceive_bonds（rdDetermineBonds 主通道），不是共价半径距离判据。
 
@@ -2714,6 +2745,7 @@ def test_check_irc_connectivity_uses_perceive_bonds_channel(monkeypatch):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_atom_order_mismatch_is_inconclusive_not_candidate(tmp_path, mock_session):
     """预期结构原子序与 IRC 作业不符：连通性不可判 → inconclusive，
     不再静默跳过成 candidate。"""
@@ -3059,6 +3091,7 @@ def test_orca_irc_endpoints_refuse_unbound_sidecars(tmp_path, prefixes):
 
 
 @pytest.mark.asyncio
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_verify_strict_non_pass_appends_endpoint_optimization_remedy(tmp_path, mock_session):
     """不通过（材料不足 / 方向不符）时 checks 必须带「补做端点优化」的可操作提示，
     且 verdict 语义（fail / inconclusive 前缀）不变（只加文本，不改判据/阈值）。"""

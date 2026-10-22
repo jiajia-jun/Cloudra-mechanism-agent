@@ -35,6 +35,7 @@ def catalog_seed(tmp_path, qualification=None):
     return dict(kind='catalog',catalog_id='cat',candidate_id=candidate.candidate_id), xyz
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_catalog_source_resolves_archive_partition_without_model_version(tmp_path):
     from cloudra.tools.core.ts_candidate_pipeline import use_catalog_source
     from cloudra.tools.core.ts_inputs import CatalogConformer

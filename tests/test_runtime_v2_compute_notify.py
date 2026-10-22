@@ -1015,6 +1015,7 @@ async def test_system_compute_notify_does_not_wake_cancelled_subagent():
 @pytest.mark.asyncio
 @pytest.mark.parametrize("recover_acknowledged", [False, True])
 @pytest.mark.parametrize("ordinary_result", [False, True])
+@pytest.mark.usefixtures("rdkit_chemistry")
 async def test_pipeline_intermediate_job_advances_without_agent_message(tmp_path, monkeypatch, recover_acknowledged, ordinary_result):
     from cloudra.services.compute_admission import AdmissionOutcome
     from cloudra.services.ts_pipeline_store import bind_stage_job, create_process

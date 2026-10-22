@@ -20,6 +20,7 @@ async def write(tmp_path, engine='orca', **settings):
     return result, Path(result.input_path).read_text()
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('task,value', [('opt', 'tight'), ('opt', 'maxcycles=2'), ('irc', 'forward')])
 async def test_orca_task_parameters_are_preserved_and_warned(tmp_path, task, value):
@@ -30,6 +31,7 @@ async def test_orca_task_parameters_are_preserved_and_warned(tmp_path, task, val
     assert not compare_calculation_input(content, result.calculation.model_dump(), charge=0, multiplicity=1)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_gaussian_analytic_mode_and_extra_frequency_options_round_trip(tmp_path):
     result, content = await write(tmp_path, engine='gaussian', task_type=[{'freq': 'NoRaman'}], frequency_mode='analytic')
@@ -38,6 +40,7 @@ async def test_gaussian_analytic_mode_and_extra_frequency_options_round_trip(tmp
     assert not compare_calculation_input(content, result.calculation.model_dump(), charge=0, multiplicity=1)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_gaussian_numeric_mode_keeps_native_frequency_options(tmp_path):
     result, content = await write(tmp_path, engine='gaussian', task_type=[{'freq': 'NoRaman'}], frequency_mode='numeric')
@@ -45,6 +48,7 @@ async def test_gaussian_numeric_mode_keeps_native_frequency_options(tmp_path):
     assert result.interpreted_intent['frequency_mode'] == 'numeric'
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('engine,task', [('orca', 'EnGrad'), ('orca', 'NativeFutureTask'), ('gaussian', 'Force')])
 async def test_arbitrary_native_tasks_are_written_without_single_point_guess(tmp_path, engine, task):
@@ -66,6 +70,7 @@ def test_native_noncanonical_tasks_stay_unclassified(engine, content):
     assert actual.certainty == 'unknown'
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('engine,field,value', [
     ('orca', 'end_setting', 'NativeTrailingSetting'),
@@ -78,6 +83,7 @@ async def test_inapplicable_native_fields_are_visible_and_warned(tmp_path, engin
     assert any(entry['field'] == field for entry in result.warnings)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_native_keywords_explicit_task_suppresses_implicit_opt_default(tmp_path):
     result, content = await write(tmp_path, keywords='EnGrad')
@@ -85,6 +91,7 @@ async def test_native_keywords_explicit_task_suppresses_implicit_opt_default(tmp
     assert result.interpreted_intent['certainty'] == 'unknown'
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_conflicting_frequency_settings_are_not_rewritten(tmp_path):
     result, content = await write(tmp_path, engine='gaussian', task_type=[{'freq': 'numer,NoRaman'}], frequency_mode='analytic')
@@ -92,6 +99,7 @@ async def test_conflicting_frequency_settings_are_not_rewritten(tmp_path):
     assert any(entry['code'] == 'conflicting_frequency_mode' for entry in result.warnings)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_renderer_parameter_loss_still_refuses_file(tmp_path, monkeypatch):
     original = QmInputWriter.render_input
@@ -112,6 +120,7 @@ async def test_renderer_parameter_loss_still_refuses_file(tmp_path, monkeypatch)
     assert not (tmp_path / 'broken.gjf').exists()
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_malformed_native_task_does_not_mask_renderer_data_loss(tmp_path, monkeypatch):
     original = QmInputWriter.render_input
@@ -144,6 +153,7 @@ def test_calculation_option_advice_has_severity_and_never_requires_solver_option
     assert not validate_writer_request({'engine': 'gaussian', 'task_type': [{'opt': 'ts,readfc'}]})
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('engine,settings,raw', [
     ('orca', {'keywords': 'Opt=('}, 'Opt=('),
@@ -159,6 +169,7 @@ async def test_native_lexical_errors_are_preserved_with_visible_warning(tmp_path
     assert any(entry['code'].startswith('malformed_native') for entry in result.warnings)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_bad_native_constraint_warns_without_erasing_known_task(tmp_path):
     block = '%geom\n Constraints\n {B x 1 1.0 C}\n end\nend'
@@ -168,6 +179,7 @@ async def test_bad_native_constraint_warns_without_erasing_known_task(tmp_path):
     assert any(entry['code'] == 'native_constraint_parameters' for entry in result.warnings)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('settings,original', [
     ({'method': 'HF TightSCF'}, 'HF TightSCF'),
@@ -181,6 +193,7 @@ async def test_native_field_layout_errors_reach_tool_as_warnings(tmp_path, setti
     assert result.warnings
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_gaussian_both_native_tail_fields_survive(tmp_path):
     result, content = await write(tmp_path, engine='gaussian', end_setting='B 1 2 F',
@@ -189,6 +202,7 @@ async def test_gaussian_both_native_tail_fields_survive(tmp_path):
     assert any(entry['code'] == 'orca_only_field' for entry in result.warnings)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_orca_small_explicit_memory_is_not_increased_to_a_floor(tmp_path):
     _, content = await write(tmp_path, mem='512MB', nproc=4)

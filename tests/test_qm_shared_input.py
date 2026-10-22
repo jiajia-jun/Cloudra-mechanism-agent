@@ -6,6 +6,8 @@ import pytest
 from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
 from cloudra.tools.core.molecule import read_molecule
 
+pytestmark = pytest.mark.usefixtures('rdkit_chemistry')
+
 H2 = '2\nhydrogen\nH 0 0 0\nH 0 0 0.74\n'
 
 

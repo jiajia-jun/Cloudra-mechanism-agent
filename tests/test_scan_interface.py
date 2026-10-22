@@ -15,6 +15,7 @@ ROWS = [dict(atoms=[0, 1], scan_start=1., scan_end=2., scan_steps=3),
         dict(atoms=[0, 2], scan_start=1., scan_end=3., scan_steps=4)]
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_explicit_orca_grid_renders_one_nested_scan_with_independent_steps(tmp_path):
     output = tmp_path / "grid.inp"
     result = TsGuess()._scan_prepare(TsGuess_input_schema(
@@ -27,6 +28,7 @@ def test_explicit_orca_grid_renders_one_nested_scan_with_independent_steps(tmp_p
     assert compare_calculation_input(native, ORCA, charge=0, multiplicity=1) == []
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("concerted", [False, True])
 def test_nested_scan_retains_single_coordinate_or_concerted_path(tmp_path, concerted):
     scans = [ROWS[0], dict(ROWS[1], scan_steps=3)] if concerted else ROWS[:1]
@@ -88,6 +90,7 @@ def test_grid_completion_preserves_surface_without_automatic_ts_guess(tmp_path, 
     assert all((tmp_path / f"grid.{point:03d}.xyz").exists() for point in range(1, 5))
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize("tasks,blocks", [
     ([{"scan": None}], None),
@@ -116,6 +119,7 @@ async def test_writer_preserves_explicit_native_scan_with_advice(tmp_path, tasks
     assert result.unapplied_options == []
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_writer_keeps_ordinary_geom_settings_and_ignores_scan_comment(tmp_path):
     source = tmp_path / "water.xyz"
@@ -132,6 +136,7 @@ async def test_writer_keeps_ordinary_geom_settings_and_ignores_scan_comment(tmp_
     assert result.interpreted_intent["tasks"] == ["minimum_opt"]
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("cpus,mem,maxcore", [(4, "4GB", 1024), (8, "8192MB", 1024), (3, "8192MB", 2730)])
 def test_standalone_scan_total_budget_uses_existing_writer_allocation(tmp_path, cpus, mem, maxcore):
     output = tmp_path / "budget.inp"
@@ -156,6 +161,7 @@ def test_scan_budget_and_grid_intent_are_exposed_only_in_prepare_mode(surface):
         validator.validate(dict(mode="scan_parse", log_path="grid.out", mem="8192MB"))
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("blocks", ["%pal nprocs 16 end", "%maxcore 8192"])
 def test_scan_raw_blocks_cannot_override_declared_resources(tmp_path, blocks):
     output = tmp_path / "duplicate-budget.inp"
@@ -168,6 +174,7 @@ def test_scan_raw_blocks_cannot_override_declared_resources(tmp_path, blocks):
     assert not output.exists()
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("blocks", [
     "# %pal nprocs 16 end\n# %maxcore 8192\n# %geom is program-generated",
     '%method\n  ProgExt "/usr/bin/true"\n  Ext_Params "--note %pal %maxcore %geom --model /abs/model"\nend',

@@ -24,6 +24,7 @@ GAUSSIAN = (
 XYZ = "3\n\nO 0 0 0\nH 0 0 0.96\nH 0.92 0 -0.24\n"
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("suffix", [None, "gjf", "com", "gau", "txt", "xyz"])
 def test_gaussian_content_has_one_reading_for_paths_and_inline_text(tmp_path, suffix):
     arguments = {"input_text": GAUSSIAN}
@@ -44,12 +45,14 @@ def test_gaussian_content_has_one_reading_for_paths_and_inline_text(tmp_path, su
     np.testing.assert_array_equal(mol.GetConformer().GetPositions(), [[0, 0, 0], [0, 0, .96], [.92, 0, -.24]])
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_gaussian_decimal_coordinates_and_explicit_angstroms_are_supported():
     text = GAUSSIAN.replace("hf/sto-3g", "hf/sto-3g units=(angstroms)").replace("O 0 0 0", "O 0.0 0.0 0.0")
 
     assert read_molecule(input_text=text).GetNumAtoms() == 3
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('units', ['bohr', 'au', 'a.u.', '( bohr )'])
 def test_gaussian_bohr_coordinates_are_converted_to_angstroms(units):
     from ase.units import Bohr
@@ -64,6 +67,7 @@ def test_gaussian_bohr_coordinates_are_converted_to_angstroms(units):
     assert total_charge(mol) == -1
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_gaussian_route_keyword_adjacent_to_hash_keeps_its_units():
     from ase.units import Bohr
 
@@ -72,12 +76,14 @@ def test_gaussian_route_keyword_adjacent_to_hash_keeps_its_units():
     assert mol.GetConformer().GetAtomPosition(1).z == pytest.approx(.96 * Bohr)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_gaussian_explicit_charge_must_match_the_native_declaration():
     with pytest.raises(ValueError, match="charge.*0.*-1"):
         read_molecule(input_text=GAUSSIAN, charge=0)
     assert total_charge(read_molecule(input_text=GAUSSIAN, charge=-1)) == -1
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('task', ['qst2', 'qst3', 'calcfc, qst2', 'qst3 , calcfc'])
 def test_gaussian_qst_multi_geometry_job_is_rejected_by_the_single_structure_reader(task):
     text = GAUSSIAN.replace('hf/sto-3g', f'hf/sto-3g opt=({task})')
@@ -87,6 +93,7 @@ def test_gaussian_qst_multi_geometry_job_is_rejected_by_the_single_structure_rea
         read_molecule(input_text=text)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("text,reason", [
     (GAUSSIAN + "--Link1--\n# hf/sto-3g geom=allcheck\n\n", "Link1"),
     (GAUSSIAN.replace("hf/sto-3g", "hf/sto-3g geom=check"), "checkpoint"),
@@ -105,11 +112,13 @@ def test_unsupported_gaussian_inputs_are_rejected_without_guessing(text, reason)
         read_molecule(input_text=text)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_explicit_xyz_does_not_silently_accept_gaussian_content():
     with pytest.raises(ValueError, match="Gaussian.*auto"):
         read_molecule(input_text=GAUSSIAN, input_format="xyz")
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("text", [XYZ, "O 0 0 0\nH 0 0 0.96\nH 0.92 0 -0.24\n"])
 def test_shared_reader_accepts_real_headered_and_headerless_xyz(text):
     mol = read_molecule(input_text=text)
@@ -119,6 +128,7 @@ def test_shared_reader_accepts_real_headered_and_headerless_xyz(text):
     assert total_charge(mol) == 0
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_shared_reader_keeps_extended_xyz_property_order_and_last_trajectory_frame():
     text = (
         '1\nProperties=pos:R:3:species:S:1\n0 0 0 H\n'
@@ -132,6 +142,7 @@ def test_shared_reader_keeps_extended_xyz_property_order_and_last_trajectory_fra
     assert mol.GetConformer().GetAtomPosition(0).x == 1.25
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('from_path', [False, True])
 def test_cif_leading_comment_is_not_misidentified_as_gaussian(tmp_path, from_path):
     text = (
@@ -155,6 +166,7 @@ def test_cif_leading_comment_is_not_misidentified_as_gaussian(tmp_path, from_pat
     assert mol.GetNumBonds() == 0
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('fmt', ['auto', 'mol'])
 def test_mol_title_starting_with_hash_keeps_its_declared_graph(fmt):
     from rdkit import Chem
@@ -169,6 +181,7 @@ def test_mol_title_starting_with_hash_keeps_its_declared_graph(fmt):
     assert mol.GetProp('_Name') == '#p molecule title'
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("text", [
     "nonsense\nO 0 0 0\n",
     "0\n\n",
@@ -182,6 +195,7 @@ def test_unknown_or_malformed_coordinate_text_has_an_actionable_format_error(tex
         read_molecule(input_text=text)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_missing_structure_path_has_a_named_path_error(tmp_path):
     path = tmp_path / "missing.gjf"
 
@@ -189,6 +203,7 @@ def test_missing_structure_path_has_a_named_path_error(tmp_path):
         read_molecule(input_path=path)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_internal_coordinates_inherits_native_charge_without_default_override():
     mol, _, _ = InternalCoordinates._load_molecule(None, GAUSSIAN, "auto", None)
 
@@ -209,6 +224,7 @@ async def test_internal_coordinates_missing_path_returns_existing_path_guidance(
     assert "Tried:" in result.message
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize("from_path", [False, True])
 async def test_electronic_analysis_receives_native_charge_and_spin_before_backend(
@@ -236,6 +252,7 @@ async def test_electronic_analysis_receives_native_charge_and_spin_before_backen
     assert "%chk" not in result.summary["xyz"]
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize("overrides,reason", [({"charge": 0}, "charge"), ({"spin": 1}, "spin")])
 async def test_electronic_analysis_rejects_explicit_native_metadata_conflicts_before_backend(
@@ -255,6 +272,7 @@ async def test_electronic_analysis_rejects_explicit_native_metadata_conflicts_be
     assert "Gaussian" in result.message
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_electronic_analysis_rejects_garbage_instead_of_skipping_headers(mock_session, monkeypatch):
     def no_calculation(*_):
@@ -270,6 +288,7 @@ async def test_electronic_analysis_rejects_garbage_instead_of_skipping_headers(m
     assert "format" in result.message.lower()
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_xtb_receives_only_normalized_xyz_and_native_electronic_state(mock_session, monkeypatch):
     from cloudra.tools.Chemtool import electronic_analysis
@@ -296,6 +315,7 @@ async def test_xtb_receives_only_normalized_xyz_and_native_electronic_state(mock
     assert 'Charge / Spin  : -1 / 2' in result.report
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_internal_analysis_reports_the_inherited_native_charge(tmp_path):
     request = InternalCoordinates_input_schema(input_text=GAUSSIAN, zmat_path=str(tmp_path / 'water.zmat'))
 

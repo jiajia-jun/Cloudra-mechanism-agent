@@ -119,6 +119,7 @@ def test_simultaneous_replay_commits_once(tmp_path):
         assert con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0] == 0
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_file_import_happens_once_and_response_loss_replay_does_not_read_changed_source(tmp_path, monkeypatch):
     from cloudra.tools.core import reaction_state
     from cloudra.tools.core.molecule import serialize_molecule

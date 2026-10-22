@@ -51,7 +51,7 @@ async function controlledStreams(page: Page) {
   });
 }
 
-test('chat replaces bounded history pages and can return through newer pages to latest', async ({ page }) => {
+test('chat replaces bounded history pages and can return through newer pages to latest', async ({ page }, testInfo) => {
   const requests = await history(page, Array.from({ length: 1500 }, (_, index) => event(index + 1)));
   await openSpa(page);
   await page.getByText(PROJECT_ACTIVE.name, { exact: true }).click();
@@ -70,10 +70,10 @@ test('chat replaces bounded history pages and can return through newer pages to 
   await expect(page.locator('.msg-body').filter({ hasText: 'memory-message-1500' })).toBeVisible();
   await expect(page.locator('.msg')).toHaveCount(500);
   expect(requests.some((url) => url.includes('after=500') && url.includes('tail=false'))).toBe(true);
-  await page.screenshot({ path: '/private/tmp/cloudra-memory-chat.png' });
+  await page.screenshot({ path: testInfo.outputPath('cloudra-memory-chat.png') });
 });
 
-test('audit navigation replaces pages and loads oversized payload only on request', async ({ page }) => {
+test('audit navigation replaces pages and loads oversized payload only on request', async ({ page }, testInfo) => {
   const events = Array.from({ length: 650 }, (_, index) => event(index + 1));
   events[649] = event(650, 'FULL-EVIDENCE-MARKER ' + 'x'.repeat(100000));
   const requests = await history(page, events);
@@ -98,7 +98,7 @@ test('audit navigation replaces pages and loads oversized payload only on reques
   await expect(page.locator('.audit-card')).toHaveCount(200);
   await page.getByRole('button', { name: 'latest', exact: true }).click();
   await expect(page.locator('.audit-page-info')).toContainText('latest');
-  await page.screenshot({ path: '/private/tmp/cloudra-memory-audit.png' });
+  await page.screenshot({ path: testInfo.outputPath('cloudra-memory-audit.png') });
 });
 
 test('forum live posts preserve the browsed page and offer bounded refresh instead of append', async ({ page }) => {

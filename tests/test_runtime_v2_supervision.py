@@ -42,6 +42,7 @@ from cloudra.runtime_v2.supervision import (
     reconcile_supervision,
 )
 from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
+from tests.test_runtime_v2_completion_gate import _seed_complete_delivery
 
 SUPERVISOR_ROLE_ID = "supervisor"
 
@@ -690,91 +691,6 @@ class _RoutingLLM:
         return self.research_responses.pop(0)
 
 
-async def _seed_complete_delivery(project_id: str, *, supported_step_contract: bool = False) -> None:
-    """覆盖通过的交付图种子：r/p 节点（structure_supported）+ step1 边。
-
-    Task 4A 统一结束门禁后，guided Coordinator 的 run 收尾（显式 stop 与纯
-    文本最终回复同边界）要过交付覆盖审计：覆盖不通过会进入 wait_review /
-    continue_work 而不是 succeeded。本文件这些用例的焦点是督导/反馈机制
-    本身，用覆盖通过的交付图让门禁透明放行。``supported_step_contract=True``
-    时 step1 携带 ts_opt/frequency 阶段契约且均已 supported（显式送审的
-    绑定目标要求阶段在契约中存在）。"""
-
-    def _write() -> None:
-        from cloudra.dag.engine import DagEngine
-        from cloudra.dag.models import (
-            AddEdge,
-            AddNode,
-            ElementaryStepEdge,
-            GraphActor,
-            MutationBatch,
-            OccurrenceNode,
-            StageState,
-            StageStatus,
-        )
-
-        db = ConversationDB(project_id).init()
-        store = DagStore(db)
-        store.ensure_bundle("s1")
-        engine = DagEngine(store)
-        for node_id, label, role in (("r", "R", "reactant"), ("p", "P", "product")):
-            result = engine.apply_batch(
-                MutationBatch(
-                    session_id="s1",
-                    actor=GraphActor.HARNESS,
-                    actor_id="test-harness",
-                    base_revisions=store.load_bundle().revisions,
-                    rationale=f"seed {role}",
-                    operations=[
-                        AddNode(
-                            op="add_node",
-                            graph="delivery",
-                            node=OccurrenceNode(
-                                node_id=node_id,
-                                label=label,
-                                role=role,
-                                evidence_level="structure_supported",
-                            ),
-                        )
-                    ],
-                )
-            )
-            assert result.accepted
-        edge_kwargs: dict = {"evidence_level": "endpoint_supported"}
-        if supported_step_contract:
-            edge_kwargs = {
-                "stages": [
-                    StageState(kind="ts_opt", status=StageStatus.SUPPORTED),
-                    StageState(kind="frequency", status=StageStatus.SUPPORTED),
-                ]
-            }
-        result = engine.apply_batch(
-            MutationBatch(
-                session_id="s1",
-                actor=GraphActor.HARNESS,
-                actor_id="test-harness",
-                base_revisions=store.load_bundle().revisions,
-                rationale="seed step1 (coverage-complete)",
-                operations=[
-                    AddEdge(
-                        op="add_edge",
-                        graph="delivery",
-                        edge=ElementaryStepEdge(
-                            edge_id="step1",
-                            source_node_id="r",
-                            target_node_id="p",
-                            label="step 1",
-                            **edge_kwargs,
-                        ),
-                    )
-                ],
-            )
-        )
-        assert result.accepted
-
-    await asyncio.to_thread(_write)
-
-
 @pytest.mark.asyncio
 async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_message():
     """端到端（24 解析场景）：显式送审一条证据 → Supervisor 进入门闩挂起；
@@ -849,7 +765,7 @@ async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_me
 
     research.settings.orchestration_mode = OrchestrationMode.DAG_GUIDED
     # 最终交付已审查；显式送审阶段契约仍保留，普通解析不另起审查。
-    await _seed_complete_delivery(project.id, supported_step_contract=True)
+    await _seed_complete_delivery(project.id)
     await _approve_final_delivery(project.id, research.id)
 
     supervisor = None

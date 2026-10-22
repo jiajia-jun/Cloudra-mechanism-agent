@@ -53,3 +53,24 @@ def ts_producer_authority():
 def rdkit_chemistry():
     """Probe the optional chemistry dependency only for tests that consume it."""
     pytest.importorskip('rdkit', reason='requires RDKit (chem extra)')
+
+
+@pytest.fixture
+def orphan_subreaper():
+    """Reap test-owned orphans when Linux PID 1 is not a real init."""
+    import ctypes
+    import sys
+
+    if sys.platform != "linux":
+        yield False
+        return
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    previous = ctypes.c_int()
+    # PR_GET_CHILD_SUBREAPER / PR_SET_CHILD_SUBREAPER are Linux prctl options.
+    assert libc.prctl(37, ctypes.byref(previous), 0, 0, 0) == 0
+    assert libc.prctl(36, 1, 0, 0, 0) == 0
+    try:
+        yield True
+    finally:
+        assert libc.prctl(36, previous.value, 0, 0, 0) == 0

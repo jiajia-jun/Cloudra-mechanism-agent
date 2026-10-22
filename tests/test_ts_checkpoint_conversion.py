@@ -3,6 +3,9 @@ import hashlib
 from copy import deepcopy
 
 import pytest
+
+pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
+
 from rdkit import Chem
 from rdkit.Chem import AllChem
 

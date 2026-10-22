@@ -364,3 +364,26 @@ test('host rejects a wrong protocol version with nonzero exit', async () => {
   const exitCode = await session.exited;
   assert.equal(exitCode, 1);
 });
+
+test('stdin closing during sandbox startup reports a host failure', async () => {
+  const session = new HostSession();
+  const ready = await session.nextFrame();
+  assert.deepEqual(ready, { type: 'ready', version: 1 });
+  session.send({
+    type: 'start',
+    version: 1,
+    execution_id: 'closed-input',
+    code: 'await tools.echo({value: 1});',
+    tools: ['echo'],
+    limits: {},
+  });
+  session.child.stdin.end();
+
+  const exitCode = await new Promise((resolve) => session.child.once('close', resolve));
+  assert.equal(exitCode, 1, 'an unanswered tool call must not silently exit successfully');
+  assert.deepEqual(session.frames.map((frame) => frame.type), ['tool_call', 'finished']);
+  const finished = session.frames.at(-1);
+  assert.equal(finished.status, 'failed');
+  assert.equal(finished.error.code, 'host_error');
+  assert.equal(finished.error.message, 'stdin closed while tool calls are outstanding');
+});

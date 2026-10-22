@@ -63,6 +63,7 @@ def test_dag_does_not_attach_prior_optimization_to_a_different_sp_geometry(
     assert _optimization_converged(str(path), engine) is None
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 async def test_delivery_energy_matches_the_bound_final_method(tmp_path):
     import asyncio

@@ -156,4 +156,4 @@ def test_failed_scan_exposes_native_log_and_requests_diagnosis(tmp_path, monkeyp
     assert "ERROR (SHARK): Failed to read input file" in details
     assert "ORCA finished by error termination in PROPERTIES" in details
 
-pytestmark = pytest.mark.usefixtures("ts_producer_authority")
+pytestmark = pytest.mark.usefixtures("ts_producer_authority", "rdkit_chemistry")

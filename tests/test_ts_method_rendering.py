@@ -79,6 +79,7 @@ def test_gaussian_scan_renders_native_basis_and_preserves_keywords(tmp_path):
     assert request.basis_set == 'def2-SVP'
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('basis, expected', [
     ('def2svp', 'def2-SVP'), ('DEF2TZVPP', 'def2-TZVPP'),
     (' def2svp ', 'def2-SVP'), ('\tDEF2TZVPP\n', 'def2-TZVPP'),
@@ -179,6 +180,7 @@ def test_scan_to_ts_followups_keep_declared_method_basis_and_keywords(tmp_path, 
     assert record.input.ts_optimization.keywords == 'OptTS ' + extras
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('method,basis_set,keywords,expected', [
     ('b3lyp', 'def2svp', 'Opt RIJCOSX def2/J', '! b3lyp def2-SVP Opt RIJCOSX def2/J'),
     ('b3lyp', 'def2svp', 'Opt RIJK def2/JK', '! b3lyp def2-SVP Opt RIJK def2/JK'),

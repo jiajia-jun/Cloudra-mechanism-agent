@@ -153,12 +153,17 @@ def _bound_irc_graph(tmp_path):
     return store, graph, snapshots
 
 
+@pytest.fixture
+def verified_irc_graph(tmp_path, rdkit_chemistry):
+    return _bound_irc_graph(tmp_path)
+
+
 @pytest.mark.parametrize("dependency", ["frequency", "irc_sidecar", "irc_manifest", "source", "target"])
 @pytest.mark.parametrize("damage", ["rewrite", "delete"])
-def test_prompt_cache_tracks_irc_bundle_and_both_endpoint_minima(tmp_path, dependency, damage):
+def test_prompt_cache_tracks_irc_bundle_and_both_endpoint_minima(tmp_path, verified_irc_graph, dependency, damage):
     import os
 
-    store, graph, snapshots = _bound_irc_graph(tmp_path)
+    store, graph, snapshots = verified_irc_graph
     def check():
         return file_science.file_scientific_checks(store, graph, "step", workspace_root=tmp_path, use_cache=True)
     first = check()
@@ -202,8 +207,8 @@ def test_science_cache_is_bounded_and_returned_results_do_not_share_mutable_stat
 
 
 @pytest.mark.parametrize('damage', ['delete', 'rewrite', 'symlink'])
-def test_cached_irc_recovery_paths_expire_without_revoking_native_science(tmp_path, damage):
-    store, graph, snapshots = _bound_irc_graph(tmp_path)
+def test_cached_irc_recovery_paths_expire_without_revoking_native_science(tmp_path, verified_irc_graph, damage):
+    store, graph, snapshots = verified_irc_graph
     path = Path(snapshots['irc'].metadata['irc_end_a_path'])
     incomplete = graph.model_copy(update={'nodes': [
         graph.nodes[0].model_copy(update={'refs': []}), graph.nodes[1],
@@ -235,8 +240,8 @@ def test_cached_irc_recovery_paths_expire_without_revoking_native_science(tmp_pa
 
 
 @pytest.mark.parametrize("endpoint", ["source", "target"])
-def test_prompt_cache_tracks_explicit_endpoint_refs_when_nodes_have_no_files(tmp_path, endpoint):
-    store, graph, snapshots = _bound_irc_graph(tmp_path)
+def test_prompt_cache_tracks_explicit_endpoint_refs_when_nodes_have_no_files(tmp_path, verified_irc_graph, endpoint):
+    store, graph, snapshots = verified_irc_graph
     source, target = graph.nodes
     source_ref, target_ref = source.refs[0], target.refs[0]
     graph = graph.model_copy(update={

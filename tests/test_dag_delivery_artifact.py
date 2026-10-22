@@ -44,7 +44,7 @@ async def approve(c, request_id):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("disposition", ["complete", "partial"])
 async def test_editing_final_file_invalidates_its_exit_approval(tmp_path, disposition):
-    from cloudra.dag.models import UpdateEdge, UpdateNode
+    from cloudra.dag.models import StageState, UpdateEdge, UpdateNode
 
     c = await controller(tmp_path)
     if disposition == "complete":
@@ -55,7 +55,8 @@ async def test_editing_final_file_invalidates_its_exit_approval(tmp_path, dispos
                 UpdateNode(op="update_node", graph="delivery", node_id=name,
                            changes={"evidence_level": "structure_supported"}) for name in ("r", "p")
             ] + [UpdateEdge(op="update_edge", graph="delivery", edge_id="e",
-                            changes={"evidence_level": "endpoint_supported"})]
+                            changes={"stages": [StageState(kind=kind, status="supported").model_dump(mode='json')
+                                                for kind in ('ts_opt', 'frequency')]})]
         ))).accepted
     path = tmp_path / 'mechanism_graph.json'
     document = graph()
@@ -166,7 +167,7 @@ async def test_declared_energy_and_log_must_match_the_bound_immutable_file(tmp_p
 
 
 @pytest.mark.asyncio
-async def test_consultation_refs_cannot_replace_the_formal_file_submission(tmp_path):
+async def test_consultation_refs_cannot_replace_the_formal_file_submission(tmp_path, rdkit_chemistry):
     from cloudra.dag.delivery_artifact import prepare_delivery_artifact
     from cloudra.dag.evidence_ingest import snapshot_evidence_file
     from cloudra.dag.models import AttachRef
@@ -325,7 +326,7 @@ def test_changed_source_during_snapshot_cannot_produce_mismatched_receipt(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_consistent_real_minimum_energy_can_be_submitted_for_partial_review(tmp_path):
+async def test_consistent_real_minimum_energy_can_be_submitted_for_partial_review(tmp_path, rdkit_chemistry):
     c = await controller(tmp_path)
     log, snap = await asyncio.to_thread(bind_water, c, tmp_path)
     document = graph()

@@ -152,6 +152,23 @@ async def test_extract_peaks_disabled_skips_picking(tmp_path):
     assert result.peaks == []
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bc_last,tail_points", [(None, 103), (20, 205)])
+async def test_constant_baseline_correction_uses_selected_tail(tmp_path, bc_last, tail_points):
+    path = _write_pipe_fid(tmp_path, _synthetic_fid())
+    settings = {} if bc_last is None else {"bc_last": bc_last}
+
+    result = await _run_nmr(
+        path, zero_fill=1, baseline_corr=True, advanced_settings=settings,
+    )
+
+    assert result.is_success, result.message
+    assert result.metadata["points_total"] == _N
+    assert len(result.peaks) == 2
+    # Constant correction centers the selected trailing region at zero.
+    assert np.mean(result.spectrum_data["intensity"][-tail_points:]) == pytest.approx(0, abs=1e-5)
+
+
 # ---------------------------------------------------------------------------
 # N3：schema 的 peak_engine 合法值对照真实 algorithm
 # ---------------------------------------------------------------------------
@@ -205,6 +222,23 @@ async def test_nmrglue_missing_returns_clean_failure(monkeypatch, tmp_path):
     )
     assert result.is_success is False
     assert "nmrglue" in result.message
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("format", ["jeol", "auto"])
+async def test_unsupported_jeol_reader_returns_clean_failure(tmp_path, format):
+    path = tmp_path / "spectrum.jdf"
+    path.touch()
+
+    result = await NMRProcessor().tool_call(
+        NMRProcessor_input_schema(data_path=str(path), format=format), session=None,
+    )
+
+    assert not result.is_success
+    assert "JEOL" in result.message and "not supported" in result.message
+    assert "nmrglue" in result.message
+    assert "Traceback" not in result.message
+    assert not result.spectrum_data and not result.peaks
 
 
 # ---------------------------------------------------------------------------

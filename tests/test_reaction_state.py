@@ -1,6 +1,9 @@
 """One owned structure state supplies independent algorithm views."""
 import numpy as np
 import pytest
+
+pytest.importorskip("rdkit", reason="requires RDKit (chem extra)")
+
 from rdkit import Chem
 from rdkit.Chem import AllChem
 

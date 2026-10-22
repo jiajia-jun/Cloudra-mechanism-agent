@@ -529,7 +529,7 @@ def _save_claim(store, targets):
 
 
 def _seed_simple_complete_graph(tmp_path, conversation_id, *, pending=False):
-    """Seed a complete graph, optionally retaining machine pending contracts."""
+    """Seed a review-protocol graph with explicit TS-only stage requirements."""
     _agent, session, db = _session(tmp_path, conversation_id)
     store = DagStore(db)
     store.ensure_bundle("s1")
@@ -550,7 +550,8 @@ def _seed_simple_complete_graph(tmp_path, conversation_id, *, pending=False):
                 AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(
                     edge_id="step1", name="step1", source_node_id="r", target_node_id="p",
                     evidence_level="endpoint_supported",
-                    stages=[StageState(kind="ts_opt"), StageState(kind="frequency")] if pending else [])),
+                    stages=[StageState(kind=kind, status="pending" if pending else "supported")
+                            for kind in ("ts_opt", "frequency")])),
             ],
         )
     )

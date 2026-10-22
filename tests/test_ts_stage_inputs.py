@@ -32,6 +32,7 @@ def owned_fixture_structure(record, xyz_path, smiles):
         product_to_reactant=tuple(range(graph.GetNumAtoms())))
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_reused_irc_source_job_is_recorded_for_derived_endpoint(tmp_path, monkeypatch):
     from cloudra.tools.core import ts_process
     from tests.ts_fixtures import calculation_input
@@ -72,6 +73,7 @@ def test_stage_requires_its_own_calculation_without_fallback(tmp_path):
     assert record.job_steps[0].job_id == 1
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_provided_candidate_skips_search_and_checks_atom_order(tmp_path, monkeypatch):
     from cloudra.tools.core.ts_process import _guess
 
@@ -209,6 +211,7 @@ def test_file_conformer_cannot_escape_bound_workspace(tmp_path, source_kind):
     assert result.structures.reactant is None and result.evidence_candidates == []
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_relative_provided_guess_and_provenance_use_workspace(tmp_path, monkeypatch):
     from cloudra.tools.core.ts_process import _guess
 
@@ -231,6 +234,7 @@ def test_relative_provided_guess_and_provenance_use_workspace(tmp_path, monkeypa
     assert provenance.read_text() == 'recorded scan provenance'
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_no_hidden_xtb_to_interpolation_fallback(tmp_path, monkeypatch):
     from cloudra.tools.core.ts_process import _guess
     from cloudra.tools.core.xtb_path_runner import XtbPathResult
@@ -330,6 +334,7 @@ def test_one_prepare_advances_complete_declared_chain_without_agent_resume(tmp_p
 pytestmark = pytest.mark.usefixtures("ts_producer_authority")
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('relative_source', [False, True])
 def test_existing_irc_source_requires_authoritative_method_geometry_and_two_sides(tmp_path, monkeypatch, relative_source):
     from cloudra.infra.compute_utils import resolve_log_path

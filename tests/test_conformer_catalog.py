@@ -7,7 +7,7 @@ from cloudra.persistence.database import ComputeDB
 
 
 def make_candidate(tmp_path, **overrides):
-    from rdkit import Chem
+    Chem = pytest.importorskip('rdkit.Chem', reason='requires RDKit (chem extra)')
 
     from cloudra.tools.core.conformer_catalog import CandidateRecord
 

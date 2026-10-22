@@ -47,6 +47,7 @@ async def test_complete_empty_graph_continue_work(tmp_path):
 
 @pytest.mark.asyncio
 async def test_reasoned_stage_dispositions_complete_scope_without_claiming_scientific_verification(tmp_path):
+    """A limited contract without required IRC can finish with an honest scope basis."""
     from cloudra.dag.engine import DagEngine
     from cloudra.dag.models import (
         AddEdge,
@@ -69,7 +70,7 @@ async def test_reasoned_stage_dispositions_complete_scope_without_claiming_scien
         ] + [AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(edge_id="e", name="e",
             source_node_id="r", target_node_id="p", stages=[
                 StageState(kind=kind, status="skipped", reason="outside the declared scope")
-                for kind in ("ts_opt", "frequency", "short_irc")]))],
+                for kind in ("ts_opt", "frequency")]))],
     ))
     assert result.accepted
 
@@ -220,6 +221,7 @@ async def test_accepted_exit_review_is_reused_for_same_scope(tmp_path):
 
 
 async def _seed_complete_delivery(c, *, scope_only=False):
+    """Exercise final-review state with a contract that does not require IRC."""
     from cloudra.dag.engine import DagEngine
     from cloudra.dag.models import (
         AddEdge,
@@ -242,7 +244,8 @@ async def _seed_complete_delivery(c, *, scope_only=False):
         ] + [AddEdge(op="add_edge", graph="delivery", edge=ElementaryStepEdge(
             edge_id="step1", source_node_id="r", target_node_id="p", evidence_level="endpoint_supported",
             stages=[StageState(kind="ts_opt", status="skipped", reason="outside the approved scope")]
-            if scope_only else []))],
+            if scope_only else [StageState(kind=kind, status="supported")
+                                for kind in ("ts_opt", "frequency")]))],
     ))
     assert result.accepted
 

@@ -28,6 +28,7 @@ def test_resume_requires_reason_without_model_revision_and_limits_have_no_time_e
     assert 'estimated_cpu_hours' not in TsExecutionLimits.model_json_schema()['properties']
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('engine,atoms,freeze', [('gaussian',[1,2],[2,3]), ('orca',[0,1],[1,2])])
 def test_scan_freezes_current_coordinate_in_native_numbering(tmp_path, engine, atoms, freeze):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
@@ -46,6 +47,7 @@ def test_scan_freezes_current_coordinate_in_native_numbering(tmp_path, engine, a
         assert text.count('%geom') == 1
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_scanning_and_freezing_same_pair_fails_before_writing(tmp_path):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
     target = tmp_path/'scan.inp'

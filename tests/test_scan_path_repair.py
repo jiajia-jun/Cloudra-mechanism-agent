@@ -46,6 +46,7 @@ def _orca_files(tmp_path, energies, concerted=False, grid=False):
     return log, job
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_orca_concerted_schema_renderer_and_native_admission(tmp_path):
     from cloudra.tools.core.calculation_intent import compare_calculation_input
 
@@ -73,6 +74,7 @@ def test_concerted_scan_does_not_admit_undeclared_native_controls(extra):
     assert any(item.field == 'orca_blocks' for item in differences)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_process_forwards_concerted_intent_to_real_renderer(tmp_path, monkeypatch):
     from cloudra.tools.core.ts_process import TsProcessRecord, _check_calculation_submission, _guess_scan
 
@@ -229,6 +231,7 @@ def test_missing_xtb_result_never_calls_manifest_a_native_log(tmp_path, recorded
     assert _refinement_log_path(record, step) == str(captured)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize("energies,multiple", [([-10., -12., -11., -13.], False),
                                               ([-10., -12., -11., -13., -12., -14.], True)])
 def test_scan_pipeline_unique_continues_multiple_uses_existing_provided(tmp_path, monkeypatch, energies, multiple):

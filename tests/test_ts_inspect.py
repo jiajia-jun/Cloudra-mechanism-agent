@@ -217,6 +217,7 @@ def imported_structures(workspace):
     return ReactionStructures(reactant=molecule).model_dump(mode='json')
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_inspect_current_atoms_come_from_owned_molecule_even_when_export_has_old_order(tmp_path):
     from cloudra.tools.core.molecule import renumber_atoms
     from cloudra.tools.core.reaction_state import ReactionStructures
@@ -253,6 +254,7 @@ def test_only_current_export_can_be_reported_as_current_details_path(tmp_path, e
     assert view.details_path == (str(export) if export_revision == 9 else "")
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_recorded_notification_uses_owned_atoms_and_actual_stale_export_revision(tmp_path):
     from cloudra.tools.core.ts_state_view import recorded_notification_view
     db, pid, workspace, state = process_fixture(tmp_path)
@@ -265,6 +267,7 @@ def test_recorded_notification_uses_owned_atoms_and_actual_stale_export_revision
     assert [row['symbol'] for row in view['structures']['reactant']['atoms']] == ['O', 'H', 'H']
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('change', ['coordinates', 'missing'])
 def test_later_source_file_changes_do_not_rewrite_current_atom_view(tmp_path, change):
     from cloudra.tools.core.ts_state_view import build_process_view

@@ -33,6 +33,7 @@ def test_empty_benchmark_whitelist_returns_rejection_without_choosing_a_method()
     assert 'current Benchmark task' in verdict.reason
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_scan_hint_keeps_user_method_without_reselecting_it(tmp_path):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
 

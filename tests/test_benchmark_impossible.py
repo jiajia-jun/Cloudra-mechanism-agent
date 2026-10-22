@@ -319,7 +319,7 @@ def _write_delivery(sandbox: Path, graph: GoldMechanismGraph, **node_overrides) 
     (sandbox / "r_min.log").write_text("smiles: O\n" + fixture, encoding="utf-8")
 
 
-def test_runner_i_task_correct_delivery_flags_inaccessible(tmp_path):
+def test_runner_i_task_correct_delivery_flags_inaccessible(tmp_path, rdkit_chemistry):
     """I 题正确交付：同构图 + 不可达 TS 标 accessible=false -> 图分满分
     （标志一致）、自洽豁免（边有效不可达——豁免元素不判、也不触发自洽回捞）、
     accuracy 判负正确记 1，final = 0.1·1 + 0.3·1 + 0.6·1 = 1。"""
@@ -332,7 +332,7 @@ def test_runner_i_task_correct_delivery_flags_inaccessible(tmp_path):
     assert res.final_score == pytest.approx(1.0)
 
 
-def test_runner_i_task_wrongly_solve_flagged_accessible(tmp_path):
+def test_runner_i_task_wrongly_solve_flagged_accessible(tmp_path, rdkit_chemistry):
     """I 题硬算（把不可达 TS 标 accessible=true）：标志不一致 -> 边按代价 1.0
     倒扣进图分（2/3，该边本就赢不到覆盖，自洽回捞不改变它）；该边不再是有效
     不可达豁免，无一阶鞍点 + IRC 证据 -> 自洽判负；accuracy 错判目标记0。

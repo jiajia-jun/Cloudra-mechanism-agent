@@ -302,4 +302,4 @@ def test_same_input_retry_is_replayed_once_and_can_retry_again(tmp_path, monkeyp
         assert con.execute("SELECT COUNT(*) FROM compute_jobs").fetchone()[0] == 3
 
 
-pytestmark = pytest.mark.usefixtures("ts_producer_authority")
+pytestmark = pytest.mark.usefixtures("ts_producer_authority", "rdkit_chemistry")

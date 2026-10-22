@@ -108,6 +108,7 @@ def test_resume_waits_until_requested_cancellation_finishes(tmp_path):
     assert get_process(db, pid) == before
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_stop_does_not_revalidate_a_modified_current_structure(tmp_path):
     import hashlib
 

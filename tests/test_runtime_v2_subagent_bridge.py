@@ -245,6 +245,11 @@ async def test_async_child_completion_injects_parent_mailbox_and_wakes():
     assert len(children) == 1
     child = children[0]
     await _wait_state(child, "succeeded")
+    # The terminal state is committed before asynchronous completion delivery.
+    # Wait for this existing run to finish rather than assuming both are atomic.
+    child_task = core.runner.task_for(child.id)
+    if child_task is not None:
+        await asyncio.wait_for(child_task, timeout=10.0)
 
     reports = _completion_injections(core, coordinator.id, child.id)
     assert reports, "child completion must be delivered to the parent mailbox"
@@ -255,6 +260,9 @@ async def test_async_child_completion_injects_parent_mailbox_and_wakes():
     assert "explore X" in body
 
     await _wait_state(coordinator, "succeeded")
+    parent_task = core.runner.task_for(coordinator.id)
+    if parent_task is not None:
+        await asyncio.wait_for(parent_task, timeout=10.0)
     emitted = [
         e
         for e in core.event_log.query_session(coordinator.id, types={"agent.message_emitted"})

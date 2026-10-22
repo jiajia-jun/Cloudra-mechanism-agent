@@ -92,6 +92,7 @@ def job_count(db):
         return con.execute('SELECT COUNT(*) FROM compute_jobs').fetchone()[0]
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.asyncio
 async def test_invalid_recovery_reference_does_not_block_pending_notifications(acknowledged_wait):
     db, record, job, export, _, broker = acknowledged_wait
@@ -106,6 +107,7 @@ async def test_invalid_recovery_reference_does_not_block_pending_notifications(a
     await asyncio.to_thread(assert_one_frequency, db, record, job)
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.asyncio
 @pytest.mark.parametrize('already_acknowledged', [False, True])
 async def test_poll_recovers_acknowledged_terminal_wait_once(acknowledged_wait, monkeypatch, already_acknowledged):
@@ -131,6 +133,7 @@ async def test_poll_recovers_acknowledged_terminal_wait_once(acknowledged_wait, 
     assert called == [job]
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.asyncio
 async def test_poll_recovers_project_loaded_after_broker_started(acknowledged_wait):
     db, record, job, _, core, broker = acknowledged_wait
@@ -142,6 +145,7 @@ async def test_poll_recovers_project_loaded_after_broker_started(acknowledged_wa
     await asyncio.to_thread(assert_one_frequency, db, record, job)
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.asyncio
 async def test_acknowledged_callback_failure_retries_known_job_without_export(acknowledged_wait, monkeypatch):
     from cloudra.tools.core import ts_pipeline_driver
@@ -168,8 +172,10 @@ async def test_acknowledged_callback_failure_retries_known_job_without_export(ac
 @pytest.mark.asyncio
 @pytest.mark.parametrize('current_job_state', ['done', 'ready'])
 async def test_export_is_only_a_process_reference_and_database_owns_waiting_job(
-    acknowledged_wait, monkeypatch, current_job_state,
+    acknowledged_wait, monkeypatch, current_job_state, request,
 ):
+    if current_job_state == "done":
+        request.getfixturevalue("rdkit_chemistry")
     from cloudra.services.compute_store import mark_notified
     from cloudra.tools.core import ts_pipeline_driver
     db, record, stale_job, export, _, broker = acknowledged_wait
@@ -211,6 +217,7 @@ async def test_export_is_only_a_process_reference_and_database_owns_waiting_job(
         assert await asyncio.to_thread(job_count, db) == 2
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.asyncio
 async def test_recovery_reads_pipeline_records_only_by_known_process_id(acknowledged_wait, monkeypatch):
     db, record, job, _, _, broker = acknowledged_wait

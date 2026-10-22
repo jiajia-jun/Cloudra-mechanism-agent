@@ -111,6 +111,7 @@ def test_log_based_direction_uses_same_binding_for_combined_and_split_irc(tmp_pa
     assert passed is valid_map
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_old_stage_snapshot_does_not_read_current_process_mapping(tmp_path):
     import hashlib
 
@@ -185,6 +186,7 @@ def test_dag_file_science_consumes_the_archived_concrete_map(tmp_path, rdkit_che
     assert file_scientific_checks(store, graph, "step")["short_irc"]["status"] == "incomplete"
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 def test_owned_producer_freezes_bound_mol_without_rereading_source_files(tmp_path):
     from cloudra.tools.core.irc_path import xyz_block
     from cloudra.tools.core.molecule import read_molecule
@@ -229,6 +231,7 @@ def test_managed_irc_keeps_unmanaged_ts_material_on_existing_geometry_path(monke
     assert passed
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('log_available', [True, False], ids=['available-log', 'missing-log'])
 def test_actual_driver_freezes_binding_only_with_native_log(tmp_path, monkeypatch, log_available):
     import hashlib

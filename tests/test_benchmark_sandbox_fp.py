@@ -1060,7 +1060,8 @@ def _supervisor_catchup_program(core, agent) -> str:
         return (
             "const r = await tools.dag_review_evidence({"
             f' request_id: "{agent.final_review_request_id}", verdict: "reject", '
-            ' reason: "The accessible step still lacks native IRC evidence." });\n'
+            ' reason: "The accessible step still lacks native IRC evidence.", '
+            ' next_action: "Obtain native IRC and endpoint optimization evidence before resubmitting." });\n'
             'text("EXIT REJECTED ok=" + r.is_success);'
         )
     draft = store.latest_draft()
@@ -1087,9 +1088,10 @@ def _supervisor_catchup_program(core, agent) -> str:
 
 
 @_REQUIRES_HOST_AND_RDKIT
+@pytest.mark.parametrize("disposition", ["complete", "partial"])
 @pytest.mark.parametrize("draft_order", ["before_suspend", "after_suspend"])
-def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
-    """Process review cannot authorize an incomplete accessible step to stop.
+def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order, disposition):
+    """Complete claims require IRC; partial claims require final review.
 
     所有图/证据事件都经生产工具（dag_propose_mechanism / dag_bind_evidence /
     dag_accept_mechanism / dag_review_call / dag_review_evidence）与真实
@@ -1150,7 +1152,7 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
                         and event.data.get("source") == "dag"
                         for event in self.core.event_log.query_session(agent.id))
                     step = (crash(turn, "expected incomplete IRC gate rejection") if rejected else
-                            calls(turn, [("stop", {"delivery_disposition": "partial"})],
+                            calls(turn, [("stop", {"delivery_disposition": disposition})],
                                   content="Only the reactant calculation is available; IRC evidence is missing."))
                 self.script("coordinator", [step])
             elif agent.role_id == "supervisor":
@@ -1199,7 +1201,8 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     parent = agents["coordinator"]
     supervisors = [agent for agent in core.agents.values() if agent.role_id == "supervisor"]
     supervisor = next(agent for agent in supervisors if not agent.final_review_request_id)
-    assert all(not agent.final_review_request_id for agent in supervisors)
+    final_supervisors = [agent for agent in supervisors if agent.final_review_request_id]
+    assert len(final_supervisors) == (1 if disposition == "partial" else 0)
 
     # 显式验证两种合法交错，不能靠机器速度碰巧覆盖其中一种。
     parent_events = core.event_log.query_session(parent.id)
@@ -1216,7 +1219,9 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     assert parent.state is AgentState.FAILED, (
         f"parent ended {parent.state.value}:\n{_dump_session(core, parent.id)}"
     )
-    assert "expected incomplete IRC gate rejection" in _dump_session(core, parent.id)
+    assert any(event.type == "llm.failed"
+               and "expected incomplete IRC gate rejection" in event.data.get("error", "")
+               for event in parent_events)
 
     # 督导裁决全部经生产工具（事件级证据）
     supervisor_tools = [
@@ -1230,7 +1235,7 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     supervisor_runs = [
         e for e in core.event_log.query_session(supervisor.id) if e.type == "run.started"
     ]
-    assert len(supervisor_runs) >= 2  # 草稿 / 送审；缺证据时不得发起退出裁决
+    assert len(supervisor_runs) >= 2  # 草稿 / 显式计算证据送审分别触发过程督导。
 
     # 图存储是权威：草稿被督导接受，显式送审的 CallReview 被裁决
     store = _dag_store(project_id)
@@ -1243,14 +1248,36 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     assert review.state != "pending", review.state          # 督导已裁决
     assert review.tool_call_id in _tool_call_ids(core, child.id, "log_parser")
 
-    # Partial disposition must not waive a reachable edge's scientific gaps.
+    # Partial may request final review, while complete remains blocked by IRC.
+    # A rejected partial preserves those gaps and cannot record a disposition.
     gates = [event.data for event in parent_events if event.type == "agent.completion_gate"
              and event.data.get("source") == "dag"]
     assert any(gate.get("action") == "continue_work" for gate in gates), gates
     assert not any(gate.get("action") == "allow_final" for gate in gates), gates
-    assert not [request for request in store.list_review_requests(None) if request.kind == "exit"]
+    exit_requests = [request for request in store.list_review_requests(None) if request.kind == "exit"]
+    if disposition == "partial":
+        assert len(exit_requests) == 1
+        request = exit_requests[0]
+        assert request.state == "resolved"
+        assert request.proposal["disposition"] == "partial"
+        assert any("short_irc" in gap["detail"] for gap in request.proposal["remaining_gaps"])
+        decision = store.get_review_decision_for_request(request.request_id)
+        assert decision is not None and decision.verdict == "reject"
+        assert decision.reason and decision.next_action
+        assert final_supervisors[0].final_review_request_id == request.request_id
+        final_tools = [event.data.get("tool_name")
+            for event in core.event_log.query_session(final_supervisors[0].id)
+            if event.type == "tool.requested"]
+        assert "dag_review_evidence" in final_tools
+        actions = [gate.get("action") for gate in gates]
+        assert actions.index("wait_review") < actions.index("continue_work"), actions
+    else:
+        assert exit_requests == []
+        assert not any(gate.get("action") == "wait_review" for gate in gates), gates
     with store.db.connect() as connection:
         assert connection.execute("SELECT COUNT(*) FROM dag_delivery_dispositions").fetchone()[0] == 0
+    edge = next(edge for edge in store.load_snapshot().delivery.edges if edge.name == "step1")
+    assert next(stage for stage in edge.stages if stage.kind.value == "short_irc").status.value == "pending"
     assert not result.selfconsistency_passed
 
 

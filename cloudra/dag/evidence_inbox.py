@@ -541,27 +541,6 @@ class EvidenceInboxMixin:
                 )
         return logs, problems
 
-    def _species_geometry_logs(self, graph, node_id: str) -> list[str]:
-        """Use the species' bound files, including every separated component."""
-        node = next((n for n in graph.nodes if n.node_id == node_id), None)
-        if node is None:
-            return []
-        logs, _problems = self._bound_stage_logs(node.stages, {StageKind.GEOMETRY})
-        from cloudra.dag.file_science import _geometry_species, _logs
-        from cloudra.tools.core.species_identity import species_smiles
-        bound, _problems = _logs(self.store, node, self.working_directory)
-        candidates = list(dict.fromkeys([*logs, *bound]))
-        if not node.smiles:
-            return candidates
-        verified = []
-        for path in candidates:
-            try:
-                if any(_geometry_species(path, identity) for identity in species_smiles(node.smiles)):
-                    verified.append(path)
-            except (ValueError, RuntimeError):
-                continue
-        return verified
-
     def _passes_short_irc_check(
         self, ref: GraphRef | None, edge, stages, graph
     ) -> tuple[bool, str]:
@@ -602,32 +581,16 @@ class EvidenceInboxMixin:
         ts_logs, problems = self._bound_stage_logs(
             stages, {StageKind.TS_OPT, StageKind.FREQUENCY}
         )
-        endpoint_a_logs, ea_problems = self._bound_stage_logs(
-            stages, {StageKind.ENDPOINT_A}
-        )
-        endpoint_b_logs, eb_problems = self._bound_stage_logs(
-            stages, {StageKind.ENDPOINT_B}
-        )
-        problems += ea_problems + eb_problems
         target = next((node for node in graph.nodes if node.node_id == edge.target_node_id), None)
         source = next((node for node in graph.nodes if node.node_id == edge.source_node_id), None)
-        from cloudra.dag.file_science import _final_geometry
-        from cloudra.tools.core.irc_path import same_geometry
-
-        def with_optimizations(minimum_logs, node_id, separated=False):
-            candidates = self._species_geometry_logs(graph, node_id)
-            if not minimum_logs or separated:
-                return list(dict.fromkeys([*minimum_logs, *candidates]))
-            minima = [_final_geometry(path) for path in minimum_logs]
-            return list(dict.fromkeys([*minimum_logs, *[path for path in candidates
-                if any(same_geometry(_final_geometry(path), minimum) for minimum in minima)]]))
-
-        endpoint_a_logs = with_optimizations(endpoint_a_logs, edge.target_node_id,
-            bool(target and isinstance(target.smiles, list) and len(target.smiles) > 1))
-        endpoint_b_logs = with_optimizations(endpoint_b_logs, edge.source_node_id)
         try:
+            from cloudra.dag.file_science import _step_endpoint_logs
             from cloudra.services.ts_pipeline_context import pipeline_database
             from cloudra.services.ts_pipeline_store import atom_binding_for_log
+
+            endpoints = _step_endpoint_logs(self.store, graph, edge.model_copy(update={'stages': stages}),
+                self.working_directory, problems=problems)
+            endpoint_a_logs, endpoint_b_logs = endpoints['target'], endpoints['source']
             workspace = self.working_directory or Path.cwd()
             atom_bindings = {str(path): binding for path in [irc_log, *ts_logs]
                 if (binding := atom_binding_for_log(pipeline_database(), path, workspace)) is not None}

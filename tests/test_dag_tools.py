@@ -1580,6 +1580,7 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch, batc
     同边 ts_opt/frequency 与 endpoint_a/b 阶段已绑证据的 arguments.log_path）。"""
     from cloudra.dag.controller import DagController
     from cloudra.dag.store import DagStore
+    from tests.test_irc_endpoint_optimization import write_lineage_bundle
 
     agent, _session, db = await _seed_staged_step(
         tmp_path,
@@ -1594,10 +1595,16 @@ async def test_short_irc_bind_requires_path_evidence(tmp_path, monkeypatch, batc
         working_directory=str(tmp_path),
     )
     await controller.initialize()
+    native = await asyncio.to_thread(write_lineage_bundle, tmp_path / 'native')
+    native_logs = {'ts-opt': native['ts'], 'freq': native['ts'],
+                   'endpoint-a': native['product_freq'], 'endpoint-b': native['reactant_freq']}
 
     def _register(tag: str, log_name: str, result: dict):
         path = tmp_path / log_name
-        path.write_text("placeholder log\n", encoding="utf-8")
+        if tag in native_logs:
+            path.write_bytes(native_logs[tag].read_bytes())
+        else:
+            path.write_text("placeholder log\n", encoding="utf-8")
         return store.register_evidence(
             "s1",
             "log_parser",

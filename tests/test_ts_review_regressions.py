@@ -9,6 +9,7 @@ from tests.test_ts_stage_inputs import owned_fixture_structure, record_fixture
 pytestmark = pytest.mark.usefixtures('ts_producer_authority')
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('field', ['orca_blocks'])
 def test_irc_preserves_complete_scientific_settings_without_hessian_inference(tmp_path, field):
     from cloudra.tools.core.ts_inputs import QmCalculation
@@ -78,6 +79,7 @@ def test_internal_prepare_requires_nonblank_stable_request_key(tmp_path, key):
         TsStartRequest(**payload,workspace_dir=str(tmp_path))
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('engine', ['orca','gaussian'])
 def test_scan_preserves_declared_native_scientific_settings(tmp_path, monkeypatch, engine):
     from cloudra.tools.core.calculation_intent import compare_calculation_input
@@ -104,6 +106,7 @@ def test_scan_preserves_declared_native_scientific_settings(tmp_path, monkeypatc
         assert not compare_calculation_input(captured[0],record.input.guess.calculation.model_dump(),charge=0,multiplicity=1)
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_xtb_scan_submits_typed_manifest_from_bound_structure(tmp_path, monkeypatch):
     from cloudra.runtime.chem_task import ChemTask
     from cloudra.tools.core.ts_inputs import ScanGuess
@@ -129,6 +132,7 @@ def test_xtb_scan_submits_typed_manifest_from_bound_structure(tmp_path, monkeypa
     assert submitted[0][1].scan.force_constant == .5
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_xtb_scan_respects_trusted_stage_contract_before_submission(tmp_path, monkeypatch):
     from cloudra.runtime.chem_task import ChemTask
     from cloudra.runtime_v2.schemas import MethodPolicy
@@ -176,6 +180,7 @@ def recovery_fixture(tmp_path, purpose='frequency', failure='wrong_mode'):
 
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 @pytest.mark.parametrize('route', ['provided','xtb_path'])
 def test_failed_scan_can_change_route_with_bound_new_route_artifacts(tmp_path,route):
     from cloudra.services.ts_pipeline_context import use_pipeline_database
@@ -206,6 +211,7 @@ def test_failed_scan_can_change_route_with_bound_new_route_artifacts(tmp_path,ro
     assert revised.attempt_history[-1].failed_attempt['failure_class']=='scan_no_candidate'
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_catalog_source_binds_stable_atom_table(tmp_path):
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.conformer_store import list_candidates
@@ -310,6 +316,7 @@ def test_source_revision_clears_only_its_catalog_identity(tmp_path,role):
     assert record.catalog_id=='old'
 
 
+@pytest.mark.usefixtures("rdkit_chemistry")
 def test_rotated_product_failure_names_public_grouped_input(tmp_path,monkeypatch):
     from cloudra.tools.core.ts_process import _guess
     record=record_fixture(tmp_path)

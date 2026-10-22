@@ -39,7 +39,7 @@ def _detect_data_format(path: str) -> Optional[str]:
 
 
 description = (
-    "NMR raw-data processing via nmrglue: Bruker (fid/1r), Varian/Agilent, JEOL, NMRPipe, JCAMP-DX, "
+    "NMR raw-data processing via nmrglue: Bruker (fid/1r), Varian/Agilent, NMRPipe, JCAMP-DX, "
     "with a full time-to-frequency pipeline (window function, zero-fill, FT, phasing, baseline correction). "
     "Use for: processing experimental NMR raw data and obtaining a chemical-shift spectrum for structure elucidation. "
     "Do not use for: IR processing (use ir_processor) or reading a theoretical chemical-shift log (use log_parser)."
@@ -47,14 +47,14 @@ description = (
 
 class NMRProcessor_input_schema(input_schema):
     data_path: str = Field(description="Path of the raw data file or folder")
-    format: str = Field(default="auto", description="Format: 'bruker', 'varian', 'jeol', 'pipe', 'jcamp', 'auto'")
+    format: str = Field(default="auto", description="Format: 'bruker', 'varian', 'pipe', 'jcamp', 'auto'")
 
     # 处理参数
     apodization: str = Field(default="em", description="Window function: 'em' (exponential), 'gm' (Gaussian), 'sine', 'none'")
     lb: float = Field(default=0.3, description="Line broadening factor (Hz)")
     zero_fill: int = Field(default=1, description="Zero-fill factor (usually 1 or 2)")
     auto_phase: bool = Field(default=True, description="Whether to auto-phase")
-    baseline_corr: bool = Field(default=True, description="Whether to apply baseline correction (polynomial fit)")
+    baseline_corr: bool = Field(default=True, description="Whether to apply constant baseline correction")
 
     # 分析参数
     extract_peaks: bool = Field(default=True, description="Whether to auto-pick peaks")
@@ -69,7 +69,7 @@ class NMRProcessor_input_schema(input_schema):
     # 专家选项 (JSON 字典)
     advanced_settings: Dict[str, Any] = Field(
         default_factory=dict,
-        description="Advanced overrides. Supports: 'p0', 'p1' (manual phase), 'bc_order' (baseline order), 'zf_size' (explicit zero-fill points), etc."
+        description="Advanced overrides. Supports: 'p0', 'p1' (manual phase), 'bc_last' (trailing percentage used for constant baseline correction), 'zf_size' (explicit zero-fill points), etc."
     )
 
 class NMRProcessor_output_schema(output_schema):
@@ -119,23 +119,29 @@ class NMRProcessor(Tool):
                 if detected is not None:
                     fmt = detected
 
+            if fmt == 'jeol':
+                return NMRProcessor_output_schema(
+                    is_success=False,
+                    message="JEOL (.jdf) data is not supported by nmrglue. Export to NMRPipe or JCAMP-DX before processing.",
+                )
+            reader = {
+                "bruker": ng.bruker,
+                "varian": ng.varian,
+                "pipe": ng.pipe,
+                "jcamp": ng.jcampdx,
+            }.get(fmt)
+            if reader is None:
+                return NMRProcessor_output_schema(is_success=False, message="Unrecognized instrument format.")
+
             if fmt == 'bruker':
                 # 检查是否已有处理好的 pdata
                 pdata_path = os.path.join(path, 'pdata', '1')
                 if os.path.exists(pdata_path):
-                    dic, data = ng.bruker.read_pdata(pdata_path)
+                    dic, data = reader.read_pdata(pdata_path)
                 else:
-                    dic, data = ng.bruker.read(path)
-            elif fmt == 'varian':
-                dic, data = ng.varian.read(path)
-            elif fmt == 'pipe':
-                dic, data = ng.pipe.read(path)
-            elif fmt == 'jcamp':
-                dic, data = ng.jcampdx.read(path)
-            elif fmt == 'jeol':
-                dic, data = ng.jeol.read(path)
+                    dic, data = reader.read(path)
             else:
-                return NMRProcessor_output_schema(is_success=False, message="Unrecognized instrument format.")
+                dic, data = reader.read(path)
 
             # 2. 深度处理流 (Pipeline)
             if np.iscomplexobj(data):
@@ -166,26 +172,14 @@ class NMRProcessor(Tool):
                 # E. 丢弃虚部并基线校正
                 data = ng.proc_base.di(data)
                 if user_input.baseline_corr:
-                    data = ng.proc_base.cbf(data, last=adv.get('bc_last', 10), order=adv.get('bc_order', 1))
+                    data = ng.proc_bl.cbf(data, last=adv.get('bc_last', 10))
 
             # 3. 坐标转换与元数据处理
             # guess_udic 按读取器模块分派（每个 reader 都自带 guess_udic；
             # fileiobase 没有 guess_udic，也早已没有 create_udic——旧降级路径
             # 不存在，且空 udic 会产出无意义的 ppm，属静默错值，不能回退）。
-            guess_udic = {
-                "bruker": ng.bruker.guess_udic,
-                "varian": ng.varian.guess_udic,
-                "pipe": ng.pipe.guess_udic,
-                "jeol": ng.jeol.guess_udic,
-                "jcamp": ng.jcampdx.guess_udic,
-            }.get(fmt)
-            if guess_udic is None:
-                return NMRProcessor_output_schema(
-                    is_success=False,
-                    message=f"Cannot infer spectral parameters for format '{fmt}'.",
-                )
             try:
-                udic = guess_udic(dic, data)
+                udic = reader.guess_udic(dic, data)
             except Exception as exc:
                 return NMRProcessor_output_schema(
                     is_success=False,

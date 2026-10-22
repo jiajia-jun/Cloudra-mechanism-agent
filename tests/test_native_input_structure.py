@@ -51,6 +51,7 @@ def test_native_geometry_and_charge_remain_readable_when_calculation_syntax_is_m
     assert inspect_input(text, engine='gaussian').certainty == 'unknown'
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('output_format', ['xyz', 'inp'])
 async def test_converter_uses_normalized_gaussian_geometry(tmp_path, output_format):
@@ -71,6 +72,7 @@ async def test_converter_uses_normalized_gaussian_geometry(tmp_path, output_form
     assert position == pytest.approx(1.4 * Bohr)
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.asyncio
 @pytest.mark.parametrize('units,extra_keywords', [
     ('bohr', ''), ('( bohr )', ''), ('au', ''), ('a.u.', ''), ('angstroms', ''), (None, ''),
@@ -121,6 +123,7 @@ def test_inspection_keeps_link1_and_checkpoint_only_routes():
         native_input_geometry('#p hf/sto-3g irc geom=allcheck\n\n', engine='gaussian')
 
 
+@pytest.mark.usefixtures('rdkit_chemistry')
 @pytest.mark.parametrize('text', [GAUSSIAN, '1\nframe\nH 0.0 0.0 0.0\n'])
 def test_coordinate_readers_accept_utf8_bom(text):
     mol = read_molecule(input_text='\ufeff' + text)
