@@ -59,17 +59,21 @@ def test_element_consistent_permutation_cannot_clear_identity_mismatch():
     assert result['atom_map'] == []
 
 
-def test_ambiguous_concrete_binding_requires_complete_candidate_selection():
+def test_ambiguous_concrete_binding_allows_explicit_override_of_ranked_candidate():
     mol = molecule('CC')
     request = declaration('CC')
     result = bind_reaction_structures(request, mol, mol)
-    assert result['binding_status'] == 'inconclusive'
+    assert result['binding_status'] == 'complete'
+    assert result['mapping_status'] == 'ambiguous'
+    assert result['atom_map'] == result['candidates'][0]['atom_map']
     assert len(result['candidates']) == 2
     request.reaction.selected_candidate = 1
     selected = bind_reaction_structures(request, mol, mol)
     assert selected['binding_status'] == 'complete'
     assert selected['atom_map'] == result['candidates'][1]['atom_map']
     assert selected['heavy_atom_bindings'] == result['candidates'][1]['heavy_atom_bindings']
+    assert selected['mapping_status'] == 'ambiguous'
+    assert selected['atom_map'] != result['atom_map']
 
 
 def test_unambiguous_valid_binding_accepts_every_explicit_atom():
@@ -164,23 +168,24 @@ def test_guidance_warning_is_retained_without_deciding_acceptance(tmp_path, monk
         assert warning in restored.blocked.message
 
 
-def test_symmetric_file_endpoints_select_a_complete_candidate_and_persist_it(tmp_path):
+def test_symmetric_file_endpoints_automatically_bind_and_persist_ranked_candidate(tmp_path):
     from cloudra.tools.core.reaction_state import heavy_binding, structure_tables
     record = file_record(tmp_path, 'CC')
     _build(record)
     table = structure_tables(record)['reactant']
     assert table['atoms'][0]['symbol'] == 'C' and table['atoms'][0]['number'] == 1
-    _map(record)
-    assert record.blocked.needs == ['reaction.selected_candidate']
-    candidates = record.blocked.issues[0]['candidates']
-    record.input.reaction.selected_candidate = 1
-    record.blocked = None
+    result = bind_reaction_structures(record.input, record.structures.reactant, record.structures.product)
+    assert result['mapping_status'] == 'ambiguous'
+    chosen = result['candidates'][0]
     _map(record)
     assert record.blocked is None
-    assert [index + 1 for index in record.structures.product_to_reactant] == candidates[1]['atom_map']
+    assert record.input.reaction.selected_candidate is None
+    assert 'Automatically selected' in record.stage_record('map').detail
+    assert [index + 1 for index in record.structures.product_to_reactant] == chosen['atom_map']
     restored = TsProcessRecord.model_validate_json(record.model_dump_json())
+    assert restored.structures.product_to_reactant == record.structures.product_to_reactant
     for role in ('reactant', 'product'):
-        assert heavy_binding(getattr(restored.structures, role)) == candidates[1]['heavy_atom_bindings'][role]
+        assert heavy_binding(getattr(restored.structures, role)) == chosen['heavy_atom_bindings'][role]
 
 
 def test_reselecting_a_complete_candidate_preserves_its_original_concrete_meaning(tmp_path):
@@ -189,15 +194,20 @@ def test_reselecting_a_complete_candidate_preserves_its_original_concrete_meanin
 
     record = file_record(tmp_path, 'CC')
     _build(record)
+    candidates = bind_reaction_structures(record.input, record.structures.reactant, record.structures.product)['candidates']
     _map(record)
-    candidates = record.blocked.issues[0]['candidates']
-    record.blocked = None
-    record.input.reaction.selected_candidate = 1
+    assert record.blocked is None
+    assert [index + 1 for index in record.structures.product_to_reactant] == candidates[0]['atom_map']
+    request = TsResumeRequest(changes={'reaction': {'selected_candidate': 1}},
+        reason='Override the automatically selected correspondence', request_key='select', expected_revision=record.revision)
+    record = revise_record(record, request, plan_input_revision(record, request))
+    assert record.structures.product_to_reactant is None
     _map(record)
     assert [index + 1 for index in record.structures.product_to_reactant] == candidates[1]['atom_map']
     request = TsResumeRequest(changes={'reaction': {'selected_candidate': 0}},
         reason='Choose the other inspected correspondence', request_key='reselect', expected_revision=record.revision)
     revised = revise_record(record, request, plan_input_revision(record, request))
+    assert revised.structures.product_to_reactant is None
     _map(revised)
     assert revised.blocked is None
     assert [index + 1 for index in revised.structures.product_to_reactant] == candidates[0]['atom_map']
@@ -240,10 +250,13 @@ def test_component_order_is_bound_to_actual_hydrogen_rows(tmp_path):
     record.input.conformers.reactant = FileConformer(kind='file', xyz_path=str(reactant_xyz), mol_path=str(reactant_graph))
     record.input.conformers.product = FileConformer(kind='file', xyz_path=str(xyz), mol_path=str(graph))
     _build(record)
+    result = bind_reaction_structures(record.input, record.structures.reactant, record.structures.product)
     _map(record)
     assert structure_tables(record)['reactant']['atoms'][4]['symbol'] == 'H'
-    assert record.blocked.needs == ['reaction.selected_candidate']
-    for candidate in record.blocked.issues[0]['candidates']:
+    assert record.blocked is None
+    assert result['mapping_status'] == 'ambiguous'
+    assert [index + 1 for index in record.structures.product_to_reactant] == result['candidates'][0]['atom_map']
+    for candidate in result['candidates']:
         assert sorted(candidate['atom_map']) == list(range(1, 17))
         for index, target in enumerate(candidate['atom_map']):
             assert product.GetAtomWithIdx(index).GetAtomicNum() == reactant.GetAtomWithIdx(target - 1).GetAtomicNum()

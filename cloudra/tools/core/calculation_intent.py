@@ -769,9 +769,11 @@ def _writer_orca_controls(name, tokens):
     allowed = {'geom': {'scan','simul_scan','constraints','b','a','d','c','{','}','=','end'}}.get(name)
     if allowed is None:
         return not tokens
-    for token in tokens:
+    for index, token in enumerate(tokens):
         if token in allowed:
             continue
+        if token == 'true' and index > 0 and tokens[index - 1] == 'simul_scan':
+            continue  # The concerted scan renderer emits this exact control.
         try:
             for value in token.split('='):
                 float(value.rstrip(','))

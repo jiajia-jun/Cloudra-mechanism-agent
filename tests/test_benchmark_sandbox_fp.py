@@ -190,7 +190,7 @@ else {
 }
 """)
 
-# 非法输入 → 可解释失败且无半成品；纠正后继续。
+# 畸形几何拒绝；原生选项保留并警告；纠正后继续。
 _CHILD_MALFORMED_THEN_CORRECTED_PROGRAM = r"""
 const badText = "5\ntruncated\nC 0.0 0.0 0.0\n";
 const badWrite = await tools.write({
@@ -202,24 +202,25 @@ const goodWrite = await tools.write({
   path: "xyz/water.xyz", content: goodText,
 });
 const badSource = await tools.qm_input_writer({
-  source_type: "xyz_file", source_value: "xyz/bad.xyz",
-  method: "b3lyp", engine: "gaussian", output_path: "calc/bad_from_xyz.gjf",
+  source_type: "xyz_file", source_value: "xyz/bad.xyz", charge: 0,
+  method: "b3lyp", basis_set: "6-31g(d)", engine: "gaussian", output_path: "calc/bad_from_xyz.gjf",
 });
-const badOption = await tools.qm_input_writer({
+const nativeOption = await tools.qm_input_writer({
   engine: "orca", source_type: "smiles", source_value: "O",
   method: "b3lyp", basis_set: "def2-svp",
   task_type: [{ "opt": "TS,calcfc,noeigen" }],
-  output_path: "calc/bad_orca.inp",
+  output_path: "calc/native_orca.inp",
 });
 text("WRITTEN bad=" + badWrite.is_success + " good=" + goodWrite.is_success +
      " | MALFORMED ok=" + badSource.is_success +
-     " | BAD OPTION ok=" + badOption.is_success);
+     " | NATIVE OPTION ok=" + nativeOption.is_success +
+     " warnings=" + nativeOption.data.warnings.length);
 """
 
 _CHILD_CORRECTED_CHAIN_PROGRAM = _fit_resources(r"""
 const w = await tools.qm_input_writer({
   engine: "gaussian",
-  source_type: "xyz_file", source_value: "xyz/water.xyz",
+  source_type: "xyz_file", source_value: "xyz/water.xyz", charge: 0,
   method: "b3lyp", basis_set: "6-31g(d)",
   task_type: [{ "sp": null }],
   nproc: __CPUS__, mem: "__MEMORY_MB__MB",
@@ -867,8 +868,8 @@ def test_cli_engine_failure_then_resubmit(tmp_path, monkeypatch):
 
 @_REQUIRES_HOST_AND_RDKIT
 def test_cli_malformed_inputs_fail_then_corrected(tmp_path, monkeypatch):
-    """非法输入（XYZ 首行原子数与内容不符 + ORCA 用 Gaussian 子选项）第一
-    步可解释失败且无半成品；纠正后继续到最后一步。写文件走真实 write 工具与
+    """畸形 XYZ 无半成品；显式 ORCA 子选项保留并警告，不擅自拒绝。
+    纠正几何后继续到最后一步。写文件走真实 write 工具与
     工作区路径语义（审批 LLM 是外部服务，用替身自动放行）。"""
     from cloudra.infra.yolo_guard import YoloGuard
 
@@ -886,7 +887,7 @@ def test_cli_malformed_inputs_fail_then_corrected(tmp_path, monkeypatch):
     llm.script("small_mol", [
         js(1, _CHILD_MALFORMED_THEN_CORRECTED_PROGRAM),
         js(2, _CHILD_CORRECTED_CHAIN_PROGRAM, expect=Receipt(
-            tool="js_exec", contains=["MALFORMED ok=false", "BAD OPTION ok=false"])),
+            tool="js_exec", contains=["MALFORMED ok=false", "NATIVE OPTION ok=true warnings=1"])),
         text(3, "corrected and completed", expect=Receipt(
             tool="js_exec", contains=["CORRECTED job="])),
     ])
@@ -896,9 +897,10 @@ def test_cli_malformed_inputs_fail_then_corrected(tmp_path, monkeypatch):
     # 写文件的路径语义：相对路径落在沙箱（不是进程 cwd）
     assert (workspace / "xyz" / "bad.xyz").is_file()
     assert (workspace / "xyz" / "water.xyz").is_file()
-    # 无半成品：两次非法调用都不产生输出文件
+    # 畸形输入不落文件；显式原生子选项按当前契约保留，不能静默翻译。
     assert not (workspace / "calc" / "bad_from_xyz.gjf").exists()
-    assert not (workspace / "calc" / "bad_orca.inp").exists()
+    native_input = (workspace / "calc" / "native_orca.inp").read_text()
+    assert "OptTS" in native_input and "calcfc,noeigen" in native_input
     # 纠正后的链路照常产出并跑完
     assert (workspace / "calc" / "input.gjf").is_file()
     rows = _compute_rows()
@@ -908,7 +910,7 @@ def test_cli_malformed_inputs_fail_then_corrected(tmp_path, monkeypatch):
         e for e in core.event_log.query_session(child.id)
         if e.type == "tool.finished" and e.data.get("tool_name") == "qm_input_writer"
     ]
-    assert len(writer_events) == 3  # 两次失败 + 一次成功，逐次真实执行
+    assert len(writer_events) == 3  # 一次失败 + 原生保留 + 纠正成功，逐次真实执行
     # 可解释：失败回执带拒绝原因（不是空消息）
     summaries = [str(e.data.get("result_summary") or "") for e in writer_events]
     # 畸形 XYZ 由输入校验确定性拦截（34293c1d 起报 "Invalid input ..."）；
@@ -917,7 +919,8 @@ def test_cli_malformed_inputs_fail_then_corrected(tmp_path, monkeypatch):
         "Invalid input for qm_input_writer" in s or "Failed to generate" in s
         for s in summaries
     ), summaries
-    assert any("calcfc" in s or "refused" in s.lower() for s in summaries), summaries
+    outputs = _program_outputs(core, child)
+    assert any("NATIVE OPTION ok=true warnings=1" in output for output in outputs), outputs
 
 
 @_REQUIRES_HOST
@@ -957,7 +960,7 @@ def test_cli_js_business_failure_envelope(tmp_path, monkeypatch):
 
 # ---------------------------------------------------------------------------
 # dag_guided 主场景：草稿 → 真实 Supervisor 接受 → 子执行 → 显式送审 →
-# 督导裁决 → 父按真实门禁结束（WAITING_APPROVAL/wait_review + 退出裁决）
+# 缺失 IRC 的可达边必须阻止退出，partial 不能绕过科学门。
 # ---------------------------------------------------------------------------
 
 _GUIDED_PROPOSE_PROGRAM = r"""
@@ -967,6 +970,12 @@ const proposal = await tools.dag_propose_mechanism({
   steps: [{ name: "step1", from: "R", to: "P" }],
 });
 text("PROPOSED ok=" + proposal.is_success + " " + proposal.summary);
+const artifact = await tools.write({path: "mechanism_graph.json", content: JSON.stringify({
+  nodes: [{id: "R", role: "reactant", smiles: ["O"]},
+          {id: "P", role: "product", smiles: ["O"]}],
+  edges: [{id: "step1", from: "R", to: "P"}]
+})});
+if (!artifact.is_success) { throw new Error(artifact.summary); }
 """
 
 _GUIDED_SPAWN_PROGRAM = r"""
@@ -1047,6 +1056,13 @@ def _supervisor_catchup_program(core, agent) -> str:
     dag_review_call / dag_review_evidence）。
     """
     store = _dag_store(agent.project_id)
+    if agent.final_review_request_id:
+        return (
+            "const r = await tools.dag_review_evidence({"
+            f' request_id: "{agent.final_review_request_id}", verdict: "reject", '
+            ' reason: "The accessible step still lacks native IRC evidence." });\n'
+            'text("EXIT REJECTED ok=" + r.is_success);'
+        )
     draft = store.latest_draft()
     if draft is not None and draft.get("state") == "open":
         return (
@@ -1067,27 +1083,25 @@ def _supervisor_catchup_program(core, agent) -> str:
             ' reason: "parsed optimization evidence supports the claim" });\n'
             'text("CALL VERDICT ok=" + r.is_success + " " + r.summary);'
         )
-    queued = [r for r in store.list_review_requests("queued") if r.kind == "exit"]
-    if queued:
-        return (
-            "const r = await tools.dag_review_evidence({"
-            f' request_id: "{queued[0].request_id}", verdict: "accept", '
-            ' reason: "partial delivery under the declared scope is acceptable" });\n'
-            'text("EXIT REVIEW ok=" + r.is_success + " " + r.summary);'
-        )
     return 'text("SUPERVISOR: no pending supervision item");'
 
 
 @_REQUIRES_HOST_AND_RDKIT
 @pytest.mark.parametrize("draft_order", ["before_suspend", "after_suspend"])
 def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
-    """dag_guided 主场景（四个事实源 + 真实督导裁决回路）。
+    """Process review cannot authorize an incomplete accessible step to stop.
 
     所有图/证据事件都经生产工具（dag_propose_mechanism / dag_bind_evidence /
     dag_accept_mechanism / dag_review_call / dag_review_evidence）与真实
     Supervisor runtime_v2 agent 走；测试只读 store 生成脚本参数，绝不直接改
     DAG 状态绕过门禁。
     """
+    from cloudra.infra.yolo_guard import YoloGuard
+
+    async def _approve(self, tool_name, tool_args, agent, session, **_kwargs):
+        return True, ""
+
+    monkeypatch.setattr(YoloGuard, "judge", _approve)
     engine = install_engine(monkeypatch, tmp_path / "bin", "gaussian")
     class GuidedLLM(ScriptedLLM):
         """通知可在当前 run 或下一 run 到达；业务动作按真实草稿状态选择。"""
@@ -1131,8 +1145,19 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
                     else:
                         step = text(turn, "suspended until the Supervisor decides on the draft")
                 else:
-                    step = calls(turn, [("stop", {"delivery_disposition": "partial"})], content=_BARRIER)
+                    rejected = any(event.type == "agent.completion_gate"
+                        and event.data.get("action") == "continue_work"
+                        and event.data.get("source") == "dag"
+                        for event in self.core.event_log.query_session(agent.id))
+                    step = (crash(turn, "expected incomplete IRC gate rejection") if rejected else
+                            calls(turn, [("stop", {"delivery_disposition": "partial"})],
+                                  content="Only the reactant calculation is available; IRC evidence is missing."))
                 self.script("coordinator", [step])
+            elif agent.role_id == "supervisor":
+                key = (agent.role_id, agent.id, agent.current_run.run_id)
+                turn = self._turn_index.get(key, 0) + 1
+                self.script("supervisor", [js(turn, _supervisor_catchup_program) if turn == 1
+                    else text(turn, "Supervision turn complete.")])
             return await super().complete(agent, messages, tools, **kwargs)
 
         def calls_seen_for_supervisor(self):
@@ -1160,16 +1185,6 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
             child_steps.append(text(turn, "call verdict received", run=extra_run))
     llm.script("small_mol", child_steps)
 
-    # Supervisor：真实 agent；每轮自读持久信箱裁决当前待办（run 键控脚本）
-    supervisor_steps = []
-    for run_index in range(1, 9):
-        supervisor_steps.append(js(1, _supervisor_catchup_program, run=run_index))
-        for turn in range(2, 6):
-            supervisor_steps.append(
-                text(turn, "Supervision turn complete.", run=run_index)
-            )
-    llm.script("supervisor", supervisor_steps)
-
     runner, result, core = _run_cli_task(
         tmp_path, monkeypatch, llm, mode=OrchestrationMode.DAG_GUIDED, backend=backend
     )
@@ -1182,7 +1197,9 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     agents = {a.role_id: a for a in core.agents.values()}
     child = agents["small_mol"]
     parent = agents["coordinator"]
-    supervisor = agents["supervisor"]      # 真实 spawn 出来的督导 agent
+    supervisors = [agent for agent in core.agents.values() if agent.role_id == "supervisor"]
+    supervisor = next(agent for agent in supervisors if not agent.final_review_request_id)
+    assert all(not agent.final_review_request_id for agent in supervisors)
 
     # 显式验证两种合法交错，不能靠机器速度碰巧覆盖其中一种。
     parent_events = core.event_log.query_session(parent.id)
@@ -1196,9 +1213,10 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     assert child.state is AgentState.SUCCEEDED, (
         f"child ended {child.state.value}:\n{_dump_session(core, child.id)}"
     )
-    assert parent.state is AgentState.SUCCEEDED, (
+    assert parent.state is AgentState.FAILED, (
         f"parent ended {parent.state.value}:\n{_dump_session(core, parent.id)}"
     )
+    assert "expected incomplete IRC gate rejection" in _dump_session(core, parent.id)
 
     # 督导裁决全部经生产工具（事件级证据）
     supervisor_tools = [
@@ -1208,11 +1226,11 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     ]
     assert "dag_accept_mechanism" in supervisor_tools, supervisor_tools
     assert "dag_review_call" in supervisor_tools, supervisor_tools
-    assert "dag_review_evidence" in supervisor_tools, supervisor_tools
+    assert "dag_review_evidence" not in supervisor_tools, supervisor_tools
     supervisor_runs = [
         e for e in core.event_log.query_session(supervisor.id) if e.type == "run.started"
     ]
-    assert len(supervisor_runs) >= 3  # 草稿 / 送审 / 退出请求各一轮裁决
+    assert len(supervisor_runs) >= 2  # 草稿 / 送审；缺证据时不得发起退出裁决
 
     # 图存储是权威：草稿被督导接受，显式送审的 CallReview 被裁决
     store = _dag_store(project_id)
@@ -1225,22 +1243,15 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
     assert review.state != "pending", review.state          # 督导已裁决
     assert review.tool_call_id in _tool_call_ids(core, child.id, "log_parser")
 
-    # 父按真实门禁结束：partial 等裁决（wait_review）→ 程序关联批准后收尾
-    parent_states = [
-        (e.data.get("to"), e.data.get("reason"))
-        for e in core.event_log.query_session(parent.id)
-        if e.type == "agent.state_changed"
-    ]
-    assert ("waiting_approval", "wait_review") in parent_states, parent_states
-    parent_messages = [
-        str((e.data or {}).get("content") or "")
-        for e in core.event_log.query_session(parent.id)
-        if e.type == "agent.message_emitted"
-    ]
-    assert any("5.0 kcal/mol" in m for m in parent_messages), parent_messages
-    dispositions = getattr(store, "list_delivery_dispositions", None)
-    if dispositions is not None:
-        assert any(d.get("disposition") == "partial" for d in dispositions()), dispositions
+    # Partial disposition must not waive a reachable edge's scientific gaps.
+    gates = [event.data for event in parent_events if event.type == "agent.completion_gate"
+             and event.data.get("source") == "dag"]
+    assert any(gate.get("action") == "continue_work" for gate in gates), gates
+    assert not any(gate.get("action") == "allow_final" for gate in gates), gates
+    assert not [request for request in store.list_review_requests(None) if request.kind == "exit"]
+    with store.db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM dag_delivery_dispositions").fetchone()[0] == 0
+    assert not result.selfconsistency_passed
 
 
 # ---------------------------------------------------------------------------
@@ -1248,14 +1259,13 @@ def test_cli_guided_supervisor_loop(tmp_path, monkeypatch, draft_order):
 # ---------------------------------------------------------------------------
 
 _GUEST_FAIL_CLOSED_PROGRAM = r"""
-const stopType = typeof tools.stop;
-text("GUEST STOP typeof=" + stopType);
 try {
-  const stopped = await tools.stop({ reason: "guest direct control attempt" });
-  text("GUEST STOP ok=" + stopped.is_success + " " + stopped.summary);
+  await tools.stop({ reason: "guest direct control attempt" });
+  throw new Error("guest stop unexpectedly executed");
 } catch (err) {
-  if (stopType !== "undefined" || !(err instanceof TypeError)) { throw err; }
-  text("GUEST STOP rejected=TypeError");
+  if (err.code !== "direct_only_in_guest" || err.tool_name !== "stop" ||
+      err.effect_state !== "not_started") { throw err; }
+  text("GUEST STOP rejected=direct_only_in_guest effect=not_started");
 }
 """
 
@@ -1315,7 +1325,7 @@ def test_cli_guest_fail_closed_and_role_projection(tmp_path, monkeypatch):
         js(1, _GUEST_FAIL_CLOSED_PROGRAM),
         text(2, "guest surface checked", expect=Receipt(
             tool="js_exec", contains=[
-                "GUEST STOP typeof=undefined", "GUEST STOP rejected=TypeError",
+                "GUEST STOP rejected=direct_only_in_guest effect=not_started",
             ])),
     ])
     _, _, core = _run_cli_task(tmp_path, monkeypatch, llm)
@@ -1323,12 +1333,12 @@ def test_cli_guest_fail_closed_and_role_projection(tmp_path, monkeypatch):
     assert child.state is AgentState.SUCCEEDED, _dump_session(core, child.id)
     assert _tool_call_ids(core, child.id, "stop") == []
     outputs = _program_outputs(core, child)
-    assert "GUEST STOP typeof=undefined" in outputs, outputs
-    assert "GUEST STOP rejected=TypeError" in outputs, outputs
+    assert "GUEST STOP rejected=direct_only_in_guest effect=not_started" in outputs, outputs
 
     # 客体调用被拒（stop 是 direct-only，不能从程序内调用）
     child_calls = [c for c in llm.calls_seen if c["role"] == "small_mol"]
-    assert child_calls and child_calls[0]["tools"] == ["*"]  # 能力投影 = 角色 tool_policy
+    assert child_calls and set(child_calls[0]["tools"]) == set(child.capabilities.tools)
+    assert "*" not in child_calls[0]["tools"]
 
     # 督导面是 registry 的 supervisor_access 投影：不含 bash / 计算入口
     from cloudra.tools.capabilities import supervisor_tool_names

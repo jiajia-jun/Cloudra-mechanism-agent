@@ -154,19 +154,41 @@ def test_open_and_closed_shell_symmetry_both_offer_complete_candidates():
     for smiles, multiplicity in (('C[C](C)C', 2), ('CC', 1)):
         mol = _mol(smiles)
         result = _binding(smiles, mol, multiplicity=multiplicity)
-        assert result['binding_status'] == 'inconclusive'
+        assert result['binding_status'] == 'complete'
         assert result['mapping_status'] == 'ambiguous'
         assert result['candidates'] and result['candidates'][0]['atom_map']
+        assert result['atom_map'] == result['candidates'][0]['atom_map']
+        assert 'Automatically selected' in result['message']
         assert _binding(smiles, mol, multiplicity=multiplicity, selected_candidate=0)['binding_status'] == 'complete'
 
 
-def test_open_shell_partial_hydrogen_labels_do_not_silently_choose_a_mapping():
+def test_open_shell_partial_hydrogen_labels_are_preserved_in_every_candidate():
     mol = _mol('C[C](C)C')
     mol.GetAtomWithIdx(4).SetAtomMapNum(1)
     result = _binding('C[C](C)C', mol)
-    assert result['binding_status'] == 'inconclusive'
-    assert result['atom_map'] == []
+    assert result['binding_status'] == 'complete'
+    assert result['mapping_status'] == 'ambiguous'
     assert result['candidates']
+    assert result['atom_map'] == result['candidates'][0]['atom_map']
+    assert all(candidate['atom_map'][4] == 5 for candidate in result['candidates'])
+    assert 'Automatically selected' in result['message']
+
+
+@pytest.mark.parametrize('label_change,diagnostic', [('conflict', 'conflict'), ('duplicate', 'unique')])
+def test_open_shell_invalid_hydrogen_labels_cannot_be_overridden(label_change, diagnostic):
+    reactant = _mol('C[C](C)C')
+    reactant.GetAtomWithIdx(4).SetAtomMapNum(1)
+    product = Chem.Mol(reactant)
+    if label_change == 'conflict':
+        product.GetAtomWithIdx(4).SetAtomMapNum(2)
+    else:
+        product.GetAtomWithIdx(5).SetAtomMapNum(1)
+    request = TsInput(reaction=dict(reactant_smiles='C[C](C)C', product_smiles='C[C](C)C',
+        charge=0, multiplicity=2, selected_candidate=0))
+    result = bind_reaction_structures(request, reactant, product)
+    assert result['binding_status'] == 'inconclusive'
+    assert result['atom_map'] == result['candidates'] == []
+    assert any('hydrogen' in item and diagnostic in item for item in result['binding_diagnostics'])
 
 
 def test_open_shell_source_identity_annotations_are_not_representative_provenance(tmp_path):
@@ -365,11 +387,17 @@ def test_explicit_closed_shell_carbene_keeps_graph_radicals_as_diagnostic(tmp_pa
         [atom.GetSymbol() for atom in mol.GetAtoms()], mol.GetConformer().GetPositions().tolist())) == ''
 
 
-def test_explicit_closed_character_does_not_enable_symmetric_representative():
+def test_explicit_closed_character_preserves_ambiguity_and_explicit_binding():
     smiles = '[CH2][CH2]'
     mol = _mol(smiles)
-    assert _binding(smiles, mol, multiplicity=1, electronic_character='closed_shell')['binding_status'] == 'inconclusive'
-    assert _binding(smiles, mol, multiplicity=1, electronic_character='closed_shell', explicit_indices=[2, 1])['binding_status'] == 'complete'
+    result = _binding(smiles, mol, multiplicity=1, electronic_character='closed_shell')
+    assert result['binding_status'] == 'complete'
+    assert result['mapping_status'] == 'ambiguous'
+    assert len(result['candidates']) == 2
+    assert result['atom_map'] == result['candidates'][0]['atom_map']
+    explicit = _binding(smiles, mol, multiplicity=1, electronic_character='closed_shell', explicit_indices=[2, 1])
+    assert explicit['binding_status'] == 'complete'
+    assert explicit['heavy_atom_bindings'] == {'reactant': [2, 1], 'product': [2, 1]}
 
 
 def test_open_shell_coarse_seed_can_bind_but_wrong_stereochemistry_cannot_verify(tmp_path):

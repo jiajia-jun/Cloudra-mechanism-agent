@@ -28,7 +28,7 @@ def test_supervisor_test_identity_matches_live_restricted_tool_surface():
     assert set(fixture.capabilities.tools) == set(live.capabilities.tools)
     assert "*" not in fixture.capabilities.tools
     visible = projected_tool_names(fixture)
-    assert {"dag_review_call", "read", "stop"} <= visible
+    assert {"dag_review_call", "read", "write", "stop"} <= visible
     assert visible.isdisjoint(
-        {"ask_user", "bash", "write", "submit_compute_job", "dag_add_species"}
+        {"ask_user", "bash", "submit_compute_job", "dag_add_species"}
     )

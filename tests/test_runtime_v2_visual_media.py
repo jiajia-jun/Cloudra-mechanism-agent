@@ -84,6 +84,8 @@ async def _setup(llm, tools, *, workspace_dir: str | None = None):
     # RecordingLLM 直接发业务工具调用（pymol_render 等），固定传统协议；
     # 默认 javascript 协议只放 js_exec + 直接控制类。
     agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    # The injected executor implements echo; production capability projection does not.
+    agent.capabilities.tools.append("echo")
     return core, project, agent
 
 

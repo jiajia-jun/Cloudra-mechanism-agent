@@ -90,7 +90,11 @@ async def test_terminal_ts_updates_supervisor_once_without_research_note_write(t
     latest = core.notices.pin_content(supervisor.id, NOTE_KEY)
     assert latest and "outcome=verified" in latest and latest != first
     assert len(latest) < 2000
-    assert len(_injections(core, supervisor)) == 1  # merge while maintenance is already running
+    notices = _injections(core, supervisor)
+    assert len(notices) == 2  # each changed work version has one durable notification
+    assert len({event.data["manifest"]["fingerprint"] for event in notices}) == 2
+    await broker._poll_project(project.id)
+    assert _injections(core, supervisor) == notices  # unchanged work is not redelivered
     assert len(_injections(core, child)) == 2
     assert not any((await pending_supervision_summary(project.id)).values())
 
@@ -275,8 +279,12 @@ async def test_zero_api_consumed_observation_update_survives_supervisor_stop(tmp
         await broker._poll_project(harness.project.id)
         await asyncio.to_thread(_completed_ts, harness.project.id, child.id, tmp_path / "third", "candidate_only")
         await broker._poll_project(harness.project.id)
-        # A was already delivered; B schedules one next turn, then unread C merges into it.
-        assert len(_injections(harness.core, supervisor)) == 2
+        # A, B and C are distinct durable work versions; repeated polling is a no-op.
+        notices = _injections(harness.core, supervisor)
+        assert len(notices) == 3
+        assert len({event.data["manifest"]["fingerprint"] for event in notices}) == 3
+        await broker._poll_project(harness.project.id)
+        assert _injections(harness.core, supervisor) == notices
         stop_a.set()
         await harness.wait_terminal(supervisor)
         assert (tmp_path / "PROCESS.md").exists()

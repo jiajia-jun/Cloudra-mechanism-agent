@@ -901,8 +901,8 @@ def _replay_all_events(store: RuntimeStore):
 @pytest.mark.asyncio
 async def test_cancelled_supervisor_not_revived_by_reconcile_after_restart(tmp_path):
     """恢复矩阵·用户取消后重启进程：cancelled 不是僵尸 running——restore
-    原样保留取消终态，reconcile 不复活（park-don't-wake：通知驻留信箱、
-    零状态/run 事件），持久化待办留在信箱等显式恢复。"""
+    原样保留取消终态，reconcile 不复活，也不重投取消时遗留的普通通知。
+    科学待办留在 DAG 存储，Coordinator 收到一次性显式恢复告警。"""
     from cloudra.runtime_v2.schemas import AgentState
     from cloudra.runtime_v2.supervision import (
         find_project_supervisor,
@@ -951,18 +951,19 @@ async def test_cancelled_supervisor_not_revived_by_reconcile_after_restart(tmp_p
 
     events_before = len(core2.event_log)
     await reconcile_supervision(core2, project.id, auto_wake=False)
-    # park-don't-wake：通知照常投递信箱驻留（用户显式恢复后首轮即可见），
-    # 但不复活——督导自身只有一条投递事件，零状态/run 事件，状态保持
-    # cancelled。D2：cancelled 督导 + 可消费待办同时给 Coordinator 发
+    # Recovery discards ordinary unread messages for cancelled sessions. The
+    # durable work fingerprint still prevents duplicate notification/revival.
+    # D2：cancelled 督导 + 可消费待办同时给 Coordinator 发
     # 一次性告警（pin + mailbox；告警不复活督导，点名显式恢复入口）。
     from cloudra.runtime_v2.supervision import TERMINAL_SUPERVISOR_PIN_KEY
 
     new_events = list(core2.event_log)[events_before:]
     supervisor_events = [e for e in new_events if e.session_id == supervisor2.id]
-    assert [e.type for e in supervisor_events] == ["agent.message_injected"]
+    assert supervisor_events == []
     assert supervisor2.state is AgentState.CANCELLED
     inbox = core2.mailbox.inbox(supervisor2.id)
-    assert inbox is not None and inbox.qsize() == 1
+    assert inbox is not None and inbox.empty()
+    assert not any(event.session_id == supervisor2.id for event in core2.mailbox.unread())
     assert any(
         e.type == "context.pin_set"
         and e.session_id == coordinator.id

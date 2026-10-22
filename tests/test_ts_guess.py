@@ -94,8 +94,8 @@ def test_scan_preparation_reports_written_method_without_reselection_hint(tmp_pa
         scans=[{'atoms': [0, 1], 'scan_end': 1.2, 'scan_steps': 5}], output_path=str(target))
     result = TsGuess()._scan_prepare(request)
     assert result.is_success
-    assert target.read_text().splitlines()[0] == '! Opt B3LYP def2-SVP ' + keywords
-    assert result.calculation.method == 'B3LYP' and result.calculation.keywords == 'Opt ' + keywords
+    assert target.read_text().splitlines()[0] == '! B3LYP def2-SVP ' + keywords
+    assert result.calculation.method == 'B3LYP' and result.calculation.keywords == keywords
     assert 'PM7' not in result.run_hint and 'GFN2' not in result.run_hint
     assert 'submit_compute_job' in result.run_hint and 'B3LYP' in result.message
 
@@ -107,14 +107,14 @@ def test_scan_and_writer_preserve_native_method_slash_and_auxiliary_basis(tmp_pa
     settings = dict(engine='orca', method='B3LYP/G', basis_set='def2-SVP',
                     keywords='D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)')
     written = QmInputWriter._build_orca_input(QmInputWriter_input_schema(**settings,
-        source_type='xyz_file', source_value='unused.xyz', output_path='unused.inp'),
+        task_type=[], source_type='xyz_file', source_value='unused.xyz', output_path='unused.inp'),
         read_molecule(input_text='2\n\nH 0 0 0\nH 0 0 .74\n'))
     target = tmp_path / 'scan.inp'
     result = TsGuess()._scan_prepare(TsGuess_input_schema(charge=0, **settings, mode='scan_prepare',
         input_text='2\nH2\nH 0 0 0\nH 0 0 .74\n', output_path=str(target),
         scans=[{'atoms': [0, 1], 'scan_end': 1.2, 'scan_steps': 5}]))
     assert result.is_success
-    assert written.splitlines()[0].split()[2:] == target.read_text().splitlines()[0].split()[2:]
+    assert written.splitlines()[0] == target.read_text().splitlines()[0]
     assert result.calculation.method == 'B3LYP/G'
 
 
@@ -615,7 +615,7 @@ async def test_scan_prepare_orca_extopt_mlip_blocks(tmp_path, mock_session):
 
     assert result.is_success, result.message
     content = out.read_text()
-    assert content.startswith("! Opt ExtOpt")
+    assert content.startswith("! ExtOpt\n")
     assert "Scan\n        B 0 1 = " in content
     assert "ProgExt" in content and "--model" in content
     # %method 块位于坐标块之前
@@ -3021,34 +3021,35 @@ def _renamed_orca_irc_log(tmp_path, name):
 _IRC_ENDPOINT_XYZ = "3\nsidecar\nC 0.0 0.0 0.0\nN 0.0 0.0 1.2\nH 0.0 0.0 2.2\n"
 
 
-def test_orca_irc_endpoints_glob_finds_sidecars_for_renamed_log(tmp_path):
-    """改动 1b：stdout 日志被重命名为 calc-<id>.out.log 且无 NAME 回显时，
-    仍能在日志目录按 *_IRC_F.xyz / *_IRC_B.xyz 兜底定位端点侧车。"""
+def test_orca_irc_endpoints_use_native_name_for_renamed_log(tmp_path):
+    """A renamed stdout log must declare the native job name to bind sidecars."""
     from cloudra.tools.core import orca_frames
 
     job_dir = tmp_path / "job"
     job_dir.mkdir()
     log = _renamed_orca_irc_log(job_dir, "calc-99.out.log")
+    log.write_text('NAME = realjob.inp\n' + log.read_text(), encoding='utf-8')
     (job_dir / "realjob_IRC_F.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
     (job_dir / "realjob_IRC_B.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
 
     endpoints = orca_frames.extract_irc_endpoints(str(log))
     assert endpoints["forward"]["availability"] == "available"
     assert endpoints["backward"]["availability"] == "available"
-    assert endpoints["forward"]["origin"].endswith("_glob")
-    assert endpoints["backward"]["origin"].endswith("_glob")
+    assert endpoints["forward"]["origin"] == "final_endpoint_file"
+    assert endpoints["backward"]["origin"] == "final_endpoint_file"
     assert orca_frames.read_endpoint_geometry(endpoints["forward"]) is not None
     assert orca_frames.read_endpoint_geometry(endpoints["backward"]) is not None
 
 
-def test_orca_irc_endpoints_glob_refuses_ambiguous_match(tmp_path):
-    """兜底匹配只接受唯一命中：多个候选且无法按作业名去歧义时拒绝猜测。"""
+@pytest.mark.parametrize('prefixes', [('aaa',), ('aaa', 'bbb')])
+def test_orca_irc_endpoints_refuse_unbound_sidecars(tmp_path, prefixes):
+    """Even a unique unrelated sidecar is not evidence of this renamed job."""
     from cloudra.tools.core import orca_frames
 
     job_dir = tmp_path / "job"
     job_dir.mkdir()
     log = _renamed_orca_irc_log(job_dir, "calc-99.out.log")
-    for prefix in ("aaa", "bbb"):
+    for prefix in prefixes:
         (job_dir / f"{prefix}_IRC_F.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
         (job_dir / f"{prefix}_IRC_B.xyz").write_text(_IRC_ENDPOINT_XYZ, encoding="utf-8")
 

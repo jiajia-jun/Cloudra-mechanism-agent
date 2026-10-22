@@ -64,7 +64,7 @@ def test_requested_detail_does_not_retain_other_attempt_payloads():
             data={"tool_call_id": "new", "tool_name": "echo", "arguments_summary": {"value": 7}},
         )
 
-    rows = tool_receipts(events(), details=True, request_event_id="selected")
+    rows = tool_receipts(events(), details=True, request_event_ids={"selected"})
     gc.collect()
     assert all(ref() is None for ref in refs)
     assert len(rows) == 1

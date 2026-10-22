@@ -39,7 +39,7 @@ from cloudra.tools.Plantool.dag_tools.dag_review_step import DagReviewStep
 from cloudra.tools.Plantool.dag_tools.dag_submit_species_evidence import DagSubmitSpeciesEvidence
 from cloudra.tools.Plantool.dag_tools.dag_submit_step_evidence import DagSubmitStepEvidence
 from cloudra.tools.Plantool.dag_tools.dag_view_evidence import DagViewEvidence
-from tests.dag_identity import call_dag_tool, make_coordinator, make_supervisor
+from tests.dag_identity import call_dag_tool, make_actor, make_coordinator, make_supervisor
 
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -972,7 +972,16 @@ async def test_real_species_and_step_files_are_reviewed_once_for_final_delivery(
     controller = DagController(db, "s1", "dag_guided", conversation_id=db.conversation_id)
     gate = await controller.audit_stop("complete")
     assert gate.action == "wait_review"
-    reviewed_final = await call_dag_tool(DagReviewEvidence, supervisor, session,
+    wrong_scope = await call_dag_tool(DagReviewEvidence, supervisor, session,
+        request_id=gate.request_id, verdict="accept", reason="process reviewer cannot decide final delivery")
+    assert not wrong_scope.is_success
+    pending_final = await asyncio.to_thread(store.get_review_request, gate.request_id)
+    assert pending_final.state == "queued"
+    final_supervisor = make_actor(db.conversation_id, "supervisor",
+        workspace_dir=str(tmp_path), session_id="as_final_review_test")
+    final_supervisor._runtime_agent.final_review_request_id = gate.request_id
+    final_supervisor.final_review_request_id = gate.request_id
+    reviewed_final = await call_dag_tool(DagReviewEvidence, final_supervisor, session,
         request_id=gate.request_id, verdict="accept", reason="the whole submitted delivery is supported")
     assert reviewed_final.is_success
     gate = await controller.audit_stop("complete")

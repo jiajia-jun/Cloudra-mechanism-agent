@@ -779,6 +779,8 @@ async def _setup_runner(llm, tools_factory=None, *, query="solve it"):
     )
     agent = result.data
     agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    # The injected executor implements echo; production capability projection does not.
+    agent.capabilities.tools.append("echo")
     return core, bus, agent
 
 

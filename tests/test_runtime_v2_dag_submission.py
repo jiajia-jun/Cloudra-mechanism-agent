@@ -55,6 +55,7 @@ HOST_AVAILABLE = (
 _TS_RESULT = {
     "is_success": True,
     "normal_termination": True,
+    "opt_converged": True,
     "imaginary_frequencies": [-518.3],
 }
 

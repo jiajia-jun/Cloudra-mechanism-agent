@@ -257,14 +257,18 @@ def test_catalog_build_binds_concrete_components_before_assemble(tmp_path, react
     assert record.blocked is None
 
 
-def test_real_concrete_ambiguity_requests_one_candidate_choice(tmp_path):
+def test_real_concrete_ambiguity_reports_automatic_choice_without_blocking(tmp_path):
     from cloudra.tools.core.ts_process import _build, _map
     from tests.test_ts_input_evidence import file_record
     record = file_record(tmp_path, 'CC')
     _build(record)
     _map(record)
-    assert record.blocked.needs == ['reaction.selected_candidate']
-    assert all(candidate['atom_map'] for candidate in record.blocked.issues[0]['candidates'])
+    assert record.blocked is None
+    assert record.input.reaction.selected_candidate is None
+    assert record.structures.product_to_reactant == tuple(range(8))
+    assert record.stage_record('map').status == 'done'
+    assert 'Automatically selected' in record.stage_record('map').detail
+    assert 'Mapping remains ambiguous' in record.stage_record('map').detail
 
 
 

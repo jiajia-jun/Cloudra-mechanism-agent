@@ -53,9 +53,13 @@ def test_checkpoint_fixture_declares_a_path_outside_the_task_workspace():
     log = _read('chk_outside_workspace_nterr.log')
     assert 'Restoring state from the checkpoint file' in log
     assert 'Error termination in NtrErr' in log
-    state = json.loads(_read('state_chk_outside_workspace.json'))
-    assert state['normal_termination'] is False
-    assert state['electronic_energy_hartree'] is None
+    # The archived state JSON was not checked in. Verify the unchanged native
+    # failure log instead of fabricating a historical state receipt.
+    from cloudra.tools.core.qm_log_facts import read_qm_log
+
+    facts = read_qm_log(FIXTURES / 'chk_outside_workspace_nterr.log')
+    assert facts.normal_termination is False
+    assert facts.electronic_energy_hartree is None
     assert json.loads(_read('calc_chk_outside_workspace.exit.json'))['exit_code'] == 1
 
 

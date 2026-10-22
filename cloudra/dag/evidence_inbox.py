@@ -807,12 +807,7 @@ class EvidenceInboxMixin:
                     ref, element, element.stages, snapshot.delivery
                 )
                 if not irc_ok:
-                    # Evidence chain incomplete: record it and let the delivery
-                    # proceed (benchmark grading handles the partial credit).
-                    irc_reason = (
-                        "short_irc evidence incomplete (recorded, not blocking): "
-                        + irc_reason
-                    )
+                    raise _Rejected("short_irc_check_failed", irc_reason)
                 if irc_reason:
                     prior_reason = reason or next((stage.reason for stage in element.stages
                                                   if stage.kind is StageKind.SHORT_IRC), '')
@@ -1151,11 +1146,7 @@ class EvidenceInboxMixin:
                         ref, element, current_stages, snapshot.delivery
                     )
                     if not irc_ok:
-                        # Same relaxation as the single-bind path.
-                        irc_reason = (
-                            "short_irc evidence incomplete (recorded, not blocking): "
-                            + irc_reason
-                        )
+                        raise _Rejected("short_irc_check_failed", irc_reason)
                     stage_reason = ' '.join(filter(None, (stage_reason, irc_reason)))
                 if (
                     target_type == "edge"

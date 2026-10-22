@@ -210,6 +210,12 @@ async def _wait_until(predicate):
 
 def _start_training_runner(workdir, task_id, background=False, jobtype="shell"):
     workdir.mkdir(parents=True)
+    # Production staging supplies the standalone calculation owner separately.
+    from cloudra.runtime import calc_lock_wrapper
+
+    owner_dir = workdir / '.cloudra'
+    owner_dir.mkdir()
+    shutil.copyfile(calc_lock_wrapper.__file__, owner_dir / 'calc_lock_wrapper.py')
     training = workdir / "train.py"
     training.write_text(
         "import os, signal, time\n"
@@ -237,10 +243,11 @@ def _start_training_runner(workdir, task_id, background=False, jobtype="shell"):
         ),
         encoding="utf-8",
     )
-    return subprocess.Popen(
-        ["bash", str(runner)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    with (workdir / 'runner.log').open('wb') as output:
+        return subprocess.Popen(
+            ["bash", str(runner)], stdout=output, stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
 
 
 def _cleanup_training_runner(workdir, process):
@@ -281,7 +288,11 @@ async def test_remote_cancel_waits_for_owned_group_and_leaves_other_job_running(
     other = await asyncio.to_thread(_start_training_runner, other_workdir, 999)
     poller = None
     try:
-        await _wait_until(lambda: (workdir / "child.pid").exists() and (other_workdir / "child.pid").exists())
+        await _wait_until(lambda: process.poll() is not None or other.poll() is not None
+                          or ((workdir / "child.pid").exists() and (other_workdir / "child.pid").exists()))
+        for directory, runner, task in ((workdir, process, job_id), (other_workdir, other, 999)):
+            diagnostics = [directory / 'runner.log', directory / '.cloudra' / f'calc-{task}.out.log']
+            assert runner.poll() is None, '\n'.join(path.read_text() for path in diagnostics if path.exists())
         await amark_slurm_submitted(db, job_id, f"shell:{process.pid}", "")
 
         async def short_sleep(_seconds):

@@ -53,7 +53,7 @@ def test_orca_concerted_schema_renderer_and_native_admission(tmp_path):
     assert inputs.guess.mode == "concerted"
     output = tmp_path / "coupled.inp"
     result = TsGuess()._scan_prepare(TsGuess_input_schema(
-        mode="scan_prepare", input_text=WATER, output_path=str(output),
+        charge=0, mode="scan_prepare", input_text=WATER, output_path=str(output),
         scans=ROWS, scan_mode="concerted", **ORCA))
     assert result.is_success
     text = output.read_text()
@@ -61,6 +61,16 @@ def test_orca_concerted_schema_renderer_and_native_admission(tmp_path):
     assert "B 0 2 = 1.000000, 2.000000, 3\n    end" in text
     assert "Simul_Scan true" in text
     assert compare_calculation_input(text, ORCA, charge=0, multiplicity=1) == []
+
+
+@pytest.mark.parametrize('extra', ['MaxIter 200', 'Calc_Hess true', 'Recalc_Hess 5', 'true'])
+def test_concerted_scan_does_not_admit_undeclared_native_controls(extra):
+    from cloudra.tools.core.calculation_intent import compare_calculation_input
+
+    native = ('! B3LYP def2-SVP D3BJ\n%geom\n Scan\n B 0 1 = 1, 2, 3\n end\n'
+              f' Simul_Scan true\n {extra}\nend\n* xyz 0 1\nO 0 0 0\nH 0 0 1\nH 1 0 0\n*\n')
+    differences = compare_calculation_input(native, ORCA, charge=0, multiplicity=1)
+    assert any(item.field == 'orca_blocks' for item in differences)
 
 
 def test_process_forwards_concerted_intent_to_real_renderer(tmp_path, monkeypatch):

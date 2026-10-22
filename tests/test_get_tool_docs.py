@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from cloudra.runtime_v2.adapters import LegacyToolExecutor
+from cloudra.runtime_v2.events import EventLog
 from cloudra.runtime_v2.policies.base import ToolCall
 from cloudra.runtime_v2.schemas import AgentCapabilities, AgentSession, PermissionSet
 from cloudra.runtime_v2.tool_catalog import javascript_instructions
@@ -66,7 +67,7 @@ def test_js_bootstrap_keeps_briefs_and_reader_but_not_business_types():
 @pytest.mark.asyncio
 async def test_real_executor_binds_document_scope(tmp_path):
     a = agent(names=['ts_inspect', 'get_tool_docs'])
-    core = SimpleNamespace(require_project=lambda _: SimpleNamespace(workspace_dir=str(tmp_path)))
+    core = SimpleNamespace(event_log=EventLog(), require_project=lambda _: SimpleNamespace(workspace_dir=str(tmp_path)))
     result = await LegacyToolExecutor(core).execute(a, ToolCall('doc-call', 'get_tool_docs', {'names': ['ts_inspect']}))
     assert result.is_success
     assert result.data['documents'][0]['name'] == 'ts_inspect'

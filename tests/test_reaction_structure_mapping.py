@@ -25,17 +25,20 @@ def test_unique_concrete_mapping_is_automatic_and_does_not_mutate_endpoints():
     assert not any(atom.HasProp('cloudra_smiles_heavy_index') for atom in reactant.GetAtoms())
 
 
-def test_concrete_symmetry_requires_selection_of_complete_candidate():
+def test_concrete_symmetry_automatically_selects_ranked_complete_candidate():
     mol = Chem.AddHs(Chem.MolFromSmiles('CC'))
     result = mapping.bind_reaction_structures(declaration('CC'), mol, mol)
     assert result['mapping_status'] == 'ambiguous'
-    assert result['binding_status'] == 'inconclusive'
-    assert result['atom_map'] == []
+    assert result['binding_status'] == 'complete'
+    assert result['atom_map'] == result['candidates'][0]['atom_map']
+    assert 'Automatically selected' in result['message']
     assert len(result['candidates']) == 2
     assert all(candidate['atom_map'] and candidate['heavy_atom_bindings'] for candidate in result['candidates'])
     selected = mapping.bind_reaction_structures(declaration('CC', 1), mol, mol)
     assert selected['binding_status'] == 'complete'
     assert selected['atom_map'] == result['candidates'][1]['atom_map']
+    assert selected['mapping_status'] == 'ambiguous'
+    assert selected['atom_map'] != result['atom_map']
 
 
 def test_confirmed_molecule_heavy_identity_prevents_reopening_symmetry():
@@ -59,7 +62,9 @@ def test_hydrogen_transfer_and_free_hydrogen_have_complete_candidates(reactant, 
     assert len(result['candidates']) == expected_candidates
     for candidate in result['candidates']:
         assert sorted(candidate['atom_map']) == list(range(1, r_mol.GetNumAtoms() + 1))
-    assert result['binding_status'] == ('complete' if expected_candidates == 1 else 'inconclusive')
+    assert result['binding_status'] == 'complete'
+    assert result['atom_map'] == result['candidates'][0]['atom_map']
+    assert result['mapping_status'] == ('unique' if expected_candidates == 1 else 'ambiguous')
 
 
 def test_hydrogen_enumeration_refuses_truncation_and_complete_labels_resolve_it():
@@ -79,7 +84,9 @@ def test_hydrogen_only_endpoints_offer_complete_concrete_correspondence():
     request = declaration('[H][H]')
     result = mapping.bind_reaction_structures(request, mol, mol)
     assert [candidate['atom_map'] for candidate in result['candidates']] == [[1, 2], [2, 1]]
-    assert result['binding_status'] == 'inconclusive'
+    assert result['binding_status'] == 'complete'
+    assert result['mapping_status'] == 'ambiguous'
+    assert result['atom_map'] == [1, 2]
     request.reaction.selected_candidate = 1
     assert mapping.bind_reaction_structures(request, mol, mol)['atom_map'] == [2, 1]
 

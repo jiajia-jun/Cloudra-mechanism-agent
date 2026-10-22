@@ -80,6 +80,7 @@ from cloudra.benchmark.integrity import IntegrityReport, audit_integrity
 from cloudra.benchmark.schema import NodeRole, TaskSpec
 from cloudra.benchmark.selfconsistency import SelfConsistencyReport, audit_self_consistency
 
+
 # composite 权重（2026-09-25 用户裁决）：final = 0.1·图 + 0.3·自洽 + 0.6·accuracy。
 # 机理不对时 accuracy 层也会惩罚，图份额不该高；自洽层保持全有或全无（布尔）。
 # accuracy 双来源核对 fail-loud 时自洽/accuracy 分量清零、只保留图分

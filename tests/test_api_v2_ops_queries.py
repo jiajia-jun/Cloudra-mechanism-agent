@@ -119,6 +119,9 @@ async def test_pending_reminders_projection_and_project_scope():
         data={"message": "other project", "wake_at": "2099-01-01T00:00:00+00:00", "wake_ts": future},
     )
 
+    # Append is only the event log; flush commits the live reminder projection.
+    await core.event_writer.flush()
+
     app = create_v2_app(core)
     async with AsyncClient(
         transport=ASGITransport(app=app), base_url="http://testserver"

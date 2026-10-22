@@ -49,7 +49,8 @@ def test_refinement_writer_consumes_resolved_canonical_fields(tmp_path):
     error, path = _write_refinement_input(record, str(directory))
     assert error == ''
     native = Path(path).read_text()
-    assert next(line for line in native.splitlines() if line.startswith('!')) == '! OptTS B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
+    # Explicit native settings are preserved, not supplemented with a TS task.
+    assert next(line for line in native.splitlines() if line.startswith('!')) == '! B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)'
     assert compare_calculation_input(native, record.input.calculations['formal'].model_dump(), charge=0, multiplicity=1) == []
 
 
@@ -83,7 +84,7 @@ def test_scan_submission_resolves_reference_and_freezes_actual_configuration(tmp
         assert task.scan.calculation == configuration
     else:
         assert captured[0][1] == 'orca'
-        assert captured[0][2].splitlines()[0] == '! OPT B3LYP def2-SVP D3BJ CPCM(DCM)'
+        assert captured[0][2].splitlines()[0] == '! B3LYP def2-SVP D3BJ CPCM(DCM)'
 
 
 def test_native_scan_manifest_cannot_carry_an_unresolved_definition(tmp_path):

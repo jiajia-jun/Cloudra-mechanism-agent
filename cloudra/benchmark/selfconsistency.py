@@ -3,8 +3,9 @@
 Independent of the gold reference. The unit of judgment is the **delivered
 graph element** (species node / TS-bearing edge), not the sandbox directory:
 
-- Every accessible node and edge must have evidence bound to it (Layer 1
-  bindings). Elements with no evidence are only excused when the delivery
+- Every accessible node and edge must have native scientific evidence. Layer 1
+  bindings identify species anchors; an edge may recover an independently
+  verified chain from the same sandbox. Elements with no evidence are only excused when the delivery
   explicitly declares them meaningless via ``accessible=false`` — for edges the
   effective accessibility applies (an edge routed via an inaccessible TS node
   counts as declared inaccessible; ``GoldMechanismGraph.edge_effectively_accessible``).
@@ -12,9 +13,10 @@ graph element** (species node / TS-bearing edge), not the sandbox directory:
   one verified minimum covers a whole species or complex; separated species
   need a verified minimum for each declared list member.
   One first-order saddle plus one direction-proven IRC
-  covers a TS edge. Trial-and-error leftovers in the sandbox are never
-  judged — unbound files do not exist for this layer — and a superseded
-  failed attempt that *is* bound cannot veto a good log bound alongside it.
+  covers a TS edge. Failed trials do not veto a valid chain, and missing or
+  stale metadata cannot substitute for or invalidate independent native proof.
+  One chain cannot cover duplicate claims in the same direction; a reverse
+  claim can independently verify the opposite direction of the same IRC.
 
 Required evidence per element:
 
@@ -23,8 +25,8 @@ Required evidence per element:
   or a separate normally terminated frequency log at that same geometry;
   verified minimum logs must cover each separated species; a dot-connected
   complex requires its own whole-system minimum;
-- edge via a TS node (candidate pool = bound files of the TS node and both
-  endpoints): one bound log with exactly one imaginary frequency
+- edge via a TS node (bound candidates, then sandbox-native recovery): one
+  log with exactly one imaginary frequency
   (``ts_first_order_saddle``) and one bound IRC log passing the strict
   path-direction proof (``irc_connects_endpoints``): both IRC directions start
   at that TS, and native optimization logs connect their outer frames to the
@@ -53,6 +55,7 @@ from cloudra.benchmark.integrity import (
     EvidenceFile,
     NodeBinding,
     bind_graph_to_evidence,
+    evidence_within_sandbox,
     find_graph_json,
 )
 from cloudra.benchmark.schema import (
@@ -110,6 +113,7 @@ class _LogProbe:
             if (
                 f is not None
                 and f.kind in ("gaussian", "orca")
+                and evidence_within_sandbox(self._sandbox / rel_path, self._sandbox)
             ):
                 try:
                     facts = read_qm_log(self._sandbox / rel_path)
@@ -165,8 +169,10 @@ def _strict_irc_proof(
     *, ts_files: list[str] | None = None, product_smiles: list[str] | None = None,
     reactant_smiles: list[str] | None = None, details: list[str] | None = None,
     endpoint_evidence: dict[str, list[str]] | None = None,
+    used_chains: dict | None = None,
 ) -> Optional[tuple[list[str], list[str]]]:
     """Reconstruct the same native IRC→Opt→Freq proof used by DAG and tools."""
+    from cloudra.benchmark.evidence_search import claim_native_chain, irc_evidence_within_sandbox
     from cloudra.tools.core import gaussian_frames, orca_frames
     from cloudra.tools.core.irc_evidence import irc_start_geometry
     from cloudra.tools.core.irc_path import same_geometry
@@ -204,6 +210,9 @@ def _strict_irc_proof(
     irc_logs = []
     for path in sorted(pool):
         native = probe._sandbox / path
+        if not irc_evidence_within_sandbox(native, probe._sandbox):
+            failures.append(f'QM evidence candidate {path} has evidence outside the task sandbox.')
+            continue
         try:
             normal = normal_log(native)
             start = irc_start_geometry(native) if normal else None
@@ -241,6 +250,12 @@ def _strict_irc_proof(
     def absolute(paths):
         return [probe._sandbox / path for path in paths]
 
+    def claim_chain(frequency_path, irc_paths, proof_lineage):
+        if not claim_native_chain(probe._sandbox / frequency_path, absolute(irc_paths), proof_lineage, used_chains):
+            failures.append('The same native IRC chain is already used by another edge in this direction.')
+            return False
+        return True
+
     for ts_path, frequency_path in ts_candidates:
         bindings = {}
         for path in irc_logs:
@@ -255,16 +270,18 @@ def _strict_irc_proof(
         options = dict(atom_bindings=bindings, product_smiles=product_smiles,
                        reactant_smiles=reactant_smiles)
         for path in irc_logs:
+            proof_lineage = {}
             passed, proof_details = verify_short_irc_direction(probe._sandbox / path,
                 absolute([frequency_path]), absolute(target), absolute(source),
-                charge=charge, **options)
-            if passed:
+                charge=charge, proof_lineage=proof_lineage, **options)
+            if passed and claim_chain(frequency_path, [path], proof_lineage):
                 return list(dict.fromkeys([ts_path, frequency_path, path, *source, *target])), proof_details
             failures.extend(f'IRC {path}, TS {frequency_path}: {item}' for item in proof_details)
         for forward, reverse in combinations(irc_logs, 2):
+            proof_lineage = {}
             passed, proof_details = verify_short_irc_pair(probe._sandbox / forward, probe._sandbox / reverse,
-                absolute([frequency_path]), absolute(target), absolute(source), charge=charge, **options)
-            if passed:
+                absolute([frequency_path]), absolute(target), absolute(source), charge=charge, proof_lineage=proof_lineage, **options)
+            if passed and claim_chain(frequency_path, [forward, reverse], proof_lineage):
                 return list(dict.fromkeys([ts_path, frequency_path, forward, reverse, *source, *target])), proof_details
             failures.extend(f'IRC pair {forward}; {reverse}, TS {frequency_path}: {item}' for item in proof_details)
     return failed()
@@ -312,7 +329,7 @@ def audit_self_consistency(
     species_covered: dict[str, bool] = {}
     edge_checks: dict[str, ElementCheck] = {}
     sandbox_evidence = None
-    used_chains: set[str] = set()
+    used_chains: dict = {}
 
     # 物种节点：极小值证据须覆盖整络合物或每个分开交付的组分。
     for node in graph.nodes:
@@ -440,6 +457,7 @@ def audit_self_consistency(
                 ts_files=ts_files,
                 details=chk.notes,
                 endpoint_evidence=step_endpoints.get(edge.id),
+                used_chains=used_chains,
                 product_smiles=next(node.smiles for node in graph.nodes if node.id == edge.to_node),
                 reactant_smiles=next(node.smiles for node in graph.nodes if node.id == edge.from_node))
             if proof is not None:
@@ -461,6 +479,7 @@ def audit_self_consistency(
             chk.notes.extend(discovery.notes)
             if discovery.passed:
                 chk.covered = True
+                saddle_ok = irc_ok = True
                 chk.evidence_used.extend(discovery.evidence)
             chk.score = 1.0 if chk.covered else discovery.score
         else:

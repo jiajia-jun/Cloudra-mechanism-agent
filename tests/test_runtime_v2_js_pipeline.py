@@ -138,10 +138,10 @@ async def test_js_mode_rejects_top_level_business_call():
 async def test_js_mode_direct_stop_still_works():
     core = RuntimeCore(strict_events=True)
     agent = await _spawn_agent(core, InvocationProtocol.JAVASCRIPT)
-    tools = FakeTools(ToolResult(True, "ok", {"message": "final answer"}))
+    tools = FakeTools(ToolResult(True, "ok", {"message": "receipt is not the answer"}))
     pipeline = _pipeline(
         core,
-        LLMResponse(content="", tool_calls=[ToolCall("t1", "stop", {"reason": "done"})]),
+        LLMResponse(content="", tool_calls=[ToolCall("t1", "stop", {"reason": "done", "final_answer": "final answer"})]),
         tools=tools,
     )
     outcome = await _run(pipeline, agent)

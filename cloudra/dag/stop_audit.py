@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudra.dag.models import OrchestrationMode
+from cloudra.dag.models import CoverageGateResult, OrchestrationMode, StageKind
 from cloudra.dag.review_requests import ReviewRequest
 
 StopAction = Literal[
@@ -162,6 +162,40 @@ def format_gate_gaps(report, *, limit: int = 12) -> list[str]:
 class StopAuditMixin:
     """stop 交付门禁（audit_stop）；由 DagController 组合。"""
 
+    def _required_irc_gaps(self, graph, report):
+        """A partial label or stage disposition cannot replace required native IRC proof."""
+        from cloudra.dag.file_science import file_scientific_checks
+
+        selected = {gate.target_id for gate in
+                    [*report.satisfied, *report.unresolved, *report.inconclusive, *report.waived]
+                    if gate.target_type == 'edge'}
+        requests = self.store.list_review_requests(state=None)
+        gaps = []
+        for edge in graph.edges:
+            if edge.edge_id not in selected or not any(
+                    stage.kind is StageKind.SHORT_IRC and stage.required for stage in edge.stages):
+                continue
+            # A current explicit file submission may carry paired directional
+            # logs and endpoint references. Do not substitute older attempts.
+            request = next((item for item in reversed(requests)
+                if item.kind == 'evidence' and item.proposal.get('element_type') == 'step'
+                and item.target_ids == [edge.edge_id] and item.supporting_refs
+                and all(ref in edge.refs for ref in item.supporting_refs)), None)
+            try:
+                check = file_scientific_checks(self.store, graph, edge.edge_id,
+                    workspace_root=self.working_directory,
+                    evidence_refs=request.supporting_refs if request else None,
+                    irc_files=request.proposal.get('irc_files') if request else None,
+                    endpoint_refs=request.proposal.get('endpoint_refs') if request else None)['short_irc']
+                if check['status'] == 'passed':
+                    continue
+                detail = check['detail']
+            except Exception as exc:
+                detail = f'The required IRC proof could not be evaluated: {exc}'
+            gaps.append(CoverageGateResult(code='short_irc_check_failed', target_type='edge',
+                target_id=edge.edge_id, detail=detail))
+        return gaps
+
     async def _has_pending_background(self) -> bool:
         """会话级后台是否还有未竟工作（子任务/计算/定时提醒）。
 
@@ -242,6 +276,17 @@ class StopAuditMixin:
         report = await asyncio.to_thread(self.delivery_report)
         from cloudra.dag.delivery_artifact import prepare_delivery_artifact
         graph = (await asyncio.to_thread(self.engine.snapshot)).delivery
+        if disposition in {'complete', 'partial'}:
+            irc_gaps = await asyncio.to_thread(self._required_irc_gaps, graph, report)
+            if irc_gaps:
+                report = report.model_copy(update={
+                    'complete': False, 'unresolved': [*report.unresolved, *irc_gaps],
+                })
+                return StopGate(action='continue_work', report=report,
+                    reason='Required IRC direction proof is missing for: '
+                    + ', '.join(gap.target_id for gap in irc_gaps)
+                    + '. A partial delivery cannot replace that proof. Remove an invalid candidate '
+                    'with its scientific reason and confirm any delivery-scope change instead.')
         required = bool(self._core is not None and
                         self._core.require_project(self.conversation_id).settings.benchmark_task_id)
         try:
@@ -463,6 +508,10 @@ class StopAuditMixin:
             from cloudra.dag.delivery_artifact import prepare_delivery_artifact
             graph = (await asyncio.to_thread(self.engine.snapshot)).delivery
             current_report = await asyncio.to_thread(self.delivery_report)
+            irc_gaps = await asyncio.to_thread(self._required_irc_gaps, graph, current_report)
+            if irc_gaps:
+                raise RuntimeError('Required IRC direction proof changed after audit; re-audit the delivery: '
+                    + ', '.join(gap.target_id for gap in irc_gaps))
             required = bool(self._core is not None and
                             self._core.require_project(self.conversation_id).settings.benchmark_task_id)
             current_artifact = await asyncio.to_thread(prepare_delivery_artifact,

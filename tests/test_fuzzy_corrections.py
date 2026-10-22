@@ -200,11 +200,13 @@ async def test_dag_apply_stage_bind_fuzzy_correction(tmp_path):
     assert "Did you mean 'agree'?" in str(exc_verdict.value)
 
 
-def test_calculation_intent_task_fuzzy_correction():
-    """validate_writer_request provides 'Did you mean' suggestions for misspelled task keys."""
+def test_calculation_intent_unknown_native_task_is_advice_not_correction():
+    """Unknown native task spelling is preserved rather than guessed into opt."""
     entries = validate_writer_request({"engine": "gaussian", "task_type": [{"optim": None}]})
-    assert entries
-    assert any("Did you mean 'opt'?" in e["message"] for e in entries)
+    entry = next(item for item in entries if item['code'] == 'unknown_task_key')
+    assert entry['severity'] == 'warning'
+    assert "'optim'" in entry['message'] and 'preserved' in entry['message']
+    assert not any("Did you mean" in item['message'] for item in entries)
 
 
 @pytest.mark.asyncio

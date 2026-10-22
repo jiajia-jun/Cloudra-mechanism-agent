@@ -32,7 +32,7 @@ def test_resume_requires_reason_without_model_revision_and_limits_have_no_time_e
 def test_scan_freezes_current_coordinate_in_native_numbering(tmp_path, engine, atoms, freeze):
     from cloudra.tools.Chemtool.ts_guess import TsGuess, TsGuess_input_schema
     target = tmp_path/'scan.inp'
-    request = TsGuess_input_schema(mode='scan_prepare', engine=engine, method='HF', basis_set='STO-3G',
+    request = TsGuess_input_schema(charge=0, mode='scan_prepare', engine=engine, method='HF', basis_set='STO-3G',
         input_text='3\nwater\nO 0 0 0\nH 1 0 0\nH 0 1 0\n', output_path=str(target),
         scans=[{'coord_type':'bond','atoms':atoms,'scan_end':2,'scan_steps':5}],
         freeze=[{'coord_type':'bond','atoms':freeze}])

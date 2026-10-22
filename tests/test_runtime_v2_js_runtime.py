@@ -836,7 +836,8 @@ async def test_on_demand_contract_versions_survive_output_compaction_and_refresh
     agent.capabilities = AgentCapabilities(permissions=PermissionSet(read=True), tools=['read', 'get_tool_docs'])
     await core.contexts.record_tool_selection(agent=agent, run_id='initial', messages=[],
         record=ToolSelectionRecord(status=initial_status, source='llm', selection_id='s', catalog_revision='c'))
-    executor = LegacyToolExecutor(SimpleNamespace(require_project=lambda _: SimpleNamespace(workspace_dir=str(tmp_path))))
+    executor = LegacyToolExecutor(SimpleNamespace(event_log=core.event_log,
+        require_project=lambda _: SimpleNamespace(workspace_dir=str(tmp_path))))
     ctx = _ctx(agent, tools=agent.capabilities.tools)
     call = ToolCall('read-docs', 'js_exec', {'code':
         'const r = await tools.get_tool_docs({names:["read"]}); text(r.data.documents);'})

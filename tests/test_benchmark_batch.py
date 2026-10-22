@@ -133,7 +133,8 @@ async def test_batch_stop_cancels_running_tasks(tmp_path):
         )
 
     snap = await service.stop()
-    assert snap["status"] == "stopping"
+    # Cancellation can finish while stop awaits compute bookkeeping.
+    assert snap["status"] in {"stopping", "stopped"}
 
     await asyncio.wait_for(batch._task, timeout=5.0)
     final = service.status()
@@ -229,7 +230,7 @@ async def test_router_status_start_stop_history(tmp_path):
         assert conflict.status_code == 409
 
         stopping = (await client.post("/api/v2/benchmark/stop")).json()
-        assert stopping["status"] == "stopping"
+        assert stopping["status"] in {"stopping", "stopped"}
 
         # 等待批次收敛（无 runner 的 agent 被 stop 级联取消）
         deadline = asyncio.get_running_loop().time() + 5.0

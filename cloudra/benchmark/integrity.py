@@ -275,14 +275,19 @@ def _smiles_in_native_log(lines, kind: str):
             yield from _smiles_in_text(line)
 
 
+def evidence_within_sandbox(path: Path, sandbox: Path) -> bool:
+    """Resolved files, including symlink targets, must belong to this task."""
+    try:
+        path.resolve(strict=True).relative_to(sandbox.resolve())
+        return path.is_file()
+    except (OSError, RuntimeError, ValueError):
+        return False
+
+
 def scan_evidence_files(sandbox: Path, exclude: Optional[Path] = None) -> list[EvidenceFile]:
     files: list[EvidenceFile] = []
     for p in sorted(sandbox.rglob("*")):
-        if not p.is_file():
-            continue
-        try:
-            p.resolve().relative_to(sandbox.resolve())
-        except ValueError:
+        if not evidence_within_sandbox(p, sandbox):
             continue
         if p.suffix.lower() not in _EVIDENCE_SUFFIXES:
             continue

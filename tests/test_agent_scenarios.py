@@ -527,12 +527,11 @@ def _seed_synthetic_step_science(project_id: str) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("complete_evidence", [False, True], ids=["missing-irc", "scientific-evidence"])
-async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_completion(
+async def test_guided_file_verdict_notifies_coordinator_and_enforces_scientific_completion(
     tmp_path, monkeypatch, complete_evidence
 ):
-    """A verdict wakes once; only scientifically supported files permit complete."""
+    """A verdict notifies once; only the full native evidence chain permits complete."""
     submit_evidence = asyncio.Event()
-    attempt_partial = asyncio.Event()
     review_file = asyncio.Event()
     finish_supervisor = asyncio.Event()
     attempt_complete = asyncio.Event()
@@ -543,15 +542,20 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
     # The synthetic TS log contains both converged Opt and one-imaginary Freq
     # blocks; the real validators must still prove their geometry association.
     files = {"ts_file": "ts.out", "opt_file": "ts.out", "irc_file": "irc.out"} if complete_evidence else {"ts_file": ts.name}
-    provider = ScriptedProvider(by_role={
+    final_provider = ScriptedProvider(default=[final_verdict, Step(stop=True)])
+
+    class ScopedProvider(ScriptedProvider):
+        async def complete(self, agent, messages, tools, **kwargs):
+            if agent.final_review_request_id:
+                return await final_provider.complete(agent, messages, tools, **kwargs)
+            return await super().complete(agent, messages, tools, **kwargs)
+
+    provider = ScopedProvider(by_role={
         "coordinator": [
             _propose_selected_ab(),
             Step(wait_for=submit_evidence, tools=[("dag_submit_step_evidence", {
                 "step_name": "AB", **files,
                 "reaction_coordinate_description": "selected transition",
-            })]),
-            Step(wait_for=attempt_partial, tools=[("stop", {
-                "delivery_disposition": "partial",
             })]),
             Step(wait_for=attempt_complete, tools=[("dag_delivery_report", {})]),
             Step(tools=[("stop", {"delivery_disposition": "complete"})]),
@@ -563,13 +567,11 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
         "supervisor": [
             Step(tools=[("dag_accept_mechanism", {"verdict": "accept"})]),
             Step(text="draft reviewed", stop=True),
-            Step(text="file review queued", stop=True),
             Step(wait_for=review_file, tools=[("dag_review_step", {
                 "step_name": "AB", "verdict": "supported",
                 "rationale": "the submitted file supports the selected transition",
             })]),
             Step(wait_for=finish_supervisor, text="file reviewed", stop=True),
-            *([final_verdict, Step(stop=True)] if complete_evidence else []),
         ],
     })
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
@@ -609,20 +611,19 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
         assert checks["short_irc"]["status"] == ("passed" if complete_evidence else "incomplete")
         review_id = submitted["result_data"]["result"]["review_id"]
         await harness.wait_for(
-            lambda: any(a.role_id == "supervisor" and a.state.value == "succeeded"
-                        and len(harness.run_rows(a)) >= 2
+            lambda: any(a.role_id == "supervisor" and a.final_review_request_id is None
+                        and a.state.value == "running" and len(harness.run_rows(a)) >= 1
                         for a in harness.core.agents.values()),
-            "Supervisor idle after file submission",
+            "Process Supervisor awaiting the file verdict",
         )
-        attempt_partial.set()
+        # Keep the research run open while the process reviewer is working.
+        # Partial stop is not a substitute for missing mandatory IRC evidence.
         await harness.wait_for(
-            lambda: coordinator.state.value == "waiting_approval",
-            "Coordinator parked on the partial exit request",
+            lambda: coordinator.state.value == "running" and provider.call_count("coordinator") >= 3,
+            "Coordinator waiting in a non-final provider turn",
         )
-        parked = [e for e in harness.events(coordinator) if e.type == "agent.state_changed"]
-        assert parked[-1].data["reason"] == "wait_review"
         assert not any(row["outcome"] == "succeeded" for row in harness.run_rows(coordinator))
-        child_reports_at_park = len(harness.child_reports(coordinator))
+        child_reports_before_review = len(harness.child_reports(coordinator))
 
         from cloudra.runtime_v2 import supervision
 
@@ -643,8 +644,8 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
             "per-file Supervisor verdict",
         )
         await harness.wait_for(
-            lambda: coordinator.state.value == "running" and provider.call_count("coordinator") >= 4,
-            "Coordinator resumed on the verdict and entered a new provider turn",
+            lambda: coordinator.state.value == "running" and provider.call_count("coordinator") >= 3,
+            "Coordinator remains active while its verdict notification is delivered",
         )
         from cloudra.dag.controller import DagController
         from cloudra.dag.store import DagStore
@@ -674,10 +675,8 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
                 ).fetchall()
 
         assert await asyncio.to_thread(_notification_rows) == [(coordinator.id, "sent")]
-        assert len(harness.child_reports(coordinator)) == child_reports_at_park
-        states = [e.data.get("to") for e in harness.events(coordinator)
-                  if e.type == "agent.state_changed"]
-        assert "running" in states[states.index("waiting_approval") + 1:]
+        assert len(harness.child_reports(coordinator)) == child_reports_before_review
+        assert not any(e.type == "agent.completion_gate" for e in harness.events(coordinator))
         report = await asyncio.to_thread(
             DagController(db, coordinator.id, "dag_guided", conversation_id=harness.project.id).delivery_report
         )
@@ -705,8 +704,8 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
 
         finish_supervisor.set()
         await harness.wait_for(
-            lambda: any(a.role_id == "supervisor" and a.state.value == "succeeded"
-                        and len(harness.run_rows(a)) >= 3
+            lambda: any(a.role_id == "supervisor" and a.final_review_request_id is None
+                        and a.state.value == "succeeded" and len(harness.run_rows(a)) >= 2
                         for a in harness.core.agents.values()),
             "Supervisor idle before the final delivery attempt",
         )
@@ -754,7 +753,6 @@ async def test_guided_file_verdict_wakes_coordinator_and_enforces_scientific_com
             assert completion_summary(harness.events(coordinator)) is None
     finally:
         submit_evidence.set()
-        attempt_partial.set()
         review_file.set()
         finish_supervisor.set()
         attempt_complete.set()

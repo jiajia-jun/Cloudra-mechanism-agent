@@ -13,6 +13,7 @@ RAW_QM_LOG_PARSERS = frozenset({
     "Chemtool/ts_guess.py",
     "core/gaussian_frames.py",
     "core/orca_frames.py",
+    "core/qm_log_facts.py",
     "core/xtb_frames.py",
 })
 

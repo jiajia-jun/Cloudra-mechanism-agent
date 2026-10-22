@@ -317,7 +317,7 @@ def ts_completed_optimization_frequency_resume_steps(run_id: str, ready: asyncio
     """完成 TS 优化后修订频率设置，沿真实恢复入口提交独立频率作业。"""
     return [Step(wait_for=ready, tools=[("ts_resume", {
         "run_id": run_id,
-        "changes": {"verification": {"frequency": {"frequency_mode": "numeric", "keywords": "TightSCF"}}},
+        "changes": {"verification": {"frequency": {"frequency_mode": "numeric", "keywords": "NumFreq TightSCF"}}},
         "reason": "Use numerical frequencies on the completed TS optimization geometry",
     })]), Step(stop=True)]
 

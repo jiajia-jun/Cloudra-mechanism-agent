@@ -41,7 +41,7 @@ def test_nested_scan_retains_single_coordinate_or_concerted_path(tmp_path, conce
     assert "        B 0 1 = 1.000000, 2.000000, 3\n" in native
     assert ("Simul_Scan true" in native) is concerted
     assert "{ B 1 2 C }" in native
-    assert "%pal nprocs 8 end" in native and "%maxcore 256" in native
+    assert "%pal nprocs 8 end" in native and "%maxcore 96" in native
     assert "* xyz 0 1\nO" in native
 
 
@@ -94,15 +94,26 @@ def test_grid_completion_preserves_surface_without_automatic_ts_guess(tmp_path, 
     ([{"scan": None}], "%geom\n  Scan B 0 1 = 1, 2, 3 end\nend"),
     ([{"opt": None}], "%geom\n  Scan\n    B 0 1 = 1, 2, 3\n  end\nend"),
 ])
-async def test_writer_retires_orca_scan_and_raw_opt_bypass(tmp_path, tasks, blocks):
+async def test_writer_preserves_explicit_native_scan_with_advice(tmp_path, tasks, blocks):
     source = tmp_path / "water.xyz"
     source.write_text(WATER)
-    output = tmp_path / "retired.inp"
+    output = tmp_path / "native-scan.inp"
     result = await QmInputWriter().tool_call(QmInputWriter_input_schema(
         charge=0, source_type="xyz_file", source_value=str(source), output_path=str(output),
         task_type=tasks, orca_blocks=blocks, **ORCA), session=None)
-    assert not result.is_success and not output.exists()
-    assert "ts_guess" in result.message and "scan_prepare" in result.message
+    assert result.is_success, result.message
+    content = output.read_text()
+    task_keyword = 'scan' if 'scan' in tasks[0] else 'Opt'
+    assert content.splitlines()[0] == f'! {task_keyword} B3LYP def2-SVP D3BJ'
+    if blocks:
+        assert blocks in content
+        assert result.interpreted_intent['tasks'] == ['relaxed_scan']
+    else:
+        assert result.interpreted_intent['tasks'] == []
+    if 'scan' in tasks[0]:
+        assert any(item['code'] == 'scan_requires_ts_guess' and item['severity'] == 'warning'
+                   for item in result.warnings)
+    assert result.unapplied_options == []
 
 
 @pytest.mark.asyncio

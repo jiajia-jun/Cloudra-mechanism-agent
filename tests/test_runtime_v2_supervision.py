@@ -952,6 +952,9 @@ async def test_explicit_submission_latches_supervisor_then_24_parses_and_peer_me
             )
         ).data
         await _wait_state(child, "succeeded")
+        # Child state commits before its completion message wakes the parent.
+        # Do not mistake the parent's previous succeeded state for run 3.
+        await _wait_run_count(core, research, 3)
         await _wait_state(research, "succeeded")  # run3 结束
         assert llm.seen_child_completion, (
             "the parent's next turn must see the delivered child-completion message"

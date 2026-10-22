@@ -28,10 +28,12 @@ from tests.dag_identity import call_dag_tool, make_coordinator
 
 
 def _seed_logs_and_step(workspace: Path, conversation_id: str) -> DagStore:
+    """Build synthetic native facts with explicit optimization/geometry lineage."""
     workspace.mkdir(exist_ok=True)
     log = (
         '* O   R   C   A *\n'
         'THE OPTIMIZATION HAS CONVERGED\n'
+        'FINAL ENERGY EVALUATION AT THE STATIONARY POINT\n'
         'FINAL SINGLE POINT ENERGY -100.0\n'
         'CARTESIAN COORDINATES (ANGSTROEM)\n'
         '-----------------------------\n'

@@ -90,10 +90,11 @@ def test_one_steps_endpoint_evidence_cannot_supply_another_steps_missing_proof(t
 
 
 @pytest.mark.parametrize("fault", ["stale_graph", "changed_log", "missing_log", "outside", "schema"])
-def test_unusable_endpoint_sidecar_never_falls_back_to_other_history(tmp_path, fault, rdkit_chemistry):
+@pytest.mark.parametrize("complete_chain", [False, True])
+def test_unusable_endpoint_hint_requires_an_independent_native_chain(tmp_path, fault, complete_chain, rdkit_chemistry):
     bundle, graph_path, graph, bindings, files, endpoints = _scoring_bundle(tmp_path)
-    # Without the manifest this ordinary same-geometry binding can pass; an
-    # unusable manifest must therefore not disappear into that fallback.
+    # Bindings are optional hints. Invalid metadata is diagnosed, but only an
+    # independently verified local native chain can recover a scientific pass.
     bindings[1].bound_files = [bundle["product_freq"].name]
     digest = _sha256(graph_path)
     if fault == "stale_graph":
@@ -107,11 +108,17 @@ def test_unusable_endpoint_sidecar_never_falls_back_to_other_history(tmp_path, f
     else:
         endpoints["target"] = "product_opt.out"
     _write_manifest(tmp_path, digest, {"E": endpoints})
+    if not complete_chain:
+        bundle["product_opt"].unlink()
 
     report = audit_self_consistency(graph, bindings, files, tmp_path)
 
-    assert not report.passed
-    assert any("endpoint evidence" in note.lower() and "unusable" in note.lower() for note in report.notes)
+    assert report.passed is complete_chain
+    edge = next(check for check in report.checks if check.element_id == "E")
+    assert edge.covered is complete_chain
+    assert any("endpoint evidence" in note.lower() and "unusable" in note.lower() for note in edge.notes)
+    if complete_chain:
+        assert {"product_opt.out", "product_freq.out"} <= set(edge.evidence_used)
 
 
 def test_absent_endpoint_sidecar_leaves_existing_native_scoring_available(tmp_path):
@@ -166,3 +173,55 @@ def test_writer_rejects_invalid_endpoint_snapshot_records(tmp_path, fault):
 
     with pytest.raises(ValueError, match="endpoint evidence.*unusable"):
         write_step_endpoint_evidence(root, "a" * 64, {"step": {"source": [record], "target": []}})
+
+
+@pytest.mark.parametrize('first_route', ['bound', 'discovered'])
+@pytest.mark.parametrize('second_route', ['bound', 'discovered'])
+@pytest.mark.parametrize('reverse', [False, True])
+def test_native_chain_accounting_is_shared_and_directional(
+    tmp_path, first_route, second_route, reverse, rdkit_chemistry,
+):
+    _, graph_path, graph, bindings, files, endpoints = _scoring_bundle(tmp_path, second_edge=True)
+    if reverse:
+        graph = graph.model_copy(update={'edges': [graph.edges[0],
+            graph.edges[1].model_copy(update={'from_node': 'P', 'to_node': 'R'})]})
+        graph_path.write_text(graph.model_dump_json(by_alias=True))
+    stale = {'source': endpoints['source'], 'target': [
+        _record(tmp_path, tmp_path / 'product_energy_anchor.out')]}
+    first = endpoints if first_route == 'bound' else stale
+    second = endpoints if second_route == 'bound' else stale
+    if reverse:
+        second = {'source': second['target'], 'target': second['source']}
+    _write_manifest(tmp_path, _sha256(graph_path), {'E': first, 'other': second})
+
+    report = audit_self_consistency(graph, bindings, files, tmp_path)
+
+    edges = {check.element_id: check for check in report.checks if check.kind == 'edge'}
+    assert edges['E'].covered, edges['E'].notes
+    assert edges['other'].covered is reverse, edges['other'].notes
+    assert report.passed is reverse
+
+
+@pytest.mark.parametrize('reverse', [False, True])
+def test_cloned_graph_ids_cannot_relabel_the_same_native_direction(tmp_path, reverse, rdkit_chemistry):
+    _, graph_path, graph, bindings, files, endpoints = _scoring_bundle(tmp_path, second_edge=True)
+    aliases = [node.model_copy(update={'id': node.id + '-alias'})
+               for node in graph.nodes if node.id in {'R', 'P'}]
+    source, target = ('P-alias', 'R-alias') if reverse else ('R-alias', 'P-alias')
+    graph = graph.model_copy(update={
+        'nodes': [*graph.nodes, *aliases],
+        'edges': [graph.edges[0], graph.edges[1].model_copy(update={'from_node': source, 'to_node': target})],
+    })
+    graph_path.write_text(graph.model_dump_json(by_alias=True))
+    bindings.extend([binding.__class__(node_id=binding.node_id + '-alias',
+        bound_files=list(binding.bound_files), matched=binding.matched, quality=binding.quality)
+        for binding in bindings if binding.node_id in {'R', 'P'}])
+    other = {'source': endpoints['target'], 'target': endpoints['source']} if reverse else endpoints
+    _write_manifest(tmp_path, _sha256(graph_path), {'E': endpoints, 'other': other})
+
+    report = audit_self_consistency(graph, bindings, files, tmp_path)
+
+    edges = {check.element_id: check for check in report.checks if check.kind == 'edge'}
+    assert edges['E'].covered
+    assert edges['other'].covered is reverse, edges['other'].notes
+    assert report.passed is reverse

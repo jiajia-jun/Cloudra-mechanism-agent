@@ -103,18 +103,19 @@ def _restore_hb10_dag(case, sandbox, data_dir):
 
 
 @pytest.mark.parametrize('task_id', ['L1', 'M17'])
-def test_original_native_delivery_rejects_its_actual_wrong_endpoint_selection(tmp_path, task_id):
+def test_original_native_delivery_recovers_its_complete_native_endpoint_chain(tmp_path, task_id):
     sandbox = tmp_path / 'historical-delivery'
     task, case = _restore_case(task_id, sandbox)
 
     result = BenchmarkRunner(tmp_path / 'score').score_sandbox(task, sandbox)
 
-    assert result.selfconsistency_passed is False
-    assert result.graph_score == pytest.approx(2 / 3)
+    # Stale binding slots are hints, not a veto on an independent, complete
+    # native proof already owned by this exact historical task sandbox.
+    assert result.selfconsistency_passed is True
+    assert result.selfconsistency_score == 1.0
+    assert result.graph_score == 1.0
     assert result.accuracy_score == pytest.approx(case['original_result']['accuracy_score'])
-    assert result.final_score == pytest.approx(0.6667)
-    assert any('native starting geometry matches neither actual IRC outer frame' in note
-               for note in result.notes)
+    assert result.final_score == 1.0
     _assert_original_bytes(sandbox, case)
 
 
@@ -190,7 +191,7 @@ def test_actual_automatic_delivery_scores_gold_without_rebuilding_metadata(tmp_p
     _assert_native_bytes(sandbox, case)
 
 
-def test_hb10_original_delivery_keeps_partial_score_without_endpoint_export(tmp_path):
+def test_hb10_native_recovery_preserves_its_independent_graph_penalty(tmp_path):
     sandbox = tmp_path / 'actual-hb10-delivery'
     task, case = _restore_case('HB10', sandbox)
 
@@ -198,14 +199,16 @@ def test_hb10_original_delivery_keeps_partial_score_without_endpoint_export(tmp_
 
     expected = case['formal_gold_result']
     assert result.graph_score == pytest.approx(expected['graph_score'])
-    assert result.selfconsistency_passed is False
+    assert result.selfconsistency_passed is True
+    assert result.selfconsistency_score == 1.0
     assert result.accuracy_score == pytest.approx(expected['accuracy_score'])
-    assert result.final_score == pytest.approx(expected['final_score'])
+    # Complete native science does not repair a separately missing graph binding.
+    assert result.final_score == pytest.approx(0.98)
     edges = {check.element_id: check for check in science.checks if check.kind == 'edge'}
-    assert edges['exo_DA'].covered
-    assert not edges['endo_DA'].covered
-    assert any('native starting geometry matches neither actual IRC outer frame' in note
-               and 'calc-39.out.log' in note for note in edges['endo_DA'].notes)
+    assert edges['exo_DA'].covered and edges['endo_DA'].covered
+    assert any('discovered a passing IRC' in note for note in edges['endo_DA'].notes)
+    assert any('calc-38.out.log' in path for path in edges['endo_DA'].evidence_used)
+    assert any('calc-44.out.log' in path for path in edges['endo_DA'].evidence_used)
     assert not (sandbox / '.cloudra/mechanism_evidence.json').exists()
     _assert_original_bytes(sandbox, case)
 

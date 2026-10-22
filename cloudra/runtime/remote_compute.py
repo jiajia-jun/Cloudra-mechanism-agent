@@ -698,11 +698,6 @@ def _stage_and_submit(
     options: dict,
 ) -> tuple[str, str]:
     """推 stage 并远端提交；返回 ``(句柄, 本地脚本路径)``。"""
-    if kind == "ssh_local":
-        transport.checked(
-            shlex.join(["python3", "-c", "import fcntl,sys; assert sys.version_info >= (3,11), 'ssh_local requires Python 3.11+ for its calculation owner'"]),
-            timeout=30,
-        )
     xtb_params = XtbParams.from_row(row) if job_type == "xtb" else None
     calc_argv = remote_calculator_argv(input_file.name, job_type, xtb_params)
     if job_type == "chem_task":
@@ -737,6 +732,11 @@ def _stage_and_submit(
     if script_path == input_file or _same_existing_file(script_path, input_file):
         raise ValueError('runtime execution script would replace the submitted input')
     native_stage = _stage_native_paths(input_file, workdir, task_id, job_type)
+    if kind == "ssh_local":
+        transport.checked(
+            shlex.join(["python3", "-c", "import fcntl,sys; assert sys.version_info >= (3,11), 'ssh_local requires Python 3.11+ for its calculation owner'"]),
+            timeout=30,
+        )
     atomic_write_text(str(script_path), script, mode=0o700)
     excludes = ('.cloudra/', '.g16_scratch/')
     if native_stage:

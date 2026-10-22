@@ -70,7 +70,10 @@ def _irc_sandbox(tmp_path, first_frequency, *, synthetic_ts_optimization=False):
         # Engineering-contract fixture only; this does not assert a real optimized TS.
         path = tmp_path / "ts.out"
         path.write_text("# Synthetic optimization marker for the artifact contract test\n"
-            "THE OPTIMIZATION HAS CONVERGED\n" + path.read_text())
+            + path.read_text().replace("CARTESIAN COORDINATES (ANGSTROEM)",
+                "THE OPTIMIZATION HAS CONVERGED\n"
+                "FINAL ENERGY EVALUATION AT THE STATIONARY POINT\n"
+                "CARTESIAN COORDINATES (ANGSTROEM)", 1))
     irc_dir = tmp_path / "irc"
     irc_dir.mkdir()
     for name in ("irc.out", "irc_IRC_F.xyz", "irc_IRC_B.xyz"):

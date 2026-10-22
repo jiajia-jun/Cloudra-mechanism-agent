@@ -287,7 +287,7 @@ def _geometry_matches_species(geometry, smiles: str, *, charge: int) -> bool:
 
 def verify_separated_product_direction(
     irc_ends, ts_geometry, source_geometries, product_smiles, component_geometries,
-    *, charge: int = 0, atom_binding=None,
+    *, charge: int = 0, atom_binding=None, proof_lineage=None,
 ) -> dict:
     """Prove the separated product channel without inventing a complex minimum.
 
@@ -349,6 +349,8 @@ def verify_separated_product_direction(
                 [source[1][index] for index in aligned_source[0]],
                 [minimum[1][index] for index in aligned_minimum[0]], [], charge)
             if result['is_decidable'] and result['is_between']:
+                if proof_lineage is not None:
+                    proof_lineage.update(source_endpoint=source, target_endpoint=target)
                 return dict(is_decidable=True, is_match=True, assignment=name,
                     proof_scope='separated_products', details=[
                         'The actual IRC endpoint matches every declared separated product, each supported '
@@ -417,8 +419,11 @@ def diagnose_short_irc_materials(irc_log, ts_logs, *, workspace=None,
 
     bound = list(dict.fromkeys(str(path) for path in ts_logs))
     for path in bound:
-        kinds = job_types(path)
-        n_imag, _geometry = probe_log(path)
+        try:
+            kinds = job_types(path)
+            n_imag, _geometry = probe_log(path)
+        except (OSError, ValueError):
+            continue  # Optional diagnostics must preserve the original proof failure.
         name = Path(path).name
         if 'irc' in kinds:
             hints.append(f"{name} is an IRC trajectory; native IRC output has no frequency "
@@ -461,7 +466,10 @@ def diagnose_short_irc_materials(irc_log, ts_logs, *, workspace=None,
             if key in seen or not path.is_file():
                 continue
             seen.add(key)
-            n_imag, geometry = probe_log(path)
+            try:
+                n_imag, geometry = probe_log(path)
+            except (OSError, ValueError):
+                continue  # One unrelated unreadable/malformed log cannot abort discovery.
             if n_imag != 1 or geometry is None:
                 continue
             if same_geometry(geometry, anchor_geometry):
@@ -538,7 +546,7 @@ def _optimized_minima(logs, *, smiles, side, charge, details):
 
 
 def _endpoint_optimization_proof(ends, ts_geometry, source_logs, target_logs, *,
-        charge=0, atom_binding=None, reactant_smiles=None, product_smiles=None):
+        charge=0, atom_binding=None, reactant_smiles=None, product_smiles=None, proof_lineage=None):
     """Both real IRC sides must terminate in the declared verified minima via Opt."""
     from cloudra.tools.core.irc_path import align_atom_order
 
@@ -592,6 +600,8 @@ def _endpoint_optimization_proof(ends, ts_geometry, source_logs, target_logs, *,
                 except Exception as exc:
                     result.append(f'[warning] Endpoint optimization establishes direction, but the geometric interval '
                                   f'could not be evaluated ({exc}); inspect the trajectory.')
+                if proof_lineage is not None:
+                    proof_lineage.update(source_endpoint=source_end, target_endpoint=target_end)
                 return True, result
     return False, ['The actual IRC outer frames are not connected to both declared zero-imaginary minima '
                    'by converged optimization logs; geometric interval agreement alone is not direction proof.', *details]
@@ -607,6 +617,7 @@ def verify_short_irc_direction(
     atom_bindings=None,
     reactant_smiles: str | list[str] | None = None,
     product_smiles: str | list[str] | None = None,
+    proof_lineage: dict | None = None,
 ) -> tuple[bool, list[str]]:
     """同一 TS 双向 IRC 的真实外帧经 Opt/Freq 到正确极小值即方向通过。
 
@@ -669,6 +680,7 @@ def verify_short_irc_direction(
                 ends, ts_geometry, endpoint_b_logs, endpoint_a_logs, charge=charge,
                 reactant_smiles=reactant_smiles, product_smiles=product_smiles,
                 atom_binding=atom_binding if ts_binding == atom_binding else None,
+                proof_lineage=proof_lineage,
             )
             if passed:
                 return True, proof_details
@@ -677,7 +689,8 @@ def verify_short_irc_direction(
         for ts_geometry, ts_binding in ts_geometries:
             verdict = verify_separated_product_direction(ends, ts_geometry, from_geometries,
                 product_smiles, to_geometries, charge=charge,
-                atom_binding=atom_binding if ts_binding == atom_binding else None)
+                atom_binding=atom_binding if ts_binding == atom_binding else None,
+                proof_lineage=proof_lineage)
             if verdict["is_match"]:
                 return True, verdict["details"]
             details.extend(verdict["details"])
@@ -689,7 +702,7 @@ def verify_short_irc_direction(
 
 def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, endpoint_b_logs, *,
         atom_bindings=None, charge=0, reactant_smiles: str | list[str] | None = None,
-        product_smiles: str | list[str] | None = None):
+        product_smiles: str | list[str] | None = None, proof_lineage: dict | None = None):
     """Combine native directional logs using the same endpoint-optimization proof."""
     def outer_geometry(path, direction):
         engine = qm_engine.detect_qm_engine(str(path))
@@ -733,7 +746,8 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
             passed, proof_details = _endpoint_optimization_proof((forward, reverse), geometry,
                 endpoint_b_logs, endpoint_a_logs, charge=charge,
                 reactant_smiles=reactant_smiles, product_smiles=product_smiles,
-                atom_binding=atom_binding if ts_binding == atom_binding else None)
+                atom_binding=atom_binding if ts_binding == atom_binding else None,
+                proof_lineage=proof_lineage)
             if passed:
                 return True, proof_details
             details.extend(proof_details)
@@ -741,7 +755,8 @@ def verify_short_irc_pair(forward_log, reverse_log, ts_logs, endpoint_a_logs, en
         for geometry, ts_binding in ts:
             verdict = verify_separated_product_direction((forward, reverse), geometry, source,
                 product_smiles, target, charge=charge,
-                atom_binding=atom_binding if ts_binding == atom_binding else None)
+                atom_binding=atom_binding if ts_binding == atom_binding else None,
+                proof_lineage=proof_lineage)
             if verdict['is_match']:
                 return True, verdict['details']
             details.extend(verdict['details'])

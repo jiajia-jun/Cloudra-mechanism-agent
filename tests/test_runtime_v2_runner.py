@@ -58,6 +58,8 @@ async def _setup(llm) -> tuple[RuntimeCore, object, object]:
     # ScriptedLLM 直接发业务工具调用，固定传统协议；
     # 默认 javascript 协议只放 js_exec + 直接控制类。
     agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    # The injected executor implements echo; production capability projection does not.
+    agent.capabilities.tools.append("echo")
     return core, project, agent
 
 
@@ -242,6 +244,8 @@ async def test_manual_compaction_rewrites_history(monkeypatch):
     )
     agent = result.data
     agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    # The injected executor implements echo; production capability projection does not.
+    agent.capabilities.tools.append("echo")
     await _wait_state(agent, "running")
     await _wait_until(lambda: len(llm.calls) >= 2, what="second LLM call in flight")
     # turn 2 在 gate 中：此时压缩命令到达，应在 turn 3 的轮次边界应用
@@ -466,6 +470,7 @@ async def test_two_projects_run_agents_concurrently_and_stay_isolated():
         # RoutedLLM 直接发业务工具调用，固定传统协议（默认 javascript 只放
         # js_exec + 直接控制类）。
         result.data.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+        result.data.capabilities.tools.append("echo")
         agents.append(result.data)
 
     deadline = asyncio.get_running_loop().time() + 2.0
@@ -775,6 +780,8 @@ async def test_compaction_summary_is_appended_to_workspace(monkeypatch, tmp_path
     )
     agent = result.data
     agent.settings.invocation_protocol = InvocationProtocol.TRADITIONAL
+    # The injected executor implements echo; production capability projection does not.
+    agent.capabilities.tools.append("echo")
     await bus.execute(
         Command(
             type="project.update",

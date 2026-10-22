@@ -172,3 +172,45 @@ def test_one_delivered_step_cannot_cover_two_gold_edges():
     assert report.edge_scores["G1"] == pytest.approx(1.0)
     assert report.edge_scores["G2"] == pytest.approx(1.0)
     assert report.final_score == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize('gold_id', ['G1', 'Z'])
+def test_one_to_one_assignment_preserves_a_complete_channel_matching(gold_id):
+    nodes = [MechanismNode(id='R', role='reactant', smiles=['CCCC']),
+             MechanismNode(id='P', role='product', smiles=['CCCC'])]
+    gold = GoldSpec(mechanism_graph=GoldMechanismGraph(nodes=nodes, edges=[
+        _edge(gold_id, 'R', 'P', barrier_kcal_mol=10.0),
+        _edge('G2', 'R', 'P', channel='syn', barrier_kcal_mol=10.0),
+    ]))
+    delivered = GoldMechanismGraph(nodes=nodes, edges=[
+        _edge('d1', 'R', 'P', channel='syn'), _edge('d2', 'R', 'P', channel='anti'),
+    ])
+    evidence = BarrierEvidence(steps=[
+        StepBarrier(edge_id=edge.id, ts_path=edge.id, base_path='r', base_node_id='R',
+                    barrier_kcal_mol=10.0, declared_kcal_mol=10.0)
+        for edge in delivered.edges
+    ])
+
+    report = score_accuracy(evidence=evidence, gold=gold, delivered_graph=delivered)
+
+    assert report.final_score == 1.0
+    assert set(report.edge_scores.values()) == {1.0}
+
+
+@pytest.mark.parametrize('irrelevant', ['no_reference', 'zero_weight'])
+def test_ungraded_gold_edges_do_not_consume_reference_evidence(irrelevant):
+    nodes = [MechanismNode(id='R', role='reactant', smiles=['C']),
+             MechanismNode(id='P', role='product', smiles=['O'])]
+    extra = _edge('A', 'R', 'P', **({'weight': 0, 'barrier_kcal_mol': 10.0}
+                                   if irrelevant == 'zero_weight' else {}))
+    gold = GoldSpec(mechanism_graph=GoldMechanismGraph(nodes=nodes, edges=[
+        extra, _edge('B', 'R', 'P', barrier_kcal_mol=10.0),
+    ]))
+    delivered = GoldMechanismGraph(nodes=nodes, edges=[_edge('d', 'R', 'P')])
+    evidence = BarrierEvidence(steps=[StepBarrier(edge_id='d', ts_path='t', base_path='r',
+        base_node_id='R', barrier_kcal_mol=10.0, declared_kcal_mol=10.0)])
+
+    report = score_accuracy(evidence=evidence, gold=gold, delivered_graph=delivered)
+
+    assert report.edge_scores['B'] == 1.0
+    assert report.final_score == 1.0

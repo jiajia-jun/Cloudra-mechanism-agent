@@ -272,8 +272,6 @@ def _find_matching_step(
     能垒口径不同不匹配）。多候选按 bond_changes 对称差最小、端点代价最小、
     edge id 字典序取（确定性）。steps=None 时直接匹配交付边，不要求能垒
     证据；最佳键变化候选中若有正断言，优先返回它，不能用重复负声明掩盖。"""
-    from cloudra.benchmark.graph_similarity import species_substitution_cost
-
     candidates = _rank_matching_steps(
         gold_edge, gold_nodes, steps, delivered_graph, cfg, match_threshold,
         require_channel,
@@ -309,7 +307,7 @@ def _rank_matching_steps(
     gold_from = gold_nodes.get(gold_edge.from_node)
     gold_to = gold_nodes.get(gold_edge.to_node)
     if gold_from is None or gold_to is None:
-        return None
+        return []
     gold_pairs = gold_edge.bond_changes.pairs()
     candidates: list[tuple[int, float, str, object]] = []
     for step in steps if steps is not None else delivered_graph.edges:
@@ -341,30 +339,50 @@ def _assign_matching_steps(
     cfg,
     match_threshold: float,
 ) -> dict:
-    """Global one-to-one assignment: a delivered step is used by one gold edge.
+    """Maximum-cardinality, minimum-chemistry-cost one-to-one assignment.
 
-    Every gold edge's legal deliveries are ranked with the same rules as
-    ``_find_matching_step``; the cheapest pair wins, and a step already assigned
-    is skipped. Without this, two gold edges sharing endpoints could both score
-    the same delivered step.
+    Preserve the existing eligibility and bond/endpoint cost ordering globally.
+    Exact ties follow Gold graph order and delivered IDs, never private Gold IDs
+    or numerical agreement with the answer. Ungraded edges consume no evidence.
     """
+    from fractions import Fraction
+
+    import networkx as nx
+
     steps = evidence.steps if evidence is not None else None
     ranked = []
-    for edge, signature in zip(scored_edges, edge_signatures):
+    equal_weights = sum(edge.weight for edge in scored_edges) <= 0
+    for index, (edge, signature) in enumerate(zip(scored_edges, edge_signatures)):
+        if edge.barrier_kcal_mol is None or (edge.weight == 0 and not equal_weights):
+            continue
         require_channel = edge.channel is not None and edge_signatures.count(signature) > 1
         for symdiff, cost, step_id, step in _rank_matching_steps(
             edge, gold_nodes, steps, delivered_graph, cfg, match_threshold,
             require_channel,
         ):
-            ranked.append((symdiff, cost, edge.id, step_id, step))
-    ranked.sort(key=lambda item: (item[0], item[1], item[2], item[3]))
-    assigned: dict = {}
-    used: set = set()
-    for _symdiff, _cost, edge_id, step_id, step in ranked:
-        if edge_id in assigned or step_id in used:
-            continue
-        assigned[edge_id] = step
-        used.add(step_id)
+            ranked.append((index, edge.id, symdiff, Fraction(cost), step_id, step))
+    if not ranked:
+        return {}
+
+    # Float costs have power-of-two denominators. Convert them exactly so the
+    # solver's deterministic tie-break cannot outweigh any chemical difference.
+    denominator = max(item[3].denominator for item in ranked)
+    count = len(scored_edges)
+    bond_scale = count * max(int(item[3] * denominator) for item in ranked) + 1
+    step_ids = sorted({item[4] for item in ranked})
+    step_order = {step_id: index for index, step_id in enumerate(step_ids)}
+    base = len(step_ids) + 1
+    tie_scale = count * base ** (count + 1) + 1
+    matching_graph = nx.Graph()
+    for index, edge_id, symdiff, cost, step_id, step in ranked:
+        chemistry_cost = symdiff * bond_scale + int(cost * denominator)
+        tie = (step_order[step_id] - len(step_ids)) * base ** (count - index - 1)
+        matching_graph.add_edge(('gold', edge_id), ('delivery', step_id),
+            weight=chemistry_cost * tie_scale + tie, step=step)
+    assigned = {}
+    for left, right in nx.min_weight_matching(matching_graph):
+        gold_key, delivery_key = (left, right) if left[0] == 'gold' else (right, left)
+        assigned[gold_key[1]] = matching_graph.edges[gold_key, delivery_key]['step']
     return assigned
 
 

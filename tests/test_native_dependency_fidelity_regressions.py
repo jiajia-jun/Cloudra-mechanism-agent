@@ -145,7 +145,8 @@ def test_gaussian_nested_includes_relocate_only_paths_and_keep_receipts(tmp_path
 
 
 @pytest.mark.parametrize('kind', ['missing', 'cycle', 'input', 'runtime', 'calculator', 'output'])
-def test_gaussian_unsafe_include_fails_before_transport(tmp_path, kind):
+@pytest.mark.parametrize('scheduler', ['ssh_local', 'ssh_slurm'])
+def test_gaussian_unsafe_include_fails_before_transport(tmp_path, kind, scheduler):
     source = tmp_path / 'run.gjf'
     dependency = tmp_path / 'basis.gbs'
     prefix = ''
@@ -168,7 +169,7 @@ def test_gaussian_unsafe_include_fails_before_transport(tmp_path, kind):
     source.write_text(prefix + '# HF/Gen\n\nHe\n\n0 1\nHe 0 0 0\n\n@' + str(dependency) + '\n\n')
     transport = FakeTransport()
     with pytest.raises(ValueError, match='missing|cycle|input|runtime|collision|collid|output'):
-        _stage_and_submit(transport, 'ssh_local', 7, source, tmp_path, '/remote/job', 'gaussian', {}, {})
+        _stage_and_submit(transport, scheduler, 7, source, tmp_path, '/remote/job', 'gaussian', {}, {})
     assert not transport.pushes
     assert not transport.commands
 

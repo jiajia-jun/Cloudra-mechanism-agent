@@ -57,9 +57,11 @@ path and then dying:
  Error termination in NtrErr:
 ```
 
-`state_chk_outside_workspace.json` / `calc_chk_outside_workspace.exit.json`
-record the same outcome (`normal_termination: false`, `exit_code: 1`, no
-energy). Before the run, `sandboxes/jobs/` did not exist; the run created both
+`calc_chk_outside_workspace.exit.json` records `exit_code: 1`.
+The archived `state_chk_outside_workspace.json` was not checked in; its contents
+are not available as fixture evidence. The integrity test reads the unchanged
+native NtrErr log to verify failed termination and absent electronic energy.
+Before the run, `sandboxes/jobs/` did not exist; the run created both
 the directory and a 512 KiB checkpoint there — outside the task sandbox. See
 PR #216.
 
