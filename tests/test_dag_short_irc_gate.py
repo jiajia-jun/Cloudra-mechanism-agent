@@ -1,6 +1,7 @@
-"""Real native IRC proof, rather than trajectory length or a stop label, gates delivery."""
+"""Native IRC proof gates complete claims without forbidding honest partial delivery."""
 
 import asyncio
+import json
 
 import pytest
 
@@ -18,6 +19,7 @@ from cloudra.dag.models import (
     StageState,
     UpdateEdge,
 )
+from cloudra.dag.review_requests import ReviewDecision
 from cloudra.persistence.database import ConversationDB
 from cloudra.tools.core.qm_log_facts import read_qm_log
 from tests.test_irc_endpoint_optimization import write_lineage_bundle
@@ -85,6 +87,11 @@ async def _bind_irc(controller, refs, *, batch, broken=None):
     return result.model_dump()
 
 
+def _recorded_dispositions(controller):
+    with controller.db.connect() as con:
+        return con.execute('SELECT disposition FROM dag_delivery_dispositions').fetchall()
+
+
 @pytest.mark.parametrize('version', [1, 2])
 @pytest.mark.parametrize('batch', [False, True])
 @pytest.mark.parametrize('broken', ['no_log', 'missing_file', 'bad_log', 'non_irc',
@@ -121,18 +128,57 @@ async def test_valid_short_unconverged_irc_still_completes(tmp_path, rdkit_chemi
     assert gate.basis == 'dag_verified'
 
 
+@pytest.mark.parametrize('version', [1, 2])
 @pytest.mark.parametrize('mode', ['dag_record', 'dag_guided'])
 @pytest.mark.parametrize('disposition', ['complete', 'partial'])
 @pytest.mark.asyncio
-async def test_stop_label_cannot_bypass_required_irc(tmp_path, rdkit_chemistry, mode, disposition):
-    controller, _refs = await _native_controller(tmp_path, mode=mode)
+async def test_missing_irc_keeps_complete_and_partial_distinct(
+        tmp_path, rdkit_chemistry, version, mode, disposition):
+    controller, _refs = await _native_controller(tmp_path, version=version, mode=mode)
+    original_report = await asyncio.to_thread(controller.delivery_report)
 
     gate = await controller.audit_stop(disposition)
 
-    assert gate.action == 'continue_work'
-    assert gate.basis is None
     assert not gate.report.complete
-    assert any(gap.code == 'short_irc_check_failed' for gap in gate.report.unresolved)
+    assert await asyncio.to_thread(_recorded_dispositions, controller) == []
+    if disposition == 'complete':
+        assert gate.action == 'continue_work'
+        assert gate.basis is None
+        assert any(gap.code == 'short_irc_check_failed' for gap in gate.report.unresolved)
+        assert controller._pending_stop is None
+        return
+
+    assert gate.report == original_report
+    assert any(gap.code == 'missing_stage_evidence' and 'short_irc' in gap.detail
+               for gap in gate.report.unresolved)
+    if mode == 'dag_guided':
+        assert gate.action == 'wait_review'
+        assert gate.basis is None
+        assert controller._pending_stop is None
+        await controller.commit_stop()
+        assert await asyncio.to_thread(_recorded_dispositions, controller) == []
+        request = await asyncio.to_thread(controller.store.get_review_request, gate.request_id)
+        assert request.kind == 'exit'
+        assert request.proposal['disposition'] == 'partial'
+        assert request.proposal['remaining_gaps'] == [
+            gap.model_dump(mode='json') for gap in [*gate.report.unresolved, *gate.report.inconclusive]]
+        decision = ReviewDecision(request_id=request.request_id,
+            basis_fingerprint=request.basis_fingerprint, verdict='accept',
+            reason='Accept the partial result with the IRC evidence gap explicitly retained.')
+        assert (await asyncio.to_thread(controller.store.resolve_review, decision,
+            expected_basis=request.basis_fingerprint))['accepted']
+        approved = await controller.audit_stop('partial')
+        assert approved.action == 'allow_final'
+        assert approved.basis == 'supervisor_approved'
+        assert approved.request_id == gate.request_id
+        assert approved.report == original_report
+    else:
+        assert gate.action == 'allow_final'
+        assert gate.basis == 'partial_recorded'
+
+    await controller.commit_stop()
+    assert await asyncio.to_thread(_recorded_dispositions, controller) == [('partial',)]
+    assert not (await asyncio.to_thread(controller.delivery_report)).complete
 
 
 @pytest.mark.parametrize('status', ['supported', 'skipped', 'not_applicable'])
@@ -155,31 +201,82 @@ async def test_stage_label_cannot_replace_native_irc_proof(tmp_path, rdkit_chemi
 
     gate = await controller.audit_stop(disposition)
 
-    assert gate.action == 'continue_work'
-    assert not gate.report.complete
-    assert any(gap.code == 'short_irc_check_failed' for gap in gate.report.unresolved)
-    assert controller._pending_stop is None
+    if disposition == 'complete':
+        assert gate.action == 'continue_work'
+        assert not gate.report.complete
+        assert any(gap.code == 'short_irc_check_failed' for gap in gate.report.unresolved)
+        assert controller._pending_stop is None
+    else:
+        assert gate.action == 'allow_final'
+        assert gate.basis == 'partial_recorded'
+        assert gate.report == await asyncio.to_thread(controller.delivery_report)
+        await controller.commit_stop()
+        assert await asyncio.to_thread(_recorded_dispositions, controller) == [('partial',)]
 
 
 @pytest.mark.parametrize('disposition', ['complete', 'partial'])
 @pytest.mark.asyncio
-async def test_supported_irc_is_rechecked_when_native_log_disappears(tmp_path, rdkit_chemistry, disposition):
+async def test_only_complete_requires_native_log_to_remain_available(tmp_path, rdkit_chemistry, disposition):
     controller, refs = await _native_controller(tmp_path)
     assert (await _bind_irc(controller, refs, batch=False))['accepted']
-    (tmp_path / 'irc.out').unlink()
+    await asyncio.to_thread((tmp_path / 'irc.out').unlink)
 
     gate = await controller.audit_stop(disposition)
 
-    assert gate.action == 'continue_work'
-    assert not gate.report.complete
-    assert any(gap.code == 'short_irc_check_failed' for gap in gate.report.unresolved)
+    if disposition == 'complete':
+        assert gate.action == 'continue_work'
+        assert not gate.report.complete
+        assert any(gap.code == 'short_irc_check_failed' for gap in gate.report.unresolved)
+    else:
+        assert gate.action == 'allow_final'
+        assert gate.basis == 'partial_recorded'
+        assert gate.report == await asyncio.to_thread(controller.delivery_report)
+        await controller.commit_stop()
+        assert await asyncio.to_thread(_recorded_dispositions, controller) == [('partial',)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('unsupported_barrier', [False, True])
+async def test_partial_with_missing_native_log_still_enforces_artifact_consistency(
+        tmp_path, rdkit_chemistry, unsupported_barrier):
+    controller, refs = await _native_controller(tmp_path)
+    assert (await _bind_irc(controller, refs, batch=False))['accepted']
+    await asyncio.to_thread((tmp_path / 'irc.out').unlink)
+    document = {
+        'nodes': [
+            {'id': 'r', 'role': 'reactant', 'smiles': ['C#N']},
+            {'id': 'p', 'role': 'product', 'smiles': ['[C-]#[NH+]']},
+            {'id': 'ts', 'role': 'transition_state', 'smiles': []},
+        ],
+        'edges': [{'id': 'step1', 'from': 'r', 'to': 'p', 'via': 'ts'}],
+    }
+    if unsupported_barrier:
+        document['edges'][0]['barrier_kcal_mol'] = 1.0
+    await asyncio.to_thread((tmp_path / 'mechanism_graph.json').write_text, json.dumps(document))
+
+    gate = await controller.audit_stop('partial')
+
+    if unsupported_barrier:
+        assert gate.action == 'continue_work'
+        assert 'Delivery artifact is inconsistent with the DAG' in gate.reason
+        assert 'cannot declare a barrier' in gate.reason
+        assert controller._pending_stop is None
+        assert await asyncio.to_thread(_recorded_dispositions, controller) == []
+    else:
+        assert gate.action == 'allow_final'
+        assert gate.basis == 'partial_recorded'
+        artifact = controller._delivery_artifact
+        assert artifact is not None
+        assert artifact.scientific_checks['step1']['short_irc']['status'] != 'passed'
+        await controller.commit_stop()
+        assert await asyncio.to_thread(_recorded_dispositions, controller) == [('partial',)]
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('version', [1, 2])
 @pytest.mark.parametrize('disposition', ['complete', 'partial'])
 @pytest.mark.parametrize('change', ['deleted', 'corrupted', 'unchanged'])
-async def test_commit_rechecks_native_irc_after_successful_audit(
+async def test_commit_rechecks_native_irc_only_for_complete_after_successful_audit(
         tmp_path, rdkit_chemistry, version, disposition, change):
     controller, refs = await _native_controller(tmp_path, version=version)
     assert (await _bind_irc(controller, refs, batch=False))['accepted']
@@ -197,17 +294,14 @@ async def test_commit_rechecks_native_irc_after_successful_audit(
     assert await asyncio.to_thread(controller.store.delivery_state_fingerprint) == state
     assert await asyncio.to_thread(controller.delivery_report) == gate.report
 
-    if change == 'unchanged':
-        await controller.commit_stop()
-    else:
+    blocked = disposition == 'complete' and change != 'unchanged'
+    if blocked:
         with pytest.raises(RuntimeError, match='Required IRC direction proof changed after audit'):
             await controller.commit_stop()
+    else:
+        await controller.commit_stop()
 
-    def recorded():
-        with controller.db.connect() as con:
-            return con.execute('SELECT disposition FROM dag_delivery_dispositions').fetchall()
-
-    assert await asyncio.to_thread(recorded) == ([(disposition,)] if change == 'unchanged' else [])
+    assert await asyncio.to_thread(_recorded_dispositions, controller) == ([] if blocked else [(disposition,)])
 
 
 @pytest.mark.asyncio
