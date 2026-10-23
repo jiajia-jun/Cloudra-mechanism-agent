@@ -43,6 +43,16 @@ rather than jittering the path or claiming convergence after non-finite forces.
 Old saved outputs without `interpolation` remain readable as null; their method
 and convergence are unknown and are not retroactively labeled standard.
 
+For light, `legacy_stopping_criterion_met` records whether the old clipped
+max-gradient test was satisfied. If any final intermediate-image atom pair is
+closer than the existing 1e-8 Å gradient denominator floor (including exact
+overlap), `termination="degenerate_geometry"` and `converged=null`: the reported
+legacy residual cannot establish convergence. This assessment does not alter
+coordinates, stopping tests or Adam updates. A finite path may still be generated
+successfully. Endpoint-only paths have no relaxation or legacy stopping test.
+Older metadata without this field remains readable; do not infer that historical
+`converged=true` rules out this degeneracy. Standard behavior is unchanged.
+
 Neither a converged IDPP band nor its midpoint candidate is a transition state.
 Subsequent TS optimization, frequency and IRC evidence are still required.
 

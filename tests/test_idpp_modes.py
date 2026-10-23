@@ -123,3 +123,66 @@ def test_nonfinite_input_fails(mode):
     initial[2, 0, 0] = np.nan
     with pytest.raises(ValueError, match='finite'):
         _idpp_relax(initial, mode=mode)
+
+
+@pytest.mark.parametrize('distance', [0., 1e-20, 0.5e-8])
+@pytest.mark.parametrize('budget', [0, 8])
+def test_light_clipped_gradient_does_not_prove_convergence(distance, budget):
+    initial = np.array([[[-1., 0., 0.], [1., 0., 0.]],
+                        [[0., 0., 0.], [distance, 0., 0.]],
+                        [[1., 0., 0.], [-1., 0., 0.]]])
+    actual, report = _idpp_relax(initial, mode='light', max_iter=budget,
+                                 tol=1. if distance == 0.5e-8 else 1e-7)
+    # These cases satisfy the old clipped stopping test without an Adam update.
+    np.testing.assert_array_equal(actual, initial)
+    assert report['steps'] == 0
+    assert report['converged'] is None
+    assert report['legacy_stopping_criterion_met'] is True
+    assert report['termination'] == 'degenerate_geometry'
+
+
+def test_light_distance_at_floor_is_not_marked_degenerate():
+    initial = np.array([[[-1., 0., 0.], [1., 0., 0.]],
+                        [[0., 0., 0.], [1e-8, 0., 0.]],
+                        [[1., 0., 0.], [-1., 0., 0.]]])
+    _, report = _idpp_relax(initial, mode='light', max_iter=0)
+    assert report['legacy_stopping_criterion_met'] is False
+    assert report['converged'] is False
+    assert report['termination'] == 'max_steps'
+
+
+def test_light_degenerate_metadata_is_persisted_without_changing_coordinates(tmp_path, monkeypatch):
+    import importlib
+    import json
+
+    Chem = pytest.importorskip('rdkit.Chem')
+    module = importlib.import_module('cloudra.tools.Chemtool.ts_guess')
+    original_relax = module._idpp_relax
+    initial = band()
+    initial[2, 1] = initial[2, 0]
+    retained = []
+
+    def degenerate_relax(images, mode):
+        coordinates, report = original_relax(initial, mode=mode, max_iter=0)
+        retained.append(coordinates.copy())
+        return coordinates, report
+
+    monkeypatch.setattr(module, '_idpp_relax', degenerate_relax)
+    endpoints = []
+    for positions in initial[[0, -1]]:
+        mol = Chem.MolFromSmiles('COF')
+        conf = Chem.Conformer(3)
+        for index, position in enumerate(positions):
+            conf.SetAtomPosition(index, position)
+        mol.AddConformer(conf)
+        endpoints.append(mol)
+    result = module.TsGuess()._interpolate_molecules(
+        TsGuess_input_schema(mode='interpolate', reactant_text='r', product_text='p',
+                             n_images=5, idpp_mode='light', output_dir=str(tmp_path)), *endpoints)
+    np.testing.assert_array_equal(retained[0], initial)
+    assert result.is_success is True
+    assert result.interpolation['converged'] is None
+    assert result.interpolation['termination'] == 'degenerate_geometry'
+    assert result.interpolation['legacy_stopping_criterion_met'] is False
+    assert json.loads((tmp_path / 'interpolation.json').read_text()) == result.interpolation
+    assert 'degenerate_geometry' in result.message

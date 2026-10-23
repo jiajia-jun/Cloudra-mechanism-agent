@@ -806,9 +806,16 @@ def _idpp_relax_light(images, max_iter: int = 4000, lr: float = 0.02, tol: float
     residual = float(np.abs(gradient()[1:-1]).max())
     if not np.isfinite(images).all() or not np.isfinite(residual):
         raise ValueError("light IDPP produced non-finite coordinates or gradient")
-    converged = residual < tol
+    legacy_stopping_criterion_met = residual < tol
+    # Below the legacy denominator floor, the clipped gradient can vanish even
+    # when the distance objective is not stationary. Preserve every old update,
+    # but do not interpret that stopping test as valid convergence.
+    degenerate = any(np.any(_dist_matrix(frame)[iu] < 1e-8) for frame in images[1:-1])
+    converged = None if degenerate else legacy_stopping_criterion_met
     return images, {"converged": converged,
-                    "termination": "converged" if converged else "max_steps",
+                    "termination": ("degenerate_geometry" if degenerate else
+                                    "converged" if converged else "max_steps"),
+                    "legacy_stopping_criterion_met": legacy_stopping_criterion_met,
                     "steps": steps, "residual": residual}
 
 
