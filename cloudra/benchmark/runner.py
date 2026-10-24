@@ -454,7 +454,11 @@ class BenchmarkRunner:
         selectivity = task.gold.selectivity
         if selectivity is not None and selectivity.favored_channel:
             sel_score, sel_note = score_qualitative_selectivity(
-                integ.delivered_graph, selectivity
+                integ.delivered_graph,
+                selectivity,
+                gold_graph=task.gold.mechanism_graph,
+                cfg=ged_config,
+                match_threshold=task.rubric.integrity.match_threshold,
             )
             res.accuracy_score = sel_score
             res.notes.append(sel_note)

@@ -21,7 +21,7 @@ The scoring side reads `gold` + `rubric`; the agent side reads only
 from __future__ import annotations
 
 from enum import Enum
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -64,14 +64,14 @@ class MechanismNode(BaseModel):
     最终消息散文。
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
     id: str = Field(min_length=1)
     role: NodeRole
     smiles: list[str] = Field(default_factory=list)
     accessible: bool = True
     label: str = ""
-    properties: dict[str, float | str] = Field(default_factory=dict)
+    properties: dict[str, Any] = Field(default_factory=dict)
 
 
 class BondChangeSet(BaseModel):
@@ -121,7 +121,7 @@ class MechanismEdge(BaseModel):
     （``favored``）；favored-channel 归属定性计分（对错），能垒差数值只记录。
     """
 
-    model_config = ConfigDict(frozen=True, extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(frozen=True, extra="ignore", populate_by_name=True)
 
     id: str = Field(min_length=1)
     from_node: str = Field(alias="from")
@@ -143,7 +143,7 @@ class GoldMechanismGraph(BaseModel):
     指向已声明的 transition_state 角色节点——违反即 ValidationError（gold
     侧 fail-loud；交付侧加载随之失败，不再静默造幽灵节点进图比较）。"""
 
-    model_config = ConfigDict(frozen=True, extra="forbid")
+    model_config = ConfigDict(frozen=True, extra="ignore")
 
     nodes: list[MechanismNode]
     edges: list[MechanismEdge] = Field(default_factory=list)
