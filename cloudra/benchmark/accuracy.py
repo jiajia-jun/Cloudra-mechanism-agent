@@ -194,10 +194,15 @@ def _score_properties(
 def score_qualitative_selectivity(
     delivered_graph: Optional[GoldMechanismGraph],
     selectivity: SelectivityReference,
+    gold_graph: Optional[GoldMechanismGraph] = None,
+    cfg=None,
+    match_threshold: float = 0.2,
 ) -> tuple[float, str]:
-    """hard 档定性选择性：交付边中恰好一条 favored=true 且 channel 命中 gold
-    favored_channel → 1.0；其余（无 favored 声明、多条 favored、channel 错）→ 0.0。
-    barrier spread 数值不评分。"""
+    """hard 档定性选择性：交付图恰好一条 favored=true 的边，且该边**指向的产物**
+    与 gold favored 通道的产物一致 → 1.0；其余（无声明、多条 favored、产物错）→ 0.0。
+
+    channel 字符串是题库内部标签，任务文本不会给出，因此优先按产物物种做化学
+    比对；只有拿不到 gold 图时才退回字符串相等。barrier spread 数值不评分。"""
     if delivered_graph is None or not delivered_graph.edges:
         return 0.0, (
             "qualitative selectivity: no delivered graph edges; favored channel "
@@ -219,6 +224,42 @@ def score_qualitative_selectivity(
             f"qualitative selectivity: favored channel {edge.channel!r} matches "
             "the reference; scored 1"
         )
+
+    if gold_graph is not None:
+        try:
+            from cloudra.benchmark.graph_similarity import GedConfig, species_substitution_cost
+
+            cfg = cfg or GedConfig()
+            gold_nodes = {n.id: n for n in gold_graph.nodes}
+            delivered_nodes = {n.id: n for n in delivered_graph.nodes}
+            target = delivered_nodes.get(edge.to_node)
+            gold_favored = [e for e in gold_graph.edges
+                            if e.channel and e.channel == selectivity.favored_channel]
+            gold_minor = [e for e in gold_graph.edges
+                          if e.channel and e.channel != selectivity.favored_channel]
+            if target is not None and gold_favored:
+                gold_target = gold_nodes.get(gold_favored[0].to_node)
+                if gold_target is not None:
+                    cost = species_substitution_cost(gold_target.smiles, target.smiles, cfg)
+                    minor_cost = min(
+                        (species_substitution_cost(gold_nodes[e.to_node].smiles, target.smiles, cfg)
+                         for e in gold_minor if e.to_node in gold_nodes),
+                        default=1.0,
+                    )
+                    if cost <= match_threshold and cost < minor_cost:
+                        return 1.0, (
+                            f"qualitative selectivity: favored edge {edge.id} leads to "
+                            f"the same product as the reference channel "
+                            f"{selectivity.favored_channel!r}; scored 1"
+                        )
+                    return 0.0, (
+                        f"qualitative selectivity: favored edge {edge.id} does not lead "
+                        f"to the product of the reference channel "
+                        f"{selectivity.favored_channel!r}; scored 0"
+                    )
+        except Exception:
+            pass
+
     return 0.0, (
         f"qualitative selectivity: favored channel {edge.channel!r} != reference "
         f"{selectivity.favored_channel!r}; scored 0"
