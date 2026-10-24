@@ -16,3 +16,5 @@
 缺件与科学验收限定保留在逐题说明，不因交付完成而视为已补齐。Drive没有返回远端内容校验字段，云端确认依据为文件名、类型、大小和权限；包内字节与SHA256已逐项核对。
 
 交付包为固定快照；此下载入口是在上传完成后登记的，不属于包内文件清单。
+
+P1b 四臂先导实验的实际运行与复评分材料另见 [Drive 实验数据目录](https://drive.google.com/drive/folders/1UIrzVTqZg8RofJcWX_dlhN-EoqpfkBjg)及[交付说明](../../docs/benchmarks/P1B_DELIVERY.md)（下载需要文件访问权限）；它与本页 Gold 参考证据包并列，不替代本固定快照。

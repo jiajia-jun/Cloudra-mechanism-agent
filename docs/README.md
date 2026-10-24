@@ -23,6 +23,9 @@
 | [`licenses/README.md`](licenses/README.md) | 项目许可证与第三方代码归属 |
 | `superpowers/plans/` `superpowers/specs/` | **设计历史**（按日期归档惯例保留，不更新） |
 | [`../cloudra/benchmark/README.md`](../cloudra/benchmark/README.md) | 当前 50 题 Benchmark 运行入口、方法范围和评分口径 |
+| [`benchmarks/SCORING_FAIRNESS_FIXES.md`](benchmarks/SCORING_FAIRNESS_FIXES.md) | 评测评分公平性修复与 P1b 四臂重算依据 |
+| [`benchmarks/p1b_rescored_results.csv`](benchmarks/p1b_rescored_results.csv) | P1b 四臂代表性试跑 48 沙箱重算数据明细 |
+| [`benchmarks/P1B_DELIVERY.md`](benchmarks/P1B_DELIVERY.md) | P1b 四臂 48 次运行的 Drive 下载链接、包校验及解压说明 |
 | [`../gold_compute/queue_20261018/REFERENCE_STATUS.md`](../gold_compute/queue_20261018/REFERENCE_STATUS.md) | 当前参考值、稳定参照及科学验收限定 |
 | [`../gold_compute/evidence/README.md`](../gold_compute/evidence/README.md) | 逐题证据索引、原件清单和缺件状态 |
 | [`../gold_compute/evidence/DELIVERY.md`](../gold_compute/evidence/DELIVERY.md) / [`REPRODUCE.md`](../gold_compute/evidence/REPRODUCE.md) | Drive 下载入口、版本与校验信息、恢复及复现步骤 |
@@ -34,6 +37,8 @@
 正式题库在 `ideapool/tasks/{easy,normal,hard,impossible}/`，共 **50 题：20/10/10/10**。代码、题库 JSON、逐题说明与校验清单随仓库更新；原始输入、日志、几何和 Hessian 只放在 [Google Drive 交付包](https://drive.google.com/file/d/15YDa_ycWoLUANPsDdQ1rUOiNp_-wqOs5/view?usp=drivesdk)，按[复现说明](../gold_compute/evidence/REPRODUCE.md)恢复后审查。
 
 交付包收录 886 份整理证据，31 题有选定原件；其余缺件、独立种子与真实 IRC 的区别、IB9 人工采信等限定均保留。题库能加载或工程检查通过，不等于所有题的原件和科学验收已经齐全。旧题库快照、试错 run 与旧待办报告不覆盖现行正式定义。
+
+P1b 四臂先导实验的 48 次实际运行与复评分材料另存于 [Drive 实验数据目录](https://drive.google.com/drive/folders/1UIrzVTqZg8RofJcWX_dlhN-EoqpfkBjg)，单文件下载链接见[交付及校验说明](benchmarks/P1B_DELIVERY.md)，下载需要文件访问权限。该包与上述 Gold 参考证据包并列，不能据此视为 50 题正式实验完成或全部运行通过科学验收。
 
 ## 归档位置
 
