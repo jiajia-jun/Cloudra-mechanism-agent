@@ -1,147 +1,321 @@
-/* 外观只覆盖视觉；未选择新外观时，继续使用 styles.css 的原版。 */
-:root[data-appearance='glass'] {
-  color-scheme: light;
-  --bg: #edf8ff;
-  --bg-panel: rgba(244, 251, 255, 0.78);
-  --bg-layer: rgba(223, 243, 255, 0.64);
-  --bg-layer-2: rgba(209, 235, 251, 0.82);
-  --bg-hover: rgba(186, 230, 253, 0.35);
-  --bg-inset: rgba(210, 237, 255, 0.35);
-  --fg: #1e293b;
-  --fg-secondary: #475569;
-  --fg-tertiary: #526176;
-  --fg-faint: #526176;
+/* 三套外观共用原工作台结构；框体、消息、工具卡和输入区随外观一起切换。 */
+:root[data-appearance='modernism'] {
+  color-scheme: dark;
+  --bg: #151619;
+  --bg-main: #151619;
+  --bg-panel: #1d1f23;
+  --bg-layer: #25272d;
+  --bg-layer-2: #30333b;
+  --bg-hover: #2b2e35;
+  --bg-inset: #181a1e;
+  --fg: #eceef2;
+  --fg-secondary: #c8cbd3;
+  --fg-tertiary: #a4a9b4;
+  --fg-faint: #9197a3;
   --fg-muted: var(--fg-faint);
-  --border: rgba(94, 152, 184, 0.2);
-  --border-strong: rgba(74, 151, 194, 0.36);
-  --border-hover: var(--border-strong);
-  --border-subtle: var(--border);
-  --emerald: #0369a1;
-  --emerald-soft: #0369a1;
-  --emerald-dim: rgba(59, 130, 246, 0.1);
-  /* 状态仍保持绿 / 黄 / 蓝 / 红，只加深文字以适应浅色底。 */
-  --green: #166534;
-  --green-soft: #166534;
-  --green-dim: rgba(22, 101, 52, 0.09);
-  --yellow: #854d0e;
-  --yellow-soft: #854d0e;
-  --yellow-dim: rgba(245, 158, 11, 0.1);
-  --blue: #0369a1;
-  --blue-soft: #0369a1;
-  --blue-dim: rgba(59, 130, 246, 0.1);
-  --red: #b91c1c;
+  --border: #34373f;
+  --border-strong: #4d525e;
+  --border-hover: #636b7b;
+  --border-subtle: #2c3037;
+  --accent: #c6d0e1;
+  --accent-contrast: #171a20;
+  --accent-dim: #303744;
+  --emerald: var(--accent);
+  --emerald-soft: var(--accent);
+  --emerald-dim: var(--accent-dim);
+  --green: #6fc69b;
+  --green-soft: #95d8b5;
+  --green-dim: #20372b;
+  --yellow: #e1b96b;
+  --yellow-soft: #eed09a;
+  --yellow-dim: #3e3321;
+  --blue: #8eb8e3;
+  --blue-soft: #b1cbea;
+  --blue-dim: #253344;
+  --red: #f08989;
+  --panel-radius: 14px;
+  --control-radius: 8px;
+  --panel-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
+  --bubble-radius: 18px 18px 4px 18px;
+  --bubble-bg: #30353e;
+  --bubble-padding: 10px 15px;
+  --bubble-border: 1px;
+  --tool-radius: 10px;
+  --tool-padding: 6px 10px;
+  --tool-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  --composer-radius: 18px;
+  --composer-padding: 12px 14px 10px;
+  --composer-border: 1px;
+  --composer-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  --dag-node-radius: 10px;
+  --molecule-bg-top: #24272d;
+  --molecule-bg-bottom: #17191d;
+  --molecule-grid: rgba(172, 180, 194, 0.1);
+  --molecule-placeholder: #a4a9b4;
+  --molecule-wire: #c8d0df;
+  --molecule-label: #eceef2;
+  --molecule-label-shadow: rgba(0, 0, 0, 0.8);
 }
 
-:root[data-appearance='glass'] body {
-  background: radial-gradient(ellipse at 12% 18%, rgba(125, 211, 252, 0.34), transparent 48%), radial-gradient(ellipse at 85% 75%, rgba(186, 230, 253, 0.5), transparent 55%), linear-gradient(135deg, #f5fbff, #e6f5ff 52%, #f1faff);
-}
-:root[data-appearance='glass'] ::selection { background: rgba(56, 189, 248, 0.25); color: var(--fg); }
-:root[data-appearance='glass'] :is(.left-sidebar, .right-sidebar, .agentbar, .console-subnav-bar, .tabs, .card, .ops-kpi-card, .ops-card, .dag-card, .interaction-card, .approval-card, .attention-card, .audit-card, .modal, .slash-menu, .live-agent-pulse, .composer) {
-  background: var(--bg-panel);
-  border-color: var(--border);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 8px 28px rgba(68, 139, 184, 0.07);
-  -webkit-backdrop-filter: blur(14px) saturate(120%);
-  backdrop-filter: blur(14px) saturate(120%);
-}
-:root[data-appearance='glass'] :is(.main, .console-view-wrapper, .console-tab-viewport, .console-content, .panel-body, .left-sidebar-head, .left-sidebar-foot, .right-sidebar-head) { background: transparent; }
-:root[data-appearance='glass'] :is(.card, .ops-kpi-card, .ops-card, .dag-card, .interaction-card, .approval-card, .attention-card, .audit-card, .modal, .composer) { border-radius: 10px; }
-:root[data-appearance='glass'] .modal-backdrop { background: rgba(100, 164, 204, 0.22); backdrop-filter: blur(6px); }
-:root[data-appearance='glass'] :is(.btn, .btn.sm, .panel-toggle, .view-mode-switcher, .view-mode-btn, .console-subnav-btn, .tab, .project-node-header, .sidebar-agent-row, .ws-group-header) { border-radius: 6px; }
-:root[data-appearance='glass'] :is(.input, .select, .textarea, .interaction-textarea, .reject-reason-input, .agentbar select.agentbar-select) {
-  background: var(--bg-layer);
-  color: var(--fg);
-  border-color: var(--border-strong);
-  border-radius: 6px;
-}
-:root[data-appearance='glass'] :is(.input, .select, .textarea, .interaction-textarea):focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16); }
-:root[data-appearance='glass'] :is(.select, .breadcrumb-agent-select) option { background: #edf8ff; color: var(--fg); }
-:root[data-appearance='glass'] .btn.primary { background: linear-gradient(135deg, #bae6fd, #7dd3fc); color: #0f172a; border-color: rgba(255, 255, 255, 0.8); box-shadow: 0 4px 14px rgba(59, 130, 246, 0.15); }
-:root[data-appearance='glass'] .btn.primary:hover:not(:disabled) { background: #7dd3fc; }
-:root[data-appearance='glass'] :is(.tab.active, .console-subnav-btn.active, .view-mode-btn.active, .lang-pill-btn.active, .sidebar-agent-row.active, .project-node.active > .project-node-header) { background: #d8f0ff; color: #075985; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08); }
-:root[data-appearance='glass'] .ws-group-header { background: var(--bg-layer); color: var(--fg); }
-:root[data-appearance='glass'] :is(.console-subnav-btn, .view-mode-btn) { color: var(--fg-secondary); }
-:root[data-appearance='glass'] .pill-btn.active { color: #fff; }
-:root[data-appearance='glass'] .composer:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16); }
-:root[data-appearance='glass'] :is(.interaction-prompt-window, .interaction-collapsed-bar) { background: var(--bg-panel); box-shadow: 0 8px 28px rgba(68, 139, 184, 0.12); }
-:root[data-appearance='glass'] :is(.interaction-textarea:focus, .approval-command-box, .approval-diff-box, .program-children-direct) { background: var(--bg-layer); }
-:root[data-appearance='glass'] :is(.approval-command-box, .interaction-chip.default-chip, .interaction-chip.default-chip:hover, .agent-role-pill.role-compute, .agent-status-badge.state-running) { color: var(--green); }
-:root[data-appearance='glass'] :is(.interaction-agent-tag, .interaction-banner-badge, .approval-tool-tag, .yolo-shortcut-btn, .yolo-shortcut-btn:hover, .kpi-number.amber, .agent-role-pill.role-research, .agent-status-badge.state-waiting) { color: var(--yellow); }
-:root[data-appearance='glass'] :is(.interaction-chip.reject-chip, .interaction-chip.reject-chip:hover, .reject-panel-title, .interaction-reject-btn, .interaction-reject-btn:hover, .agent-status-badge.state-failed) { color: var(--red); }
-:root[data-appearance='glass'] :is(.kpi-number.purple, .agent-role-pill.role-super) { color: #7e22ce; }
-:root[data-appearance='glass'] :is(.agent-role-pill.role-coord, .jobtype-pill, .owner-tag) { color: var(--blue); }
-:root[data-appearance='glass'] :is(.agent-status-badge.state-idle, .agent-status-badge.state-cancelled) { color: var(--fg-tertiary); }
-:root[data-appearance='glass'] *::-webkit-scrollbar-thumb { background: rgba(82, 97, 118, 0.3); border-radius: 6px; }
-
-/* 终端风格沿用现有结构，只换深绿表面与文字质感。 */
-:root[data-appearance='emerald'] {
+:root[data-appearance='punk'] {
   color-scheme: dark;
   --bg: #090c0a;
-  --bg-panel: #0e120f;
-  --bg-layer: #141b16;
-  --bg-layer-2: #1b271e;
-  --bg-hover: #17251b;
-  --bg-inset: #080b09;
+  --bg-main: #090c0a;
+  --bg-panel: #0e1410;
+  --bg-layer: #141c17;
+  --bg-layer-2: #1d2b22;
+  --bg-hover: #1b2a20;
+  --bg-inset: #060907;
   --fg: #d5dfd6;
   --fg-secondary: #b5c5b8;
   --fg-tertiary: #9aaf9e;
   --fg-faint: #849b89;
   --fg-muted: var(--fg-faint);
-  --border: #26372b;
-  --border-strong: #3c5543;
-  --border-hover: var(--border-strong);
-  --border-subtle: var(--border);
-  --emerald: #7bd88f;
-  --emerald-soft: #9ae6a9;
-  --emerald-dim: #17291c;
-  --green: #7bd88f;
-  --green-soft: #9ae6a9;
-  --green-dim: #17291c;
+  --border: #304738;
+  --border-strong: #52705c;
+  --border-hover: #91d7a1;
+  --border-subtle: #25372b;
+  --accent: #7bd88f;
+  --accent-contrast: #080d0a;
+  --accent-dim: #172b1c;
+  --emerald: var(--accent);
+  --emerald-soft: var(--accent);
+  --emerald-dim: var(--accent-dim);
+  --green: #69d494;
+  --green-soft: #94e9b1;
+  --green-dim: #163a20;
+  --yellow: #d9bd78;
+  --yellow-soft: #e5cf9b;
+  --yellow-dim: #38311e;
+  --blue: #84bfcc;
+  --blue-soft: #b2d7df;
+  --blue-dim: #1c3238;
+  --red: #ed8b92;
   --font: 'SF Mono', Consolas, 'JetBrains Mono', 'PingFang SC', 'Microsoft YaHei', monospace;
+  --panel-radius: 0px;
+  --control-radius: 0px;
+  --panel-shadow: 4px 4px 0 #1e3526;
+  --bubble-radius: 0px;
+  --bubble-bg: #17291c;
+  --bubble-padding: 9px 13px;
+  --bubble-border: 2px;
+  --tool-radius: 0px;
+  --tool-padding: 5px 9px;
+  --tool-shadow: 3px 3px 0 #2a4332;
+  --composer-radius: 0px;
+  --composer-padding: 10px 12px 8px;
+  --composer-border: 2px;
+  --composer-shadow: 5px 5px 0 #31523a;
+  --dag-node-radius: 0px;
+  --molecule-bg-top: #0c1810;
+  --molecule-bg-bottom: #040a06;
+  --molecule-grid: rgba(124, 185, 142, 0.13);
+  --molecule-placeholder: #a5c7af;
+  --molecule-wire: #c8e4cf;
+  --molecule-label: #dcf2e2;
+  --molecule-label-shadow: rgba(0, 0, 0, 0.95);
 }
-:root[data-appearance='emerald'] :is(.left-sidebar, .right-sidebar, .agentbar, .console-subnav-bar, .tabs, .card, .ops-kpi-card, .ops-card, .dag-card, .interaction-card, .approval-card, .attention-card, .audit-card, .modal, .slash-menu, .live-agent-pulse, .composer) {
+
+/* Acid 取参考图的纸白、浅黄绿框、橄榄细线与柠檬黄顶条。 */
+:root[data-appearance='acid'] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-main: #ffffff;
+  --bg-panel: #f7f9ee;
+  --bg-layer: #ffffff;
+  --bg-layer-2: #edf3d8;
+  --bg-hover: #eff5dc;
+  --bg-inset: #f4f7e8;
+  --fg: #303b27;
+  --fg-secondary: #4a5c3b;
+  --fg-tertiary: #5d704c;
+  --fg-faint: #657553;
+  --fg-muted: var(--fg-faint);
+  --border: #d3dec0;
+  --border-strong: #a7bb87;
+  --border-hover: #778f50;
+  --border-subtle: #e0e7d3;
+  --accent: #617b3f;
+  --accent-contrast: #ffffff;
+  --accent-dim: #edf3d4;
+  --emerald: var(--accent);
+  --emerald-soft: var(--accent);
+  --emerald-dim: var(--accent-dim);
+  --green: #3b6d37;
+  --green-soft: #3b6d37;
+  --green-dim: #e6f1df;
+  --yellow: #84651e;
+  --yellow-soft: #84651e;
+  --yellow-dim: #faf1d2;
+  --blue: #376c85;
+  --blue-soft: #376c85;
+  --blue-dim: #e5f1f6;
+  --red: #ad3e43;
+  --panel-radius: 8px;
+  --control-radius: 5px;
+  --panel-shadow: none;
+  --bubble-radius: 6px;
+  --bubble-bg: #f0f5dc;
+  --bubble-padding: 11px 15px;
+  --bubble-border: 1px;
+  --tool-radius: 5px;
+  --tool-padding: 7px 11px;
+  --tool-shadow: inset 0 2px 0 #e0ed88;
+  --composer-radius: 8px;
+  --composer-padding: 13px 15px 11px;
+  --composer-border: 1px;
+  --composer-shadow: inset 0 4px 0 #d6eb58;
+  --dag-node-radius: 5px;
+  --molecule-bg-top: #fafcf2;
+  --molecule-bg-bottom: #edf3dc;
+  --molecule-grid: rgba(100, 124, 69, 0.13);
+  --molecule-placeholder: #5d704c;
+  --molecule-wire: #536938;
+  --molecule-label: #303b27;
+  --molecule-label-shadow: rgba(255, 255, 255, 0.9);
+}
+
+/* 只装饰现有区域，不改变项目侧栏、控制台导航或 DAG 栅格。 */
+:root[data-appearance] body { background: var(--bg); }
+:root[data-appearance] ::selection { background: var(--accent); color: var(--accent-contrast); }
+:root[data-appearance] :is(.left-sidebar, .right-sidebar, .agentbar, .console-subnav-bar, .tabs) {
   background: var(--bg-panel);
   border-color: var(--border);
-  border-radius: 0;
   box-shadow: none;
-  -webkit-backdrop-filter: none;
+}
+:root[data-appearance] :is(.left-sidebar-head, .left-sidebar-foot, .right-sidebar-head, .ws-group-header) {
+  background: var(--bg-panel);
+  color: var(--fg);
+  border-color: var(--border);
+}
+:root[data-appearance] :is(.card, .ops-kpi-card, .ops-card, .dag-card, .portal-overview-card, .portal-nav-card, .portal-agent-section, .artifact-card, .tm-kpi-card, .tm-ratio-section, .interaction-card, .approval-card, .attention-card, .audit-card, .modal, .slash-menu) {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--panel-shadow);
+}
+:root[data-appearance] :is(.ops-card-header, .dag-card-header, .portal-overview-header, .portal-agent-header, .modal-head, .tm-head) {
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--border);
+}
+:root[data-appearance] .modal-backdrop { background: rgba(0, 0, 0, 0.48); backdrop-filter: blur(5px); }
+:root[data-appearance] :is(.btn, .btn.sm, .input, .select, .textarea, .panel-toggle, .view-mode-switcher, .view-mode-btn, .console-subnav-btn, .tab, .pill-btn, .project-node-header, .sidebar-agent-row, .ws-group-header, .composer-model-trigger, .composer-model-popover) {
+  border-radius: var(--control-radius);
+}
+:root[data-appearance] :is(button, input, select, textarea) { font-family: var(--font); }
+:root[data-appearance] :is(.input, .select, .textarea, .interaction-textarea, .reject-reason-input, .agentbar select.agentbar-select) {
+  background: var(--bg-layer);
+  color: var(--fg);
+  border-color: var(--border-strong);
+  border-radius: var(--control-radius);
+}
+:root[data-appearance] :is(.input, .select, .textarea, .interaction-textarea):focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-dim); }
+:root[data-appearance] :is(.select, .breadcrumb-agent-select) option { background: var(--bg-layer); color: var(--fg); }
+:root[data-appearance] .btn.primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); box-shadow: none; }
+:root[data-appearance] .btn.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+:root[data-appearance] :is(.console-subnav-btn, .view-mode-btn) { color: var(--fg-secondary); }
+:root[data-appearance] :is(.tab.active, .console-subnav-btn.active, .view-mode-btn.active, .lang-pill-btn.active, .sidebar-agent-row.active, .project-node.active > .project-node-header, .swarm-agent-row.active) {
+  background: var(--accent-dim);
+  color: var(--fg);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+:root[data-appearance] .pill-btn.active { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+
+/* 用户消息、研究回复、工具展开内容与输入框各自有完整框体。 */
+:root[data-appearance] .msg.user .msg-bubble {
+  background: var(--bubble-bg);
+  color: var(--fg);
+  border: var(--bubble-border) solid var(--border-strong);
+  border-radius: var(--bubble-radius);
+  padding: var(--bubble-padding);
+}
+:root[data-appearance] .msg.assistant .msg-body {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--panel-radius);
+  padding: 12px 14px;
+}
+:root[data-appearance] :is(.thinking-card, .tool-detail, .program-card) {
+  background: var(--bg-layer);
+  border: 1px solid var(--border);
+  border-radius: var(--tool-radius);
+  box-shadow: var(--tool-shadow);
+}
+:root[data-appearance] .tool-row {
+  height: auto;
+  min-height: 32px;
+  padding: var(--tool-padding);
+  background: var(--bg-layer);
+  border: 1px solid var(--border);
+  border-radius: var(--tool-radius);
+  box-shadow: var(--tool-shadow);
+}
+:root[data-appearance] .tool-row:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+:root[data-appearance] .program-card .program-head { border: 0; box-shadow: none; }
+:root[data-appearance] :is(.program-code, .thinking-body, .approval-command-box, .approval-diff-box, .program-children-direct, .msg-body pre) {
+  background: var(--bg-inset);
+  color: var(--fg-secondary);
+  border-color: var(--border);
+  border-radius: var(--control-radius);
+}
+:root[data-appearance] .composer {
+  background: var(--bg-panel);
+  border: var(--composer-border) solid var(--border-strong);
+  border-radius: var(--composer-radius);
+  padding: var(--composer-padding);
+  box-shadow: var(--composer-shadow);
+}
+:root[data-appearance] .composer:focus-within { border-color: var(--accent); }
+:root[data-appearance] :is(.interaction-prompt-window, .interaction-collapsed-bar) {
+  background: var(--bg-panel);
+  border-color: var(--border-strong);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--panel-shadow);
+}
+:root[data-appearance] .live-agent-pulse { background: var(--bg-layer); border-color: var(--border); border-radius: var(--control-radius); }
+
+/* 绘图区使用各自主题表面；元素色和证据状态色不参与外观重映射。 */
+:root[data-appearance] :is(.dag-workspace-root, .topology-viewport, .dag-canvas-compact) { background: var(--bg-main); }
+:root[data-appearance] .dag-node-rect { rx: var(--dag-node-radius); }
+:root[data-appearance] .dag-sel .dag-node-rect { filter: drop-shadow(0 0 3px var(--accent-dim)); }
+:root[data-appearance] .molecule-3d-container { background: var(--molecule-bg-bottom); color: var(--fg); }
+:root[data-appearance] .viewer-3d-header { background: var(--bg-panel); border-color: var(--border); backdrop-filter: none; }
+:root[data-appearance] :is(.viewer-3d-molname, .drawer-header) { color: var(--fg); }
+:root[data-appearance] .viewer-3d-badge { color: var(--accent); }
+:root[data-appearance] :is(.viewer-3d-atomcount, .viewer-3d-hint, .viewer-3d-coords-drawer .mono-code) { color: var(--fg-tertiary); }
+:root[data-appearance] .viewer-3d-coords-drawer {
+  background: var(--bg-layer);
+  border-color: var(--border-strong);
+  border-radius: var(--panel-radius);
+  box-shadow: var(--panel-shadow);
   backdrop-filter: none;
 }
-:root[data-appearance='emerald'] :is(button, input, select, textarea) { font-family: var(--font); }
-:root[data-appearance='emerald'] :is(.btn, .btn.sm, .input, .select, .textarea, .panel-toggle, .view-mode-switcher, .view-mode-btn, .console-subnav-btn, .tab, .project-node-header, .sidebar-agent-row, .ws-group-header) { border-radius: 0; box-shadow: none; }
-:root[data-appearance='emerald'] .btn.primary { background: var(--green-dim); color: var(--green-soft); border-color: var(--green); }
-:root[data-appearance='emerald'] .btn.primary:hover:not(:disabled) { background: var(--green); color: var(--bg); }
-:root[data-appearance='emerald'] :is(.input, .select, .textarea, .interaction-textarea, .reject-reason-input) { background: var(--bg-inset); border-color: var(--border-strong); }
-:root[data-appearance='emerald'] :is(.tab.active, .console-subnav-btn.active, .view-mode-btn.active, .sidebar-agent-row.active) { background: var(--green-dim); color: var(--green-soft); box-shadow: none; }
-:root[data-appearance='emerald'] :is(.interaction-prompt-window, .interaction-collapsed-bar) { background: var(--bg-panel); box-shadow: none; }
-:root[data-appearance='emerald'] .composer:focus-within { border-color: var(--green); box-shadow: none; }
-:root[data-appearance='emerald'] ::selection { background: #294c32; color: #e2f5e6; }
+:root[data-appearance] .drawer-header { background: var(--bg-panel); border-color: var(--border); }
+:root[data-appearance] .badge-ts-marker { background: var(--yellow-dim); color: var(--yellow-soft); border-color: var(--yellow); }
+:root[data-appearance] :is(.approval-card, .attention-card) { border-left: 3px solid var(--yellow); }
+:root[data-appearance] :is(.interaction-card, .attention-card.interaction) { border-left: 3px solid var(--green); }
+:root[data-appearance] .audit-card.alert { border-color: var(--yellow); }
 
-/* 科学绘图保留自己的深色表面、控件对比和原子配色。 */
-:root[data-appearance='glass'] .dag-canvas-compact,
-:root[data-appearance='emerald'] .dag-canvas-compact,
-:root[data-appearance='glass'] .molecule-3d-container,
-:root[data-appearance='emerald'] .molecule-3d-container {
-  color-scheme: dark;
-  background: var(--bg);
-  --bg: #090d12;
-  --bg-panel: #11161f;
-  --bg-layer: #171f2b;
-  --bg-layer-2: #212b3c;
-  --bg-hover: rgba(16, 185, 129, 0.08);
-  --fg: #f8fafc;
-  --fg-secondary: #cbd5e1;
-  --fg-tertiary: #94a3b8;
-  --fg-faint: #64748b;
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --green: #10b981;
-  --green-soft: #34d399;
-  --green-dim: rgba(16, 185, 129, 0.15);
-  --yellow: #f59e0b;
-  --yellow-soft: #fbbf24;
-  --yellow-dim: rgba(245, 158, 11, 0.15);
-  --blue: #38bdf8;
-  --blue-soft: #7dd3fc;
-  --blue-dim: rgba(56, 189, 248, 0.15);
-  --red: rgb(239, 68, 68);
-}
+/* 朋克的硬边、实线和错位阴影只落在当前卡片上。 */
+:root[data-appearance='punk'] :is(.ops-card-header, .dag-card-header, .portal-agent-header, .modal-head) { border-bottom: 2px solid var(--border-strong); }
+:root[data-appearance='punk'] :is(.tool-row, .msg.assistant .msg-body) { border-left: 3px solid var(--accent); }
+:root[data-appearance='punk'] .msg.user .msg-bubble { border-color: var(--accent); box-shadow: 4px 4px 0 #284431; }
+:root[data-appearance='punk'] :is(.console-subnav-btn.active, .view-mode-btn.active) { background: var(--accent); color: var(--accent-contrast); }
+:root[data-appearance='punk'] .btn.primary { border: 1px solid #a4dfb3; box-shadow: 2px 2px 0 #355940; }
+
+/* Acid：浅绿外面板包住白色内卡，细橄榄框和黄色顶条呼应参考图。 */
+:root[data-appearance='acid'] :is(.left-sidebar-head, .agentbar, .console-subnav-bar, .dag-topbar) { box-shadow: inset 0 3px 0 #d6eb58; }
+:root[data-appearance='acid'] :is(.dag-card, .ops-card, .portal-overview-card, .portal-agent-section, .modal) { border-top: 4px solid #d6eb58; }
+:root[data-appearance='acid'] :is(.ops-kpi-card, .portal-nav-card, .artifact-card, .tm-kpi-card, .tool-detail, .thinking-card, .program-card, .tool-row, .msg.assistant .msg-body, .composer) { background: #ffffff; }
+:root[data-appearance='acid'] :is(.dag-card-header, .ops-card-header, .portal-agent-header) { background: #f7f9ee; border-bottom: 1px solid #dce5cc; }
+:root[data-appearance='acid'] .modal-backdrop { background: rgba(99, 120, 65, 0.18); backdrop-filter: blur(4px); }
+:root[data-appearance='acid'] :is(.interaction-agent-tag, .interaction-banner-badge, .approval-tool-tag, .yolo-shortcut-btn, .yolo-shortcut-btn:hover, .kpi-number.amber, .agent-role-pill.role-research, .agent-status-badge.state-waiting) { color: var(--yellow); }
+:root[data-appearance='acid'] :is(.interaction-chip.reject-chip, .interaction-chip.reject-chip:hover, .reject-panel-title, .interaction-reject-btn, .interaction-reject-btn:hover, .agent-status-badge.state-failed) { color: var(--red); }
+:root[data-appearance='acid'] :is(.approval-command-box, .interaction-chip.default-chip, .interaction-chip.default-chip:hover, .agent-role-pill.role-compute, .agent-status-badge.state-running) { color: var(--green); }
+:root[data-appearance='acid'] :is(.kpi-number.purple, .agent-role-pill.role-super) { color: #70518c; }
+:root[data-appearance='acid'] :is(.agent-role-pill.role-coord, .jobtype-pill, .owner-tag) { color: var(--blue); }
+:root[data-appearance='acid'] :is(.agent-status-badge.state-idle, .agent-status-badge.state-cancelled) { color: var(--fg-tertiary); }
+:root[data-appearance='acid'] :is(.task-banner-text, .breadcrumb-task-text) { color: var(--accent); }
+:root[data-appearance] *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--control-radius); }

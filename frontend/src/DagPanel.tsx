@@ -5,6 +5,7 @@ import { api } from './api';
 import type { Project } from './types';
 import { hasSaddleEvidence } from './tsEvidence';
 import { Molecule3DViewer } from './Molecule3DViewer';
+import { useAppearance } from './appearance';
 
 /* Structured DAG panel:
    - Left Column:
@@ -178,6 +179,7 @@ function GraphView({ graph, sel, onSelect }: {
   sel: Sel;
   onSelect: (s: Sel) => void;
 }) {
+  const appearance = useAppearance();
   const layout = useMemo(() => layoutGraph(graph), [graph]);
   if (layout.nodes.length === 0) return <div className="empty-hint">暂无反应节点</div>;
   const isSel = (k: 'node' | 'edge', id: string) => sel?.kind === k && sel.id === id;
@@ -262,7 +264,7 @@ function GraphView({ graph, sel, onSelect }: {
                     <text x={6 + index * (partWidth + 12) - 6} y={43} textAnchor="middle" fill="var(--fg)" style={{ pointerEvents: 'none' }}>+</text>
                   )}
                   <image
-                    href={api.chemRenderSmilesUrl(smiles, Math.round(partWidth), 40, 'dark')}
+                    href={api.chemRenderSmilesUrl(smiles, Math.round(partWidth), 40, appearance === 'acid' ? 'light' : 'dark')}
                     x={6 + index * (partWidth + 12)}
                     y={18}
                     width={partWidth}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { api } from './api';
+import { useAppearance } from './appearance';
 
 export interface Atom3D {
   index: number;
@@ -116,6 +117,7 @@ export function Molecule3DViewer({
   saddleEvidenceSupported = false,
   className = '',
 }: Molecule3DViewerProps) {
+  const appearance = useAppearance();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [atoms, setAtoms] = useState<Atom3D[]>([]);
   const [explicitBonds, setExplicitBonds] = useState<Bond3D[] | null>(null);
@@ -245,6 +247,14 @@ export function Molecule3DViewer({
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    // 与面板共用主题变量；切换只重绘画布，坐标、选择和旋转状态保持原样。
+    const style = getComputedStyle(canvas);
+    const color = (name: string) => style.getPropertyValue(`--molecule-${name}`).trim();
+    const palette = {
+      top: color('bg-top'), bottom: color('bg-bottom'), grid: color('grid'),
+      placeholder: color('placeholder'), wire: color('wire'),
+      label: color('label'), labelShadow: color('label-shadow'),
+    };
 
     let running = true;
 
@@ -262,14 +272,14 @@ export function Molecule3DViewer({
 
       // Background gradient
       const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
-      bgGrad.addColorStop(0, '#0c1017');
-      bgGrad.addColorStop(1, '#070a0e');
+      bgGrad.addColorStop(0, palette.top);
+      bgGrad.addColorStop(1, palette.bottom);
       ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
       // Subtle coordinate grid / floor circle
       ctx.save();
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.strokeStyle = palette.grid;
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.ellipse(width / 2 + panX, height / 2 + panY + 110 * zoom, 120 * zoom, 34 * zoom, 0, 0, Math.PI * 2);
@@ -277,7 +287,7 @@ export function Molecule3DViewer({
       ctx.restore();
 
       if (atoms.length === 0) {
-        ctx.fillStyle = '#64748b';
+        ctx.fillStyle = palette.placeholder;
         ctx.font = '13px system-ui, -apple-system, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -399,7 +409,7 @@ export function Molecule3DViewer({
 
           ctx.save();
           if (renderMode === 'wireframe') {
-            ctx.strokeStyle = 'rgba(203, 213, 225, 0.4)';
+            ctx.strokeStyle = palette.wire;
             ctx.lineWidth = 1.2;
             ctx.beginPath();
             ctx.moveTo(p1.sx, p1.sy);
@@ -447,7 +457,7 @@ export function Molecule3DViewer({
 
           ctx.save();
           if (renderMode === 'wireframe') {
-            ctx.strokeStyle = cpk.light;
+            ctx.strokeStyle = cpk.base;
             ctx.lineWidth = 1.2;
             ctx.beginPath();
             ctx.arc(atom.sx, atom.sy, atom.radiusPx, 0, Math.PI * 2);
@@ -481,11 +491,11 @@ export function Molecule3DViewer({
 
           // Atom Labels
           if (showLabels || renderMode === 'wireframe') {
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = renderMode === 'wireframe' ? palette.label : '#ffffff';
             ctx.font = `bold ${Math.max(9, Math.round(atom.radiusPx * 0.85))}px system-ui, sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            ctx.shadowColor = renderMode === 'wireframe' ? palette.labelShadow : 'rgba(0, 0, 0, 0.8)';
             ctx.shadowBlur = 3;
             ctx.fillText(`${atom.symbol}${atom.index + 1}`, atom.sx, atom.sy);
             ctx.shadowBlur = 0;
@@ -501,14 +511,21 @@ export function Molecule3DViewer({
     };
 
     render();
+    // 面板框体和字体也随风格改变尺寸，静止视口需要在尺寸变化后补画。
+    const resizeObserver = new ResizeObserver(() => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      render();
+    });
+    resizeObserver.observe(canvas);
 
     return () => {
       running = false;
+      resizeObserver.disconnect();
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [atoms, bonds, center, maxRadius, rotX, rotY, zoom, panX, panY, autoSpin, showLabels, renderMode, vibrating, loading, error]);
+  }, [appearance, atoms, bonds, center, maxRadius, rotX, rotY, zoom, panX, panY, autoSpin, showLabels, renderMode, vibrating, loading, error]);
 
   // Mouse drag & wheel handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {

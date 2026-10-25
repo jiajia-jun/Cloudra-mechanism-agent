@@ -15,7 +15,7 @@ import SearchConfigSection from './SearchConfigSection';
 import ToolDocumentLoadingSection from './ToolDocumentLoadingSection';
 import { isTrustedAuthMessageOrigin } from './runtimeUrl';
 import type { ProviderPreset, RuntimeConfig } from './types';
-import { APPEARANCES, applyAppearance, readAppearance } from './appearance';
+import { APPEARANCES, applyAppearance, useAppearance } from './appearance';
 import { useI18n } from './i18n';
 
 interface GlobalConfigProps {
@@ -292,7 +292,7 @@ export default function GlobalConfig({
   onToast,
 }: GlobalConfigProps) {
   const { lang } = useI18n();
-  const [appearance, setAppearance] = useState(readAppearance);
+  const appearance = useAppearance();
   const [cfg, setCfg] = useState<RuntimeConfig | null>(null);
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
   const [drafts, setDrafts] = useState<Record<Slot, SlotDraft>>({
@@ -459,10 +459,7 @@ export default function GlobalConfig({
                 type="button"
                 className={`btn ${appearance === option.id ? 'primary' : 'outline'} sm`}
                 aria-pressed={appearance === option.id}
-                onClick={() => {
-                  applyAppearance(option.id);
-                  setAppearance(option.id);
-                }}
+                onClick={() => applyAppearance(option.id)}
               >
                 {lang === 'zh' ? option.zh : option.en}
               </button>
