@@ -1,60 +1,62 @@
 /* 三套外观共用原工作台结构；框体、消息、工具卡和输入区随外观一起切换。 */
 :root[data-appearance='modernism'] {
-  color-scheme: dark;
-  --bg: #151619;
-  --bg-main: #151619;
-  --bg-panel: #1d1f23;
-  --bg-layer: #25272d;
-  --bg-layer-2: #30333b;
-  --bg-hover: #2b2e35;
-  --bg-inset: #181a1e;
-  --fg: #eceef2;
-  --fg-secondary: #c8cbd3;
-  --fg-tertiary: #a4a9b4;
-  --fg-faint: #9197a3;
+  color-scheme: light;
+  --bg: #e7f5ff;
+  --bg-main: transparent;
+  --bg-panel: rgba(244, 251, 255, 0.42);
+  --bg-layer: rgba(226, 244, 255, 0.48);
+  --bg-layer-2: rgba(198, 231, 251, 0.52);
+  --bg-hover: rgba(187, 227, 252, 0.38);
+  --bg-inset: rgba(209, 233, 250, 0.28);
+  --fg: #203449;
+  --fg-secondary: #405d74;
+  --fg-tertiary: #4d6980;
+  --fg-faint: #59758b;
   --fg-muted: var(--fg-faint);
-  --border: #34373f;
-  --border-strong: #4d525e;
-  --border-hover: #636b7b;
-  --border-subtle: #2c3037;
-  --accent: #c6d0e1;
-  --accent-contrast: #171a20;
-  --accent-dim: #303744;
+  --border: rgba(255, 255, 255, 0.76);
+  --border-strong: rgba(96, 156, 193, 0.32);
+  --border-hover: rgba(65, 139, 188, 0.6);
+  --border-subtle: rgba(123, 176, 209, 0.18);
+  --accent: #146f9f;
+  --accent-contrast: #ffffff;
+  --accent-dim: rgba(153, 214, 248, 0.32);
   --emerald: var(--accent);
   --emerald-soft: var(--accent);
   --emerald-dim: var(--accent-dim);
-  --green: #6fc69b;
-  --green-soft: #95d8b5;
-  --green-dim: #20372b;
-  --yellow: #e1b96b;
-  --yellow-soft: #eed09a;
-  --yellow-dim: #3e3321;
-  --blue: #8eb8e3;
-  --blue-soft: #b1cbea;
-  --blue-dim: #253344;
-  --red: #f08989;
-  --panel-radius: 14px;
-  --control-radius: 8px;
-  --panel-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
-  --bubble-radius: 18px 18px 4px 18px;
-  --bubble-bg: #30353e;
-  --bubble-padding: 10px 15px;
+  --green: #216b50;
+  --green-soft: #216b50;
+  --green-dim: rgba(62, 160, 110, 0.1);
+  --yellow: #8a601b;
+  --yellow-soft: #8a601b;
+  --yellow-dim: rgba(230, 177, 62, 0.13);
+  --blue: #166f9f;
+  --blue-soft: #166f9f;
+  --blue-dim: rgba(83, 172, 225, 0.13);
+  --red: #ab4652;
+  --panel-radius: 22px;
+  --control-radius: 999px;
+  --glass-blur: blur(20px) saturate(145%);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --panel-shadow: var(--glass-highlight), 0 10px 30px rgba(65, 126, 165, 0.08);
+  --bubble-radius: 24px;
+  --bubble-bg: rgba(181, 225, 252, 0.5);
+  --bubble-padding: 14px 20px;
   --bubble-border: 1px;
-  --tool-radius: 10px;
-  --tool-padding: 6px 10px;
-  --tool-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-  --composer-radius: 18px;
-  --composer-padding: 12px 14px 10px;
+  --tool-radius: 16px;
+  --tool-padding: 10px 14px;
+  --tool-shadow: var(--glass-highlight), 0 3px 12px rgba(65, 126, 165, 0.04);
+  --composer-radius: 28px;
+  --composer-padding: 20px 24px 16px;
   --composer-border: 1px;
-  --composer-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
-  --dag-node-radius: 10px;
-  --molecule-bg-top: #24272d;
-  --molecule-bg-bottom: #17191d;
-  --molecule-grid: rgba(172, 180, 194, 0.1);
-  --molecule-placeholder: #a4a9b4;
-  --molecule-wire: #c8d0df;
-  --molecule-label: #eceef2;
-  --molecule-label-shadow: rgba(0, 0, 0, 0.8);
+  --composer-shadow: var(--glass-highlight), 0 12px 40px rgba(65, 126, 165, 0.1);
+  --dag-node-radius: 14px;
+  --molecule-bg-top: #f0faff;
+  --molecule-bg-bottom: #dcefff;
+  --molecule-grid: rgba(77, 136, 178, 0.13);
+  --molecule-placeholder: #4d6980;
+  --molecule-wire: #405d74;
+  --molecule-label: #203449;
+  --molecule-label-shadow: rgba(255, 255, 255, 0.9);
 }
 
 :root[data-appearance='punk'] {
@@ -95,17 +97,17 @@
   --panel-radius: 0px;
   --control-radius: 0px;
   --panel-shadow: 4px 4px 0 #1e3526;
-  --bubble-radius: 0px;
-  --bubble-bg: #17291c;
-  --bubble-padding: 9px 13px;
-  --bubble-border: 2px;
-  --tool-radius: 0px;
-  --tool-padding: 5px 9px;
-  --tool-shadow: 3px 3px 0 #2a4332;
-  --composer-radius: 0px;
-  --composer-padding: 10px 12px 8px;
-  --composer-border: 2px;
-  --composer-shadow: 5px 5px 0 #31523a;
+  --bubble-radius: 14px;
+  --bubble-bg: rgba(63, 104, 74, 0.2);
+  --bubble-padding: 12px 16px;
+  --bubble-border: 0px;
+  --tool-radius: 8px;
+  --tool-padding: 8px 10px;
+  --tool-shadow: none;
+  --composer-radius: 14px;
+  --composer-padding: 16px 18px 12px;
+  --composer-border: 1px;
+  --composer-shadow: none;
   --dag-node-radius: 0px;
   --molecule-bg-top: #0c1810;
   --molecule-bg-bottom: #040a06;
@@ -299,12 +301,153 @@
 :root[data-appearance] :is(.interaction-card, .attention-card.interaction) { border-left: 3px solid var(--green); }
 :root[data-appearance] .audit-card.alert { border-color: var(--yellow); }
 
-/* 朋克的硬边、实线和错位阴影只落在当前卡片上。 */
+/* 现代主义：在连续的蓝白底上悬浮玻璃表面，用弧面与留白区分操作层级。 */
+:root[data-appearance='modernism'] body {
+  background: radial-gradient(ellipse at 12% 12%, rgba(139, 218, 255, 0.38), transparent 48%),
+    radial-gradient(ellipse at 85% 78%, rgba(175, 222, 255, 0.4), transparent 54%),
+    linear-gradient(135deg, #edf9ff, #e1f3ff 56%, #eef8ff);
+  background-attachment: fixed;
+}
+:root[data-appearance='modernism'] .app { gap: 14px; padding: 14px; }
+:root[data-appearance='modernism'] .main { gap: 12px; min-height: 0; }
+:root[data-appearance='modernism'] :is(.console-view-wrapper, .console-tab-viewport, .dag-workspace-root, .chat-scroll) { background: transparent; }
+:root[data-appearance='modernism'] :is(.left-sidebar, .right-sidebar, .agentbar, .console-subnav-bar, .tabs, .card, .ops-kpi-card, .ops-card, .dag-card, .portal-overview-card, .portal-nav-card, .portal-agent-section, .artifact-card, .tm-kpi-card, .tm-ratio-section, .interaction-card, .approval-card, .attention-card, .audit-card, .modal, .slash-menu, .live-agent-pulse) {
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  background: var(--bg-panel);
+  box-shadow: var(--panel-shadow);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+}
+:root[data-appearance='modernism'] :is(.left-sidebar, .right-sidebar) { border-radius: 26px; }
+:root[data-appearance='modernism'] .left-sidebar:not(.collapsed) { width: 282px; }
+:root[data-appearance='modernism'] :is(.left-sidebar.collapsed, .right-sidebar.collapsed) { border: 0; }
+:root[data-appearance='modernism'] :is(.left-sidebar-head, .left-sidebar-foot, .right-sidebar-head, .ws-group-header) { background: transparent; }
+:root[data-appearance='modernism'] .left-sidebar-head { padding: 20px 20px 14px; border: 0; }
+:root[data-appearance='modernism'] .left-sidebar-title { font-size: 14px; }
+:root[data-appearance='modernism'] .left-sidebar-foot { padding: 16px; border-color: var(--border); }
+:root[data-appearance='modernism'] .new-project-bar { padding: 8px 16px 18px; gap: 10px; background: transparent; border: 0; }
+:root[data-appearance='modernism'] .workspace-groups-list { padding: 8px 12px 20px; gap: 20px; }
+:root[data-appearance='modernism'] .ws-group.has-active { border: 0; padding: 0; }
+:root[data-appearance='modernism'] .ws-group-header { padding: 9px 12px; border: 0; }
+:root[data-appearance='modernism'] .ws-group-body { padding: 8px 0 0; gap: 8px; }
+:root[data-appearance='modernism'] .project-node { border: 1px solid transparent; border-radius: 16px; background: transparent; }
+:root[data-appearance='modernism'] .project-node.active { background: rgba(241, 251, 255, 0.46); border-color: var(--border); box-shadow: var(--glass-highlight); }
+:root[data-appearance='modernism'] .project-node > .project-node-header { padding: 12px; border-radius: 16px; }
+:root[data-appearance='modernism'] .project-node.active > .project-node-header { background: transparent; color: var(--accent); }
+:root[data-appearance='modernism'] .project-agent-swarm { background: rgba(214, 239, 255, 0.22); border-color: var(--border); }
+:root[data-appearance='modernism'] .project-title-text { font-size: 13px; }
+:root[data-appearance='modernism'] .agentbar { min-height: 72px; padding: 14px 18px; gap: 16px; flex-wrap: wrap; border-radius: 24px; }
+:root[data-appearance='modernism'] .agentbar-left { flex-wrap: wrap; flex-basis: 220px; }
+:root[data-appearance='modernism'] .agentbar-group.system-controls { flex-wrap: wrap; }
+:root[data-appearance='modernism'] .brand-logo-text { color: var(--fg); }
+:root[data-appearance='modernism'] .agentbar .view-mode-switcher { padding: 4px; border-radius: 999px; border: 1px solid var(--border); background: rgba(190, 226, 248, 0.3); }
+:root[data-appearance='modernism'] .view-mode-switcher .view-mode-btn { height: 34px; padding: 0 16px; border-radius: 999px; }
+:root[data-appearance='modernism'] :is(.view-mode-switcher .view-mode-btn.active, .console-subnav-bar .console-subnav-btn.active, .tabs .tab.active, .lang-switcher-pill .lang-pill-btn.active) {
+  background: rgba(255, 255, 255, 0.76); border-color: transparent; color: var(--accent);
+  box-shadow: var(--glass-highlight), 0 3px 8px rgba(72, 129, 165, 0.12);
+}
+:root[data-appearance='modernism'] .console-view-wrapper { gap: 12px; }
+:root[data-appearance='modernism'] :is(.console-subnav-bar, .tabs) { padding: 7px 10px; border-radius: 20px; }
+:root[data-appearance='modernism'] .console-subnav-pills { gap: 6px; }
+:root[data-appearance='modernism'] .console-subnav-bar .console-subnav-btn { min-height: 34px; padding: 6px 16px; border-radius: 999px; }
+:root[data-appearance='modernism'] :is(.btn, .btn.sm, .input, .select, .textarea, .panel-toggle, .pill-btn, .composer-model-trigger, .lang-switcher-pill, .lang-pill-btn, .agent-chip) { border-radius: 999px; }
+:root[data-appearance='modernism'] :is(.btn, .btn.sm) { border: 1px solid var(--border); background: rgba(249, 253, 255, 0.42); box-shadow: var(--glass-highlight); }
+:root[data-appearance='modernism'] .btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.7); }
+:root[data-appearance='modernism'] .btn.primary {
+  background: linear-gradient(150deg, #b9e7ff, #8dd0f5);
+  color: #17425d; border-color: rgba(255, 255, 255, 0.86); font-weight: 600;
+  box-shadow: var(--glass-highlight), 0 4px 12px rgba(62, 148, 198, 0.18);
+}
+:root[data-appearance='modernism'] .btn.primary:hover:not(:disabled) { background: linear-gradient(150deg, #c9edff, #a2dcfb); filter: none; }
+:root[data-appearance='modernism'] .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; }
+:root[data-appearance='modernism'] .btn.outline { background: rgba(240, 250, 255, 0.32); border-color: var(--border-strong); }
+:root[data-appearance='modernism'] :is(.input, .select, .textarea, .interaction-textarea, .reject-reason-input, .agentbar select.agentbar-select) { background-color: rgba(247, 252, 255, 0.52); box-shadow: inset 0 1px 3px rgba(83, 144, 183, 0.06); }
+:root[data-appearance='modernism'] .app :is(textarea.textarea, textarea.interaction-textarea) { border-radius: 16px; }
+:root[data-appearance='modernism'] :is(button, a, input, select, textarea):focus-visible { outline: 2px solid #2889bd; outline-offset: 3px; }
+:root[data-appearance='modernism'] .modal-backdrop { background: rgba(72, 135, 177, 0.16); backdrop-filter: blur(8px); }
+:root[data-appearance='modernism'] :is(.modal, .slash-menu, .composer-model-popover) { background: rgba(239, 249, 255, 0.88); border-radius: 24px; box-shadow: var(--glass-highlight), 0 20px 70px rgba(55, 107, 143, 0.18); backdrop-filter: var(--glass-blur); }
+:root[data-appearance='modernism'] .composer-model-picker .composer-model-popover { border-radius: 24px; }
+:root[data-appearance='modernism'] .composer-model-picker .model-menu-search { background: rgba(215, 239, 255, 0.48); }
+:root[data-appearance='modernism'] .composer-model-picker .model-menu-option { border-radius: 12px; }
+:root[data-appearance='modernism'] :is(.slash-item, .skill-item, .ctx-section) { border-radius: 14px; }
+:root[data-appearance='modernism'] :is(.slash-header, .skill-body) { background: var(--bg-inset); }
+
+/* 对话正文留在空气层，用户气泡、工具内容与输入分别浮在浅蓝玻璃上。 */
+:root[data-appearance='modernism'] .chat-column { max-width: 900px; padding: 30px 36px; gap: 26px; }
+:root[data-appearance='modernism'] .msg .msg-sender { font-family: var(--font); margin: 0 10px 8px; font-size: 12px; }
+:root[data-appearance='modernism'] .msg.user .msg-bubble { border-color: rgba(255, 255, 255, 0.8); box-shadow: var(--glass-highlight), 0 4px 18px rgba(65, 126, 165, 0.06); backdrop-filter: blur(12px); line-height: 1.75; font-size: 15px; }
+:root[data-appearance='modernism'] .msg.assistant .msg-body { background: transparent; border: 0; border-radius: 0; padding: 0 10px; font-size: 15px; line-height: 1.8; box-shadow: none; }
+:root[data-appearance='modernism'] :is(.tool-row, .tool-detail, .thinking-card, .program-card) { background: rgba(242, 250, 255, 0.42); border-color: rgba(255, 255, 255, 0.72); backdrop-filter: blur(12px); }
+:root[data-appearance='modernism'] .tool-row { font-family: var(--font); }
+:root[data-appearance='modernism'] .tool-detail { margin-top: 10px; padding: 16px 18px; }
+:root[data-appearance='modernism'] .program-card .program-head { background: transparent; }
+:root[data-appearance='modernism'] :is(.program-code, .thinking-body, .program-children-direct, .msg-body pre) { border-radius: 12px; background: rgba(211, 234, 250, 0.32); }
+:root[data-appearance='modernism'] .live-agent-pulse { width: min(900px, 94%); padding: 10px 16px; margin: 8px auto 0; border-radius: 999px; }
+:root[data-appearance='modernism'] .composer-wrap { padding: 16px 28px 22px; background: transparent; }
+:root[data-appearance='modernism'] .composer { max-width: 900px; min-height: 138px; gap: 16px; background: rgba(232, 247, 255, 0.55); border-color: rgba(255, 255, 255, 0.92); backdrop-filter: var(--glass-blur); }
+:root[data-appearance='modernism'] .composer:focus-within { border-color: rgba(58, 143, 196, 0.7); box-shadow: var(--composer-shadow), 0 0 0 3px rgba(77, 175, 231, 0.12); }
+:root[data-appearance='modernism'] .composer textarea { font-size: 15px; line-height: 1.7; }
+:root[data-appearance='modernism'] .composer-hint { font-family: var(--font); }
+:root[data-appearance='modernism'] .composer-actions .btn { border-radius: 999px; }
+:root[data-appearance='modernism'] .composer-actions .composer-send-btn { min-height: 36px; padding: 0 20px; }
+:root[data-appearance='modernism'] .composer-model-trigger { background: rgba(249, 253, 255, 0.5); border-color: var(--border); }
+
+/* 科学工作台仍保留四区职责，卡片与绘图表面采用同一浅蓝玻璃语言。 */
+:root[data-appearance='modernism'] .dag-topbar { padding: 14px 8px; background: transparent; border: 0; gap: 12px; }
+:root[data-appearance='modernism'] .dag-main-title { font-size: 17px; }
+:root[data-appearance='modernism'] .dag-grid-container { grid-template-columns: minmax(330px, 0.9fr) minmax(0, 1.2fr); padding: 0 0 4px; gap: 16px; }
+:root[data-appearance='modernism'] :is(.dag-left-focus-col, .dag-right-col) { gap: 16px; }
+:root[data-appearance='modernism'] :is(.dag-card-header, .dag-card-header.compact) { padding: 12px 16px; background: rgba(245, 252, 255, 0.25); border-color: var(--border); }
+:root[data-appearance='modernism'] :is(.dag-canvas-compact, .topology-viewport) { background: transparent; }
+:root[data-appearance='modernism'] .evidence-stage-card.compact { background: rgba(224, 242, 255, 0.38); border-color: var(--border); border-radius: 14px; padding: 12px; }
+:root[data-appearance='modernism'] .summary-pill-card { background: rgba(236, 249, 255, 0.42); border-color: var(--border); border-radius: 14px; }
+:root[data-appearance='modernism'] .molecule-3d-container { border-radius: 21px; }
+:root[data-appearance='modernism'] .viewer-3d-header { padding: 12px 16px; background: rgba(245, 252, 255, 0.56); border-color: var(--border); backdrop-filter: blur(12px); }
+:root[data-appearance='modernism'] .viewer-3d-controls { flex-wrap: wrap; }
+:root[data-appearance='modernism'] .viewer-3d-controls .btn { border-radius: 999px; }
+:root[data-appearance='modernism'] .viewer-mode-switch { background: rgba(170, 214, 242, 0.28); padding: 3px; border-radius: 999px; }
+:root[data-appearance='modernism'] .viewer-3d-controls .btn[aria-pressed='true'] { background: rgba(255, 255, 255, 0.8); color: var(--accent); border-color: transparent; box-shadow: var(--glass-highlight); }
+:root[data-appearance='modernism'] .viewer-3d-badge[role='note'] { background: #f0faff; color: var(--fg-tertiary); }
+:root[data-appearance='modernism'] .viewer-3d-coords-drawer { background: rgba(239, 249, 255, 0.9); border-color: var(--border); border-radius: 18px; backdrop-filter: var(--glass-blur); }
+:root[data-appearance='modernism'] .drawer-header { background: transparent; }
+:root[data-appearance='modernism'] :is(.interaction-agent-tag, .interaction-banner-badge, .approval-tool-tag, .yolo-shortcut-btn, .yolo-shortcut-btn:hover, .kpi-number.amber, .agent-role-pill.role-research, .agent-status-badge.state-waiting, .agent-count-pill.waiting) { color: var(--yellow); }
+:root[data-appearance='modernism'] :is(.interaction-chip.reject-chip, .interaction-chip.reject-chip:hover, .reject-panel-title, .interaction-reject-btn, .interaction-reject-btn:hover, .agent-status-badge.state-failed) { color: var(--red); }
+:root[data-appearance='modernism'] :is(.approval-command-box, .interaction-chip.default-chip, .interaction-chip.default-chip:hover, .agent-role-pill.role-compute, .agent-status-badge.state-running, .agent-count-pill.running) { color: var(--green); }
+:root[data-appearance='modernism'] :is(.kpi-number.purple, .agent-role-pill.role-super, .summary-pill-card .pill-num.purple) { color: #70518c; }
+:root[data-appearance='modernism'] .summary-pill-card .pill-num.cyan { color: var(--blue); }
+:root[data-appearance='modernism'] .summary-pill-card .pill-num.amber { color: var(--yellow); }
+:root[data-appearance='modernism'] :is(.agent-role-pill.role-coord, .jobtype-pill, .owner-tag) { color: var(--blue); }
+:root[data-appearance='modernism'] :is(.agent-status-badge.state-idle, .agent-status-badge.state-cancelled) { color: var(--fg-tertiary); }
+:root[data-appearance='modernism'] :is(.task-banner-text, .breadcrumb-task-text) { color: var(--accent); }
+:root[data-appearance='modernism'] :is(.agent-task-banner, .breadcrumb-current-task) { background: var(--blue-dim); border-color: rgba(78, 151, 196, 0.24); border-radius: 999px; }
+@media (max-width: 1160px) {
+  :root[data-appearance='modernism'] .app { padding: 10px; gap: 10px; }
+  :root[data-appearance='modernism'] .left-sidebar:not(.collapsed) { width: 248px; }
+  :root[data-appearance='modernism'] .dag-grid-container { display: flex; flex-direction: column; overflow-y: auto; }
+  :root[data-appearance='modernism'] :is(.dag-left-focus-col, .dag-right-col) { display: contents; }
+  :root[data-appearance='modernism'] .dag-3d-visualizer-card { min-height: 360px; flex: none; }
+  :root[data-appearance='modernism'] .dag-topology-card.full-half { min-height: 320px; flex: none; }
+  :root[data-appearance='modernism'] :is(.dag-stats-card.full-half, .dag-evidence-shelf-card.compact-shelf) { min-height: 240px; flex: none; }
+  :root[data-appearance='modernism'] :is(.chat-column, .composer-wrap) { padding-left: 20px; padding-right: 20px; }
+}
+
+/* 朋克保留控制台的机械感，对话以底色与间距区分，不再围上硬框。 */
 :root[data-appearance='punk'] :is(.ops-card-header, .dag-card-header, .portal-agent-header, .modal-head) { border-bottom: 2px solid var(--border-strong); }
-:root[data-appearance='punk'] :is(.tool-row, .msg.assistant .msg-body) { border-left: 3px solid var(--accent); }
-:root[data-appearance='punk'] .msg.user .msg-bubble { border-color: var(--accent); box-shadow: 4px 4px 0 #284431; }
 :root[data-appearance='punk'] :is(.console-subnav-btn.active, .view-mode-btn.active) { background: var(--accent); color: var(--accent-contrast); }
 :root[data-appearance='punk'] .btn.primary { border: 1px solid #a4dfb3; box-shadow: 2px 2px 0 #355940; }
+:root[data-appearance='punk'] .chat-column { gap: 22px; padding-top: 28px; padding-bottom: 28px; }
+:root[data-appearance='punk'] .live-agent-pulse { background: transparent; border: 0; border-radius: 8px; box-shadow: none; }
+:root[data-appearance='punk'] .msg.user .msg-bubble { border: 0; box-shadow: none; line-height: 1.75; }
+:root[data-appearance='punk'] .msg.assistant .msg-body { background: transparent; border: 0; padding: 0 4px; box-shadow: none; }
+:root[data-appearance='punk'] :is(.tool-row, .tool-detail, .thinking-card, .program-card) { border: 0; box-shadow: none; background: rgba(43, 71, 52, 0.14); }
+:root[data-appearance='punk'] .tool-row { border-left: 0; }
+:root[data-appearance='punk'] .tool-detail { margin-top: 8px; padding: 12px 14px; }
+:root[data-appearance='punk'] .program-card .program-head { background: transparent; }
+:root[data-appearance='punk'] :is(.program-code, .thinking-body, .program-children-direct, .msg-body pre) { border: 0; border-radius: 8px; background: rgba(0, 0, 0, 0.12); }
+:root[data-appearance='punk'] .composer { background: rgba(27, 43, 32, 0.44); border-color: transparent; box-shadow: none; }
+:root[data-appearance='punk'] .composer:focus-within { border-color: rgba(123, 216, 143, 0.45); box-shadow: 0 0 0 2px rgba(123, 216, 143, 0.08); }
+:root[data-appearance='punk'] .composer-actions .btn { border-radius: 6px; box-shadow: none; }
 
 /* Acid：项目目录是安静的索引，新建操作按需展开，不再常驻一组表单。 */
 :root[data-appearance='acid'] .left-sidebar:not(.collapsed) { width: 248px; }

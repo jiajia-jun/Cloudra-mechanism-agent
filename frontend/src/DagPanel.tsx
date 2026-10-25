@@ -264,7 +264,7 @@ function GraphView({ graph, sel, onSelect }: {
                     <text x={6 + index * (partWidth + 12) - 6} y={43} textAnchor="middle" fill="var(--fg)" style={{ pointerEvents: 'none' }}>+</text>
                   )}
                   <image
-                    href={api.chemRenderSmilesUrl(smiles, Math.round(partWidth), 40, appearance === 'acid' ? 'light' : 'dark')}
+                    href={api.chemRenderSmilesUrl(smiles, Math.round(partWidth), 40, appearance === 'punk' ? 'dark' : 'light')}
                     x={6 + index * (partWidth + 12)}
                     y={18}
                     width={partWidth}

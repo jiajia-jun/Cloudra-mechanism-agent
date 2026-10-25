@@ -50,6 +50,21 @@ test('appearance controls apply immediately and preserve the saved choice after 
   const styles = page.getByRole('group', { name: '界面风格', exact: true });
   await expect(styles).toBeVisible({ timeout: 1500 });
   await expect(styles.getByRole('button', { name: '现代主义', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  const glass = await page.evaluate(() => {
+    const sidebar = getComputedStyle(document.querySelector('.left-sidebar')!);
+    const modal = getComputedStyle(document.querySelector('.modal')!);
+    const control = getComputedStyle(document.querySelector('.modal .btn')!);
+    return { surface: sidebar.backgroundColor, blur: sidebar.backdropFilter, panelRadius: modal.borderTopLeftRadius, controlRadius: control.borderTopLeftRadius };
+  });
+  expect(glass.surface.startsWith('rgba(')).toBe(true);
+  expect(glass.blur).toContain('blur(');
+  expect(Number.parseFloat(glass.panelRadius)).toBeGreaterThanOrEqual(12);
+  expect(Number.parseFloat(glass.controlRadius)).toBeGreaterThanOrEqual(8);
+  for (const [width, height] of [[1280, 800], [1440, 900]]) {
+    await page.setViewportSize({ width, height });
+    await page.screenshot({ path: `/tmp/cloudra-glass-modernism-settings-${width}x${height}.png`, fullPage: true, animations: 'disabled' });
+  }
+  await page.screenshot({ path: '/tmp/cloudra-glass-modernism-settings.png', fullPage: true, animations: 'disabled' });
   await styles.getByRole('button', { name: 'Acid', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-appearance', 'acid');
   expect(await page.evaluate(() => localStorage.getItem('cloudra.appearance'))).toBe('acid');
@@ -124,7 +139,7 @@ test('all appearances preserve the selected project, agent, DAG and compute work
   const backgrounds: string[] = [];
   const renderedColors: Array<Record<string, unknown>> = [];
 
-  for (const [appearance, label, svgTheme] of [['modernism', '现代主义', 'dark'], ['punk', '朋克', 'dark'], ['acid', 'Acid', 'light']]) {
+  for (const [appearance, label, svgTheme] of [['modernism', '现代主义', 'light'], ['punk', '朋克', 'dark'], ['acid', 'Acid', 'light']]) {
     await page.getByRole('button', { name: '全局设置', exact: true }).click();
     const styles = page.getByRole('group', { name: '界面风格', exact: true });
     await styles.getByRole('button', { name: label, exact: true }).click();
@@ -166,7 +181,7 @@ test('all appearances preserve the selected project, agent, DAG and compute work
     const rendered = await sampleMolecule(page);
     expect(rendered.green).toBe(true);
     expect(rendered.purple).toBe(true);
-    if (appearance === 'acid') expect(Math.min(...rendered.background)).toBeGreaterThan(180);
+    if (appearance !== 'punk') expect(Math.min(...rendered.background)).toBeGreaterThan(180);
     else expect(Math.max(...rendered.background)).toBeLessThan(100);
     expect(Math.abs(rendered.angle - cameraAngle)).toBeLessThan(0.08);
     await expect(page.getByRole('group', { name: '分子显示方式', exact: true }).getByRole('button', { name: '填充', exact: true })).toHaveAttribute('aria-pressed', 'true');
@@ -174,6 +189,13 @@ test('all appearances preserve the selected project, agent, DAG and compute work
     expect([...new Set(imageThemes)]).toEqual([svgTheme]);
     canvasBackgrounds.push(rendered.background.join(','));
     await page.screenshot({ path: `/tmp/cloudra-appearance-${appearance}.png`, fullPage: true, animations: 'disabled' });
+    if (appearance === 'modernism') {
+      for (const [width, height] of [[1280, 800], [1440, 900]]) {
+        await page.setViewportSize({ width, height });
+        await page.screenshot({ path: `/tmp/cloudra-glass-modernism-dag-${width}x${height}.png`, fullPage: true, animations: 'disabled' });
+      }
+      await page.screenshot({ path: '/tmp/cloudra-glass-modernism-dag.png', fullPage: true, animations: 'disabled' });
+    }
     const colors = await page.evaluate(() => {
       const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);
       return {
@@ -230,7 +252,8 @@ test('themes change message, tool and composer forms while preserving their cont
   await page.locator('.tool-row').filter({ hasText: 'log_parser' }).click();
   await expect(page.locator('.tool-detail')).toBeVisible();
   await page.getByTestId('composer-input').fill('保留这段工作台输入');
-  const profiles: Record<string, Record<string, unknown>> = {};
+  type FormProfile = { corners: string[]; borders: string[]; shadowBlurs: number[]; backdrop: string };
+  const profiles: Record<string, Record<string, FormProfile>> = {};
   for (const [appearance, label] of [['modernism', '现代主义'], ['punk', '朋克'], ['acid', 'Acid']]) {
     await page.getByRole('button', { name: '全局设置', exact: true }).click();
     await page.getByRole('group', { name: '界面风格', exact: true }).getByRole('button', { name: label, exact: true }).click();
@@ -249,10 +272,42 @@ test('themes change message, tool and composer forms while preserving their cont
           borders: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
           borderStyles: [style.borderTopStyle, style.borderRightStyle, style.borderBottomStyle, style.borderLeftStyle],
           raised: style.boxShadow !== 'none',
+          shadowBlurs: style.boxShadow === 'none' ? [] : style.boxShadow.split(' ').filter((part) => part.endsWith('px')).filter((_, index) => index % 4 === 2).map(Number.parseFloat),
+          backdrop: style.backdropFilter,
         };
       };
-      return { message: form('.msg.user .msg-bubble'), tool: form('.tool-row'), detail: form('.tool-detail'), composer: form('.composer') };
+      return { message: form('.msg.user .msg-bubble'), assistant: form('.msg.assistant .msg-body'), tool: form('.tool-row'), detail: form('.tool-detail'), composer: form('.composer') };
     });
+    if (appearance === 'modernism') {
+      expect(profiles.modernism.composer.backdrop).toContain('blur(');
+      expect(Math.max(...profiles.modernism.message.corners.map(Number.parseFloat))).toBeGreaterThanOrEqual(16);
+    }
+    if (appearance === 'punk') {
+      for (const surface of ['message', 'assistant', 'tool', 'detail', 'composer']) {
+        expect(profiles.punk[surface].borders.every((width) => Number.parseFloat(width) <= 1), `${surface} has no heavy outline`).toBe(true);
+        expect(profiles.punk[surface].shadowBlurs.every((blur) => blur > 0), `${surface} has no hard offset shadow`).toBe(true);
+      }
+      const focusStyle = () => page.locator('.composer').evaluate((element) => {
+        const style = getComputedStyle(element);
+        return [style.borderColor, style.outline, style.boxShadow];
+      });
+      const unfocused = await focusStyle();
+      await page.getByTestId('composer-input').focus();
+      await expect(page.getByTestId('composer-input')).toBeFocused();
+      await expect.poll(focusStyle).not.toEqual(unfocused);
+    }
+    if (appearance !== 'acid') {
+      await page.locator('.tool-row').filter({ hasText: 'log_parser' }).click();
+      await page.mouse.move(0, 0);
+      for (const [width, height] of [[1280, 800], [1440, 900]]) {
+        await page.setViewportSize({ width, height });
+        await expect(page.getByTestId('composer-input')).toHaveValue('保留这段工作台输入');
+        const prefix = appearance === 'modernism' ? 'glass-modernism' : 'soft-punk';
+        await page.screenshot({ path: `/tmp/cloudra-${prefix}-dialogue-${width}x${height}.png`, fullPage: true, animations: 'disabled' });
+      }
+      await page.screenshot({ path: appearance === 'modernism' ? '/tmp/cloudra-glass-modernism-dialogue.png' : '/tmp/cloudra-soft-punk-dialogue.png', fullPage: true, animations: 'disabled' });
+      await page.locator('.tool-row').filter({ hasText: 'log_parser' }).click();
+    }
   }
   for (const surface of ['message', 'tool', 'detail', 'composer']) {
     expect(profiles.punk[surface], `punk ${surface} form`).not.toEqual(profiles.modernism[surface]);
