@@ -1,0 +1,51 @@
+HA1 standard/r2: offline manual reconstruction of a missing delivery graph
+
+Identity and scope
+This graph was assembled after the original run by a human-authorized AI evidence organizer. It was not produced by the original running Agent and is not evidence that the original Agent completed its graph delivery.
+Treat this operation as offline evidence organization and score the reconstruction separately from the original-run result. Collection of the run trajectory and offline scoring are distinct operations.
+Only the original HA1/r2 PROCESS.md, the six named Gaussian native logs, their original input files, current shared native parsers, and the shared delivery graph schema/constants were used to construct the fields. No task.gold object or other group graph was opened. An initial broad source-symbol search incidentally returned short unrelated task-registry snippets; these were not opened further or used, and no HA1 reference answer was accessed.
+No quantum-chemistry calculation was started. No source sandbox file was changed. Only ha1_r2_graph.json and this reconstruction_notes.txt were created by this reconstruction step.
+This file does not claim that the candidate reaction connections have passed scientific acceptance.
+
+Original source directory
+cloudra-p1b-20261024/standard/r2/sandboxes/HA1/batch_b55a9ca40300477e
+
+Schema and field provenance
+Shape: cloudra/benchmark/schema.py, GoldMechanismGraph (the shared reference/delivery graph shape), MechanismNode, MechanismEdge, BondChangeSet. Only schema types were used; no reference instance was loaded.
+nodes[].id and edges[].id: newly assigned offline organizational identifiers; they are not original-run identifiers or reference-answer identifiers.
+nodes[].role: reactant/product roles from original PROCESS.md Task/Hypotheses and original input annotations. Transition-state role means an existing native optimized one-imaginary-frequency saddle candidate, not a proven reaction connection.
+nodes[].smiles: copied exactly from the corresponding original .gjf title after smiles:. R and both TS candidates use CC1CC=C1; P_E uses C/C=C/C=C; P_Z uses C/C=C\C=C. Each is syntactically valid by RDKit. The TS title SMILES records original reactant identity and does not represent a partial-bond transition-state geometry. No absolute R stereochemistry was added to the original unmapped SMILES.
+nodes[].label: offline descriptions combining original PROCESS.md assignments with explicit candidate/unverified status.
+nodes[].properties.evidence_log: original native basename, relative to the original sandbox: r_opt.log, pE_opt.log, pZ_opt.log, ts_E.log, ts_dis_1.log. No renamed or synthesized native log is cited.
+nodes[].properties.energy_hartree: current cloudra.tools.core.qm_log_facts.read_qm_log electronic_energy_hartree from that exact original native log.
+nodes[].properties.normal_termination, opt_converged, imaginary_frequencies_cm: native parser facts from that log; no missing frequency is converted to zero.
+nodes[].properties.irc_direction_verified=false and scientific_acceptance=not_established on both TS nodes: no accepted two-sided IRC outer-frame-to-endpoint Opt/Freq chain exists in the supplied sandbox.
+accessible=true: retains the schema default for the reported candidate hypotheses. It does not certify IRC direction or scientific acceptance. No disrotatory node/edge was added and no unlocated channel was declared inaccessible.
+edges[].from/to/via: original PROCESS.md H1/H2 and specialist Findings 2 propose R->E through the outward candidate and R->Z through the inward candidate. These are reported candidate links, not verified endpoint identities.
+edges[].step_type and channel: readable offline labels derived from the same reported conrotatory E/Z hypotheses; no answer-key channel label was consulted.
+edges[].bond_changes: original PROCESS.md map [CH3:1][CH:2]1[CH2:3][CH:4]=[CH:5]1 and Atom index convention. Break/decrease 2-3 (ring cleavage) and 4-5 (double to single); form/increase 3-4 and 2-5 (single to double). The decrease of 4=5 follows the original ring bond list and original stated diene bond pattern, encoded using the actual BondChangeSet semantics.
+edges[].barrier_kcal_mol: (E(TS)-E(r_opt)) * current shared HARTREE_TO_KCAL_MOL=627.5094740631 from cloudra/benchmark/barrier_evidence.py; pure electronic energies, no ZPE/thermal addition.
+edges[].favored: exactly the lower of the two reconstructed numerical TS barriers is true. This ranking is conditional on the original proposed channel assignments, whose IRC product connections remain unverified.
+
+Native facts and derived numerical barriers
+R: r_opt.log; E=-195.165893758 Ha; normal=True; opt_converged=True; 33 frequencies; imaginary=[]; last native SCF line 3589; last frequency block line 4064; final normal-termination line 4819.
+P_E: pE_opt.log; E=-195.187896036 Ha; normal=True; opt_converged=True; 33 frequencies; imaginary=[]; last native SCF line 2565; last frequency block line 3038; final normal-termination line 3751.
+P_Z: pZ_opt.log; E=-195.186154812 Ha; normal=True; opt_converged=True; 33 frequencies; imaginary=[]; last native SCF line 2561; last frequency block line 3033; final normal-termination line 3748.
+TS_E_candidate: ts_E.log; E=-195.113158598 Ha; normal=True; opt_converged=True; 33 frequencies; imaginary=[-633.3095]; last native SCF line 6331; last frequency block line 6804; final normal-termination line 7522.
+TS_Z_candidate: ts_dis_1.log; E=-195.104048335 Ha; normal=True; opt_converged=True; 33 frequencies; imaginary=[-682.6432]; last native SCF line 6887; last frequency block line 7360; final normal-termination line 8078.
+ts_E: barrier=33.091812516231826 kcal/mol relative to r_opt.log.
+ts_dis_1: barrier=38.808588859954064 kcal/mol relative to r_opt.log.
+Barrier difference (inward candidate minus outward candidate)=5.716776343722238 kcal/mol. conrotatory_E favored=true; conrotatory_Z favored=false, solely by this ordering.
+
+IRC and channel limitations; correction of original PROCESS.md
+ts_E.gjf requests an outward conrotatory/E-channel opt=TS plus freq calculation. ts_E.log contains native optimization convergence and one imaginary frequency; there is no corresponding IRC log in the supplied HA1 sandbox.
+ts_dis_1.gjf describes an initially disrotatory TS search. PROCESS.md specialist Findings 2 says this search converged instead to the methyl-inward conrotatory/Z-side saddle. The filename/input search intention is not proof of a disrotatory final TS. This reconstruction follows that original reported interpretation while retaining explicit candidate status.
+The original PROCESS.md table and Findings 3 call ts_dis_irc a reverse endpoint and say the forward branch never ran. The original native log contradicts that direction description: line 937 says Point Number 1 in FORWARD path direction; the completed points are Path Number 1 through Point 26 (line 10911), and line 10938 requests Point 27 in FORWARD direction. No REVERSE path or completed directional path is present.
+Point 26 has a real CURRENT STRUCTURE block at lines 10912-10931; the preceding corrected endpoint energy is -195.163007 Ha (line 10903). It is only a partial single-sided trajectory frame, not a proven zero-imaginary-frequency optimized minimum.
+ts_dis_irc.log last SCF energy is -195.16354505 Ha. It belongs to the subsequently failed corrector iterations and is not used as a graph minimum or barrier reference.
+At native log line 17917 Delta-x Convergence NOT Met is followed by Maximum number of corrector steps exceded and Error termination at line 17919. There is no final Summary of reaction path following/TS-energy summary. The current Gaussian IRC parser raises an incomplete-native-IRC error; the shared irc_endpoint_geometries reader returns None.
+No two-sided native IRC geometry pair or actual IRC-frame-to-converged-endpoint Opt/Freq provenance is available. Neither candidate edge is asserted to have verified R/product connectivity.
+No scan maximum is represented as a TS or substituted for either optimized one-imaginary-frequency saddle. Absence of a located disrotatory TS does not establish physical inaccessibility and is not encoded as accessible=false.
+
+Verification of this offline artifact
+The graph validated with the current shared GoldMechanismGraph Pydantic schema, including declared endpoint references and transition-state via references. All five original title SMILES parsed successfully. Validation confirms artifact shape and cited native numerical facts; it is not scientific acceptance and is not a benchmark score.

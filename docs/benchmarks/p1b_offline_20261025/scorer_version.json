@@ -1,0 +1,13 @@
+{
+  "assessed_at": "2026-10-25",
+  "scorer_commit": "0b7b5e5b8751415370a8c7d8965093e12b463950",
+  "mode": "standard",
+  "raw_archive": "cloudra-p1b-20261024-v2.tar.gz",
+  "raw_archive_sha256": "7a63841ab5eca6634da3ec5e98e6b95239c59abacd66e9659c9d082d2edb27c1",
+  "scope": "12 standard runs; one missing HA1/r2 graph reconstructed offline from its own trajectory and native evidence",
+  "other_arms": "2026-10-24 historical snapshots; not rescored in this update",
+  "source_sandbox": "cloudra-p1b-20261024/standard/r2/sandboxes/HA1/batch_b55a9ca40300477e",
+  "raw_run_had_graph": false,
+  "quantum_computations_added": false,
+  "native_logs_modified": false
+}

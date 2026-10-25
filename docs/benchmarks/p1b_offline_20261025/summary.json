@@ -1,0 +1,25 @@
+{
+  "assessment": "P1b standard offline assessment with human-reconstructed HA1/r2 graph",
+  "scorer_commit": "0b7b5e5b8751415370a8c7d8965093e12b463950",
+  "HA1_r2_before": -1.0,
+  "HA1_r2_after": 0.805,
+  "HA1_r2_graph": 1.0,
+  "HA1_r2_selfconsistency": 0.35,
+  "HA1_r2_accuracy": 1.0,
+  "HA1_r2_scientific_selfconsistency_passed": false,
+  "standard_mean_before": 0.5344666666666666,
+  "standard_mean_with_reconstructed_graph": 0.6848833333333334,
+  "native_root_logs_unchanged_sha256": {
+    "ts_dis_irc.log": "1c00a39b77810eeb6d2518929db7ae4185c3708cb1d183022e7cd394b08ab970",
+    "ts_dis_1.log": "c881814aa6036120ccd4cfdfcbc168993e602a447a5ef8d206b71ceddf97e25e",
+    "scan_dis_rot.log": "8b3bbfc8b873ea3bf1dba2e31d53ac922f292abf2b86c881d7efe0af52e2f417",
+    "scan_dis_2d_v3.log": "69aa505163ef9ce5608922659887e27b1cc88d4cc4230446a22f1c73d0939ef8",
+    "ts_E.log": "f1334c06ab1087d00a4b3cc3213ad4a73cd0ad64600004f578e3f65a44f87eb8",
+    "scan_dis_2d_v2.log": "35d9905cff4bc6659e4c882fe1344e35d8b8875a631fda4e40b7cb8416187268",
+    "pE_opt.log": "6e9545794155ceaaeffa6e3b1a7fb4bd076e5728daa332052af8257a07c6cdb2",
+    "r_opt.log": "e6c11073025a36d28e6beb0d9cb6cd06a87f168efbec3fb2fef9659d1553c3f3",
+    "scan_dis_2d.log": "9f8f84ee44ef0b3e30b7fd9b22ca9c564d27bdf7092b70b631ef5404ec7e300f",
+    "pZ_opt.log": "d7e0cfa9fc8e0813b8c603b11ee935f9f576747589f1318c319701fa1ba834d6",
+    "scan_E.log": "ff9743a1813e8d7521a029cfaf865d353f7bd58aedf5ebbf431ef5fee3b64d1a"
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "sandbox": "cloudra-p1b-20261024/standard/r2/sandboxes/IA1/batch_b55a9ca40300477e",
+  "changes": [
+    {
+      "node": "RC",
+      "original": "/home/ly/cloudra-p1b-20261024/standard/r2/sandboxes/IA1/batch_b55a9ca40300477e/work_pm7/rect_min.log",
+      "relative": "work_pm7/rect_min.log"
+    },
+    {
+      "node": "TS1",
+      "original": "/home/ly/cloudra-p1b-20261024/standard/r2/sandboxes/IA1/batch_b55a9ca40300477e/work_pm7/ts_freq_low.log",
+      "relative": "work_pm7/ts_freq_low.log"
+    },
+    {
+      "node": "TS1",
+      "original": "/home/ly/cloudra-p1b-20261024/standard/r2/sandboxes/IA1/batch_b55a9ca40300477e/work_pm7/d4h_relax.log",
+      "relative": "work_pm7/d4h_relax.log"
+    },
+    {
+      "node": "TS1",
+      "original": "/home/ly/cloudra-p1b-20261024/standard/r2/sandboxes/IA1/batch_b55a9ca40300477e/work_pm7/irc_ts.log",
+      "relative": "work_pm7/irc_ts.log"
+    },
+    {
+      "node": "TS1",
+      "original": "/home/ly/cloudra-p1b-20261024/standard/r2/sandboxes/IA1/batch_b55a9ca40300477e/work_pm7/sq_min_test.log",
+      "relative": "work_pm7/sq_min_test.log"
+    },
+    {
+      "node": "P",
+      "original": "/home/ly/cloudra-p1b-20261024/standard/r2/sandboxes/IA1/batch_b55a9ca40300477e/work_pm7/irc_end_b_optfreq.log",
+      "relative": "work_pm7/irc_end_b_optfreq.log"
+    },
+    {
+      "node": "P",
+      "original": "/home/ly/cloudra-p1b-20261024/standard/r2/sandboxes/IA1/batch_b55a9ca40300477e/work_pm7/irc_end_a_optfreq.log",
+      "relative": "work_pm7/irc_end_a_optfreq.log"
+    }
+  ]
+}

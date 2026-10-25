@@ -24,7 +24,8 @@
 | `superpowers/plans/` `superpowers/specs/` | **设计历史**（按日期归档惯例保留，不更新） |
 | [`../cloudra/benchmark/README.md`](../cloudra/benchmark/README.md) | 当前 50 题 Benchmark 运行入口、方法范围和评分口径 |
 | [`benchmarks/SCORING_FAIRNESS_FIXES.md`](benchmarks/SCORING_FAIRNESS_FIXES.md) | 评测评分公平性修复与 P1b 四臂重算依据 |
-| [`benchmarks/p1b_rescored_results.csv`](benchmarks/p1b_rescored_results.csv) | P1b 四臂代表性试跑 48 沙箱重算数据明细 |
+| [`benchmarks/p1b_rescored_results.csv`](benchmarks/p1b_rescored_results.csv) | 2026-10-24 P1b 四臂 48 沙箱历史重算快照 |
+| [`benchmarks/p1b_offline_20261025/README.md`](benchmarks/p1b_offline_20261025/README.md) | Standard 离线整理、HA1/r2 人工恢复图、12 次结果与复现说明 |
 | [`benchmarks/P1B_DELIVERY.md`](benchmarks/P1B_DELIVERY.md) | P1b 四臂 48 次运行的 Drive 下载链接、包校验及解压说明 |
 | [`../gold_compute/queue_20261018/REFERENCE_STATUS.md`](../gold_compute/queue_20261018/REFERENCE_STATUS.md) | 当前参考值、稳定参照及科学验收限定 |
 | [`../gold_compute/evidence/README.md`](../gold_compute/evidence/README.md) | 逐题证据索引、原件清单和缺件状态 |
