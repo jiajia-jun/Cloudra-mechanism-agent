@@ -235,6 +235,11 @@ export default function App() {
   const [slashDismissed, setSlashDismissed] = useState(false);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [newProject, setNewProject] = useState('');
+  const [projectCreateExpanded, setProjectCreateExpanded] = useState(false);
+  const newProjectNameRef = useRef<HTMLInputElement>(null);
+  useLayoutEffect(() => {
+    if (projectCreateExpanded) newProjectNameRef.current?.focus();
+  }, [projectCreateExpanded]);
   const [sending, setSending] = useState(false);
   const [connState, setConnState] = useState<'connecting' | 'live' | 'offline'>('connecting');
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -974,6 +979,7 @@ export default function App() {
       await createProject(name, newProjectWs.trim() || undefined);
       setNewProject('');
       setNewProjectWs('');
+      setProjectCreateExpanded(false);
     } catch (e) {
       reportError(e);
     }
@@ -1884,9 +1890,22 @@ export default function App() {
 
         <div className="left-sidebar-content">
           {/* New Project Creator Bar */}
-          <div className="new-project-bar">
+          <button
+            type="button"
+            className="acid-project-create-toggle"
+            aria-expanded={projectCreateExpanded}
+            aria-controls="sidebar-new-project-form"
+            onClick={() => setProjectCreateExpanded((expanded) => !expanded)}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            {lang === 'zh' ? '新建项目' : 'New project'}
+          </button>
+          <div id="sidebar-new-project-form" className="new-project-bar" data-expanded={projectCreateExpanded}>
             <div className="new-project-row">
               <input
+                ref={newProjectNameRef}
                 className="input"
                 value={newProject}
                 onChange={(e) => setNewProject(e.target.value)}
@@ -2651,7 +2670,7 @@ export default function App() {
                   }}
                 />
               )}
-              <button className="btn primary sm" onClick={sendMessage} disabled={!draft.trim() || !activeProject || sending}>
+              <button className="btn primary sm composer-send-btn" onClick={sendMessage} disabled={!draft.trim() || !activeProject || sending}>
                 {sending ? 'Sending…' : 'Send'}
               </button>
             </div>

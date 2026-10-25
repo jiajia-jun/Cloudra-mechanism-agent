@@ -66,7 +66,7 @@ test('appearance controls apply immediately and preserve the saved choice after 
   expect(patches).toEqual([]);
 });
 
-test('all appearances preserve the selected project, agent, DAG and compute workbench', async ({ page }) => {
+async function openResearchWorkbench(page: Page) {
   const project = { ...PROJECT_ACTIVE, name: '机理研究工作台', settings: { orchestration_mode: 'dag_guided', defaults: {} } };
   await installApiMocks(page, { projects: [project], jobs: [JOB] });
   const patches = await mockAppearanceSettings(page);
@@ -79,10 +79,24 @@ test('all appearances preserve the selected project, agent, DAG and compute work
   await page.route('**/api/v2/projects/*/dag/delivery', (route) => route.fulfill({ json: {
     mode: 'dag_guided', graph: {
       nodes: [
+        { node_id: 'reactants', label: '起始物种', smiles: ['[Na+].[Cl-]'] },
         { node_id: 'complex', label: '结合物种', smiles: ['[Na+].[Cl-]'] },
-        { node_id: 'separated', label: '分离产物', smiles: ['[Na+]', '[Cl-]'], metadata: { xyz: '2\nIllustrative separated-pair display\nNa 0 0 0\nCl 5 0 0' } },
+        {
+          node_id: 'separated', label: '分离产物', smiles: ['[Na+]', '[Cl-]'],
+          metadata: { xyz: '2\nIllustrative separated-pair display\nNa 0 0 0\nCl 5 0 0' },
+          stages: [
+            { kind: 'geometry', status: 'pending', required: true, reason: '展示样例：优化产物已登记，等待核对原生日志。', ref: { ref_type: 'artifact', ref_id: 'example-geometry.xyz' } },
+            { kind: 'frequency', status: 'pending', required: true, reason: '展示样例：频率证据待核对。' },
+          ],
+        },
+        { node_id: 'alternative', label: '竞争通道', smiles: ['[Na+].[Cl-]'] },
       ],
-      edges: [{ edge_id: 'release', label: '候选解离步骤（示例）', source_node_id: 'complex', target_node_id: 'separated', evidence_level: 'proposed' }],
+      edges: [
+        { edge_id: 'associate', label: '结合假设', source_node_id: 'reactants', target_node_id: 'complex', evidence_level: 'proposed' },
+        { edge_id: 'release', label: '候选解离步骤（示例）', source_node_id: 'complex', target_node_id: 'separated', evidence_level: 'proposed' },
+        { edge_id: 'compete', label: '竞争路径', source_node_id: 'reactants', target_node_id: 'alternative', evidence_level: 'proposed' },
+        { edge_id: 'converge', label: '汇合假设', source_node_id: 'alternative', target_node_id: 'separated', evidence_level: 'proposed' },
+      ],
     },
   } }));
   await openSpa(page);
@@ -90,8 +104,13 @@ test('all appearances preserve the selected project, agent, DAG and compute work
   await expect(page.locator('.breadcrumb-agent-name')).toHaveText(AGENT.display_name);
   await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
   await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
-  await expect(page.locator('.dag-node-rect')).toHaveCount(2);
-  await page.locator('.dag-node-rect').nth(1).click();
+  await expect(page.locator('.dag-node-rect')).toHaveCount(4);
+  await page.locator('g').filter({ has: page.locator('.dag-node-label').filter({ hasText: '分离产物' }) }).last().locator('.dag-node-rect').click();
+  return { project, patches };
+}
+
+test('all appearances preserve the selected project, agent, DAG and compute workbench', async ({ page }) => {
+  const { project, patches } = await openResearchWorkbench(page);
   await page.getByRole('button', { name: '填充', exact: true }).click();
   const originalCamera = await sampleMolecule(page);
   const canvasBox = (await page.locator('.viewer-3d-canvas').boundingBox())!;
@@ -114,11 +133,32 @@ test('all appearances preserve the selected project, agent, DAG and compute work
     await page.locator('.modal').getByRole('button', { name: 'close', exact: true }).click();
     await expect(page.locator('.breadcrumb-project')).toHaveText(project.name);
     await expect(page.locator('.breadcrumb-agent-name')).toHaveText(AGENT.display_name);
-    await expect(page.locator('.dag-node-label')).toHaveText(['结合物种', '分离产物']);
-    await expect(page.locator('.dag-edge-hit')).toHaveCount(1);
+    await expect(page.locator('.dag-node-label')).toHaveText(['起始物种', '结合物种', '分离产物', '竞争通道']);
+    await expect(page.locator('.dag-edge-hit')).toHaveCount(4);
     await expect(page.locator('.dag-sel .dag-node-label')).toHaveText('分离产物');
     await expect(page.locator('.view-mode-switcher').getByRole('button', { name: '控制台', exact: false })).toBeVisible();
-    await expect(page.getByPlaceholder('新建项目名…')).toBeVisible();
+    if (appearance === 'acid') {
+      const createProject = page.locator('.acid-project-create-toggle');
+      await expect(createProject).toBeVisible();
+      await expect(createProject).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByPlaceholder('新建项目名…')).toBeHidden();
+      await createProject.click();
+      await expect(createProject).toHaveAttribute('aria-expanded', 'true');
+      const creationPanel = await createProject.getAttribute('aria-controls');
+      expect(creationPanel).toBeTruthy();
+      await expect(page.locator(`[id="${creationPanel}"]`)).toBeVisible();
+      const projectName = page.getByPlaceholder('新建项目名…');
+      await expect(projectName).toBeVisible();
+      await expect(projectName).toBeFocused();
+      await projectName.fill('未提交的研究项目');
+      await createProject.click();
+      await expect(projectName).toBeHidden();
+      await createProject.click();
+      await expect(projectName).toHaveValue('未提交的研究项目');
+      await createProject.click();
+    } else {
+      await expect(page.getByPlaceholder('新建项目名…')).toBeVisible();
+    }
     for (const name of ['机理 DAG', '计算调度', '交付产物', '审计日志']) {
       await expect(page.locator('.console-subnav-bar').getByRole('button', { name, exact: false })).toBeVisible();
     }
@@ -129,7 +169,7 @@ test('all appearances preserve the selected project, agent, DAG and compute work
     if (appearance === 'acid') expect(Math.min(...rendered.background)).toBeGreaterThan(180);
     else expect(Math.max(...rendered.background)).toBeLessThan(100);
     expect(Math.abs(rendered.angle - cameraAngle)).toBeLessThan(0.08);
-    expect(await page.getByRole('button', { name: '填充', exact: true }).evaluate((element) => element.classList.contains('active'))).toBe(true);
+    await expect(page.getByRole('group', { name: '分子显示方式', exact: true }).getByRole('button', { name: '填充', exact: true })).toHaveAttribute('aria-pressed', 'true');
     const imageThemes = await page.locator('.dag-canvas-compact image').evaluateAll((images) => images.map((image) => new URL(image.getAttribute('href')!, location.origin).searchParams.get('theme')));
     expect([...new Set(imageThemes)]).toEqual([svgTheme]);
     canvasBackgrounds.push(rendered.background.join(','));
@@ -163,8 +203,9 @@ test('all appearances preserve the selected project, agent, DAG and compute work
   await page.getByRole('group', { name: '界面风格', exact: true }).getByRole('button', { name: '现代主义', exact: true }).click();
   await page.locator('.modal').getByRole('button', { name: 'close', exact: true }).click();
   await expect(page.locator('.ops-dashboard-root')).toBeVisible();
+  await expect(page.getByPlaceholder('新建项目名…')).toHaveValue('未提交的研究项目');
   await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
-  await expect(page.locator('.dag-node-rect')).toHaveCount(2);
+  await expect(page.locator('.dag-node-rect')).toHaveCount(4);
   expect(patches).toEqual([]);
 });
 
@@ -180,7 +221,7 @@ test('themes change message, tool and composer forms while preserving their cont
     envelope(1, 'agent.message_injected', { sender: 'user', content: '请核对本轮结构与计算记录。' }),
     envelope(2, 'tool.started', { tool_name: 'log_parser', tool_call_id: 'appearance-call', arguments_summary: { path: '/tmp/example.log' } }),
     envelope(3, 'tool.finished', { tool_name: 'log_parser', tool_call_id: 'appearance-call', status: 'completed', is_success: true, result_summary: '示例结构记录已经读入。', duration_ms: 18 }),
-    envelope(4, 'agent.message_emitted', { sender: 'coordinator', content: '继续在DAG和计算工作台中查看证据。' }),
+    envelope(4, 'agent.message_emitted', { sender: 'coordinator', content: '### 本轮结构核对\n\n示例日志已读入，反应网络中的结合物种与分离产物已关联到各自结构。接下来应逐条检查真实计算记录。\n\n- 在机理 DAG 中选择物种，查看对应三维构象。\n- 从证据区查看优化、频率和路径产物。\n- 计算完成与科学确证分别记录。\n\n继续在 DAG 和计算工作台中查看证据。' }),
   ];
   await page.route('**/api/v2/agents/*/events?*', (route) => route.fulfill({ json: events }));
   await openSpa(page);
@@ -218,5 +259,67 @@ test('themes change message, tool and composer forms while preserving their cont
     expect(profiles.acid[surface], `acid ${surface} form`).not.toEqual(profiles.modernism[surface]);
     expect(profiles.acid[surface], `acid and punk ${surface} forms`).not.toEqual(profiles.punk[surface]);
   }
+  await page.locator('.tool-row').filter({ hasText: 'log_parser' }).click();
+  await page.mouse.move(0, 0);
+  for (const [width, height] of [[1280, 800], [1440, 900]]) {
+    await page.setViewportSize({ width, height });
+    await expect(page.getByTestId('composer-input')).toBeInViewport();
+    await expect(page.getByTestId('composer-input')).toHaveValue('保留这段工作台输入');
+    await page.screenshot({ path: `/tmp/cloudra-acid-dialogue-${width}x${height}.png`, fullPage: true, animations: 'disabled' });
+  }
   expect(patches).toEqual([]);
+});
+
+
+test('Acid gives the reaction network the main stage and keeps inspection controls reachable', async ({ page }) => {
+  await openResearchWorkbench(page);
+  await page.getByRole('button', { name: '全局设置', exact: true }).click();
+  await page.getByRole('group', { name: '界面风格', exact: true }).getByRole('button', { name: 'Acid', exact: true }).click();
+  await page.locator('.modal').getByRole('button', { name: 'close', exact: true }).click();
+  await expect.poll(() => page.locator('.console-subnav-btn.active').evaluate((element) => {
+    const style = getComputedStyle(element);
+    return { background: style.backgroundColor, corner: style.borderTopLeftRadius };
+  })).toEqual({ background: 'rgba(0, 0, 0, 0)', corner: '0px' });
+  expect((await page.getByRole('button', { name: '图操作与审计', exact: true }).boundingBox())!.height).toBe(36);
+  expect((await page.locator('.acid-project-create-toggle').boundingBox())!.height).toBe(42);
+
+  for (const [width, height] of [[1280, 800], [1440, 900], [1100, 800]]) {
+    await page.setViewportSize({ width, height });
+    const graph = (await page.locator('.dag-topology-card').boundingBox())!;
+    const molecule = (await page.locator('.dag-3d-visualizer-card').boundingBox())!;
+    const evidence = (await page.locator('.dag-evidence-shelf-card').boundingBox())!;
+    const overview = (await page.locator('.dag-stats-card').boundingBox())!;
+    if (width >= 1240) {
+      expect(graph.x + graph.width).toBeLessThanOrEqual(molecule.x);
+      expect(graph.width).toBeGreaterThan(molecule.width * 1.2);
+      expect(evidence.y).toBeGreaterThanOrEqual(graph.y + graph.height);
+      expect(overview.y).toBeGreaterThanOrEqual(molecule.y + molecule.height);
+      expect(Math.min(molecule.x - graph.x - graph.width, evidence.y - graph.y - graph.height)).toBeGreaterThanOrEqual(20);
+    } else {
+      expect(molecule.y - graph.y - graph.height).toBeGreaterThanOrEqual(20);
+      expect(molecule.height).toBeGreaterThanOrEqual(360);
+      expect(overview.y).toBeGreaterThanOrEqual(molecule.y + molecule.height);
+      expect(evidence.y).toBeGreaterThanOrEqual(overview.y + overview.height);
+    }
+    const panels = [graph, molecule, evidence, overview];
+    for (let first = 0; first < panels.length; first++) {
+      for (let second = first + 1; second < panels.length; second++) {
+        const a = panels[first], b = panels[second];
+        expect(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y).toBe(true);
+      }
+    }
+    await expect(page.getByRole('button', { name: '图操作与审计', exact: true })).toBeInViewport();
+    await expect(page.locator('.dag-sel .dag-node-label')).toHaveText('分离产物');
+    await page.screenshot({ path: `/tmp/cloudra-acid-dag-${width}x${height}.png`, fullPage: true, animations: 'disabled' });
+    const displayModes = page.getByRole('group', { name: '分子显示方式', exact: true });
+    if (width < 1240) {
+      await page.locator('.dag-3d-visualizer-card').scrollIntoViewIfNeeded();
+      expect((await page.locator('.viewer-3d-canvas').boundingBox())!.height).toBeGreaterThanOrEqual(180);
+      await expect(page.locator('.viewer-3d-canvas')).toBeInViewport({ ratio: 0.99 });
+    } else {
+      await displayModes.scrollIntoViewIfNeeded();
+    }
+    await expect(displayModes).toBeInViewport({ ratio: 0.99 });
+    if (width < 1240) await page.screenshot({ path: `/tmp/cloudra-acid-inspection-${width}x${height}.png`, fullPage: true, animations: 'disabled' });
+  }
 });

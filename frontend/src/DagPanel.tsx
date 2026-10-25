@@ -185,7 +185,7 @@ function GraphView({ graph, sel, onSelect }: {
   const isSel = (k: 'node' | 'edge', id: string) => sel?.kind === k && sel.id === id;
   return (
     <div className="dag-canvas-compact">
-      <svg width={layout.width} height={layout.height} onClick={() => onSelect(null)}>
+      <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} style={{ minWidth: layout.width }} onClick={() => onSelect(null)}>
         <defs>
           <marker id="dag-arrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
             <path d="M0,0 L7,3.5 L0,7 z" fill="var(--fg-faint)" />

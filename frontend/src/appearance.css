@@ -175,7 +175,8 @@
   --molecule-label-shadow: rgba(255, 255, 255, 0.9);
 }
 
-/* 只装饰现有区域，不改变项目侧栏、控制台导航或 DAG 栅格。 */
+/* 三套外观复用同一套研究内容、选择状态和操作入口。 */
+.acid-project-create-toggle { display: none; }
 :root[data-appearance] body { background: var(--bg); }
 :root[data-appearance] ::selection { background: var(--accent); color: var(--accent-contrast); }
 :root[data-appearance] :is(.left-sidebar, .right-sidebar, .agentbar, .console-subnav-bar, .tabs) {
@@ -305,25 +306,121 @@
 :root[data-appearance='punk'] :is(.console-subnav-btn.active, .view-mode-btn.active) { background: var(--accent); color: var(--accent-contrast); }
 :root[data-appearance='punk'] .btn.primary { border: 1px solid #a4dfb3; box-shadow: 2px 2px 0 #355940; }
 
-/* Acid 用留白区分层级；黄色只标当前控制台页签，不再给每层容器加顶条。 */
+/* Acid：项目目录是安静的索引，新建操作按需展开，不再常驻一组表单。 */
+:root[data-appearance='acid'] .left-sidebar:not(.collapsed) { width: 248px; }
 :root[data-appearance='acid'] :is(.left-sidebar, .right-sidebar) { background: #f8faf2; }
+:root[data-appearance='acid'] .left-sidebar-head { padding: 24px 20px 12px; border: 0; }
+:root[data-appearance='acid'] .left-sidebar-title { font-size: 14px; letter-spacing: 0.02em; }
 :root[data-appearance='acid'] :is(.left-sidebar-head, .left-sidebar-foot, .right-sidebar-head, .ws-group-header) { background: transparent; }
-:root[data-appearance='acid'] .ws-group-header { border-color: transparent; }
-:root[data-appearance='acid'] :is(.agentbar, .console-subnav-bar, .dag-topbar) { background: #ffffff; }
-:root[data-appearance='acid'] .console-subnav-btn.active { box-shadow: inset 0 -2px 0 #c8dd4c; }
-:root[data-appearance='acid'] :is(.dag-card-header, .ops-card-header, .portal-agent-header) { background: transparent; border-bottom: 0; }
-:root[data-appearance='acid'] :is(.summary-pill-card, .ops-kpi-card, .tm-kpi-card) { background: transparent; border-color: transparent; box-shadow: none; }
+:root[data-appearance='acid'] .acid-project-create-toggle {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+  margin: 8px 16px 24px; padding: 0 16px; min-height: 42px;
+  background: #eaf1cd; color: var(--fg); border: 0; border-radius: 10px;
+  font: 600 14px var(--font); cursor: pointer;
+}
+:root[data-appearance='acid'] .acid-project-create-toggle:hover { background: #e0ebba; }
+:root[data-appearance='acid'] .acid-project-create-toggle svg { width: 18px; height: 18px; }
+:root[data-appearance='acid'] .new-project-bar[data-expanded='false'] { display: none; }
+:root[data-appearance='acid'] .new-project-bar { margin: -12px 16px 20px; padding: 12px 0; border: 0; gap: 10px; }
+:root[data-appearance='acid'] .workspace-groups-list { padding: 0 12px 20px; gap: 20px; }
+:root[data-appearance='acid'] .ws-group.has-active { border: 0; padding: 0; }
+:root[data-appearance='acid'] .ws-group-header { border: 0; padding: 10px 12px; }
+:root[data-appearance='acid'] .ws-folder-name { font-size: 13px; }
+:root[data-appearance='acid'] .ws-folder-path { font-size: 10px; margin-top: 3px; }
+:root[data-appearance='acid'] .ws-group-body { padding: 6px 0 0; gap: 6px; }
+:root[data-appearance='acid'] .project-node { border: 0; border-radius: 8px; background: transparent; }
+:root[data-appearance='acid'] .project-node.active { background: var(--accent-dim); }
+:root[data-appearance='acid'] .project-node-header { min-height: 42px; padding: 10px 12px; }
+:root[data-appearance='acid'] .project-node-title .active-dot { box-shadow: none; }
+:root[data-appearance='acid'] .left-sidebar-foot { padding: 16px; }
+:root[data-appearance='acid'] .left-sidebar-foot > .btn { text-align: left; background: transparent; border-color: transparent; }
+
+/* 操作、导航、显示方式分别采用实心按钮、文字页签、分段开关。 */
+:root[data-appearance='acid'] :is(.btn, .btn.sm) { height: 36px; padding: 0 16px; border-radius: 9px; font-size: 13px; }
+:root[data-appearance='acid'] .btn.primary { background: #d9ec7b; color: #293a1e; border: 0; font-weight: 600; }
+:root[data-appearance='acid'] .btn.primary:hover:not(:disabled) { background: #cee365; filter: none; }
+:root[data-appearance='acid'] .btn.outline { background: transparent; border-color: var(--border); }
+:root[data-appearance='acid'] .btn.ghost { padding: 0 10px; color: var(--fg-secondary); }
+:root[data-appearance='acid'] :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+:root[data-appearance='acid'] .agentbar { padding: 16px 28px; gap: 20px; background: #ffffff; min-height: 76px; }
+:root[data-appearance='acid'] .agentbar-left { min-width: 0; flex: 1; }
+:root[data-appearance='acid'] .brand-logo-text { font-size: 18px; }
+:root[data-appearance='acid'] .header-breadcrumb { min-width: 0; flex-wrap: wrap; row-gap: 4px; }
+:root[data-appearance='acid'] .breadcrumb-project { font-size: 14px; }
+:root[data-appearance='acid'] .breadcrumb-separator { display: none; }
+:root[data-appearance='acid'] :is(.breadcrumb-agent, .breadcrumb-agent-wrap) { flex-basis: 100%; font-size: 12px; }
+:root[data-appearance='acid'] .agentbar .view-mode-switcher { padding: 4px; gap: 2px; border: 0; border-radius: 12px; background: #f1f4e9; }
+:root[data-appearance='acid'] .view-mode-switcher .view-mode-btn { height: 34px; padding: 0 16px; border-radius: 8px; }
+:root[data-appearance='acid'] .view-mode-switcher .view-mode-btn.active { background: #ffffff; color: var(--fg); box-shadow: 0 1px 3px rgba(48, 59, 39, 0.1); }
+:root[data-appearance='acid'] .project-settings-btn { border: 0; }
+:root[data-appearance='acid'] .console-subnav-bar { padding: 0 28px; min-height: 58px; background: #ffffff; border-color: var(--border-subtle); }
+:root[data-appearance='acid'] .console-subnav-pills { gap: 24px; }
+:root[data-appearance='acid'] .console-subnav-bar .console-subnav-btn { min-height: 58px; padding: 0 2px; border: 0; border-radius: 0; background: transparent; }
+:root[data-appearance='acid'] .console-subnav-bar .console-subnav-btn.active { background: transparent; color: var(--fg); box-shadow: inset 0 -3px 0 #c8dd4c; font-weight: 600; }
+:root[data-appearance='acid'] .console-subnav-btn:hover { background: transparent; color: var(--accent); }
+:root[data-appearance='acid'] .subnav-dot-active { box-shadow: none; }
+
+/* 主图占左侧大画幅；右侧是当前选择的结构与证据，不再排四张等权卡片。 */
+:root[data-appearance='acid'] .dag-topbar { padding: 24px 28px 20px; background: #ffffff; border: 0; gap: 16px; }
+:root[data-appearance='acid'] .dag-main-title { font-size: 20px; line-height: 1.4; letter-spacing: -0.02em; }
+:root[data-appearance='acid'] .dag-topbar-left { gap: 12px; }
+:root[data-appearance='acid'] .dag-grid-container {
+  grid-template-columns: minmax(0, 1.55fr) minmax(300px, 1fr);
+  grid-template-rows: minmax(340px, 1fr) 256px;
+  padding: 0 28px 28px; gap: 24px 0; overflow: auto;
+}
+:root[data-appearance='acid'] :is(.dag-left-focus-col, .dag-right-col) { display: contents; }
+:root[data-appearance='acid'] .dag-card { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+:root[data-appearance='acid'] :is(.dag-topology-card.full-half, .dag-stats-card.full-half) { height: auto; }
+:root[data-appearance='acid'] .dag-topology-card { grid-column: 1; grid-row: 1; padding-right: 28px; border-right: 1px solid var(--border-subtle); }
+:root[data-appearance='acid'] .dag-3d-visualizer-card { grid-column: 2; grid-row: 1; margin-left: 28px; border-radius: 12px; }
+:root[data-appearance='acid'] .dag-stats-card { grid-column: 1; grid-row: 2; padding: 20px 28px 0 0; border-top: 1px solid var(--border-subtle); border-right: 1px solid var(--border-subtle); }
+:root[data-appearance='acid'] .dag-evidence-shelf-card.compact-shelf { grid-column: 2; grid-row: 2; height: auto; margin-left: 28px; padding-top: 20px; border-top: 1px solid var(--border-subtle); }
+:root[data-appearance='acid'] :is(.dag-card-header, .dag-card-header.compact) { background: transparent; border: 0; padding: 0 0 14px; gap: 12px; flex-wrap: wrap; }
+:root[data-appearance='acid'] .mono-subhead { font: 600 14px var(--font); letter-spacing: 0; }
+:root[data-appearance='acid'] .topology-header-actions { flex-wrap: wrap; gap: 8px; }
+:root[data-appearance='acid'] .topology-viewport { display: flex; padding: 16px 0 28px; }
+:root[data-appearance='acid'] .dag-canvas-compact { display: grid; align-items: center; width: 100%; }
+:root[data-appearance='acid'] .dag-canvas-compact svg { width: 100%; height: auto; max-height: 100%; min-height: 180px; }
 :root[data-appearance='acid'] .dag-sel .dag-node-rect { filter: none; }
-:root[data-appearance='acid'] .msg.user .msg-bubble { border-color: transparent; }
-:root[data-appearance='acid'] .msg.assistant .msg-body { background: transparent; border: 0; padding: 0; }
+:root[data-appearance='acid'] .dag-overview-body { padding: 4px 0 0; gap: 20px; justify-content: flex-start; }
+:root[data-appearance='acid'] .overview-metrics-grid { gap: 12px; }
+:root[data-appearance='acid'] .metric-bar-wrap { height: 4px; }
+:root[data-appearance='acid'] .overview-summary-cards { padding-top: 12px; gap: 16px; }
+:root[data-appearance='acid'] :is(.summary-pill-card, .ops-kpi-card, .tm-kpi-card) { background: transparent; border-color: transparent; box-shadow: none; }
+:root[data-appearance='acid'] .summary-pill-card { padding: 0; text-align: left; gap: 5px; }
+:root[data-appearance='acid'] .summary-pill-card .pill-num { font: 600 22px var(--font); }
+:root[data-appearance='acid'] .shelf-scroll-body { padding: 0; gap: 16px; }
+:root[data-appearance='acid'] .shelf-category-pills { gap: 12px; }
+:root[data-appearance='acid'] .shelf-category-pills .pill-btn { min-height: 30px; padding: 0 0 5px; border: 0; border-radius: 0; background: transparent; }
+:root[data-appearance='acid'] .shelf-category-pills .pill-btn.active { color: var(--accent); background: transparent; box-shadow: inset 0 -2px 0 #c8dd4c; }
+:root[data-appearance='acid'] .evidence-stage-card.compact { background: var(--bg-inset); border: 0; border-radius: 10px; padding: 16px; gap: 12px; }
+:root[data-appearance='acid'] .viewer-3d-header { padding: 16px; gap: 12px; border: 0; background: #f7f9f0; }
+:root[data-appearance='acid'] .viewer-3d-title { flex-wrap: wrap; gap: 8px; }
+:root[data-appearance='acid'] .viewer-3d-controls { flex-wrap: wrap; gap: 6px; }
+:root[data-appearance='acid'] .viewer-3d-controls .btn { height: 30px; padding: 0 9px; border: 0; border-radius: 7px; background: transparent; font-size: 12px; }
+:root[data-appearance='acid'] .viewer-mode-switch { padding: 3px; border-radius: 9px; background: #e9eedf; }
+:root[data-appearance='acid'] .viewer-3d-controls .btn[aria-pressed='true'] { background: #ffffff; color: var(--fg); box-shadow: 0 1px 3px rgba(48, 59, 39, 0.1); }
+:root[data-appearance='acid'] .viewer-3d-badge[role='note'] { color: var(--fg-tertiary); font-weight: 400; padding: 12px 16px 0; background: #f7f9f0; }
+:root[data-appearance='acid'] .viewer-3d-hint { left: 16px; right: 16px; font-size: 10px; }
+
+/* 对话是研究记录：正文、工具记录和输入区采用不同尺度与留白。 */
+:root[data-appearance='acid'] .live-agent-pulse { width: auto; margin: 20px 36px 0; padding: 0; min-height: 24px; background: transparent; box-shadow: none; border: 0; }
+:root[data-appearance='acid'] .chat-column { max-width: 920px; padding: 36px 40px; gap: 28px; }
+:root[data-appearance='acid'] .msg.user .msg-bubble { border-color: transparent; padding: 14px 20px; border-radius: 18px 18px 4px 18px; font-size: 15px; line-height: 1.7; }
+:root[data-appearance='acid'] .msg.assistant .msg-body { background: transparent; border: 0; padding: 0; font-size: 15px; line-height: 1.85; }
 :root[data-appearance='acid'] :is(.tool-row, .program-card) { background: transparent; border-color: transparent; box-shadow: none; }
-:root[data-appearance='acid'] .tool-row { font-family: var(--font); }
+:root[data-appearance='acid'] .tool-row { padding: 10px 0; font-family: var(--font); font-size: 13px; }
 :root[data-appearance='acid'] .tool-row:hover { background: var(--bg-hover); }
 :root[data-appearance='acid'] :is(.tool-detail, .thinking-card) { background: var(--bg-inset); border-color: transparent; box-shadow: none; }
-:root[data-appearance='acid'] .msg-sender { font-family: var(--font); }
+:root[data-appearance='acid'] .tool-detail { padding: 16px 20px; margin-top: 12px; border-radius: 10px; }
+:root[data-appearance='acid'] .msg-sender { font: 500 12px var(--font); margin-bottom: 10px; }
 :root[data-appearance='acid'] .tool-detail-label { font-family: var(--font); letter-spacing: 0; }
-:root[data-appearance='acid'] .live-agent-pulse { background: transparent; box-shadow: none; border: 0; border-bottom: 1px solid var(--border-subtle); }
-:root[data-appearance='acid'] .viewer-3d-badge[role='note'] { color: var(--fg-tertiary); font-weight: 400; padding: 4px 14px 0; }
+:root[data-appearance='acid'] .composer-wrap { padding: 20px 36px 28px; background: var(--bg); }
+:root[data-appearance='acid'] .composer { max-width: 920px; min-height: 144px; padding: 20px 24px 16px; border-radius: 18px; gap: 16px; }
+:root[data-appearance='acid'] .composer textarea { font-size: 15px; line-height: 1.7; }
+:root[data-appearance='acid'] .composer-hint { font-family: var(--font); }
+:root[data-appearance='acid'] .composer-actions .composer-send-btn { height: 38px; padding: 0 20px; border-radius: 10px; }
 :root[data-appearance='acid'] .modal-backdrop { background: rgba(99, 120, 65, 0.18); backdrop-filter: blur(4px); }
 :root[data-appearance='acid'] :is(.interaction-agent-tag, .interaction-banner-badge, .approval-tool-tag, .yolo-shortcut-btn, .yolo-shortcut-btn:hover, .kpi-number.amber, .agent-role-pill.role-research, .agent-status-badge.state-waiting) { color: var(--yellow); }
 :root[data-appearance='acid'] :is(.interaction-chip.reject-chip, .interaction-chip.reject-chip:hover, .reject-panel-title, .interaction-reject-btn, .interaction-reject-btn:hover, .agent-status-badge.state-failed) { color: var(--red); }
@@ -335,4 +432,20 @@
 :root[data-appearance='acid'] :is(.agent-role-pill.role-coord, .jobtype-pill, .owner-tag) { color: var(--blue); }
 :root[data-appearance='acid'] :is(.agent-status-badge.state-idle, .agent-status-badge.state-cancelled) { color: var(--fg-tertiary); }
 :root[data-appearance='acid'] :is(.task-banner-text, .breadcrumb-task-text) { color: var(--accent); }
+@media (max-width: 1240px) {
+  :root[data-appearance='acid'] .agentbar { flex-wrap: wrap; gap: 12px 20px; }
+  :root[data-appearance='acid'] .agentbar-left { flex-basis: calc(100% - 220px); }
+  :root[data-appearance='acid'] .agentbar-group.system-controls { width: 100%; justify-content: flex-end; }
+  :root[data-appearance='acid'] .console-subnav-pills { gap: 16px; }
+}
+@media (max-width: 1240px) {
+  :root[data-appearance='acid'] .dag-grid-container { display: flex; flex-direction: column; gap: 28px; }
+  :root[data-appearance='acid'] .dag-topology-card { order: 0; min-height: 320px; flex: none; padding: 0; border: 0; }
+  :root[data-appearance='acid'] .dag-3d-visualizer-card { order: 1; height: 400px; min-height: 400px; flex: none; margin: 0; }
+  :root[data-appearance='acid'] .dag-stats-card { order: 2; min-height: 240px; flex: none; padding: 20px 0 0; border-right: 0; }
+  :root[data-appearance='acid'] .dag-evidence-shelf-card.compact-shelf { order: 3; min-height: 240px; flex: none; margin: 0; }
+  :root[data-appearance='acid'] .console-subnav-bar { align-items: flex-start; padding-top: 8px; padding-bottom: 8px; }
+  :root[data-appearance='acid'] .console-subnav-bar .console-subnav-btn { min-height: 40px; }
+  :root[data-appearance='acid'] :is(.chat-column, .composer-wrap) { padding-left: 24px; padding-right: 24px; }
+}
 :root[data-appearance] *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--control-radius); }

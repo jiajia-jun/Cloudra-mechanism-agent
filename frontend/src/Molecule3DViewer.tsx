@@ -587,10 +587,11 @@ export function Molecule3DViewer({
         </div>
 
         <div className="viewer-3d-controls">
-          <div className="btn-group sm">
+          <div className="btn-group sm viewer-mode-switch" role="group" aria-label="分子显示方式">
             <button
               type="button"
               className={`btn outline sm ${renderMode === 'ball_stick' ? 'active' : ''}`}
+              aria-pressed={renderMode === 'ball_stick'}
               onClick={() => setRenderMode('ball_stick')}
               title="球棍模型 (Ball & Stick)"
             >
@@ -599,6 +600,7 @@ export function Molecule3DViewer({
             <button
               type="button"
               className={`btn outline sm ${renderMode === 'spacefill' ? 'active' : ''}`}
+              aria-pressed={renderMode === 'spacefill'}
               onClick={() => setRenderMode('spacefill')}
               title="范德华空间填充 (Spacefill / CPK)"
             >
@@ -607,6 +609,7 @@ export function Molecule3DViewer({
             <button
               type="button"
               className={`btn outline sm ${renderMode === 'wireframe' ? 'active' : ''}`}
+              aria-pressed={renderMode === 'wireframe'}
               onClick={() => setRenderMode('wireframe')}
               title="线框模型 (Wireframe)"
             >
@@ -617,6 +620,7 @@ export function Molecule3DViewer({
           <button
             type="button"
             className={`btn outline sm ${showLabels ? 'active' : ''}`}
+            aria-pressed={showLabels}
             onClick={() => setShowLabels(!showLabels)}
             title="显示/隐藏原子编号与元素符号"
           >
@@ -626,6 +630,7 @@ export function Molecule3DViewer({
           <button
             type="button"
             className={`btn outline sm ${autoSpin ? 'active' : ''}`}
+            aria-pressed={autoSpin}
             onClick={() => setAutoSpin(!autoSpin)}
             title="自动三维自转"
           >
@@ -635,6 +640,7 @@ export function Molecule3DViewer({
           <button
             type="button"
             className={`btn outline sm ${vibrating ? 'active' : ''}`}
+            aria-pressed={vibrating}
             onClick={() => setVibrating(!vibrating)}
             title="仅供结构展示的示意动画，不代表计算简正模"
           >
@@ -653,6 +659,7 @@ export function Molecule3DViewer({
           <button
             type="button"
             className={`btn ghost sm ${showCoords ? 'active' : ''}`}
+            aria-pressed={showCoords}
             onClick={() => setShowCoords(!showCoords)}
             title="查看笛卡尔坐标表 (XYZ)"
           >
