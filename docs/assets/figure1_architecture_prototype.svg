@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1800" height="1320" viewBox="0 0 1800 1320" role="img" aria-labelledby="architecture-title architecture-desc">
 <title id="architecture-title">Cloudra architecture: hypotheses, computation and scientific evidence</title>
-<desc id="architecture-desc">Four nested modules surround Cloudra's runtime orchestrator and SOP engine: scientific input and delivery DAG; geometry and pathway preparation; computational infrastructure; and mechanistic validation and refinement. The last module combines same-TS, bidirectional real IRC, endpoint optimization and frequencies with mapped chemical identities, interprets reaction-centered normal-mode motion as advisory diagnostics, and supports evidence-guided revision followed by renewed verification. Solid arrows show the research cycle; the dashed return carries guided diagnostics. Diagrams and motion-composition bars are schematic, not measured results.</desc>
+<desc id="architecture-desc">Four capability modules surround the Cloudra Agent System: scientific input and delivery DAG; geometry and pathway preparation; computational infrastructure; and mechanistic validation and refinement. The last module combines same-TS, bidirectional real IRC, endpoint optimization and frequencies with mapped chemical identities, interprets reaction-centered normal-mode motion as advisory diagnostics, and supports evidence-guided revision followed by renewed verification. Solid arrows show the research cycle; the dashed return carries guided diagnostics. Diagrams and motion-composition bars are schematic, not measured results.</desc>
 <defs>
 <style>
 text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
@@ -169,7 +169,7 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
 <rect x="491" y="366" width="140" height="28" rx="3" fill="#fff"/>
 <text x="561" y="385" class="note" text-anchor="middle">Guided diagnostics</text>
 
-<g id="runtime-and-sop-engine">
+<g id="cloudra-agent-system">
 <rect x="574" y="422" width="652" height="482" rx="8" fill="#fff" stroke="#afbd97" stroke-width="1.5"/>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" x="739" y="449" width="322" height="338" viewBox="326 60 865 909" version="1.1" id="cloudra-logo" role="img" aria-labelledby="cloudra-title cloudra-desc">
   <title id="cloudra-title">Cloudra</title>
@@ -394,5 +394,5 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
   </g>
 </svg>
 <rect x="625" y="818" width="550" height="48" rx="4" fill="#edf3d5" stroke="#c4d09e" stroke-width="1.2"/>
-<text x="900" y="848" class="heading" text-anchor="middle">Runtime Orchestrator &amp; SOP Engine</text>
+<text x="900" y="848" class="heading" text-anchor="middle">Cloudra Agent System</text>
 </g></svg>
