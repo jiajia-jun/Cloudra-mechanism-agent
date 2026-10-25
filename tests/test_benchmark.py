@@ -2258,6 +2258,16 @@ def _tiny_task(**kwargs) -> TaskSpec:
     )
 
 
+def _backend_sandbox(tmp_path):
+    """后端基础设施用例预置格式合法交付；缺图恢复另有完整场景回归。"""
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+    (sandbox / "mechanism_graph.json").write_text(json.dumps({
+        "nodes": [{"id": "R", "role": "reactant", "smiles": ["C"]}], "edges": [],
+    }))
+    return sandbox
+
+
 def test_backend_runs_to_terminal_and_scores_from_deliverables(tmp_path, monkeypatch):
     from cloudra.benchmark.backend import RuntimeV2Backend
     from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
@@ -2293,7 +2303,7 @@ def test_backend_runs_to_terminal_and_scores_from_deliverables(tmp_path, monkeyp
     )
     result = backend(
         _tiny_task(method_policy={"allowed_methods": ["xtb"]}),
-        tmp_path / "sandbox",
+        _backend_sandbox(tmp_path),
     )
     assert next(iter(backend.last_core.agents.values())).settings.clean_context is True
     # 后端不再回传任何供评分的文本/数字：评分输入只有沙箱交付物
@@ -2335,7 +2345,7 @@ def test_cli_backend_starts_and_closes_compute_notifier(tmp_path, monkeypatch):
         tools=_RecordingTools(), start_scheduler=False,
         poll_interval_s=0.01, stuck_grace_s=1.0,
     )
-    backend(_tiny_task(), tmp_path / "sandbox")
+    backend(_tiny_task(), _backend_sandbox(tmp_path))
     assert calls == ["start", "close"]
 
 
@@ -2363,7 +2373,7 @@ def test_cli_backend_stuck_wait_survives_finished_agent_cancel_rejection(tmp_pat
         poll_interval_s=0.01, stuck_grace_s=1.0,
     )
     with pytest.raises(TimeoutError, match="no live supervisor"):
-        backend(_tiny_task(), tmp_path / "sandbox")
+        backend(_tiny_task(), _backend_sandbox(tmp_path))
     assert any(
         event.type == "command.rejected"
         and event.data.get("command_type") == "agent.cancel"
@@ -2405,7 +2415,7 @@ def test_backend_unattended_ask_user_blocked_without_parking(tmp_path, monkeypat
         poll_interval_s=0.01,
         stuck_grace_s=5.0,
     )
-    result = backend(_tiny_task(), tmp_path / "sandbox")
+    result = backend(_tiny_task(), _backend_sandbox(tmp_path))
 
     core = backend.last_core
     agent = next(iter(core.agents.values()))
@@ -3968,7 +3978,7 @@ def test_backend_installs_trusted_task_policy_before_agent_runs(tmp_path, role):
 
     backend=RuntimeV2Backend(llm=AuthorityProbe(),tools=_RecordingTools(),start_scheduler=False,
         poll_interval_s=.01,stuck_grace_s=1)
-    backend(task,tmp_path/'sandbox')
+    backend(task,_backend_sandbox(tmp_path))
     assert observed==[task.method_policy]
     project=next(iter(backend.last_core.projects.values()))
     assert project.settings.benchmark_task_id == task.task_id

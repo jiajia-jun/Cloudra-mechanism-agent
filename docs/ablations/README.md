@@ -11,10 +11,12 @@
 | 臂 | 代码开关 | 保留 | 去掉 |
 |---|---|---|---|
 | **standard**（普通） | `--orchestration-mode standard` | 全部几何/路径工具；原生日志可自行读取解析 | `ts_guess` 的 `verify`/`strict` 判定（harness 不再告诉它对错）；DAG 工具对模型隐藏 |
-| **dag_record**（记录） | `--orchestration-mode dag_record` | 工具 + 机理图 + 主动化学校验；DAG 工具可**主动调用**，用来自查计算是否正确 | supervisor 审核；完成门禁——不要求交付工件/证据索引，`complete`/`partial` 都可收工 |
+| **dag_record**（记录） | `--orchestration-mode dag_record` | 工具 + 机理图 + 主动化学校验；DAG 工具可**主动调用**，用来自查计算是否正确 | supervisor 审核与科学完成门禁；保留各组共用的图文件存在及格式检查 |
 | **dag_guided**（完整） | `--orchestration-mode dag_guided` | supervisor 对抗性审查 + DAG 护栏（阶段契约、证据绑定、完成度判定） | — |
 
 三臂共用同一题库与同一评分器；任务 JSON 不改，`with_orchestration_mode()` 只在运行时强制臂。
+
+基础交付检查独立于科学审查：所有 Benchmark 根任务正式结束前都必须提供可解析的 `mechanism_graph.json`，缺文件或格式错误时收到修复反馈。此检查不补写图、不审查 TS/IRC 科学证据，也不把文件存在当作科学通过；后台等待与子任务结束保留原流程。
 
 ## 3. 指标（可靠性 + 成本）
 

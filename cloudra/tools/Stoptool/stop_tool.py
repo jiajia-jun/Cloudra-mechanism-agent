@@ -53,7 +53,8 @@ class StopTool(Tool):
         "Note: for quiz/eval tasks, put the final concise answer in final_answer. "
         "In DAG mode the stop is audited after this call: the run may be kept working (gap feedback), suspended pending a "
         "final Supervisor review (dag_guided complete or partial), or accepted — the completion-gate feedback message tells you which."
-        " DAG-mode Benchmark delivery requires mechanism_graph.json matching the declared species and steps. "
+        " Every Benchmark task requires a parseable mechanism_graph.json at the workspace root before final delivery, "
+        "including standard and dag_record. In DAG mode it must also match the declared species and steps. "
         "Energy/barrier declarations must cite the unchanged bound native logs; final approval covers the exact file bytes."
     )
     input_schema: Any = StopTool_input_schema

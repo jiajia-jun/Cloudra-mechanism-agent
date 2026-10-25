@@ -216,6 +216,19 @@ def malformed_shell_steps() -> list[Step]:
     ]
 
 
+def benchmark_delivery_recovery_steps(output: Path, *, explicit_stop: bool) -> list[Step]:
+    """Benchmark 漏交图时先收取缺口反馈，再补文件并结束；不启动量化计算。"""
+    finish = Step(tools=[("stop", {})]) if explicit_stop else Step(text="candidate result")
+    return [
+        finish,
+        Step(tools=[("write", {
+            "path": output.name,
+            "content": '{"nodes":[{"id":"R","role":"reactant","smiles":["O"]}],"edges":[]}',
+        })]),
+        Step(text="delivery recorded", stop=True),
+    ]
+
+
 def benchmark_peer_unattended_provider(bash_arguments: dict[str, Any]) -> ScriptedProvider:
     """两条 Benchmark 入口共用：Hub 独立 peer 回放真实 Bash，再拒绝向人求助。"""
     import json

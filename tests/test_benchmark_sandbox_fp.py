@@ -88,6 +88,29 @@ _REQUIRES_HOST_AND_RDKIT = pytest.mark.skipif(
 
 _BARRIER = "Done. The computed barrier is 5.0 kcal/mol."
 
+# 父 agent 通过真实工具交付已算物种，不凭最终消息中的能垒声明评分。
+_DELIVERY_GRAPH_PROGRAM = r"""
+const written = await tools.write({
+  path: "mechanism_graph.json",
+  content: JSON.stringify({
+    nodes: [{id: "R", role: "reactant", smiles: ["O"]}],
+    edges: [],
+  }),
+});
+text("DELIVERY WRITTEN ok=" + written.is_success);
+"""
+
+
+@pytest.fixture
+def approve_workspace_change(monkeypatch):
+    """文件写入的审批 LLM 使用替身；实际 write 与文件落盘保持真实。"""
+    from cloudra.infra.yolo_guard import YoloGuard
+
+    async def approve(self, tool_name, tool_args, agent, session, **_kwargs):
+        return True, ""
+
+    monkeypatch.setattr(YoloGuard, "judge", approve)
+
 # CLI 子 agent 完整链（smiles → writer → 同步 submit → query → parser）。
 # 同步 submit 由真实 guard 阻塞到终态（确定性同步点：monitor 启动耗时不参与
 # 竞速），parse 必然读到已完成的日志。
@@ -336,8 +359,10 @@ def _script_standard_roles(llm: ScriptedLLM) -> None:
         text(2, "suspended until children finish"),
         # run2（子完成唤醒）：异步提交 + 按真实门禁挂起；回执在 run 内校验
         js(1, _PARENT_ASYNC_SUBMIT_PROGRAM),
-        text(2, _BARRIER, expect=Receipt(
+        js(2, _DELIVERY_GRAPH_PROGRAM, expect=Receipt(
             tool="js_exec", contains=["PARENT SUBMITTED job="])),
+        text(3, _BARRIER, expect=Receipt(
+            tool="js_exec", contains=["DELIVERY WRITTEN ok=true"])),
     ])
     llm.script("small_mol", [
         js(1, _CHILD_SYNC_CHAIN_PROGRAM),
@@ -502,7 +527,7 @@ def _assert_job_chain(core, *, engine, workspace: Path, project_id: str,
 # ---------------------------------------------------------------------------
 
 @_REQUIRES_HOST_AND_RDKIT
-def test_cli_full_chain_standard_js(tmp_path, monkeypatch):
+def test_cli_full_chain_standard_js(tmp_path, monkeypatch, approve_workspace_change):
     engine = install_engine(monkeypatch, tmp_path / "bin", "gaussian")
     llm = ScriptedLLM()
     _script_standard_roles(llm)
@@ -568,11 +593,17 @@ def test_cli_full_chain_standard_js(tmp_path, monkeypatch):
     # 最终消息只作审计留痕：它不参与任何评分（评分只读交付物）
     assert any("5.0 kcal/mol" in m for m in parent_messages), parent_messages
 
-    # 评分落库（空沙箱无图 → 零证据倒扣，与既有契约一致）
+    # 图文件实际交付，但本用例的日志没有物种绑定声明；计算跑通不等于科学证据齐全。
+    assert json.loads((workspace / "mechanism_graph.json").read_text()) == {
+        "nodes": [{"id": "R", "role": "reactant", "smiles": ["O"]}], "edges": [],
+    }
+    assert len(_tool_call_ids(core, parent.id, "write")) == 1
     runs = runner.db.list_runs_for("")
     assert [r["task_id"] for r in runs] == ["T1"]
+    assert runs[0]["graph_score"] == 0.0
     assert runs[0]["final_score"] == -1.0
-    assert any("mechanism_graph.json not found" in n for n in runs[0]["notes"]), runs[0]["notes"]
+    assert any("unbound nodes" in note for note in runs[0]["notes"])
+    assert not any("mechanism_graph.json not found" in note for note in runs[0]["notes"])
 
     # 追踪链可定位：project → parent/child → tool_call → job → 产物
     child_submits = set(_tool_call_ids(core, child.id, "submit_compute_job"))
@@ -592,7 +623,7 @@ def test_cli_full_chain_standard_js(tmp_path, monkeypatch):
 
 @_REQUIRES_HOST_AND_RDKIT
 @pytest.mark.asyncio
-async def test_web_full_chain_standard_js(tmp_path, monkeypatch):
+async def test_web_full_chain_standard_js(tmp_path, monkeypatch, approve_workspace_change):
     from cloudra.benchmark.batch import BenchmarkService
     from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
     from cloudra.scheduler.daemon import SchedulerDaemon
@@ -606,7 +637,11 @@ async def test_web_full_chain_standard_js(tmp_path, monkeypatch):
     llm.script("coordinator", [
         js(1, _SPAWN_PROGRAM),
         text(2, "suspended until children and compute finish"),
+        # 子任务完成后先漏交文件；基础交付反馈要求下一轮补图。
         text(1, _BARRIER),
+        js(2, _DELIVERY_GRAPH_PROGRAM),
+        text(3, _BARRIER, expect=Receipt(
+            tool="js_exec", contains=["DELIVERY WRITTEN ok=true"])),
         text(1, _BARRIER),
     ])
     llm.script("small_mol", [
@@ -680,13 +715,29 @@ async def test_web_full_chain_standard_js(tmp_path, monkeypatch):
         bdb = BenchmarkDB(tmp_path / "bench" / "benchmark.db")
         runs = bdb.list_runs_for(batch_id)
         assert [r["task_id"] for r in runs] == ["T1"]
+        assert runs[0]["graph_score"] == 0.0
         assert runs[0]["final_score"] == -1.0
+        assert any("unbound nodes" in note for note in runs[0]["notes"])
+        assert not any("mechanism_graph.json not found" in note for note in runs[0]["notes"])
 
         # 追踪链：batch_id → project_id → parent/child → tool_call → job
         parent = core.require_agent(final["tasks"][0]["agent_id"])
         assert parent.role_id == "coordinator"
         assert _tool_call_ids(core, child.id, "log_parser")
         assert rows[0]["conversation_id"] == project_id
+        assert json.loads((sandbox / "mechanism_graph.json").read_text()) == {
+            "nodes": [{"id": "R", "role": "reactant", "smiles": ["O"]}], "edges": [],
+        }
+        parent_events = core.event_log.query_session(parent.id)
+        missing = next(event for event in parent_events if event.type == "agent.completion_gate"
+                       and event.data.get("source") == "benchmark_delivery"
+                       and event.data.get("action") == "continue_work")
+        written = next(event for event in parent_events if event.type == "tool.finished"
+                       and event.data.get("tool_name") == "write")
+        completed = next(event for event in parent_events if event.seq > written.seq
+                         and event.type == "agent.completion_gate"
+                         and event.data.get("action") == "allow_final")
+        assert missing.seq < written.seq < completed.seq
     finally:
         await broker.close()
         await scheduler.close()

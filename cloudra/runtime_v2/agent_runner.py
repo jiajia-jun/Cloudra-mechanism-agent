@@ -836,6 +836,12 @@ class AgentRunner:
                 basis="declared",
             )
             source = "declared"
+        # 基础交付不属于 DAG 科学审查：所有 Benchmark 模式在真正结束前共用。
+        # 已有等待/拒绝结论优先；真实用户终止也不要求补交成果。
+        if gate.action == "allow_final" and gate.basis != "user_terminated":
+            delivery_gate = await self._audit_benchmark_delivery(agent, workspace_dir)
+            if delivery_gate is not None:
+                gate, source = delivery_gate, "benchmark_delivery"
         core.event_log.append(
             "agent.completion_gate",
             stream="agent",
@@ -854,6 +860,45 @@ class AgentRunner:
             },
         )
         return gate, source
+
+    async def _audit_benchmark_delivery(self, agent: AgentSession, workspace_dir: str | None):
+        """只检查题目要求的图文件与格式，不提供科学结论或替 Agent 写图。"""
+        if agent.parent_session_id or agent.requested_by_session_id or agent.role_id == "supervisor":
+            return None
+        project = self.core.require_project(agent.project_id)
+        if not project.settings.benchmark_task_id:
+            return None
+        import json
+        from pathlib import Path
+
+        from cloudra.benchmark.integrity import parse_delivered_graph
+        from cloudra.dag.stop_audit import StopGate, has_pending_background
+        from cloudra.persistence.database import ConversationDB
+        from cloudra.persistence.paths import mechanism_graph_path
+
+        if await has_pending_background(self.core, project_id=agent.project_id,
+                session_id=agent.id, data_dir=ConversationDB(agent.project_id).data_dir):
+            # Standard 原有的 Benchmark watcher 仍负责等待后台，当前不是最终交付。
+            return None
+
+        def read_graph():
+            if workspace_dir is None:
+                raise ValueError("Benchmark delivery requires a project workspace.")
+            path = mechanism_graph_path(Path(workspace_dir))
+            return parse_delivered_graph(json.loads(path.read_text(encoding="utf-8")))
+
+        try:
+            await asyncio.to_thread(read_graph)
+        except FileNotFoundError:
+            return StopGate(action="continue_work", reason=(
+                "Missing required mechanism_graph.json at the workspace root. "
+                "Write the graph recording the work actually completed before ending this task."
+            ))
+        except (ValueError, OSError) as exc:
+            return StopGate(action="continue_work", reason=(
+                f"Repair mechanism_graph.json before ending this task: {exc}"
+            ))
+        return None
 
     def _track_exit_strike(self, agent: AgentSession, run_id: str, gate) -> tuple[int, bool]:
         """同状态重复无进展退出的有界计数（刻意易失 per-run shell 状态）。

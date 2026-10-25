@@ -9,7 +9,8 @@ from pathlib import Path
 from pydantic import BaseModel, ConfigDict
 
 from cloudra.benchmark.barrier_evidence import DECLARED_ENERGY_TOL_HARTREE, HARTREE_TO_KCAL_MOL
-from cloudra.benchmark.schema import GoldMechanismGraph, NodeRole
+from cloudra.benchmark.integrity import parse_delivered_graph
+from cloudra.benchmark.schema import NodeRole
 from cloudra.dag.evidence_ingest import FileEvidenceSnapshot, _extract_qm_log
 from cloudra.dag.file_science import (
     _geometry_species,
@@ -56,7 +57,7 @@ def prepare_delivery_artifact(store, graph, report, workspace_root, *, required=
     content = path.read_bytes()
     raw = json.loads(content)
     json.dumps(raw, allow_nan=False)
-    document = GoldMechanismGraph.model_validate(raw)
+    document = parse_delivered_graph(raw)
     if len({n.id for n in document.nodes}) != len(document.nodes) or len({e.id for e in document.edges}) != len(document.edges):
         raise ValueError('Delivery artifact contains duplicate node or edge IDs.')
     if {n.id for n in document.nodes} & {e.id for e in document.edges}:

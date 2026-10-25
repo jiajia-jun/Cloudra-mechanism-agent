@@ -159,6 +159,19 @@ def format_gate_gaps(report, *, limit: int = 12) -> list[str]:
     ]
 
 
+async def has_pending_background(core, *, project_id: str, session_id: str, data_dir) -> bool:
+    """DAG 审计与基础交付检查共用后台事实；挂起时不要求最终交付文件。"""
+    if await pending_compute_jobs_exist(data_dir=data_dir, project_id=project_id):
+        return True
+    if core is None:
+        return False
+    if await asyncio.to_thread(
+        has_running_siblings, core, project_id=project_id, session_id=session_id
+    ):
+        return True
+    return bool(await asyncio.to_thread(core.reminders.pending, session_id))
+
+
 class StopAuditMixin:
     """stop 交付门禁（audit_stop）；由 DagController 组合。"""
 
@@ -204,19 +217,8 @@ class StopAuditMixin:
         （core.agents 投影 + ReminderBroker 事件投影）；compute_jobs 仍是
         权威，但已迁到中央 compute.db（按 conversation_id 过滤本会话）。
         """
-        if await pending_compute_jobs_exist(
-            data_dir=self.db.data_dir, project_id=self.conversation_id
-        ):
-            return True
-        core = self._core
-        if core is None:
-            return False
-        if await asyncio.to_thread(
-            has_running_siblings,
-            core, project_id=self.conversation_id, session_id=self.session_id
-        ):
-            return True
-        return bool(await asyncio.to_thread(core.reminders.pending, self.session_id))
+        return await has_pending_background(self._core, project_id=self.conversation_id,
+            session_id=self.session_id, data_dir=self.db.data_dir)
 
     async def audit_stop(
         self,

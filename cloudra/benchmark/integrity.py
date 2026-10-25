@@ -71,7 +71,9 @@ class _DeliveredNode(MechanismNode):
         # 时，以 type 的映射值为 role；自由文本并进 label，不丢信息。role 本身
         # 是合法枚举值时不动；type 也映射不了则留原样，让校验 fail-loud。
         alias = _NODE_TYPE_ALIASES.get(str(data.get("type") or "").strip().lower())
-        if alias is not None and data.get("role") not in {r.value for r in NodeRole}:
+        role = data.get("role")
+        # 别名只补缺省/自由文本；列表等错误类型交给 Pydantic 指明字段。
+        if alias is not None and (role is None or isinstance(role, str)) and role not in {r.value for r in NodeRole}:
             free_text = str(data["role"]).strip() if data.get("role") is not None else ""
             if free_text:
                 label = str(data.get("label") or "").strip()
@@ -169,29 +171,35 @@ def find_graph_json(sandbox: Path) -> Optional[Path]:
     return None
 
 
-def load_delivered_graph(path: Path) -> Optional[GoldMechanismGraph]:
-    """Parse a delivered graph JSON into GoldMechanismGraph.
+def parse_delivered_graph(data: object) -> GoldMechanismGraph:
+    """解析共用交付格式，保留字段错误供收尾检查反馈给模型。
 
     交付侧宽松加载（Postel）：agent 多写的键（energy/metadata 等）忽略、
     边缺 id 自动补；gold 侧仍由 strict schema 约束。端点引用完整性由
     GoldMechanismGraph 的 validator 把关：悬空 from/to/via → 校验失败、
-    返回 None（不可解析），不再静默造幽灵节点进图比较。"""
+    不再静默造幽灵节点进图比较。此处只检查格式，不判断科学交付是否完整。"""
+    if not isinstance(data, dict):
+        raise ValueError("Delivery graph must be a JSON object.")
+    if "nodes" not in data or not isinstance(data["nodes"], list):
+        raise ValueError("Delivery graph requires a nodes list.")
+    if not isinstance(data.get("edges", []), list):
+        raise ValueError("Delivery graph edges must be a list.")
+    nodes = [_DeliveredNode.model_validate(n) for n in data["nodes"]]
+    edges = [_DeliveredEdge.model_validate(e) for e in data.get("edges", [])]
+    return GoldMechanismGraph(
+        nodes=[MechanismNode(**n.model_dump()) for n in nodes],
+        edges=[
+            MechanismEdge(**(e.model_dump() | {"id": e.id or f"e{i}"}))
+            for i, e in enumerate(edges)
+        ],
+    )
+
+
+def load_delivered_graph(path: Path) -> Optional[GoldMechanismGraph]:
+    """Read a delivered graph; scoring records malformed delivery as unparseable."""
     try:
         data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except Exception:
-        return None
-    if not isinstance(data, dict):
-        return None
-    try:
-        nodes = [_DeliveredNode.model_validate(n) for n in data.get("nodes", [])]
-        edges = [_DeliveredEdge.model_validate(e) for e in data.get("edges", [])]
-        return GoldMechanismGraph(
-            nodes=[MechanismNode(**n.model_dump()) for n in nodes],
-            edges=[
-                MechanismEdge(**(e.model_dump() | {"id": e.id or f"e{i}"}))
-                for i, e in enumerate(edges)
-            ],
-        )
+        return parse_delivered_graph(data)
     except Exception:
         return None
 
