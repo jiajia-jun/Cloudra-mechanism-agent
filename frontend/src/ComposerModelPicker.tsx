@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import { useI18n } from './i18n';
+import './ComposerModelPicker.css';
 
 export default function ComposerModelPicker({ currentModel, reasoningEffort, slot, onChoose, onConfigure }: {
   currentModel?: string;
@@ -60,7 +61,7 @@ export default function ComposerModelPicker({ currentModel, reasoningEffort, slo
   const levels = [['', zh ? '默认' : 'Default'], ['minimal', zh ? '最小' : 'Minimal'], ['low', zh ? '低' : 'Low'], ['medium', zh ? '中' : 'Medium'], ['high', zh ? '高' : 'High'], ['xhigh', zh ? '极高' : 'Extra high'], ['max', zh ? '最高' : 'Maximum'], ['ultra', zh ? '超高' : 'Ultra']];
   return <div className="composer-model-picker" ref={root}>
     <button type="button" ref={trigger} className="composer-model-trigger" disabled={saving} title={selectedModel || (zh ? '选择模型' : 'Choose model')} aria-label={zh ? '选择模型' : 'Choose model'} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setSearch(''); setOpen((value) => !value); }}><span>{selectedModel || (zh ? '模型' : 'Model')}</span><span className="model-trigger-effort">{levels.find(([value]) => value === effort)?.[1]}</span><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg></button>
-    {open && <div className="composer-model-popover hermes-model-menu" role="dialog" aria-label={zh ? '模型选择' : 'Model selection'}>
+    {open && <div className="composer-model-popover" role="dialog" aria-label={zh ? '模型选择' : 'Model selection'}>
       <div className="model-menu-main">
         <input ref={searchInput} className="model-menu-search" aria-label={zh ? '搜索模型' : 'Search models'} placeholder={zh ? '搜索模型' : 'Search models'} value={search} onChange={(event) => setSearch(event.target.value)} />
         <div className="model-menu-list">

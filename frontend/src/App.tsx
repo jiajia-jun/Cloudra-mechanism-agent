@@ -5,9 +5,6 @@ import DagPanel from './DagPanel';
 import OpsPanel from './OpsPanel';
 import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, Project } from './types';
 import GlobalConfig from './GlobalConfig';
-import ProjectPicker from './ProjectPicker';
-import NewProjectModal from './NewProjectModal';
-import ScheduledTasksPanel from './ScheduledTasksPanel';
 import ComposerModelPicker from './ComposerModelPicker';
 import ProjectSettingsModal from './ProjectSettingsModal';
 import KnowledgePanel from './KnowledgePanel';
@@ -202,21 +199,7 @@ function ThinkingBlock({ item }: { item: ThinkingItem }) {
 /* ------------------------------------------------------------------ app */
 
 export default function App() {
-  const [theme, setTheme] = useState<'glass' | 'emerald'>(() =>
-    document.documentElement.dataset.theme === 'emerald' ? 'emerald' : 'glass',
-  );
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    try { localStorage.setItem('cloudra.theme', theme); } catch { /* Appearance remains usable without storage. */ }
-  }, [theme]);
-  const { lang, t } = useI18n();
-  const [wallpaper, setWallpaper] = useState(() => {
-    try { return localStorage.getItem('cloudra.wallpaper') ?? 'default'; } catch { return 'default'; }
-  });
-  useEffect(() => {
-    document.documentElement.dataset.wallpaper = wallpaper;
-    try { localStorage.setItem('cloudra.wallpaper', wallpaper); } catch { /* Local preference still applies. */ }
-  }, [wallpaper]);
+  const { lang, setLang, t } = useI18n();
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -236,7 +219,6 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'dialogue' | 'console'>('dialogue');
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>('overview');
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
-    if (window.matchMedia('(max-width: 700px)').matches) return false;
     const saved = localStorage.getItem('cloudra:sidebar-open') ?? localStorage.getItem('cloudra:right-sidebar-open');
     return saved !== null ? saved === 'true' : true;
   });
@@ -252,6 +234,7 @@ export default function App() {
   const [slashSelected, setSlashSelected] = useState(0);
   const [slashDismissed, setSlashDismissed] = useState(false);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [newProject, setNewProject] = useState('');
   const [sending, setSending] = useState(false);
   const [connState, setConnState] = useState<'connecting' | 'live' | 'offline'>('connecting');
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -332,13 +315,8 @@ export default function App() {
 
   // Sidebar grouping: active projects bucketed by workspace_dir ('' = no
   // workspace, sorted last); archived ones live in a separate section below.
-  const [newProjectWs, setNewProjectWs] = useState('');
-  const [newProjectModalOpen, setNewProjectModalOpen] = useState(false);
-  const [scheduledTasksOpen, setScheduledTasksOpen] = useState(false);
-  const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
   const groupedProjects = useMemo(() => {
     const groups = new Map<string, Project[]>();
-    if (newProjectWs) groups.set(newProjectWs, []);
     for (const p of projects) {
       if (p.archived) continue;
       const key = (p.workspace_dir ?? '').trim();
@@ -348,7 +326,7 @@ export default function App() {
     return [...groups.entries()].sort(([a], [b]) =>
       a === '' ? 1 : b === '' ? -1 : a.localeCompare(b),
     );
-  }, [projects, newProjectWs]);
+  }, [projects]);
 
   const archivedProjects = useMemo(() => projects.filter((p) => p.archived), [projects]);
 
@@ -362,6 +340,8 @@ export default function App() {
     });
   };
 
+  const [inlineCreate, setInlineCreate] = useState<{ ws: string; name: string } | null>(null);
+  const [newProjectWs, setNewProjectWs] = useState('');
 
 
   const workspaceSuggestions = useMemo(
@@ -556,7 +536,6 @@ export default function App() {
 
   const selectProject = useCallback((projectId: string) => {
     setActiveProjectId(projectId);
-    if (window.matchMedia('(max-width: 700px)').matches) setSidebarOpen(false);
   }, []);
 
   const loadSidebarOps = useCallback(async () => {
@@ -986,18 +965,28 @@ export default function App() {
       : [...prev, resp.data]);
     setActiveProjectId(resp.data.id);
     pushToast('ok', `Project "${name}" created`);
-    return resp.data;
   }
 
-  function beginNewChat(workspace = activeProject?.workspace_dir ?? newProjectWs) {
-    setNewProjectWs(workspace);
-    setActiveProjectId(null);
-    setActiveAgentId(null);
-    setDraft('');
-    setPendingImages([]);
-    setViewMode('dialogue');
-    if (window.matchMedia('(max-width: 700px)').matches) setSidebarOpen(false);
-    requestAnimationFrame(() => composerTextareaRef.current?.focus());
+  async function createProjectAndSelect() {
+    const name = newProject.trim();
+    if (!name) return;
+    try {
+      await createProject(name, newProjectWs.trim() || undefined);
+      setNewProject('');
+      setNewProjectWs('');
+    } catch (e) {
+      reportError(e);
+    }
+  }
+
+  async function submitInlineCreate() {
+    if (!inlineCreate || !inlineCreate.name.trim()) return;
+    try {
+      await createProject(inlineCreate.name.trim(), inlineCreate.ws.trim() || undefined);
+      setInlineCreate(null);
+    } catch (e) {
+      reportError(e);
+    }
   }
 
   async function unarchiveProject(p: Project) {
@@ -1147,16 +1136,13 @@ export default function App() {
       activeAgentId: activeAgent?.id ?? null,
       interactions,
     });
-    if (target.kind === 'noop') return;
-    let project = activeProject;
+    if (target.kind === 'noop' || !activeProject) return;
     const content = draft.trim();
     const pendingId = `pending-${++pendingMessageSeqRef.current}`;
     const images = pendingImages.map((p) => p.path);
     const imageArtifactIds = pendingImages.map((p) => p.artifactId);
     setSending(true);
     try {
-      // 首条消息和已有聊天共用发送流程；创建成功后可在原项目重试。
-      if (!project) project = await createProject(content.slice(0, 60), newProjectWs || undefined);
       if (target.kind === 'slash') {
         const lower = content.toLowerCase();
         if (lower.startsWith('/schedule')) {
@@ -1244,7 +1230,7 @@ export default function App() {
       }
       if (target.kind === 'respond') {
         if (await handleRespondInteraction(target.interactionId, content)) {
-          if (activeProjectIdRef.current === project.id) setDraft((current) => current === draft ? '' : current);
+          if (activeProjectIdRef.current === activeProject.id) setDraft((current) => current === draft ? '' : current);
         }
         return;
       }
@@ -1252,13 +1238,13 @@ export default function App() {
       if (!activeAgent) {
         // With images attached the spawn `query` cannot carry them, so spawn
         // idle and deliver text + images as the first message instead.
-        const resp = await api.spawnAgent(project.id, {
+        const resp = await api.spawnAgent(activeProject.id, {
           role_id: 'coordinator',
           query: images.length > 0 ? undefined : content,
           language: lang,
           settings: {
-            ...project.settings.defaults,
-            orchestration_mode: project.settings.orchestration_mode,
+            ...activeProject.settings.defaults,
+            orchestration_mode: activeProject.settings.orchestration_mode,
           },
         });
         setDraft((current) => current === draft ? '' : current);
@@ -1875,12 +1861,6 @@ export default function App() {
 
   return (
     <div className="app">
-      <nav className="app-rail" aria-label={lang === 'zh' ? '应用导航' : 'Application navigation'}>
-        <button type="button" className={`rail-action ${!activeProject && viewMode === 'dialogue' ? 'active' : ''}`} aria-label={lang === 'zh' ? '首页' : 'Home'} title={lang === 'zh' ? '首页' : 'Home'} onClick={() => beginNewChat()}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m3 10 9-7 9 7v10h-6v-7H9v7H3Z" /></svg></button>
-        <button type="button" className={`rail-action ${scheduledTasksOpen ? 'active' : ''}`} aria-label={lang === 'zh' ? '定时任务' : 'Scheduled tasks'} title={lang === 'zh' ? '定时任务' : 'Scheduled tasks'} onClick={() => setScheduledTasksOpen(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="9" /><path d="M12 6v6l-3 3" /></svg></button>
-        <button type="button" className={`rail-action ${viewMode === 'console' ? 'active' : ''}`} aria-label={lang === 'zh' ? '控制台' : 'Console'} title={lang === 'zh' ? '控制台' : 'Console'} onClick={() => setViewMode('console')}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m7 9 3 3-3 3m6 0h4" /></svg></button>
-        <button type="button" className="rail-action rail-settings" aria-label={lang === 'zh' ? '设置' : 'Settings'} title={lang === 'zh' ? '设置' : 'Settings'} onClick={() => setGlobalOpen(true)}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /><path d="M12 1v3m0 16v3M1 12h3m16 0h3" /></svg></button>
-      </nav>
       <datalist id="workspace-dirs">
         {workspaceSuggestions.map((ws) => (
           <option key={ws} value={ws} />
@@ -1889,7 +1869,7 @@ export default function App() {
       <aside className={`left-sidebar ${!sidebarOpen ? 'collapsed' : ''}`}>
         <div className="left-sidebar-head">
           <div className="left-sidebar-title">
-            <span>Cloudra</span>
+            <span>{t.sidebarProjectsTitle}</span>
           </div>
           <button
             type="button"
@@ -1897,29 +1877,66 @@ export default function App() {
             style={{ padding: '0 6px', height: 22 }}
             onClick={() => setSidebarOpen(false)}
             title="收起项目侧栏"
-            aria-label={lang === 'zh' ? '收起项目侧栏' : 'Collapse projects sidebar'}
           >
-            <svg className="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg>
+            ◀
           </button>
         </div>
 
         <div className="left-sidebar-content">
-          <nav className="sidebar-navigation" aria-label={lang === 'zh' ? '项目导航' : 'Project navigation'}>
-            <button
-              type="button"
-              className="sidebar-nav-action"
-              onClick={() => beginNewChat()}
-            >
-              <svg className="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M13 5H5v14h14v-8M15 3l6 6M10 14l2-5 6-6 3 3-6 6-5 2Z" /></svg>
-              <span>{lang === 'zh' ? '新聊天' : 'New chat'}</span>
-            </button>
-          </nav>
+          {/* New Project Creator Bar */}
+          <div className="new-project-bar">
+            <div className="new-project-row">
+              <input
+                className="input"
+                value={newProject}
+                onChange={(e) => setNewProject(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
+                placeholder={t.sidebarNewProjectPlaceholder}
+                style={{ height: 28, fontSize: 12, flex: 1 }}
+              />
+              <button
+                type="button"
+                className="btn primary sm"
+                style={{ height: 28, padding: '0 10px' }}
+                onClick={createProjectAndSelect}
+                disabled={!newProject.trim()}
+                title="新建项目"
+              >
+                +
+              </button>
+            </div>
+            <div className="new-project-ws-row">
+              <input
+                className="input ws-path"
+                value={newProjectWs}
+                onChange={(e) => setNewProjectWs(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && createProjectAndSelect()}
+                placeholder={t.sidebarNewProjectWsPlaceholder}
+                title="项目工作区路径：机理计算文件与日志落盘目录"
+                list="workspace-dirs"
+              />
+              <button
+                type="button"
+                className="btn ghost sm ws-browse-btn"
+                title="浏览选择工作区文件夹"
+                onClick={() =>
+                  openPathPicker({
+                    title: '选择项目工作区文件夹',
+                    initialPath: newProjectWs,
+                    onSelect: (p) => setNewProjectWs(p),
+                  })
+                }
+              >
+                {t.sidebarBrowseWs}
+              </button>
+            </div>
+          </div>
+
           {/* Workspace Groups (按项目地址分类会话) */}
-          <div className="sidebar-section-label">{lang === 'zh' ? '项目' : 'Projects'}</div>
           <div className="workspace-groups-list">
-            {groupedProjects.length === 0 && (
-              <div className="sidebar-empty">
-                {lang === 'zh' ? '聊天会显示在这里' : 'Your chats will appear here'}
+            {projects.length === 0 && (
+              <div className="chat-empty" style={{ padding: '20px 0' }}>
+                {t.sidebarNoProjectsHint}
               </div>
             )}
 
@@ -1927,27 +1944,17 @@ export default function App() {
               const isCollapsed = collapsedWorkspaces.has(ws);
               const folderName = ws
                 ? ws.split('/').filter(Boolean).pop() || ws
-                : (lang === 'zh' ? '未绑定工作区' : 'No workspace');
-              const hasActiveProject = list.some((p) => p.id === activeProjectId) || (!activeProject && ws === newProjectWs);
+                : '未指定地址 (临时)';
+              const hasActiveProject = list.some((p) => p.id === activeProjectId);
 
               return (
                 <div key={ws || '__none'} className={`ws-group ${hasActiveProject ? 'has-active' : ''}`}>
                   <div
                     className="ws-group-header"
-                    role="button"
-                    tabIndex={0}
-                    aria-expanded={!isCollapsed}
-                    onClick={() => beginNewChat(ws)}
-                    onKeyDown={(e) => {
-                      if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                        e.preventDefault();
-                        beginNewChat(ws);
-                      }
-                    }}
+                    onClick={() => toggleWorkspace(ws)}
                     title={ws || '未绑定工作区目录（内存/临时工作区）'}
                   >
-                    <button type="button" className="ws-folder-toggle" aria-label={lang === 'zh' ? '展开或收起项目聊天' : 'Toggle project chats'} onClick={(e) => { e.stopPropagation(); toggleWorkspace(ws); }}>{isCollapsed ? '▶' : '▼'}</button>
-                    <svg className="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M3 7V5h6l2 2h10v12H3V7Z" /></svg>
+                    <span className="ws-folder-toggle">{isCollapsed ? '▶' : '▼'}</span>
                     <div className="ws-folder-info">
                       <span className="ws-folder-name">{folderName}</span>
                       {ws && <span className="ws-folder-path">{ws}</span>}
@@ -1956,10 +1963,15 @@ export default function App() {
                     <button
                       type="button"
                       className="btn ghost sm ws-add-btn"
-                      title={lang === 'zh' ? '新聊天' : 'New chat'}
+                      title={ws ? `在 ${folderName} 下新建项目` : '新建未绑定项目'}
                       onClick={(e) => {
                         e.stopPropagation();
-                        beginNewChat(ws);
+                        setInlineCreate({ ws, name: '' });
+                        setCollapsedWorkspaces((prev) => {
+                          const next = new Set(prev);
+                          next.delete(ws);
+                          return next;
+                        });
                       }}
                     >
                       +
@@ -1968,7 +1980,40 @@ export default function App() {
 
                   {!isCollapsed && (
                     <div className="ws-group-body">
-                      {list.length === 0 && <span className="sidebar-empty">{lang === 'zh' ? '新聊天' : 'New chat'}</span>}
+                      {inlineCreate?.ws === ws && (
+                        <div className="ws-inline-create">
+                          <input
+                            className="input"
+                            autoFocus
+                            value={inlineCreate.name}
+                            onChange={(e) => setInlineCreate({ ws, name: e.target.value })}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') void submitInlineCreate();
+                              if (e.key === 'Escape') setInlineCreate(null);
+                            }}
+                            placeholder="输入项目名…"
+                            style={{ height: 26, fontSize: 11.5 }}
+                          />
+                          <button
+                            type="button"
+                            className="btn primary sm"
+                            style={{ height: 26, padding: '0 8px', fontSize: 11 }}
+                            disabled={!inlineCreate.name.trim()}
+                            onClick={() => void submitInlineCreate()}
+                          >
+                            创建
+                          </button>
+                          <button
+                            type="button"
+                            className="btn ghost sm"
+                            style={{ height: 26, padding: '0 6px', fontSize: 11 }}
+                            onClick={() => setInlineCreate(null)}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      )}
+
                       {list.map((p) => {
                         const isActive = p.id === activeProjectId;
                         return (
@@ -1978,15 +2023,7 @@ export default function App() {
                           >
                             <div
                               className="project-node-header"
-                              role="button"
-                              tabIndex={0}
                               onClick={() => selectProject(p.id)}
-                              onKeyDown={(e) => {
-                                if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
-                                  e.preventDefault();
-                                  selectProject(p.id);
-                                }
-                              }}
                               title={`选择项目: ${p.name}`}
                             >
                               <div className="project-node-title">
@@ -2078,6 +2115,14 @@ export default function App() {
 
         {/* Sidebar actions */}
         <div className="left-sidebar-foot">
+          <button
+            type="button"
+            className="btn outline sm settings-btn"
+            onClick={() => setGlobalOpen(true)}
+            title={t.sidebarGlobalSettingsTip}
+          >
+            <span>{t.sidebarGlobalSettings}</span>
+          </button>
           <details className="sidebar-more">
             <summary>{t.sidebarMore}</summary>
             <div className="sidebar-more-actions">
@@ -2108,7 +2153,7 @@ export default function App() {
       </aside>
 
       <main className="main">
-        {activeProject || viewMode === 'console' ? <div className="agentbar glass-panel">
+        <div className="agentbar">
           <div className="agentbar-left">
             <button
               type="button"
@@ -2138,7 +2183,7 @@ export default function App() {
                   setSidebarOpen(true);
                 }}
               >
-                {activeProject?.name ?? (lang === 'zh' ? '新聊天' : 'New chat')}
+                {activeProject?.name ?? t.breadcrumbSelectProject}
               </span>
               {activeAgent && (
                 <>
@@ -2235,6 +2280,22 @@ export default function App() {
             >
               <span>{t.projectSettings}</span>
             </button>
+            <div className="lang-switcher-pill" title={t.langToggle}>
+              <button
+                type="button"
+                className={`lang-pill-btn ${lang === 'zh' ? 'active' : ''}`}
+                onClick={() => setLang('zh')}
+              >
+                中
+              </button>
+              <button
+                type="button"
+                className={`lang-pill-btn ${lang === 'en' ? 'active' : ''}`}
+                onClick={() => setLang('en')}
+              >
+                EN
+              </button>
+            </div>
             <span className="conn-status" title={`SSE stream status: ${connLabel}`}>
               {activeProject && <span className={`state-dot ${connState === 'live' ? 'running' : 'waiting_input'}`} />}
               <span className="conn-label">{connState === 'live' ? t.live : connLabel}</span>
@@ -2245,9 +2306,7 @@ export default function App() {
               </span>
             )}
           </div>
-        </div> : <div className="new-chat-header">
-          {!sidebarOpen && <button type="button" className="btn ghost sm" onClick={() => setSidebarOpen(true)} aria-label={lang === 'zh' ? '显示侧栏' : 'Show sidebar'}>☰</button>}
-        </div>}
+        </div>
 
         {viewMode === 'dialogue' ? (
           <>
@@ -2285,9 +2344,9 @@ export default function App() {
         >
           <div className="chat-column">
             {!activeProject && (
-              <div className="chat-empty welcome-state">
-                <div className="welcome-mark"><img src="/logo.svg" alt="Cloudra" /></div>
-                <div className="big">{lang === 'zh' ? (newProjectWs ? `你想让我们在 ${newProjectWs.split('/').filter(Boolean).pop()} 中探索什么？` : '你想让我们探索什么反应机理？') : 'What would you like us to explore?'}</div>
+              <div className="chat-empty">
+                <div className="big">{t.emptyHeroTitle}</div>
+                {t.selectProjectHint}
               </div>
             )}
             {activeProject && timeline.length === 0 && activeAgent?.state !== 'running' && (
@@ -2449,12 +2508,7 @@ export default function App() {
             />
           )}
           {(!hasActiveAgentDecision || interactionCollapsed) && (
-            <>
-            <div className="composer-project-context">
-              <ProjectPicker value={activeProject?.workspace_dir ?? newProjectWs} choices={[...new Set([...workspaceSuggestions, ...groupedProjects.map(([ws]) => ws), newProjectWs, activeProject?.workspace_dir ?? ''])].filter(Boolean)} disabled={sending || Boolean(activeProject)} onChange={setNewProjectWs} onCreate={() => setNewProjectModalOpen(true)} />
-              <span className="composer-machine"><svg className="sidebar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="4" y="4" width="16" height="12" rx="1" /><path d="M2 20h20M9 16v4m6-4v4" /></svg>{lang === 'zh' ? '此计算机' : 'This computer'}</span>
-            </div>
-            <div className="composer glass-panel">
+            <div className="composer">
             {pendingImages.length > 0 && activeProject && (
               <div className="composer-attachments">
                 {pendingImages.map((img) => (
@@ -2523,7 +2577,7 @@ export default function App() {
               }}
               placeholder={
                 !activeProject
-                  ? (lang === 'zh' ? '随心输入' : 'Ask anything')
+                  ? 'Select or create a project first…'
                   : composerInteraction
                     ? `Reply to ${activeAgent?.display_name ?? 'agent'}: ${short(cleanPromptText(composerInteraction.prompt ?? composerInteraction.message), 60)}…`
                     : activeAgent
@@ -2532,6 +2586,7 @@ export default function App() {
                         : `Guide ${activeAgent.display_name}…`
                       : 'Describe the task for the coordinator…'
               }
+              disabled={!activeProject}
             />
             <div className="composer-actions">
               {activeProject && (
@@ -2573,24 +2628,34 @@ export default function App() {
               {activeAgent && activeAgent.state === 'running' && (
                 <button className="btn ghost sm" onClick={() => cancelAgent()}>Cancel</button>
               )}
-              <ComposerModelPicker key={`${activeAgent?.id ?? activeProject?.id ?? 'new'}:${modelSettingsOpen}`} currentModel={activeAgent?.settings.model || activeProject?.settings.defaults?.model} reasoningEffort={activeAgent?.settings.reasoning_effort ?? activeProject?.settings.defaults?.reasoning_effort} slot={activeAgent && activeAgent.role_id !== 'coordinator' ? 'follower' : 'coordinator'} onConfigure={() => setModelSettingsOpen(true)} onChoose={async (model, effort) => {
-                const changes = effort === undefined ? { model } : { model, reasoning_effort: effort };
-                if (activeAgent) {
-                  const response = await api.patchSettings(activeAgent.id, changes);
-                  setAgents((prev) => prev.map((agent) => agent.id === activeAgent.id ? response.data : agent));
-                } else if (activeProject) {
-                  const response = await api.patchProject(activeProject.id, { settings: { orchestration_mode: activeProject.settings.orchestration_mode, defaults: { ...activeProject.settings.defaults, ...changes } } });
-                  setProjects((prev) => prev.map((project) => project.id === activeProject.id ? response.data : project));
-                } else {
-                  await api.patchRuntimeConfig('coordinator', changes);
-                }
-              }} />
-              <button className="btn primary sm composer-send" aria-label={sending ? 'Sending…' : 'Send'} title={sending ? 'Sending…' : 'Send'} onClick={sendMessage} disabled={!draft.trim() || sending}>
-                {sending ? '…' : '↑'}
+              {activeProject && (
+                <ComposerModelPicker
+                  key={`${activeAgent?.id ?? activeProject.id}:${globalOpen}`}
+                  currentModel={activeAgent?.settings.model || activeProject.settings.defaults?.model}
+                  reasoningEffort={activeAgent?.settings.reasoning_effort ?? activeProject.settings.defaults?.reasoning_effort}
+                  slot={activeAgent && activeAgent.role_id !== 'coordinator' ? 'follower' : 'coordinator'}
+                  onConfigure={() => setGlobalOpen(true)}
+                  onChoose={async (model, effort) => {
+                    const changes = effort === undefined ? { model } : { model, reasoning_effort: effort };
+                    if (activeAgent) {
+                      await handleSaveAgentSettings(activeAgent.id, changes);
+                    } else {
+                      const response = await api.patchProject(activeProject.id, {
+                        settings: {
+                          orchestration_mode: activeProject.settings.orchestration_mode,
+                          defaults: { ...activeProject.settings.defaults, ...changes },
+                        },
+                      });
+                      setProjects((prev) => prev.map((project) => project.id === activeProject.id ? response.data : project));
+                    }
+                  }}
+                />
+              )}
+              <button className="btn primary sm" onClick={sendMessage} disabled={!draft.trim() || !activeProject || sending}>
+                {sending ? 'Sending…' : 'Send'}
               </button>
             </div>
           </div>
-          </>
           )}
         </div>
       </>
@@ -2762,16 +2827,10 @@ export default function App() {
             onToast={pushToast}
           />
         )}
-        {(globalOpen || modelSettingsOpen) && (
+        {globalOpen && (
           <GlobalConfig
-            key={modelSettingsOpen ? 'models' : 'preferences'}
-            mode={modelSettingsOpen ? 'models' : 'preferences'}
-            onClose={() => { setGlobalOpen(false); setModelSettingsOpen(false); }}
+            onClose={() => setGlobalOpen(false)}
             onToast={pushToast}
-            theme={theme}
-            onThemeChange={setTheme}
-            wallpaper={wallpaper}
-            onWallpaperChange={setWallpaper}
           />
         )}
         {knowledgeOpen && <KnowledgePanel onClose={() => setKnowledgeOpen(false)} onToast={pushToast} />}
@@ -2793,18 +2852,6 @@ export default function App() {
             onToast={pushToast}
           />
         )}
-        {scheduledTasksOpen && <ScheduledTasksPanel projects={projects} onClose={() => setScheduledTasksOpen(false)} />}
-        {newProjectModalOpen && <NewProjectModal
-          initialDirectory={newProjectWs}
-          onBrowse={(directory, onSelect) => openPathPicker({ title: lang === 'zh' ? '选择文件夹' : 'Choose folder', initialPath: directory, onSelect })}
-          onClose={() => setNewProjectModalOpen(false)}
-          onCreate={async (name, directory) => {
-            const project = await createProject(name, directory || undefined);
-            setNewProjectWs(project.workspace_dir ?? directory);
-            setNewProjectModalOpen(false);
-            setDraft('');
-          }}
-        />}
         <PathPickerModal
           isOpen={pathPicker.isOpen}
           title={pathPicker.title}

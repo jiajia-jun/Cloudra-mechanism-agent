@@ -163,7 +163,7 @@ test('an empty forum starts after the project view cursor', async ({ page }) => 
   await setup(page);
   await openProject(page);
   await synced(page);
-  await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
+  await page.getByRole('button', { name: '控制台', exact: true }).click();
   await page.getByRole('button', { name: '协同论坛', exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { sources: Source[] }).sources.length)).toBe(2);
   const urls = await page.evaluate(() => (window as unknown as { sources: Source[] }).sources.map((source) => source.url));
@@ -231,7 +231,7 @@ test('forum reconnect carries persisted events and synced watermarks without ref
   await setup(page);
   await openProject(page);
   await synced(page);
-  await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
+  await page.getByRole('button', { name: '控制台', exact: true }).click();
   await page.getByRole('button', { name: '协同论坛', exact: true }).click();
   await expect.poll(() => page.evaluate(() => (window as unknown as { sources: Source[] }).sources.length)).toBe(2);
   await emit(page, event(190, 'unrelated agent event'));

@@ -17,7 +17,7 @@ for (const state of ['proposed', 'supported', 'vetoed', 'missing-frequency']) {
     }));
     await openSpa(page);
     await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
-    await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
+    await page.getByRole('button', { name: '控制台', exact: true }).click();
     await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
     await page.locator('.dag-edge-hit').click({ force: true });
     const viewer = page.locator('.molecule-3d-container');

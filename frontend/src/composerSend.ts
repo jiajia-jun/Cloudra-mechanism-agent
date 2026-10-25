@@ -14,9 +14,8 @@ export type ComposerSendTarget =
   | { kind: 'slash'; command: string }
   | { kind: 'respond'; interactionId: string | number }
   | { kind: 'spawn_coordinator' }
-  | { kind: 'create_project' }
   | { kind: 'message' }
-  | { kind: 'noop'; reason: 'empty' | 'busy' };
+  | { kind: 'noop'; reason: 'empty' | 'busy' | 'no_project' };
 
 /**
  * Decide where a composer Send goes. Mirrors App.tsx sendMessage branching
@@ -31,8 +30,8 @@ export function resolveComposerSendTarget(opts: {
 }): ComposerSendTarget {
   const content = opts.draft.trim();
   if (!content) return { kind: 'noop', reason: 'empty' };
+  if (!opts.hasProject) return { kind: 'noop', reason: 'no_project' };
   if (opts.sending) return { kind: 'noop', reason: 'busy' };
-  if (!opts.hasProject) return { kind: 'create_project' };
   if (content.startsWith('/')) {
     return { kind: 'slash', command: content };
   }

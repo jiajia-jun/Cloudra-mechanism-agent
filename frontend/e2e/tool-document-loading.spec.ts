@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { RUNTIME_CONFIG, installApiMocks, openModelSettings, openSpa } from './fixtures';
+import { installApiMocks, openSpa } from './fixtures';
 
 async function mockSettings(page: import('@playwright/test').Page) {
   await installApiMocks(page);
@@ -29,10 +29,10 @@ async function mockSettings(page: import('@playwright/test').Page) {
       }
       selection = next;
     } else if (!path.endsWith('/config')) return route.fallback();
-    return route.fulfill({ json: { ...RUNTIME_CONFIG, coordinator: slot, follower: slot, tool_document_loading: selection } });
+    return route.fulfill({ json: { config_file: '/tmp/config.yaml', coordinator: slot, follower: slot, tool_document_loading: selection } });
   });
   await openSpa(page);
-  await openModelSettings(page);
+  await page.getByRole('button', { name: '全局设置', exact: true }).click();
   return { saved, reject: () => { reject = true; } };
 }
 
@@ -58,7 +58,7 @@ test('default uses current model; semantic settings keep credentials write-only 
   expect(state.saved[2]).toMatchObject({ jev: { max_tools: 4 } });
   expect((state.saved[2].jev as Record<string, unknown>).key).toBeUndefined();
   await page.reload();
-  await openModelSettings(page);
+  await page.getByRole('button', { name: '全局设置', exact: true }).click();
   panel = page.getByRole('region', { name: '工具说明加载' });
   await expect(panel.getByLabel('选择方式')).toHaveValue('semantic');
   await expect(panel.getByLabel('最低概率')).toHaveValue('0.6');

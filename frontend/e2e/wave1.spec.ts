@@ -263,7 +263,7 @@ test.describe('token bootstrap', () => {
   test('#token= is scrubbed from the address bar', async ({ page }) => {
     await installApiMocks(page, { jobs: [] });
     await page.goto('/#token=sekrit-e2e');
-    await page.locator('aside.left-sidebar').waitFor({ state: 'visible' });
+    await page.getByPlaceholder('新建项目名…').waitFor({ state: 'visible' });
     await expect.poll(() => new URL(page.url()).hash).toBe('');
     const stored = await page.evaluate(() => sessionStorage.getItem('cloudra.api_token'));
     expect(stored).toBe('sekrit-e2e');
@@ -271,23 +271,19 @@ test.describe('token bootstrap', () => {
 });
 
 
-test('language settings preserve the chat draft and persist English', async ({ page }) => {
+test('language switch preserves the new project entry and persists English', async ({ page }) => {
   await installApiMocks(page, { jobs: [] });
   await openSpa(page);
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
-  await page.getByRole('button', { name: '新聊天', exact: true }).click();
-  await page.getByTestId('composer-input').fill('reaction draft');
-  await page.getByRole('button', { name: '设置', exact: true }).click();
-  await page.getByLabel('语言', { exact: true }).selectOption('en');
+  await page.getByPlaceholder('新建项目名…').fill('reaction draft');
+  await page.getByRole('button', { name: 'EN', exact: true }).click();
+  await expect(page.getByPlaceholder('New project name…')).toHaveValue('reaction draft');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-  await page.getByRole('button', { name: 'Back to chat', exact: true }).click();
-  await expect(page.getByTestId('composer-input')).toHaveValue('reaction draft');
   await page.reload();
-  await expect(page.getByRole('button', { name: 'New chat', exact: true })).toBeVisible();
+  await expect(page.getByPlaceholder('New project name…')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.getByText('Archived Projects (1)', { exact: true }).click();
   await expect(page.getByTestId(`hard-delete-${PROJECT_ARCHIVED.id}`)).toBeVisible();
-  await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByLabel('Language', { exact: true }).selectOption('zh');
-  await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  await page.getByRole('button', { name: '中', exact: true }).click();
+  await expect(page.getByPlaceholder('新建项目名…')).toBeVisible();
 });
