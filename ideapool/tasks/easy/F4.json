@@ -49,7 +49,7 @@
           "id": "F4_R",
           "role": "reactant",
           "smiles": [
-            "[BH3].C=O"
+            "[BH3-][O+]=C"
           ],
           "accessible": true,
           "label": "reactant",
