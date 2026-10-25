@@ -1,5 +1,9 @@
 # Cloudra
 
+<p align="center">
+  <img src="docs/assets/Cloudra-logo.svg" alt="Cloudra 标志" width="180" />
+</p>
+
 **面向有机小分子机理计算的自主 Agent 系统**  
 *几何与电子结构工具 · 证据驱动的机理交付 · 事件驱动 Agent 协作*
 

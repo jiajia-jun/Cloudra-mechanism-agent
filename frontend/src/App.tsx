@@ -2173,7 +2173,7 @@ export default function App() {
                 setSidebarOpen(true);
               }}
             >
-              <img src="/logo.png" alt="Cloudra" className="brand-logo-icon" />
+              <img src="/logo.svg" alt="Cloudra" className="brand-logo-icon" />
               <span className="brand-logo-text">Cloudra</span>
             </div>
             <div className="agentbar-divider" />

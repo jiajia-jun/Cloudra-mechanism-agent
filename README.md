@@ -1,5 +1,9 @@
 # Cloudra
 
+<p align="center">
+  <img src="docs/assets/Cloudra-logo.svg" alt="Cloudra logo" width="180" />
+</p>
+
 **Autonomous Agent System for Organic Small-Molecule Mechanism Computation**  
 *Geometric & Electronic Tools · Evidence-Based DAG Delivery · Event-Driven Agent Collaboration*
 

@@ -1,35 +1,127 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" viewBox="0 0 1280 920" width="100%" height="100%" style="background-color: #F8FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Helvetica, Arial, sans-serif;">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="architecture-title architecture-desc">
+  <title id="architecture-title">Cloudra: evidence-guided mechanism exploration</title>
+  <desc id="architecture-desc">A clockwise cycle links the mechanism DAG, geometry and pathway search, quantum chemistry, and scientific evidence. The coordinator delegates work and integrates results. A transition state requires one imaginary frequency; both IRC endpoints are optimized and checked for zero imaginary frequencies. Mode inspection remains advisory.</desc>
   <defs>
-    <!-- Shadow Filters -->
-    <filter id="card-shadow" x="-5%" y="-5%" width="110%" height="115%" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#0F172A" flood-opacity="0.04" />
-      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0F172A" flood-opacity="0.06" />
-    </filter>
-    <filter id="hub-shadow" x="-10%" y="-10%" width="120%" height="120%" filterUnits="userSpaceOnUse">
-      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#059669" flood-opacity="0.12" />
-      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0F172A" flood-opacity="0.08" />
-    </filter>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #293323; }
+      .panel { fill: #fbfcf7; stroke: #c9d1bb; stroke-width: 1.4; }
+      .title { font-size: 23px; font-weight: 600; }
+      .index { font-family: Georgia, 'Times New Roman', serif; font-size: 23px; font-style: italic; }
+      .body { font-size: 18px; }
+      .note { font-size: 15px; fill: #626e54; }
+      .rule { stroke: #d8dfca; stroke-width: 1.2; }
+      .flow { fill: none; stroke: #64743e; stroke-width: 1.8; marker-end: url(#architecture-arrow); }
+      .sketch { fill: none; stroke: #536738; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .guide { fill: none; stroke: #bbc5a8; stroke-width: 1.3; stroke-dasharray: 3 6; }
+      .node { fill: #fff; stroke: #64743e; stroke-width: 1.6; }
+      .accent { fill: #d9ef55; stroke: #64743e; stroke-width: 1.6; }
+    </style>
+    <marker id="architecture-arrow" viewBox="0 0 9 8" refX="8" refY="4" markerWidth="7" markerHeight="6" orient="auto">
+      <path d="M1 1 L8 4 L1 7" fill="none" stroke="#64743e" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect width="1440" height="1000" fill="#fff"/>
 
-    <!-- Markers for Clockwise Connecting Arrows -->
-    <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#2563EB" />
-    </marker>
-    <marker id="arrow-amber" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#D97706" />
-    </marker>
-    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#7C3AED" />
-    </marker>
-    <marker id="arrow-emerald" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-      <path d="M 0 1 L 10 5 L 0 9 z" fill="#059669" />
-    </marker>
+  <!-- 四个模块按顺时针排列；连接线停在框体外，避免穿过正文。 -->
+  <g id="research-cycle">
+    <path class="flow" d="M1100 150 H1194 Q1238 150 1238 194 V316"/>
+    <path class="flow" d="M1238 670 V806 Q1238 850 1194 850 H1116"/>
+    <path class="flow" d="M340 850 H246 Q202 850 202 806 V686"/>
+    <path class="flow" d="M202 332 V194 Q202 150 246 150 H324"/>
+  </g>
 
-    <!-- Linear Gradients for Badges & Cards -->
-    <linearGradient id="hub-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#064E3B"/>
-      <stop offset="100%" stop-color="#022C22"/>
-    </linearGradient>
-  
+  <!-- a：研究输入和交付图放在同一框内，物种为节点，TS 标在反应步骤的边上。 -->
+  <g id="mechanism-graph">
+    <rect class="panel" x="340" y="42" width="760" height="216" rx="3"/>
+    <path d="M340 43 H1100" stroke="#d9ef55" stroke-width="4"/>
+    <text class="index" x="368" y="80">a</text>
+    <text class="title" x="398" y="80">Mechanism graph</text>
+    <path class="rule" d="M368 101 H1072 M682 124 V230"/>
+    <g class="sketch" transform="translate(375 139)">
+      <path d="M0 12 L20 0 L40 12 V36 L20 48 L0 36 Z M5 15 L20 6 M35 15 V33 M20 42 L5 33"/>
+      <path d="M40 12 L57 2 M40 36 L57 46"/>
+    </g>
+    <text class="body" x="456" y="153">Molecules + conditions</text>
+    <text class="note" x="456" y="180">Competing pathways</text>
+    <path class="flow" d="M787 155 H972"/>
+    <circle class="node" cx="760" cy="155" r="27"/>
+    <circle class="node" cx="1000" cy="155" r="27"/>
+    <text class="body" x="760" y="161" text-anchor="middle">R</text>
+    <path d="M855 130 H905" stroke="#d9ef55" stroke-width="24"/>
+    <text class="body" x="880" y="136" text-anchor="middle">TS</text>
+    <text class="body" x="1000" y="161" text-anchor="middle">P</text>
+    <text class="note" x="880" y="222" text-anchor="middle">Evidence-linked DAG</text>
+  </g>
+
+  <!-- b：势能曲线为结构示意，不表示任何具体反应的数值结果。 -->
+  <g id="geometry-and-pathways">
+    <rect class="panel" x="1080" y="332" width="316" height="338" rx="3"/>
+    <path d="M1080 333 H1396" stroke="#d9ef55" stroke-width="4"/>
+    <text class="index" x="1108" y="376">b</text>
+    <text class="title" x="1138" y="376">Geometry &amp; PES</text>
+    <path class="rule" d="M1108 398 H1368"/>
+    <path class="sketch" d="M1118 429 V548 H1362" opacity=".45"/>
+    <text class="note" x="1109" y="422">E</text>
+    <path class="sketch" d="M1134 493 C1154 519 1174 520 1194 473 C1209 436 1220 430 1238 444 C1263 463 1270 527 1304 517 C1322 512 1336 491 1352 499"/>
+    <circle class="node" cx="1160" cy="510" r="5"/>
+    <circle class="accent" cx="1226" cy="438" r="7"/>
+    <circle class="node" cx="1305" cy="517" r="5"/>
+    <text class="note" x="1243" y="432">TS</text>
+    <text class="body" x="1108" y="602">Atom mapping · conformers</text>
+    <text class="body" x="1108" y="632">TS seeds · pathway search</text>
+  </g>
+
+  <!-- c：引擎、计算任务和原生输出内聚在同一模块。 -->
+  <g id="quantum-chemistry">
+    <rect class="panel" x="340" y="742" width="760" height="216" rx="3"/>
+    <path d="M340 743 H1100" stroke="#d9ef55" stroke-width="4"/>
+    <text class="index" x="368" y="780">c</text>
+    <text class="title" x="398" y="780">Quantum chemistry</text>
+    <path class="rule" d="M368 801 H1072"/>
+    <text x="368" y="852" font-size="25" font-weight="500">ORCA · Gaussian · xTB</text>
+    <text class="body" x="368" y="898">Optimization · frequencies · IRC</text>
+    <path class="flow" d="M820 860 H934"/>
+    <g class="sketch" transform="translate(974 828)">
+      <path d="M12 0 H59 L75 16 V80 H12 Z" fill="#f0f5de"/>
+      <path d="M59 0 V16 H75 M0 13 V93 H63"/>
+      <path d="M26 34 H61 M26 46 H61 M26 58 H48"/>
+      <path d="M48 68 L54 74 L66 61" stroke="#64743e"/>
+    </g>
+    <text class="note" x="1012" y="940" text-anchor="middle">Native outputs</text>
+  </g>
+
+  <!-- d：同一个 TS 的双向 IRC 真实端点，经 opt/freq 确证为极小值。 -->
+  <g id="scientific-evidence">
+    <rect class="panel" x="44" y="332" width="316" height="338" rx="3"/>
+    <path d="M44 333 H360" stroke="#d9ef55" stroke-width="4"/>
+    <text class="index" x="72" y="376">d</text>
+    <text class="title" x="102" y="376">Evidence checks</text>
+    <path class="rule" d="M72 398 H332"/>
+    <text class="body" x="202" y="434" text-anchor="middle">TS: n<tspan font-size="12" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> = 1</tspan></text>
+    <circle class="accent" cx="202" cy="480" r="17"/>
+    <text x="202" y="485" font-size="13" text-anchor="middle">TS</text>
+    <path class="flow" d="M188 493 C170 505 144 508 126 526"/>
+    <path class="flow" d="M216 493 C234 505 260 508 278 526"/>
+    <text class="note" x="202" y="523" text-anchor="middle">±IRC</text>
+    <circle class="node" cx="122" cy="546" r="17"/>
+    <circle class="node" cx="282" cy="546" r="17"/>
+    <text x="122" y="552" font-size="16" text-anchor="middle">R</text>
+    <text x="282" y="552" font-size="16" text-anchor="middle">P</text>
+    <text class="note" x="122" y="586" text-anchor="middle">opt/freq</text>
+    <text class="note" x="282" y="586" text-anchor="middle">opt/freq</text>
+    <text class="body" x="202" y="618" text-anchor="middle">n<tspan font-size="12" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> = 0</tspan></text>
+    <text class="note" x="202" y="650" text-anchor="middle">Mode inspection: advisory</text>
+  </g>
+
+  <!-- 中央保留用户原始矢量 logo；虚线表示协调，不冒充计算证据。 -->
+  <g id="coordination-links" class="guide">
+    <path d="M720 258 V328 M360 501 H550 M890 501 H1080 M720 716 V742"/>
+  </g>
+  <g id="coordinator">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" x="592" y="350" width="256" height="269" viewBox="326 60 865 909" version="1.1" id="cloudra-logo" role="img" aria-labelledby="cloudra-title cloudra-desc">
+  <title id="cloudra-title">Cloudra</title>
+  <desc id="cloudra-desc">A single teal dragon, a detached curled tail, and continuous branching scientific exploration paths rising from a golden potential-energy surface. Rebuilt editable vector artwork.</desc>
+  <defs>
     <linearGradient id="explore-surface-gold" gradientUnits="userSpaceOnUse" x1="592" y1="473" x2="612" y2="612">
       <stop offset="0" stop-color="#ffedb5" />
       <stop offset=".44" stop-color="#ffe59a" />
@@ -128,212 +220,8 @@
       <stop offset="0" stop-color="#f2fffb" />
       <stop offset="1" stop-color="#e5f8f3" />
     </linearGradient>
-  
   </defs>
-
-  <!-- Canvas Border Subtle Guide -->
-  <rect x="15" y="15" width="1250" height="890" rx="20" fill="none" stroke="#E2E8F0" stroke-width="1.5" stroke-dasharray="4 4" />
-
-  <!-- ========================================== -->
-  <!-- 1. TOP BLOCK: Natural Language & DAG Carrier -->
-  <!-- ========================================== -->
-  <g transform="translate(190, 35)">
-    <!-- Outer Container -->
-    <rect x="0" y="0" width="900" height="205" rx="16" fill="#FFFFFF" stroke="#93C5FD" stroke-width="2" filter="url(#card-shadow)" />
-    
-    <!-- Title Tag -->
-    <rect x="24" y="-14" width="380" height="28" rx="6" fill="#2563EB" />
-    <text x="36" y="5" fill="#FFFFFF" font-size="12" font-weight="700" letter-spacing="0.5">TOP: SCIENTIFIC INPUT &amp; PRIMARY DAG CARRIER</text>
-    
-    <!-- Sub-box 1: Natural Language Input -->
-    <g transform="translate(24, 28)">
-      <rect x="0" y="0" width="395" height="155" rx="12" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1.5" />
-      <rect x="16" y="14" width="160" height="20" rx="4" fill="#DBEAFE" />
-      <text x="22" y="28" fill="#1E40AF" font-size="11" font-weight="700">Natural Language Prompt</text>
-      
-      <text x="16" y="55" fill="#334155" font-size="12" font-weight="600">Unlabelled Molecule &amp; Reaction Conditions</text>
-      <text x="16" y="74" fill="#64748B" font-size="11">e.g. 3-Methylcyclobutene → Penta-1,3-diene (gas)</text>
-      
-      <line x1="16" y1="88" x2="379" y2="88" stroke="#E2E8F0" stroke-width="1" />
-      
-      <text x="16" y="108" fill="#0F172A" font-size="12" font-weight="600">Cognitive Space (Hypothesis Formation)</text>
-      <text x="16" y="126" fill="#64748B" font-size="11">• Proposes competing pathways &amp; methods</text>
-      <text x="16" y="142" fill="#64748B" font-size="11">• Intelligent Restraint: Minimal API declaration</text>
-    </g>
-
-    <!-- Mid-Arrow in Top Box -->
-    <path d="M 425 105 L 455 105" stroke="#2563EB" stroke-width="2.5" marker-end="url(#arrow-blue)" fill="none" />
-    <text x="440" y="95" fill="#2563EB" font-size="10" font-weight="700" text-anchor="middle">Instantiate</text>
-
-    <!-- Sub-box 2: Delivery Evidence DAG -->
-    <g transform="translate(465, 28)">
-      <rect x="0" y="0" width="410" height="155" rx="12" fill="#EFF6FF" stroke="#BFDBFE" stroke-width="1.5" />
-      <rect x="16" y="14" width="230" height="20" rx="4" fill="#2563EB" />
-      <text x="22" y="28" fill="#FFFFFF" font-size="11" font-weight="700">The Primary Carrier: Delivery DAG</text>
-      
-      <!-- Graph Representation Preview -->
-      <g transform="translate(16, 44)">
-        <!-- Node RC -->
-        <rect x="0" y="10" width="55" height="28" rx="6" fill="#FFFFFF" stroke="#3B82F6" stroke-width="1.5" />
-        <text x="27" y="28" fill="#1E40AF" font-size="11" font-weight="700" text-anchor="middle">RC</text>
-        
-        <!-- Edge Arrow -->
-        <line x1="55" y1="24" x2="105" y2="24" stroke="#60A5FA" stroke-width="2" marker-end="url(#arrow-blue)" />
-        
-        <!-- Node TS (Candidate) -->
-        <rect x="110" y="10" width="60" height="28" rx="6" fill="#FFFFFF" stroke="#F59E0B" stroke-width="1.5" />
-        <text x="140" y="28" fill="#B45309" font-size="11" font-weight="700" text-anchor="middle">TS*</text>
-        
-        <!-- Edge Arrow -->
-        <line x1="170" y1="24" x2="220" y2="24" stroke="#60A5FA" stroke-width="2" marker-end="url(#arrow-blue)" />
-        
-        <!-- Node Product -->
-        <rect x="225" y="10" width="55" height="28" rx="6" fill="#FFFFFF" stroke="#10B981" stroke-width="1.5" />
-        <text x="252" y="28" fill="#065F46" font-size="11" font-weight="700" text-anchor="middle">P</text>
-      </g>
-      
-      <rect x="16" y="90" width="378" height="52" rx="8" fill="#FFFFFF" stroke="#DBEAFE" stroke-width="1" />
-      <text x="26" y="108" fill="#1E3A8A" font-size="11" font-weight="700">Statutory Stage Requirement Contract Set:</text>
-      <text x="26" y="128" fill="#3B82F6" font-size="11" font-weight="600">{ ts_opt, frequency, short_irc } (Unordered)</text>
-    </g>
-  </g>
-
-  <!-- ========================================== -->
-  <!-- 2. RIGHT BLOCK: PES & Geometry Module -->
-  <!-- ========================================== -->
-  <g transform="translate(930, 280)">
-    <!-- Outer Container -->
-    <rect x="0" y="0" width="320" height="360" rx="16" fill="#FFFFFF" stroke="#FCD34D" stroke-width="2" filter="url(#card-shadow)" />
-    
-    <!-- Title Tag -->
-    <rect x="20" y="-14" width="280" height="28" rx="6" fill="#D97706" />
-    <text x="32" y="5" fill="#FFFFFF" font-size="12" font-weight="700" letter-spacing="0.5">RIGHT: PES &amp; GEOMETRY MODULE</text>
-    
-    <!-- Sub-cards (No dense math, pure clean concepts) -->
-    <g transform="translate(20, 28)">
-      <!-- Card 1 -->
-      <rect x="0" y="0" width="280" height="68" rx="10" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1" />
-      <text x="14" y="24" fill="#92400E" font-size="12" font-weight="700">1. Topological Atom Mapping</text>
-      <text x="14" y="42" fill="#78350F" font-size="11">• Maximum Common Subgraph (MCS)</text>
-      <text x="14" y="58" fill="#B45309" font-size="10">Automated Watch-Pair (C-C) identification</text>
-      
-      <!-- Card 2 -->
-      <rect x="0" y="78" width="280" height="68" rx="10" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1" />
-      <text x="14" y="102" fill="#92400E" font-size="12" font-weight="700">2. Steric BFS Spatial Traversal</text>
-      <text x="14" y="120" fill="#78350F" font-size="11">• Distance-decayed steric hindrance (ρᵈ)</text>
-      <text x="14" y="136" fill="#B45309" font-size="10">Identifies methyl rotation bottleneck</text>
-
-      <!-- Card 3 -->
-      <rect x="0" y="156" width="280" height="68" rx="10" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1" />
-      <text x="14" y="180" fill="#92400E" font-size="12" font-weight="700">3. Rigid Frame Alignment</text>
-      <text x="14" y="198" fill="#78350F" font-size="11">• Kabsch SVD Rotation Algorithm</text>
-      <text x="14" y="214" fill="#B45309" font-size="10">Eliminates artificial coordinate torque</text>
-
-      <!-- Card 4 -->
-      <rect x="0" y="234" width="280" height="74" rx="10" fill="#FFFBEB" stroke="#FDE68A" stroke-width="1" />
-      <text x="14" y="258" fill="#92400E" font-size="12" font-weight="700">4. Path Pre-relaxation &amp; Guess</text>
-      <text x="14" y="276" fill="#78350F" font-size="11">• Coupled NEB-IDPP / Light Mode</text>
-      <text x="14" y="294" fill="#B45309" font-size="10">Midpoint transition-state guess extraction</text>
-    </g>
-  </g>
-
-  <!-- ========================================== -->
-  <!-- 3. BOTTOM BLOCK: In-House HPC System -->
-  <!-- ========================================== -->
-  <g transform="translate(190, 680)">
-    <!-- Outer Container -->
-    <rect x="0" y="0" width="900" height="205" rx="16" fill="#FFFFFF" stroke="#C4B5FD" stroke-width="2" filter="url(#card-shadow)" />
-    
-    <!-- Title Tag -->
-    <rect x="24" y="-14" width="390" height="28" rx="6" fill="#7C3AED" />
-    <text x="36" y="5" fill="#FFFFFF" font-size="12" font-weight="700" letter-spacing="0.5">BOTTOM: IN-HOUSE COMPUTATIONAL HPC SYSTEM</text>
-    
-    <!-- Sub-box 1: Queue & Capacity Pool -->
-    <g transform="translate(24, 28)">
-      <rect x="0" y="0" width="265" height="155" rx="12" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.5" />
-      <rect x="14" y="14" width="140" height="20" rx="4" fill="#7C3AED" />
-      <text x="20" y="28" fill="#FFFFFF" font-size="11" font-weight="700">Capacity &amp; Scheduler</text>
-      <text x="14" y="56" fill="#4C1D95" font-size="12" font-weight="600">Strict Capacity Pools</text>
-      <text x="14" y="74" fill="#6D28D9" font-size="11">• Node-level concurrency quotas</text>
-      <text x="14" y="92" fill="#6D28D9" font-size="11">• Anti-drift host pinning</text>
-      <text x="14" y="110" fill="#6D28D9" font-size="11">• Decoupled web API &amp; scheduler</text>
-      <text x="14" y="136" fill="#8B5CF6" font-size="10">Safe graceful termination</text>
-    </g>
-
-    <!-- Sub-box 2: Immutable Accounting -->
-    <g transform="translate(315, 28)">
-      <rect x="0" y="0" width="265" height="155" rx="12" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.5" />
-      <rect x="14" y="14" width="130" height="20" rx="4" fill="#7C3AED" />
-      <text x="20" y="28" fill="#FFFFFF" font-size="11" font-weight="700">ComputeDB Ledger</text>
-      <text x="14" y="56" fill="#4C1D95" font-size="12" font-weight="600">Durable Checkpointing</text>
-      <text x="14" y="74" fill="#6D28D9" font-size="11">• Immutable SHA-256 inputs</text>
-      <text x="14" y="92" fill="#6D28D9" font-size="11">• Natural idempotency &amp; deduplication</text>
-      <text x="14" y="110" fill="#6D28D9" font-size="11">• Resumption receipt tracking</text>
-      <text x="14" y="136" fill="#8B5CF6" font-size="10">Zero duplicate quantum compute</text>
-    </g>
-
-    <!-- Sub-box 3: Process Guardians & Native Engines -->
-    <g transform="translate(605, 28)">
-      <rect x="0" y="0" width="270" height="155" rx="12" fill="#F5F3FF" stroke="#DDD6FE" stroke-width="1.5" />
-      <rect x="14" y="14" width="150" height="20" rx="4" fill="#7C3AED" />
-      <text x="20" y="28" fill="#FFFFFF" font-size="11" font-weight="700">Engine Execution</text>
-      <text x="14" y="56" fill="#4C1D95" font-size="12" font-weight="600">Multi-Engine Dispatch</text>
-      <text x="14" y="74" fill="#6D28D9" font-size="11">• Native ORCA / Gaussian / xTB</text>
-      <text x="14" y="92" fill="#6D28D9" font-size="11">• File exclusive locks (flocks)</text>
-      <text x="14" y="110" fill="#6D28D9" font-size="11">• Exit-code != Scientific validity</text>
-      <text x="14" y="136" fill="#8B5CF6" font-size="10">Guaranteed process liveness</text>
-    </g>
-  </g>
-
-  <!-- ========================================== -->
-  <!-- 4. LEFT BLOCK: Scientific Verification -->
-  <!-- ========================================== -->
-  <g transform="translate(30, 280)">
-    <!-- Outer Container -->
-    <rect x="0" y="0" width="320" height="360" rx="16" fill="#FFFFFF" stroke="#6EE7B7" stroke-width="2" filter="url(#card-shadow)" />
-    
-    <!-- Title Tag -->
-    <rect x="20" y="-14" width="280" height="28" rx="6" fill="#059669" />
-    <text x="32" y="5" fill="#FFFFFF" font-size="12" font-weight="700" letter-spacing="0.5">LEFT: SCIENTIFIC VERIFICATION</text>
-    
-    <!-- Sub-cards -->
-    <g transform="translate(20, 28)">
-      <!-- Card 1 -->
-      <rect x="0" y="0" width="280" height="68" rx="10" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1" />
-      <text x="14" y="24" fill="#065F46" font-size="12" font-weight="700">1. Hessian Spectral Condition</text>
-      <text x="14" y="42" fill="#047857" font-size="11">• Strictly 1 imaginary frequency (ν &lt; 0)</text>
-      <text x="14" y="58" fill="#059669" font-size="10">Rejects local minima &amp; higher-order saddles</text>
-      
-      <!-- Card 2 -->
-      <rect x="0" y="78" width="280" height="68" rx="10" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1" />
-      <text x="14" y="102" fill="#065F46" font-size="12" font-weight="700">2. Normal-Mode Vector Projection</text>
-      <text x="14" y="120" fill="#047857" font-size="11">• Displacement projected on Watch-Pairs</text>
-      <text x="14" y="136" fill="#059669" font-size="10">Filters out spectator methyl wagging modes</text>
-
-      <!-- Card 3 -->
-      <rect x="0" y="156" width="280" height="68" rx="10" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1" />
-      <text x="14" y="180" fill="#065F46" font-size="12" font-weight="700">3. Bidirectional Short-IRC Proof</text>
-      <text x="14" y="198" fill="#047857" font-size="11">• Dual-endpoint zero-imaginary re-relaxation</text>
-      <text x="14" y="214" fill="#059669" font-size="10">Proves continuous differential path to R &amp; P</text>
-
-      <!-- Card 4 -->
-      <rect x="0" y="234" width="280" height="74" rx="10" fill="#ECFDF5" stroke="#A7F3D0" stroke-width="1" />
-      <text x="14" y="258" fill="#065F46" font-size="12" font-weight="700">4. Multi-Layer Intercept Walls</text>
-      <text x="14" y="276" fill="#047857" font-size="11">• Engine → Tool → DAG → Supervisor</text>
-      <text x="14" y="294" fill="#059669" font-size="10">Zero false deliveries on impossible tasks</text>
-    </g>
-  </g>
-
-  <!-- ========================================== -->
-  <!-- 5. CENTER: Cloudra Emblem & Core Hub -->
-  <!-- ========================================== -->
-  <g transform="translate(480, 300)">
-    <!-- Hub Container -->
-    <rect x="0" y="0" width="320" height="320" rx="24" fill="#FFFFFF" stroke="#10B981" stroke-width="2" filter="url(#card-shadow)" />
-    
-    <!-- Cloudra Desktop Handcrafted Emblem with DAG, PES & Wordmark -->
-    <svg x="25" y="10" width="270" height="270" viewBox="326 60 865 909">
-<g id="exploration-layer" inkscape:groupmode="layer" inkscape:label="DAG and potential-energy surface">
+  <g id="exploration-layer" inkscape:groupmode="layer" inkscape:label="DAG and potential-energy surface">
     <g id="exploration" stroke-linecap="round" stroke-linejoin="round">
       <g id="explore-potential-surface">
         <path id="explore-surface-fill" d="M 451,491 C 515,488 579,557 673,471 C 684,509 724,526 761,514 C 700,553 653,620 574,603 C 516,590.518987 504,508 451,491 Z" fill="url(#explore-surface-gold)" />
@@ -451,40 +339,8 @@
       </g>
     </g>
   </g>
-    </svg>
-
-    <!-- Runtime Orchestrator Badge -->
-    <rect x="40" y="282" width="240" height="24" rx="6" fill="#ECFDF5" stroke="#059669" stroke-width="1.2" />
-    <text x="160" y="298" fill="#065F46" font-size="10.5" font-weight="700" text-anchor="middle">Runtime Orchestrator &amp; SOP Engine</text>
+</svg>
+    <text x="720" y="666" text-anchor="middle" font-size="22" font-weight="600">Coordinator</text>
+    <text class="note" x="720" y="695" text-anchor="middle">Delegate · integrate</text>
   </g>
-
-  <!-- ========================================== -->
-  <!-- 6. CLOCKWISE CONNECTING WORKFLOW ARROWS    -->
-  <!-- ========================================== -->
-  
-  <!-- Arrow 1: Top (DAG) -> Right (PES) -->
-  <path d="M 1090 190 C 1170 190, 1170 240, 1150 280" fill="none" stroke="#2563EB" stroke-width="3.5" marker-end="url(#arrow-blue)" />
-  <rect x="1135" y="220" width="110" height="22" rx="4" fill="#FFFFFF" stroke="#BFDBFE" stroke-width="1" />
-  <text x="1190" y="235" fill="#1E40AF" font-size="10" font-weight="700" text-anchor="middle">Step Query</text>
-
-  <!-- Arrow 2: Right (PES) -> Bottom (HPC) -->
-  <path d="M 1090 640 C 1130 680, 1110 740, 1090 750" fill="none" stroke="#D97706" stroke-width="3.5" marker-end="url(#arrow-amber)" />
-  <rect x="1090" y="695" width="110" height="22" rx="4" fill="#FFFFFF" stroke="#FDE68A" stroke-width="1" />
-  <text x="1145" y="710" fill="#92400E" font-size="10" font-weight="700" text-anchor="middle">Job Dispatch</text>
-
-  <!-- Arrow 3: Bottom (HPC) -> Left (Verification) -->
-  <path d="M 190 760 C 130 760, 110 700, 110 640" fill="none" stroke="#7C3AED" stroke-width="3.5" marker-end="url(#arrow-purple)" />
-  <rect x="65" y="695" width="115" height="22" rx="4" fill="#FFFFFF" stroke="#DDD6FE" stroke-width="1" />
-  <text x="122" y="710" fill="#5B21B6" font-size="10" font-weight="700" text-anchor="middle">Native Logs</text>
-
-  <!-- Arrow 4: Left (Verification) -> Top (DAG Binding & Recovery) -->
-  <path d="M 110 280 C 110 210, 130 190, 190 190" fill="none" stroke="#059669" stroke-width="3.5" marker-end="url(#arrow-emerald)" />
-  <rect x="65" y="215" width="125" height="24" rx="4" fill="#FFFFFF" stroke="#A7F3D0" stroke-width="1" />
-  <text x="127" y="231" fill="#065F46" font-size="10" font-weight="700" text-anchor="middle">Evidence Binding</text>
-
-  <!-- Guided Feedback Self-Healing Inner Return Loop -->
-  <path d="M 350 430 C 420 430, 440 280, 390 240" fill="none" stroke="#EF4444" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#arrow-emerald)" />
-  <rect x="360" y="325" width="110" height="20" rx="4" fill="#FEF2F2" stroke="#FECACA" stroke-width="1" />
-  <text x="415" y="339" fill="#991B1B" font-size="9" font-weight="700" text-anchor="middle">Guided Diagnostics</text>
-
 </svg>
