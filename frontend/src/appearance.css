@@ -116,28 +116,28 @@
   --molecule-label-shadow: rgba(0, 0, 0, 0.95);
 }
 
-/* Acid 取参考图的纸白、浅黄绿框、橄榄细线与柠檬黄顶条。 */
+/* Acid 保留参考图的纸白与橄榄色，浅绿只区分导航、选中态和输入内容。 */
 :root[data-appearance='acid'] {
   color-scheme: light;
   --bg: #ffffff;
   --bg-main: #ffffff;
-  --bg-panel: #f7f9ee;
+  --bg-panel: #ffffff;
   --bg-layer: #ffffff;
-  --bg-layer-2: #edf3d8;
-  --bg-hover: #eff5dc;
-  --bg-inset: #f4f7e8;
+  --bg-layer-2: #f0f4e4;
+  --bg-hover: #f4f7eb;
+  --bg-inset: #f8faf4;
   --fg: #303b27;
   --fg-secondary: #4a5c3b;
   --fg-tertiary: #5d704c;
   --fg-faint: #657553;
   --fg-muted: var(--fg-faint);
-  --border: #d3dec0;
-  --border-strong: #a7bb87;
+  --border: #e1e7d7;
+  --border-strong: #b7c5a3;
   --border-hover: #778f50;
-  --border-subtle: #e0e7d3;
+  --border-subtle: #e9ede2;
   --accent: #617b3f;
   --accent-contrast: #ffffff;
-  --accent-dim: #edf3d4;
+  --accent-dim: #f0f4df;
   --emerald: var(--accent);
   --emerald-soft: var(--accent);
   --emerald-dim: var(--accent-dim);
@@ -155,19 +155,19 @@
   --control-radius: 5px;
   --panel-shadow: none;
   --bubble-radius: 6px;
-  --bubble-bg: #f0f5dc;
+  --bubble-bg: #f3f6e9;
   --bubble-padding: 11px 15px;
   --bubble-border: 1px;
   --tool-radius: 5px;
   --tool-padding: 7px 11px;
-  --tool-shadow: inset 0 2px 0 #e0ed88;
+  --tool-shadow: none;
   --composer-radius: 8px;
   --composer-padding: 13px 15px 11px;
   --composer-border: 1px;
-  --composer-shadow: inset 0 4px 0 #d6eb58;
+  --composer-shadow: none;
   --dag-node-radius: 5px;
-  --molecule-bg-top: #fafcf2;
-  --molecule-bg-bottom: #edf3dc;
+  --molecule-bg-top: #fcfdf9;
+  --molecule-bg-bottom: #f4f7ea;
   --molecule-grid: rgba(100, 124, 69, 0.13);
   --molecule-placeholder: #5d704c;
   --molecule-wire: #536938;
@@ -305,16 +305,33 @@
 :root[data-appearance='punk'] :is(.console-subnav-btn.active, .view-mode-btn.active) { background: var(--accent); color: var(--accent-contrast); }
 :root[data-appearance='punk'] .btn.primary { border: 1px solid #a4dfb3; box-shadow: 2px 2px 0 #355940; }
 
-/* Acid：浅绿外面板包住白色内卡，细橄榄框和黄色顶条呼应参考图。 */
-:root[data-appearance='acid'] :is(.left-sidebar-head, .agentbar, .console-subnav-bar, .dag-topbar) { box-shadow: inset 0 3px 0 #d6eb58; }
-:root[data-appearance='acid'] :is(.dag-card, .ops-card, .portal-overview-card, .portal-agent-section, .modal) { border-top: 4px solid #d6eb58; }
-:root[data-appearance='acid'] :is(.ops-kpi-card, .portal-nav-card, .artifact-card, .tm-kpi-card, .tool-detail, .thinking-card, .program-card, .tool-row, .msg.assistant .msg-body, .composer) { background: #ffffff; }
-:root[data-appearance='acid'] :is(.dag-card-header, .ops-card-header, .portal-agent-header) { background: #f7f9ee; border-bottom: 1px solid #dce5cc; }
+/* Acid 用留白区分层级；黄色只标当前控制台页签，不再给每层容器加顶条。 */
+:root[data-appearance='acid'] :is(.left-sidebar, .right-sidebar) { background: #f8faf2; }
+:root[data-appearance='acid'] :is(.left-sidebar-head, .left-sidebar-foot, .right-sidebar-head, .ws-group-header) { background: transparent; }
+:root[data-appearance='acid'] .ws-group-header { border-color: transparent; }
+:root[data-appearance='acid'] :is(.agentbar, .console-subnav-bar, .dag-topbar) { background: #ffffff; }
+:root[data-appearance='acid'] .console-subnav-btn.active { box-shadow: inset 0 -2px 0 #c8dd4c; }
+:root[data-appearance='acid'] :is(.dag-card-header, .ops-card-header, .portal-agent-header) { background: transparent; border-bottom: 0; }
+:root[data-appearance='acid'] :is(.summary-pill-card, .ops-kpi-card, .tm-kpi-card) { background: transparent; border-color: transparent; box-shadow: none; }
+:root[data-appearance='acid'] .dag-sel .dag-node-rect { filter: none; }
+:root[data-appearance='acid'] .msg.user .msg-bubble { border-color: transparent; }
+:root[data-appearance='acid'] .msg.assistant .msg-body { background: transparent; border: 0; padding: 0; }
+:root[data-appearance='acid'] :is(.tool-row, .program-card) { background: transparent; border-color: transparent; box-shadow: none; }
+:root[data-appearance='acid'] .tool-row { font-family: var(--font); }
+:root[data-appearance='acid'] .tool-row:hover { background: var(--bg-hover); }
+:root[data-appearance='acid'] :is(.tool-detail, .thinking-card) { background: var(--bg-inset); border-color: transparent; box-shadow: none; }
+:root[data-appearance='acid'] .msg-sender { font-family: var(--font); }
+:root[data-appearance='acid'] .tool-detail-label { font-family: var(--font); letter-spacing: 0; }
+:root[data-appearance='acid'] .live-agent-pulse { background: transparent; box-shadow: none; border: 0; border-bottom: 1px solid var(--border-subtle); }
+:root[data-appearance='acid'] .viewer-3d-badge[role='note'] { color: var(--fg-tertiary); font-weight: 400; padding: 4px 14px 0; }
 :root[data-appearance='acid'] .modal-backdrop { background: rgba(99, 120, 65, 0.18); backdrop-filter: blur(4px); }
 :root[data-appearance='acid'] :is(.interaction-agent-tag, .interaction-banner-badge, .approval-tool-tag, .yolo-shortcut-btn, .yolo-shortcut-btn:hover, .kpi-number.amber, .agent-role-pill.role-research, .agent-status-badge.state-waiting) { color: var(--yellow); }
 :root[data-appearance='acid'] :is(.interaction-chip.reject-chip, .interaction-chip.reject-chip:hover, .reject-panel-title, .interaction-reject-btn, .interaction-reject-btn:hover, .agent-status-badge.state-failed) { color: var(--red); }
 :root[data-appearance='acid'] :is(.approval-command-box, .interaction-chip.default-chip, .interaction-chip.default-chip:hover, .agent-role-pill.role-compute, .agent-status-badge.state-running) { color: var(--green); }
 :root[data-appearance='acid'] :is(.kpi-number.purple, .agent-role-pill.role-super) { color: #70518c; }
+:root[data-appearance='acid'] .summary-pill-card .pill-num.cyan { color: var(--blue); }
+:root[data-appearance='acid'] .summary-pill-card .pill-num.purple { color: #70518c; }
+:root[data-appearance='acid'] .summary-pill-card .pill-num.amber { color: var(--yellow); }
 :root[data-appearance='acid'] :is(.agent-role-pill.role-coord, .jobtype-pill, .owner-tag) { color: var(--blue); }
 :root[data-appearance='acid'] :is(.agent-status-badge.state-idle, .agent-status-badge.state-cancelled) { color: var(--fg-tertiary); }
 :root[data-appearance='acid'] :is(.task-banner-text, .breadcrumb-task-text) { color: var(--accent); }
