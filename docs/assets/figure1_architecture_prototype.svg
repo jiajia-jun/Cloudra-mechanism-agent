@@ -106,7 +106,7 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
 <g transform="translate(1100 1136)" class="sketch"><path d="M6 0 H43 L58 15 V68 H6 Z" fill="#f1f5e3"/><path d="M43 0 V15 H58 M0 9 V76 H49 M17 29 H45 M17 40 H45 M17 51 H34"/></g>
 <text x="1180" y="1155" class="detail" >ORCA · Gaussian · xTB</text>
 <text x="1180" y="1182" class="detail" >Native logs · file locks</text>
-<text x="1098" y="1242" class="detail" >Exit status ≠ scientific validity</text>
+<text x="1098" y="1242" class="detail" >Geometries · energies · frequencies</text>
 </g>
 <!-- 左列以科学问题组织；频率判据放入路径示意，模式组成保持诊断性质。 -->
 <g id="mechanistic-validation-and-refinement">
@@ -148,7 +148,6 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
 </g>
 <text x="170" y="678" class="detail">Pair projections · atomic motion</text>
 <text x="170" y="704" class="detail">Reaction-center contributions</text>
-<text x="170" y="739" class="note">Advisory interpretation only</text>
 </g>
 
 <!-- 冲突定位后修订相关假设与计算；修订结果仍需重新接受证据检验。 -->
@@ -164,7 +163,6 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
 </g>
 <text x="170" y="844" class="detail">Locate conflicting evidence</text>
 <text x="170" y="870" class="detail">Revise affected calculations</text>
-<text x="170" y="905" class="note">Recheck revised hypotheses</text>
 </g>
 </g>
 <path d="M482 854 C566 854 526 414 566 334" class="diagnostic"/>
