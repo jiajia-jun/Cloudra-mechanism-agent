@@ -101,6 +101,44 @@ assert.equal(afterThinkingPersist.streamThinkingLive, false);
 
 console.log('timeline.stream-thinking ok');
 
+// 取消不会再发 run.finished；已显示的内容要留在时间线，但不能继续标成正在输出。
+const cancelledStream = applyStreamEvent(view({
+  streamText: 'Already visible response.',
+  streamThinking: 'Already visible reasoning.',
+  streamThinkingLive: true,
+  streamThinkingSeq: 8.3,
+}), {
+  type: 'agent.cancelled',
+  session_seq: 10,
+  data: {},
+});
+assert.equal(cancelledStream.streamText, '');
+assert.equal(cancelledStream.streamThinkingLive, false);
+assert.equal(cancelledStream.streamThinking, 'Already visible reasoning.');
+assert.equal(cancelledStream.frozen[0].content, 'Already visible response.');
+assert.equal(cancelledStream.frozen[0].streaming, undefined);
+
+for (const type of ['run.started', 'run.retry']) {
+  const nextAttempt = applyStreamEvent(view({
+    streamText: 'Previous attempt narration.',
+    streamThinking: 'Previous attempt reasoning.',
+    streamThinkingLive: true,
+    streamThinkingSeq: 8.3,
+  }), { type, session_seq: 11, data: {} });
+  assert.equal(nextAttempt.streamText, '', `${type} ends old narration`);
+  assert.equal(nextAttempt.frozen[0].content, 'Previous attempt narration.');
+  assert.equal(nextAttempt.streamThinking, '', `${type} clears old transient reasoning`);
+  assert.equal(nextAttempt.streamThinkingLive, false);
+  assert.equal(nextAttempt.streamThinkingSeq, 0);
+  const nextThinking = applyStreamEvent(nextAttempt, {
+    type: 'llm.chunk', session_seq: 12, data: { kind: 'reasoning', delta: 'Fresh reasoning.' },
+  });
+  assert.equal(nextThinking.streamThinking, 'Fresh reasoning.');
+  assert.equal(nextThinking.streamThinkingSeq, 12.3);
+}
+
+console.log('timeline.stream-lifecycle ok');
+
 /* ------------------------------------------------------- image attachments */
 
 function ev(type: string, sessionSeq: number, data: Record<string, unknown>): EventEnvelope {

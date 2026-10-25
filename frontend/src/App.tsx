@@ -29,6 +29,7 @@ import {
 import { boundEventPage, boundStreamView, LiveEventBuffer, mergeAndTrimLiveEvents } from './eventWindow';
 import { composerInteractionFor, resolveComposerSendTarget } from './composerSend';
 import { planSseReconnect } from './sseReconnect';
+import { mergeAgentSnapshot, mergeProjectAgentSnapshot } from './agentState';
 import {
   archiveProjectConfirm,
   cancelAllComputeConfirm,
@@ -396,9 +397,9 @@ export default function App() {
   const activeProjectIdRef = useRef(activeProjectId);
   activeProjectIdRef.current = activeProjectId;
   const decisionSendingRef = useRef(false);
-  const pendingRevisionRef = useRef(0);
   const activeAgentIdRef = useRef(activeAgentId);
   const agentSelectionVersionRef = useRef(0);
+  const agentStateThroughRef = useRef(new Map<string, number>());
   const maxSeqRef = useRef(0);
 
   const projectsRef = useRef(projects);
@@ -539,6 +540,16 @@ export default function App() {
 
   /* ---------------------------------------------------- project switching */
 
+  const refreshAgentStates = useCallback(async (projectId: string) => {
+    const view = await api.projectView(projectId);
+    if (activeProjectIdRef.current !== projectId) return;
+    const latestSeq = new Map(agentStateThroughRef.current);
+    for (const agent of view.agents) {
+      agentStateThroughRef.current.set(agent.id, Math.max(latestSeq.get(agent.id) ?? 0, view.cursor));
+    }
+    setAgents((prev) => mergeProjectAgentSnapshot(prev, view.agents, view.cursor, latestSeq));
+  }, []);
+
   const selectProject = useCallback((projectId: string) => {
     setActiveProjectId(projectId);
   }, []);
@@ -588,17 +599,13 @@ export default function App() {
         flushRafRef.current = null;
       }
       try {
-        const detailsThrough = maxSeqRef.current;
+        const detailsThrough = agentStateThroughRef.current.get(agentId) ?? 0;
         const [agent, eventList] = await Promise.all([api.getAgent(agentId), api.events(agentId)]);
         if (version !== agentSelectionVersionRef.current) return;
-        const completionCurrent = maxSeqRef.current === detailsThrough;
-        setAgents((prev) => prev.some((current) => current.id === agentId) ? prev.map((current) => current.id === agentId ? {
-          ...agent,
-          state: current.state,
-          current_run: current.current_run,
-          current_task: current.current_task,
-          completion: current.current_run ? null : completionCurrent ? agent.completion : current.completion,
-        } : current) : [...prev, agent]);
+        const advanced = (agentStateThroughRef.current.get(agentId) ?? 0) !== detailsThrough;
+        setAgents((prev) => prev.some((current) => current.id === agentId)
+          ? prev.map((current) => current.id === agentId ? mergeAgentSnapshot(current, agent, advanced) : current)
+          : [...prev, agent]);
         const page = boundEventPage(eventList, EVENTS_WINDOW);
         setEvents((prev) => mergeAndTrimLiveEvents(prev, page, EVENTS_WINDOW).live);
         setHasOlder(eventList.length >= EVENTS_WINDOW || page.length < eventList.length);
@@ -616,8 +623,8 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     ++agentSelectionVersionRef.current;
-    ++pendingRevisionRef.current;
     setAgents([]);
+    agentStateThroughRef.current.clear();
     setProjectStream(null);
     activeAgentIdRef.current = null;
     setActiveAgentId(null);
@@ -636,6 +643,7 @@ export default function App() {
       .then((view) => {
         if (cancelled) return;
         const agents = dedupeAgents(view.agents);
+        for (const agent of agents) agentStateThroughRef.current.set(agent.id, view.cursor);
         setAgents(agents);
         setProjectStream({ projectId: activeProjectId, cursor: view.cursor });
         // A jump from the attention dock / a desktop notification overrides
@@ -698,6 +706,8 @@ export default function App() {
             cursor = Math.max(cursor, Number(event.data.replayed_through ?? 0));
             replaying = false;
             if (synced) {
+              // 重连既补聊天记录，也按同一 cursor 的权威快照校准所有 Agent。
+              void refreshAgentStates(activeProjectId).catch(() => undefined);
               const agentId = activeAgentIdRef.current;
               const version = agentSelectionVersionRef.current;
               if (agentId) void api.events(agentId).then((page) => {
@@ -722,8 +732,12 @@ export default function App() {
           }
           cursor = Math.max(cursor, event.seq);
         const sessionId = event.session_id;
+        const updateAgent = Boolean(sessionId && event.seq > (agentStateThroughRef.current.get(sessionId) ?? 0));
+        if (sessionId && event.seq > 0) {
+          agentStateThroughRef.current.set(sessionId, Math.max(agentStateThroughRef.current.get(sessionId) ?? 0, event.seq));
+        }
         // Agent list / chip state updates, regardless of selection.
-        if (event.type === 'agent.spawned' && activeProjectId) {
+        if (event.type === 'agent.spawned' && activeProjectId && updateAgent) {
           const spawned = { ...event.data, completion: null } as unknown as Agent;
           setAgents((prev) => prev.some((agent) => agent.id === spawned.id) ? prev : [...prev, spawned]);
           // Surface the new sub-agent: auto-expand its parent's chip.
@@ -732,19 +746,19 @@ export default function App() {
             setExpandedAgents((prev) => new Set(prev).add(parentId));
           }
         }
-        if (event.type === 'agent.state_changed' && sessionId) {
+        if (event.type === 'agent.state_changed' && sessionId && updateAgent) {
           const to = String(event.data.to ?? '');
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, state: to } : a))),
           );
         }
-        if (event.type === 'agent.task_updated' && sessionId) {
+        if (event.type === 'agent.task_updated' && sessionId && updateAgent) {
           const task = event.data?.current_task != null ? String(event.data.current_task) : null;
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_task: task } : a))),
           );
         }
-        if (event.type === 'run.started' && sessionId) {
+        if (event.type === 'run.started' && sessionId && updateAgent) {
           const runId = String(event.data.run_id ?? event.run_id ?? '');
           const protocol = event.data.invocation_protocol;
           setAgents((prev) =>
@@ -768,7 +782,7 @@ export default function App() {
             ),
           );
         }
-        if ((event.type === 'run.finished' || event.type === 'agent.cancelled') && sessionId) {
+        if ((event.type === 'run.finished' || event.type === 'agent.cancelled') && sessionId && updateAgent) {
           setAgents((prev) =>
             dedupeAgents(prev.map((a) => (a.id === sessionId ? { ...a, current_run: null } : a))),
           );
@@ -777,9 +791,9 @@ export default function App() {
           // 那个，其他 agent 在切换时补齐；不能覆盖 SSE 已推进的状态）。
           if (sessionId === activeAgentIdRef.current) {
             const version = agentSelectionVersionRef.current;
-            const through = event.session_seq ?? maxSeqRef.current;
+            const through = agentStateThroughRef.current.get(sessionId);
             void api.getAgent(sessionId).then((fresh) => {
-              if (closed || version !== agentSelectionVersionRef.current || maxSeqRef.current !== through) return;
+              if (closed || version !== agentSelectionVersionRef.current || agentStateThroughRef.current.get(sessionId) !== through) return;
               setAgents((prev) => prev.map((agent) => agent.id === sessionId
                 ? { ...agent, completion: agent.current_run ? null : fresh.completion } : agent));
             }).catch(() => undefined);
@@ -853,7 +867,7 @@ export default function App() {
     }
     source?.close();
   };
-}, [activeProjectId, projectStream, pushToast, refreshProjectPending]);
+}, [activeProjectId, projectStream, pushToast, refreshProjectPending, refreshAgentStates]);
 
   /* ------------------------------------- cross-project attention polling */
 
@@ -1049,18 +1063,11 @@ export default function App() {
       decisionSendingRef.current = false;
       setSending(false);
     }
-    const revision = ++pendingRevisionRef.current;
     pushToast('ok', t.interactionSentToast || 'Response sent to agent');
     removePendingItem(projectId, 'interactions', interactionId);
     void refreshProjectPending(projectId, true);
-    const selection = agentSelectionVersionRef.current;
-    const through = maxSeqRef.current;
     // The mutation succeeded. A failed refresh must not suggest resubmission.
-    void api.listAgents(projectId).then((sessions) => {
-      if (activeProjectIdRef.current !== projectId || pendingRevisionRef.current !== revision
-          || agentSelectionVersionRef.current !== selection || maxSeqRef.current !== through) return;
-      setAgents(dedupeAgents(sessions));
-    }).catch(() => undefined);
+    void refreshAgentStates(projectId).catch(() => undefined);
     return true;
   };
 
@@ -1082,17 +1089,10 @@ export default function App() {
       decisionSendingRef.current = false;
       setSending(false);
     }
-    const revision = ++pendingRevisionRef.current;
     pushToast('ok', decision === 'approve' ? t.approvalApprovedToast : t.approvalDeniedToast);
     removePendingItem(projectId, 'approvals', approvalId);
     void refreshProjectPending(projectId, true);
-    const selection = agentSelectionVersionRef.current;
-    const through = maxSeqRef.current;
-    void api.listAgents(projectId).then((sessions) => {
-      if (activeProjectIdRef.current !== projectId || pendingRevisionRef.current !== revision
-          || agentSelectionVersionRef.current !== selection || maxSeqRef.current !== through) return;
-      setAgents(dedupeAgents(sessions));
-    }).catch(() => undefined);
+    void refreshAgentStates(projectId).catch(() => undefined);
     return true;
   };
 
@@ -1314,6 +1314,15 @@ export default function App() {
     }
   }
 
+  function updateAgentSettings(updated: Agent[]) {
+    const byId = new Map(updated.map((agent) => [agent.id, agent]));
+    // 设置接口的响应可能早于最新 SSE，不能把它携带的旧运行态写回去。
+    setAgents((prev) => prev.map((agent) => {
+      const fresh = byId.get(agent.id);
+      return fresh ? mergeAgentSnapshot(agent, fresh, true) : agent;
+    }));
+  }
+
   async function handleSaveProjectSettings(patch: {
     orchestration_mode?: 'standard' | 'dag_record' | 'dag_guided';
     defaults?: Record<string, unknown>;
@@ -1353,9 +1362,7 @@ export default function App() {
           const updated = await Promise.all(
             targets.map((a) => api.patchSettings(a.id, { orchestration_mode: patch.orchestration_mode })),
           );
-          setAgents((prev) =>
-            dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
-          );
+          updateAgentSettings(updated.map((result) => result.data));
         }
       }
 
@@ -1369,7 +1376,7 @@ export default function App() {
   async function handleSaveAgentSettings(agentId: string, patch: Record<string, unknown>) {
     try {
       const resp = await api.patchSettings(agentId, patch);
-      setAgents((prev) => dedupeAgents(prev.map((a) => (a.id === agentId ? resp.data : a))));
+      updateAgentSettings([resp.data]);
       pushToast('ok', `Agent 设置已更新: ${resp.data.display_name}`);
     } catch (e) {
       reportError(e);
@@ -1381,12 +1388,10 @@ export default function App() {
     const id = targetId ?? activeAgent?.id;
     const name = displayName ?? (targetId ? (agents.find((a) => a.id === targetId)?.display_name ?? targetId) : activeAgent?.display_name);
     if (!id) return;
+    const projectId = activeProjectId;
     try {
       await api.cancel(id);
-      if (activeProjectId) {
-        const list = await api.listAgents(activeProjectId);
-        setAgents(dedupeAgents(list));
-      }
+      if (projectId) await refreshAgentStates(projectId);
       pushToast('ok', `Cancelled ${name ?? id}`);
     } catch (e) {
       reportError(e);
@@ -1412,9 +1417,7 @@ export default function App() {
       );
       const updated = await Promise.all(targets.map((a) => api.patchSettings(a.id, { schedule_mode: checked })));
       if (updated.length > 0) {
-        setAgents((prev) =>
-          dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
-        );
+        updateAgentSettings(updated.map((result) => result.data));
       }
       pushToast('ok', `Schedule mode ${checked ? 'on' : 'off'} (project-wide)`);
     } catch (e) {
@@ -1444,9 +1447,7 @@ export default function App() {
       );
       const updated = await Promise.all(targets.map((a) => api.patchSettings(a.id, { yolo: checked })));
       if (updated.length > 0) {
-        setAgents((prev) =>
-          dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
-        );
+        updateAgentSettings(updated.map((result) => result.data));
       }
       pushToast('ok', `YOLO ${checked ? 'on' : 'off'} (project-wide)`);
     } catch (e) {
@@ -1482,9 +1483,7 @@ export default function App() {
         targets.map((a) => api.patchSettings(a.id, { invocation_protocol: protocol })),
       );
       if (updated.length > 0) {
-        setAgents((prev) =>
-          dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
-        );
+        updateAgentSettings(updated.map((result) => result.data));
       }
       pushToast('ok', `Invocation protocol → ${protocol} (project-wide; next run)`);
     } catch (e) {
@@ -1514,9 +1513,7 @@ export default function App() {
       );
       const updated = await Promise.all(targets.map((a) => api.patchSettings(a.id, { visual_mode: checked })));
       if (updated.length > 0) {
-        setAgents((prev) =>
-          dedupeAgents(prev.map((a) => updated.find((u) => u.data.id === a.id)?.data ?? a)),
-        );
+        updateAgentSettings(updated.map((result) => result.data));
       }
       pushToast('ok', `Visual mode ${checked ? 'on' : 'off'} (project-wide)`);
     } catch (e) {
@@ -1559,6 +1556,7 @@ export default function App() {
 
   /* ------------------------------------------------------------ rendering */
 
+  const agentRunning = activeAgent?.state === 'running';
   const sessionEvents = useMemo(
     () =>
       activeAgentId
@@ -1599,7 +1597,7 @@ export default function App() {
         sender: 'assistant',
         senderLabel: activeAgent?.display_name ?? 'assistant',
         content: streamView.streamText,
-        streaming: true,
+        streaming: agentRunning,
       });
     }
     if (streamView.streamThinking) {
@@ -1617,7 +1615,7 @@ export default function App() {
           id: 'stream-thinking',
           seq: streamView.streamThinkingSeq || maxSeqRef.current + 0.3,
           text: st,
-          live: Boolean(streamView.streamThinkingLive),
+          live: agentRunning && Boolean(streamView.streamThinkingLive),
         });
       }
     }
@@ -1632,6 +1630,7 @@ export default function App() {
     streamView.streamThinkingSeq,
     pendingMessages,
     activeAgent?.display_name,
+    agentRunning,
     olderEvents.length,
   ]);
   const runningTool = useMemo(
@@ -1649,12 +1648,22 @@ export default function App() {
     },
     [timeline],
   );
-  const liveThinking = Boolean(streamView.streamThinkingLive);
+  const liveThinking = agentRunning && Boolean(streamView.streamThinkingLive);
 
   const currentAgentActivity = useMemo<{
     type: 'generating' | 'running_tool' | 'waiting' | 'thinking' | 'running' | 'idle';
     label: string;
   }>(() => {
+    // 历史工具行和已到达的分片不能替代 Agent 的当前生命周期状态。
+    if (activeAgent?.state === 'waiting_approval') {
+      return { type: 'waiting', label: 'Waiting for approval' };
+    }
+    if (activeAgent?.state === 'waiting_input') {
+      return { type: 'waiting', label: 'Waiting for user input' };
+    }
+    if (activeAgent?.state !== 'running') {
+      return { type: 'idle', label: 'Ready' };
+    }
     if (streamView.streamText) {
       return { type: 'generating', label: 'Streaming response…' };
     }
@@ -1667,16 +1676,7 @@ export default function App() {
     if (liveThinking) {
       return { type: 'thinking', label: 'Reasoning / Thinking…' };
     }
-    if (activeAgent?.state === 'running') {
-      return { type: 'running', label: 'Processing turn…' };
-    }
-    if (activeAgent?.state === 'waiting_approval') {
-      return { type: 'waiting', label: 'Waiting for approval' };
-    }
-    if (activeAgent?.state === 'waiting_input') {
-      return { type: 'waiting', label: 'Waiting for user input' };
-    }
-    return { type: 'idle', label: 'Ready' };
+    return { type: 'running', label: 'Processing turn…' };
   }, [streamView.streamText, runningTool, liveThinking, activeAgent?.state]);
 
   // Agent tree: sub-agents fold under their parent's chip in the agent bar.

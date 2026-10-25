@@ -48,7 +48,7 @@ test('active project and attention share one pending read per fallback poll', as
   expect(interactions).toBe(1);
   await page.clock.runFor(5_100);
   await expect.poll(() => approvals).toBe(2);
-  expect(interactions).toBe(2);
+  await expect.poll(() => interactions).toBe(2);
 });
 
 test('slow pending reads do not overlap or grow on subsequent polling ticks', async ({ page }) => {

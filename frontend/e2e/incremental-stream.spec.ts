@@ -249,7 +249,10 @@ test('forum reconnect carries persisted events and synced watermarks without ref
 
 test('a spawned agent receives subsequent task and run transitions before sync completes', async ({ page }) => {
   const requests = await setup(page);
-  await page.route(`**/api/v2/agents/${WORKER.id}`, (route) => route.fulfill({ json: WORKER }));
+  await page.route(`**/api/v2/agents/${WORKER.id}`, (route) => route.fulfill({ json: {
+    ...WORKER, state: 'running', current_task: 'new worker task',
+    current_run: { run_id: 'new-worker-run', started_at: '2026-10-17T00:00:00Z' },
+  } }));
   await openProject(page);
   await expect.poll(() => page.evaluate(() => (window as unknown as { sources: Source[] }).sources.length)).toBe(1);
   await page.evaluate(({ worker, projectId }) => {
@@ -333,4 +336,132 @@ test('a successful spawn selects its fetched agent even when the stream echo is 
   await page.getByTestId('composer-input').fill('start the project');
   await page.getByTestId('composer-input').press('Enter');
   await expect(page.locator('.breadcrumb-agent-name')).toHaveText(AGENT.display_name);
+});
+
+for (const kind of ['reasoning', 'content'] as const) {
+  test(`cancelling a ${kind} stream stops live activity while retaining the partial text`, async ({ page }) => {
+    const running = { ...AGENT, state: 'running', current_run: { run_id: 'stream-run', started_at: '2026-10-17T00:00:00Z' } };
+    await setup(page, [running]);
+    let stopped = false;
+    await page.route(`**/api/v2/agents/${AGENT.id}`, (route) => route.fulfill({ json: stopped ? { ...running, state: 'cancelled', current_run: null } : running }));
+    await openProject(page);
+    await synced(page);
+    const partialText = `partial ${kind} before cancellation`;
+    await emit(page, { ...event(0, ''), type: 'llm.chunk', session_seq: null,
+      data: { kind, delta: partialText } });
+    await expect(page.locator(`.live-agent-pulse.${kind === 'reasoning' ? 'thinking' : 'generating'}`)).toHaveCount(1);
+    stopped = true;
+    await emit(page, { ...event(101, ''), type: 'agent.state_changed', data: { to: 'cancelled' } });
+    await emit(page, { ...event(102, ''), type: 'agent.cancelled', data: { session_id: AGENT.id } });
+    await expect(page.locator('.breadcrumb-agent .state-dot.cancelled')).toHaveCount(1);
+    await expect(page.locator('.live-agent-pulse.idle')).toHaveCount(1);
+    await expect(page.locator('.thinking-card.live, .msg.streaming')).toHaveCount(0);
+    await expect(page.getByText(partialText, { exact: true })).toBeVisible();
+  });
+}
+
+test('selecting an agent reconciles a stale running list entry with its stopped snapshot', async ({ page }) => {
+  const worker = { ...WORKER, state: 'running' };
+  await setup(page, [AGENT, worker]);
+  await page.route(`**/api/v2/agents/${WORKER.id}`, (route) => route.fulfill({ json: { ...worker, state: 'cancelled' } }));
+  await openProject(page);
+  await synced(page);
+  await page.locator('.breadcrumb-agent-select').selectOption(WORKER.id);
+  await expect(page.locator('.breadcrumb-agent-wrap .state-dot.cancelled')).toHaveCount(1);
+  await expect(page.locator('.live-agent-pulse.idle')).toHaveCount(1);
+});
+
+test('a slow selected-agent snapshot cannot overwrite a newer stopped stream state', async ({ page }) => {
+  const worker = { ...WORKER, state: 'running' };
+  await setup(page, [AGENT, worker]);
+  let release: (() => void) | undefined;
+  await page.route(`**/api/v2/agents/${WORKER.id}`, async (route) => {
+    await new Promise<void>((resolve) => { release = resolve; });
+    await route.fulfill({ json: worker });
+  });
+  await openProject(page);
+  await synced(page);
+  await page.locator('.breadcrumb-agent-select').selectOption(WORKER.id);
+  await expect.poll(() => Boolean(release)).toBe(true);
+  await emit(page, { ...event(101, '', WORKER.id), type: 'agent.state_changed', data: { to: 'cancelled' } });
+  await expect(page.locator('.breadcrumb-agent-wrap .state-dot.cancelled')).toHaveCount(1);
+  const response = page.waitForResponse((response) => response.url().endsWith(`/agents/${WORKER.id}`));
+  release!();
+  await response;
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.locator('.breadcrumb-agent-wrap .state-dot.cancelled')).toHaveCount(1);
+});
+
+test('reconnect reconciles stopped agents across the whole project without requiring a missed event', async ({ page }) => {
+  const runningAgents = [AGENT, WORKER].map((agent) => ({ ...agent, state: 'running' }));
+  await setup(page, runningAgents);
+  let disconnected = false;
+  let viewReads = 0;
+  await page.route('**/api/v2/projects/*/view', (route) => {
+    viewReads++;
+    return route.fulfill({ json: { agents: disconnected
+      ? runningAgents.map((agent) => ({ ...agent, state: 'cancelled', current_run: null }))
+      : runningAgents, cursor: disconnected ? 150 : 100 } });
+  });
+  await openProject(page);
+  await synced(page);
+  await expect(page.locator('.breadcrumb-agent-wrap .state-dot.running')).toHaveCount(1);
+  const partialReasoning = 'partial reasoning before the connection was lost';
+  await emit(page, { ...event(0, ''), type: 'llm.chunk', session_seq: null,
+    data: { kind: 'reasoning', delta: partialReasoning } });
+  await expect(page.locator('.thinking-card.live')).toHaveCount(1);
+  disconnected = true;
+  await page.evaluate(() => (window as unknown as { sources: Source[] }).sources.at(-1)!.fail());
+  await expect.poll(() => page.evaluate(() => (window as unknown as { sources: Source[] }).sources.length)).toBe(2);
+  await emit(page, { ...event(120, ''), type: 'agent.state_changed', data: { to: 'running' } });
+  await synced(page, 150);
+  await expect(page.locator('.breadcrumb-agent-wrap .state-dot.cancelled')).toHaveCount(1);
+  await expect(page.locator('.live-agent-pulse.idle')).toHaveCount(1);
+  await expect(page.locator('.thinking-card.live')).toHaveCount(0);
+  await expect(page.getByText(partialReasoning, { exact: true })).toBeVisible();
+  await emit(page, { ...event(140, ''), type: 'agent.state_changed', data: { to: 'running' } });
+  await expect(page.locator('.breadcrumb-agent-wrap .state-dot.cancelled')).toHaveCount(1);
+  await page.getByRole('button', { name: '控制台', exact: true }).click();
+  await page.getByRole('button', { name: '项目总览', exact: true }).click();
+  await expect(page.locator('.portal-agent-card').filter({ hasText: WORKER.display_name }).locator('.state-badge')).toHaveText('cancelled');
+  expect(viewReads).toBe(2);
+});
+
+test('reconnect snapshot keeps newer stream state beyond its cursor while reconciling other agents', async ({ page }) => {
+  const runningAgents = [AGENT, WORKER].map((agent) => ({ ...agent, state: 'running' }));
+  await setup(page, runningAgents);
+  let reads = 0;
+  let release: (() => void) | undefined;
+  await page.route('**/api/v2/projects/*/view', async (route) => {
+    const reconnect = ++reads === 2;
+    if (reconnect) await new Promise<void>((resolve) => { release = resolve; });
+    await route.fulfill({ json: { agents: reconnect
+      ? runningAgents.map((agent) => ({ ...agent, state: 'cancelled', current_run: null }))
+      : runningAgents, cursor: reconnect ? 150 : 100 } });
+  });
+  await openProject(page);
+  await synced(page);
+  await page.evaluate(() => (window as unknown as { sources: Source[] }).sources.at(-1)!.fail());
+  await expect.poll(() => page.evaluate(() => (window as unknown as { sources: Source[] }).sources.length)).toBe(2);
+  await synced(page, 150);
+  await expect.poll(() => Boolean(release)).toBe(true);
+  await emit(page, { ...event(151, '', WORKER.id), type: 'agent.state_changed', data: { to: 'running' } });
+  const response = page.waitForResponse((response) => response.url().endsWith(`/projects/${PROJECT_ACTIVE.id}/view`));
+  release!();
+  await response;
+  await expect(page.locator('.breadcrumb-agent-wrap .state-dot.cancelled')).toHaveCount(1);
+  await page.getByRole('button', { name: '控制台', exact: true }).click();
+  await page.getByRole('button', { name: '项目总览', exact: true }).click();
+  await expect(page.locator('.portal-agent-card').filter({ hasText: WORKER.display_name }).locator('.state-badge.running')).toHaveCount(1);
+});
+
+test('a stopped agent does not report an unfinished historical tool as current activity', async ({ page }) => {
+  await setup(page);
+  await page.route('**/api/v2/agents/*/events?**', (route) => route.fulfill({ json: [{
+    ...event(90, ''), type: 'tool.started', data: { tool_name: 'text_reader', tool_call_id: 'historical-tool' },
+  }] }));
+  await openProject(page);
+  await synced(page);
+  await expect(page.locator('.tool-name').filter({ hasText: 'text_reader' })).toHaveCount(1);
+  await expect(page.locator('.live-agent-pulse.idle')).toHaveCount(1);
 });

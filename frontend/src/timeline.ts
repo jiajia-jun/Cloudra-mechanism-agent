@@ -106,6 +106,7 @@ function freezeStream(view: StreamView, seq: number): StreamView {
     return { ...view, streamText: '' };
   }
   return {
+    ...view,
     streamText: '',
     frozen: [
       ...view.frozen,
@@ -166,11 +167,22 @@ export function applyStreamEvent(
     }
     return view;
   }
+  if (event.type === 'run.started' || event.type === 'run.retry') {
+    // 新 run / 新尝试不能沿用上一次未持久化的思考，否则新分片会拼进旧文本。
+    return {
+      ...freezeStream(view, event.session_seq ?? 0),
+      streamThinking: '',
+      streamThinkingLive: false,
+      streamThinkingSeq: 0,
+    };
+  }
   if (
     event.type === 'llm.request_started' ||
     event.type === 'run.finished' ||
+    event.type === 'agent.cancelled' ||
     event.type === 'llm.failed'
   ) {
+    // 取消只发 agent.cancelled，不发 run.finished；两条路径同样结束实时显示。
     const frozenView = freezeStream(view, event.session_seq ?? 0);
     return {
       ...frozenView,
