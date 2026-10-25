@@ -1,124 +1,145 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="architecture-title architecture-desc">
-  <title id="architecture-title">Cloudra: evidence-guided mechanism exploration</title>
-  <desc id="architecture-desc">A clockwise cycle links the mechanism DAG, geometry and pathway search, quantum chemistry, and scientific evidence. The coordinator delegates work and integrates results. A transition state requires one imaginary frequency; both IRC endpoints are optimized and checked for zero imaginary frequencies. Mode inspection remains advisory.</desc>
-  <defs>
-    <style>
-      text { font-family: Arial, Helvetica, sans-serif; fill: #293323; }
-      .panel { fill: #fbfcf7; stroke: #c9d1bb; stroke-width: 1.4; }
-      .title { font-size: 23px; font-weight: 600; }
-      .index { font-family: Georgia, 'Times New Roman', serif; font-size: 23px; font-style: italic; }
-      .body { font-size: 18px; }
-      .note { font-size: 15px; fill: #626e54; }
-      .rule { stroke: #d8dfca; stroke-width: 1.2; }
-      .flow { fill: none; stroke: #64743e; stroke-width: 1.8; marker-end: url(#architecture-arrow); }
-      .sketch { fill: none; stroke: #536738; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-      .guide { fill: none; stroke: #bbc5a8; stroke-width: 1.3; stroke-dasharray: 3 6; }
-      .node { fill: #fff; stroke: #64743e; stroke-width: 1.6; }
-      .accent { fill: #d9ef55; stroke: #64743e; stroke-width: 1.6; }
-    </style>
-    <marker id="architecture-arrow" viewBox="0 0 9 8" refX="8" refY="4" markerWidth="7" markerHeight="6" orient="auto">
-      <path d="M1 1 L8 4 L1 7" fill="none" stroke="#64743e" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/>
-    </marker>
-  </defs>
-  <rect width="1440" height="1000" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1800" height="1320" viewBox="0 0 1800 1320" role="img" aria-labelledby="architecture-title architecture-desc">
+<title id="architecture-title">Cloudra architecture: hypotheses, computation and scientific evidence</title>
+<desc id="architecture-desc">Four nested modules surround Cloudra's runtime orchestrator and SOP engine: scientific input and delivery DAG; atom mapping, steric traversal, rigid alignment and pathway preparation; scheduling, a durable compute ledger and engine execution; Hessian, mode, short-IRC and evidence checks. Solid arrows show the research cycle. A dashed return carries guided diagnostics. Diagrams are schematic. Transition states annotate reaction-step edges in the delivery DAG. Mode relevance is advisory; short-IRC evidence requires true endpoint optimization and frequency links.</desc>
+<defs>
+<style>
+text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
+.outer {fill:#f7f9ef;stroke:#afbd97;stroke-width:1.5;}
+.inner {fill:#fff;stroke:#d2dac6;stroke-width:1.2;}
+.section {font-size:26px;font-weight:600;}
+.index {font-family:Georgia,'Times New Roman',serif;font-style:italic;font-size:26px;}
+.heading {font-size:20px;font-weight:600;}
+.body {font-size:18px;}
+.detail {font-size:15.5px;fill:#59694b;}
+.note {font-size:14.5px;fill:#657456;}
+.rule {fill:none;stroke:#d0d9c1;stroke-width:1.2;}
+.sketch {fill:none;stroke:#607646;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.node {fill:#fff;stroke:#607646;stroke-width:1.7;}
+.accent {fill:#d7e955;stroke:#607646;stroke-width:1.7;}
+.flow {fill:none;stroke:#667c45;stroke-width:2;marker-end:url(#architecture-arrow);}
+.diagnostic {fill:none;stroke:#8c9953;stroke-width:1.8;stroke-dasharray:5 6;marker-end:url(#architecture-arrow);}
+</style>
+<marker id="architecture-arrow" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="7" markerHeight="6" orient="auto"><path d="M1 1 L9 4 L1 7" fill="none" stroke="#667c45" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<rect width="1800" height="1320" fill="#fff"/>
 
-  <!-- 四个模块按顺时针排列；连接线停在框体外，避免穿过正文。 -->
-  <g id="research-cycle">
-    <path class="flow" d="M1100 150 H1194 Q1238 150 1238 194 V316"/>
-    <path class="flow" d="M1238 670 V806 Q1238 850 1194 850 H1116"/>
-    <path class="flow" d="M340 850 H246 Q202 850 202 806 V686"/>
-    <path class="flow" d="M202 332 V194 Q202 150 246 150 H324"/>
-  </g>
-
-  <!-- a：研究输入和交付图放在同一框内，物种为节点，TS 标在反应步骤的边上。 -->
-  <g id="mechanism-graph">
-    <rect class="panel" x="340" y="42" width="760" height="216" rx="3"/>
-    <path d="M340 43 H1100" stroke="#d9ef55" stroke-width="4"/>
-    <text class="index" x="368" y="80">a</text>
-    <text class="title" x="398" y="80">Mechanism graph</text>
-    <path class="rule" d="M368 101 H1072 M682 124 V230"/>
-    <g class="sketch" transform="translate(375 139)">
-      <path d="M0 12 L20 0 L40 12 V36 L20 48 L0 36 Z M5 15 L20 6 M35 15 V33 M20 42 L5 33"/>
-      <path d="M40 12 L57 2 M40 36 L57 46"/>
-    </g>
-    <text class="body" x="456" y="153">Molecules + conditions</text>
-    <text class="note" x="456" y="180">Competing pathways</text>
-    <path class="flow" d="M787 155 H972"/>
-    <circle class="node" cx="760" cy="155" r="27"/>
-    <circle class="node" cx="1000" cy="155" r="27"/>
-    <text class="body" x="760" y="161" text-anchor="middle">R</text>
-    <path d="M855 130 H905" stroke="#d9ef55" stroke-width="24"/>
-    <text class="body" x="880" y="136" text-anchor="middle">TS</text>
-    <text class="body" x="1000" y="161" text-anchor="middle">P</text>
-    <text class="note" x="880" y="222" text-anchor="middle">Evidence-linked DAG</text>
-  </g>
-
-  <!-- b：势能曲线为结构示意，不表示任何具体反应的数值结果。 -->
-  <g id="geometry-and-pathways">
-    <rect class="panel" x="1080" y="332" width="316" height="338" rx="3"/>
-    <path d="M1080 333 H1396" stroke="#d9ef55" stroke-width="4"/>
-    <text class="index" x="1108" y="376">b</text>
-    <text class="title" x="1138" y="376">Geometry &amp; PES</text>
-    <path class="rule" d="M1108 398 H1368"/>
-    <path class="sketch" d="M1118 429 V548 H1362" opacity=".45"/>
-    <text class="note" x="1109" y="422">E</text>
-    <path class="sketch" d="M1134 493 C1154 519 1174 520 1194 473 C1209 436 1220 430 1238 444 C1263 463 1270 527 1304 517 C1322 512 1336 491 1352 499"/>
-    <circle class="node" cx="1160" cy="510" r="5"/>
-    <circle class="accent" cx="1226" cy="438" r="7"/>
-    <circle class="node" cx="1305" cy="517" r="5"/>
-    <text class="note" x="1243" y="432">TS</text>
-    <text class="body" x="1108" y="602">Atom mapping · conformers</text>
-    <text class="body" x="1108" y="632">TS seeds · pathway search</text>
-  </g>
-
-  <!-- c：引擎、计算任务和原生输出内聚在同一模块。 -->
-  <g id="quantum-chemistry">
-    <rect class="panel" x="340" y="742" width="760" height="216" rx="3"/>
-    <path d="M340 743 H1100" stroke="#d9ef55" stroke-width="4"/>
-    <text class="index" x="368" y="780">c</text>
-    <text class="title" x="398" y="780">Quantum chemistry</text>
-    <path class="rule" d="M368 801 H1072"/>
-    <text x="368" y="852" font-size="25" font-weight="500">ORCA · Gaussian · xTB</text>
-    <text class="body" x="368" y="898">Optimization · frequencies · IRC</text>
-    <path class="flow" d="M820 860 H934"/>
-    <g class="sketch" transform="translate(974 828)">
-      <path d="M12 0 H59 L75 16 V80 H12 Z" fill="#f0f5de"/>
-      <path d="M59 0 V16 H75 M0 13 V93 H63"/>
-      <path d="M26 34 H61 M26 46 H61 M26 58 H48"/>
-      <path d="M48 68 L54 74 L66 61" stroke="#64743e"/>
-    </g>
-    <text class="note" x="1012" y="940" text-anchor="middle">Native outputs</text>
-  </g>
-
-  <!-- d：同一个 TS 的双向 IRC 真实端点，经 opt/freq 确证为极小值。 -->
-  <g id="scientific-evidence">
-    <rect class="panel" x="44" y="332" width="316" height="338" rx="3"/>
-    <path d="M44 333 H360" stroke="#d9ef55" stroke-width="4"/>
-    <text class="index" x="72" y="376">d</text>
-    <text class="title" x="102" y="376">Evidence checks</text>
-    <path class="rule" d="M72 398 H332"/>
-    <text class="body" x="202" y="434" text-anchor="middle">TS: n<tspan font-size="12" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> = 1</tspan></text>
-    <circle class="accent" cx="202" cy="480" r="17"/>
-    <text x="202" y="485" font-size="13" text-anchor="middle">TS</text>
-    <path class="flow" d="M188 493 C170 505 144 508 126 526"/>
-    <path class="flow" d="M216 493 C234 505 260 508 278 526"/>
-    <text class="note" x="202" y="523" text-anchor="middle">±IRC</text>
-    <circle class="node" cx="122" cy="546" r="17"/>
-    <circle class="node" cx="282" cy="546" r="17"/>
-    <text x="122" y="552" font-size="16" text-anchor="middle">R</text>
-    <text x="282" y="552" font-size="16" text-anchor="middle">P</text>
-    <text class="note" x="122" y="586" text-anchor="middle">opt/freq</text>
-    <text class="note" x="282" y="586" text-anchor="middle">opt/freq</text>
-    <text class="body" x="202" y="618" text-anchor="middle">n<tspan font-size="12" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> = 0</tspan></text>
-    <text class="note" x="202" y="650" text-anchor="middle">Mode inspection: advisory</text>
-  </g>
-
-  <!-- 中央保留用户原始矢量 logo；虚线表示协调，不冒充计算证据。 -->
-  <g id="coordination-links" class="guide">
-    <path d="M720 258 V328 M360 501 H550 M890 501 H1080 M720 716 V742"/>
-  </g>
-  <g id="coordinator">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" x="592" y="350" width="256" height="269" viewBox="326 60 865 909" version="1.1" id="cloudra-logo" role="img" aria-labelledby="cloudra-title cloudra-desc">
+<g id="research-cycle">
+<path d="M1450 175 H1500 Q1543 175 1543 218 V350" class="flow" />
+<path d="M1543 956 V1102 Q1543 1145 1500 1145 H1466" class="flow" />
+<path d="M350 1145 H300 Q257 1145 257 1102 V972" class="flow" />
+<path d="M257 366 V218 Q257 175 300 175 H334" class="flow" />
+<text x="1538" y="152" class="note" text-anchor="middle">Step query</text>
+<text x="1605" y="1036" class="note" >Job dispatch</text>
+<text x="196" y="1036" class="note" text-anchor="end">Native outputs</text>
+<text x="257" y="152" class="note" text-anchor="middle">Evidence binding</text>
+</g>
+<g id="scientific-input"><rect x="350" y="32" width="1100" height="286" rx="8" class="outer"/>
+<rect x="351" y="33" width="1098" height="5" rx="2" fill="#d7e955"/>
+<text x="374" y="74" class="index" >a</text>
+<text x="409" y="74" class="section" >Scientific input &amp; delivery DAG</text>
+<path d="M372 92 H1428" class="rule" />
+<rect x="372" y="114" width="454" height="182" rx="5" class="inner"/>
+<text x="392" y="145" class="heading" >Research intent</text>
+<g transform="translate(396 170)" class="sketch"><path d="M0 8 H50 V43 H32 L20 55 V43 H0 Z" fill="#f4f7e8"/><path d="M9 19 H40 M9 29 H31"/><path d="M20 73 L36 64 L52 73 V92 L36 101 L20 92 Z M52 73 L65 65 M52 92 L65 100"/></g>
+<text x="480" y="186" class="body" >Molecules · reaction conditions</text>
+<text x="480" y="217" class="detail" >Competing pathways &amp; methods</text>
+<text x="480" y="268" class="detail" >Natural-language hypothesis formation</text>
+<path d="M836 205 H861" class="flow" />
+<rect x="872" y="114" width="556" height="182" rx="5" class="inner"/>
+<text x="894" y="145" class="heading" >Delivery DAG</text>
+<path d="M973 200 H1327" class="flow" />
+<circle cx="946" cy="200" r="27" class="node"/>
+<circle cx="1354" cy="200" r="27" class="node"/>
+<text x="946" y="206" class="body" text-anchor="middle">R</text>
+<text x="1354" y="206" class="body" text-anchor="middle">P</text>
+<rect x="1125" y="168" width="50" height="25" rx="2" fill="#e2ed9e"/>
+<text x="1150" y="186" class="body" text-anchor="middle">TS</text>
+<text x="1150" y="236" class="note" text-anchor="middle">Species nodes · reaction-step edges</text>
+<rect x="892" y="252" width="516" height="29" rx="3" fill="#f0f4df"/>
+<text x="1150" y="272" class="detail" text-anchor="middle">Default: ts_opt · frequency · short_irc</text>
+</g>
+<g id="geometry-and-pes"><rect x="1318" y="366" width="450" height="590" rx="8" class="outer"/>
+<rect x="1319" y="367" width="448" height="5" rx="2" fill="#d7e955"/>
+<text x="1342" y="408" class="index" >b</text>
+<text x="1377" y="408" class="section" >Geometry &amp; PES</text>
+<path d="M1340 426 H1746" class="rule" />
+<rect x="1340" y="446" width="406" height="112" rx="5" class="inner"/>
+<rect x="1340" y="570" width="406" height="112" rx="5" class="inner"/>
+<rect x="1340" y="694" width="406" height="112" rx="5" class="inner"/>
+<rect x="1340" y="818" width="406" height="112" rx="5" class="inner"/>
+<g transform="translate(1360 470)" class="sketch"><path d="M0 12 L14 4 L28 12 V29 L14 37 L0 29 Z M49 12 L63 4 L77 12 V29 L63 37 L49 29 Z"/><path d="M29 21 H47" stroke-dasharray="3 3"/><circle cx="28" cy="29" r="4" fill="#d7e955"/><circle cx="49" cy="29" r="4" fill="#d7e955"/><path d="M14 37 L14 62 H63 V37" stroke-dasharray="3 4"/></g>
+<text x="1456" y="478" class="heading" >Atom mapping</text>
+<text x="1456" y="507" class="detail" >Atom-conserving candidates</text>
+<text x="1456" y="531" class="detail" >Reaction-center atom pairs</text>
+<g transform="translate(1360 589)" class="sketch"><path d="M10 40 L35 22 L64 13 M35 22 L60 45 M35 22 L34 68 M60 45 L78 66"/><circle cx="10" cy="40" r="8" fill="#d7e955"/><circle cx="35" cy="22" r="7"/><circle cx="64" cy="13" r="11" fill="#eff3e2"/><circle cx="60" cy="45" r="9" fill="#eff3e2"/><circle cx="34" cy="68" r="5"/><circle cx="78" cy="66" r="5"/></g>
+<text x="1456" y="602" class="heading" >Steric traversal</text>
+<text x="1456" y="631" class="detail" >Distance-weighted local bulk</text>
+<text x="1456" y="655" class="detail" >Substituent contributions, ρᵈ</text>
+<g transform="translate(1360 713)" class="sketch"><path d="M6 58 L25 12 L72 48 Z" stroke="#a9b894" stroke-dasharray="4 4"/><path d="M14 55 L31 19 L66 49 Z"/><circle cx="14" cy="55" r="4" fill="#d7e955"/><circle cx="31" cy="19" r="4" fill="#d7e955"/><circle cx="66" cy="49" r="4" fill="#d7e955"/><path d="M61 12 Q79 19 79 37 M74 31 L79 38 L84 31"/></g>
+<text x="1456" y="726" class="heading" >Rigid alignment</text>
+<text x="1456" y="755" class="detail" >Kabsch endpoint alignment</text>
+<text x="1456" y="779" class="detail" >Consistent endpoint frames</text>
+<g transform="translate(1358 840)" class="sketch"><path d="M3 66 H83 M6 66 V4" stroke="#b9c5a6"/><path d="M12 51 Q26 62 37 32 T59 30 T80 50" stroke-dasharray="3 4"/><path d="M12 52 C28 69 32 13 47 13 S64 64 80 50"/><circle cx="47" cy="13" r="5" fill="#d7e955"/></g>
+<text x="1456" y="850" class="heading" >Path preparation</text>
+<text x="1456" y="879" class="detail" >NEB–IDPP · light IDPP</text>
+<text x="1456" y="903" class="detail" >Candidate paths &amp; TS seeds</text>
+</g>
+<g id="computational-infrastructure"><rect x="350" y="1002" width="1100" height="286" rx="8" class="outer"/>
+<rect x="351" y="1003" width="1098" height="5" rx="2" fill="#d7e955"/>
+<text x="374" y="1044" class="index" >c</text>
+<text x="409" y="1044" class="section" >Computational infrastructure</text>
+<path d="M372 1062 H1428" class="rule" />
+<rect x="372" y="1084" width="328" height="182" rx="5" class="inner"/>
+<rect x="725" y="1084" width="328" height="182" rx="5" class="inner"/>
+<rect x="1078" y="1084" width="328" height="182" rx="5" class="inner"/>
+<text x="392" y="1116" class="heading" >Scheduler</text>
+<g transform="translate(395 1135)" class="sketch"><rect x="0" y="0" width="64" height="66" rx="3" fill="#f1f5e3"/><path d="M0 22 H64 M0 44 H64 M10 11 H30 M10 33 H30 M10 55 H30"/><circle cx="52" cy="11" r="3" fill="#d7e955"/><circle cx="52" cy="33" r="3" fill="#d7e955"/><circle cx="52" cy="55" r="3" fill="#d7e955"/></g>
+<text x="480" y="1155" class="detail" >Per-node quotas</text>
+<text x="480" y="1182" class="detail" >Pinned hosts</text>
+<text x="392" y="1242" class="detail" >Independent of the web API</text>
+<text x="745" y="1116" class="heading" >ComputeDB ledger</text>
+<g transform="translate(748 1139)" class="sketch"><ellipse cx="31" cy="9" rx="31" ry="9" fill="#f1f5e3"/><path d="M0 9 V55 C0 67 62 67 62 55 V9 M0 32 C0 44 62 44 62 32"/><path d="M20 24 H43 M20 47 H43" stroke="#aab990"/></g>
+<text x="833" y="1155" class="detail" >Input hashes</text>
+<text x="833" y="1182" class="detail" >Deduplication</text>
+<text x="745" y="1242" class="detail" >Durable records · recovery</text>
+<text x="1098" y="1116" class="heading" >Engine execution</text>
+<g transform="translate(1100 1136)" class="sketch"><path d="M6 0 H43 L58 15 V68 H6 Z" fill="#f1f5e3"/><path d="M43 0 V15 H58 M0 9 V76 H49 M17 29 H45 M17 40 H45 M17 51 H34"/></g>
+<text x="1180" y="1155" class="detail" >ORCA · Gaussian · xTB</text>
+<text x="1180" y="1182" class="detail" >Native logs · file locks</text>
+<text x="1098" y="1242" class="detail" >Exit status ≠ scientific validity</text>
+</g>
+<g id="scientific-verification"><rect x="32" y="366" width="450" height="590" rx="8" class="outer"/>
+<rect x="33" y="367" width="448" height="5" rx="2" fill="#d7e955"/>
+<text x="56" y="408" class="index" >d</text>
+<text x="91" y="408" class="section" >Scientific verification</text>
+<path d="M54 426 H460" class="rule" />
+<rect x="54" y="446" width="406" height="112" rx="5" class="inner"/>
+<rect x="54" y="570" width="406" height="112" rx="5" class="inner"/>
+<rect x="54" y="694" width="406" height="112" rx="5" class="inner"/>
+<rect x="54" y="818" width="406" height="112" rx="5" class="inner"/>
+<g transform="translate(74 470)" class="sketch"><path d="M0 42 H78 M15 42 V65 M32 42 V20 M48 42 V5 M64 42 V14"/><path d="M15 42 V65" stroke="#91a53c" stroke-width="5"/><circle cx="15" cy="65" r="4" fill="#d7e955"/></g>
+<text x="170" y="478" class="heading" >Hessian spectrum</text>
+<text x="170" y="507" class="detail" >TS: n<tspan font-size="11" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> </tspan> = 1</text>
+<text x="170" y="531" class="detail" >Minima: n<tspan font-size="11" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> </tspan> = 0</text>
+<g transform="translate(74 598)" class="sketch"><path d="M21 35 H58"/><circle cx="14" cy="35" r="10" fill="#eff3e2"/><circle cx="65" cy="35" r="10" fill="#d7e955"/><path d="M12 9 H34 M27 4 L34 9 L27 14 M45 61 H67 M52 56 L45 61 L52 66"/></g>
+<text x="170" y="602" class="heading" >Normal-mode analysis</text>
+<text x="170" y="631" class="detail" >Reaction-pair displacements</text>
+<text x="170" y="655" class="detail" >Mode relevance: advisory</text>
+<g transform="translate(74 714)" class="sketch"><circle cx="39" cy="11" r="10" fill="#d7e955"/><path d="M33 21 L13 49 M45 21 L65 49 M10 43 L13 49 L20 47 M58 47 L65 49 L68 43"/><circle cx="13" cy="60" r="10"/><circle cx="65" cy="60" r="10"/></g>
+<text x="170" y="726" class="heading" >Short-IRC connectivity</text>
+<text x="170" y="755" class="detail" >±IRC → endpoint opt/freq</text>
+<text x="170" y="779" class="detail" >Linked minima: n<tspan font-size="11" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> </tspan> = 0</text>
+<g transform="translate(77 838)" class="sketch"><rect x="1" y="0" width="70" height="15" rx="2" fill="#f1f5e3"/><rect x="8" y="26" width="56" height="15" rx="2"/><rect x="15" y="52" width="42" height="15" rx="2" fill="#d7e955"/><path d="M36 15 V26 M36 41 V52"/></g>
+<text x="170" y="850" class="heading" >Evidence chain</text>
+<text x="170" y="879" class="detail" >Engine → tool → DAG → review</text>
+<text x="170" y="903" class="detail" >Linked logs · structures · jobs</text>
+</g>
+<path d="M482 660 C568 660 520 391 566 334" class="diagnostic" />
+<rect x="491" y="366" width="140" height="28" rx="3" fill="#fff"/>
+<text x="561" y="385" class="note" text-anchor="middle">Guided diagnostics</text>
+<g id="runtime-and-sop-engine">
+<rect x="574" y="422" width="652" height="482" rx="8" fill="#fff" stroke="#afbd97" stroke-width="1.5"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" x="739" y="449" width="322" height="338" viewBox="326 60 865 909" version="1.1" id="cloudra-logo" role="img" aria-labelledby="cloudra-title cloudra-desc">
   <title id="cloudra-title">Cloudra</title>
   <desc id="cloudra-desc">A single teal dragon, a detached curled tail, and continuous branching scientific exploration paths rising from a golden potential-energy surface. Rebuilt editable vector artwork.</desc>
   <defs>
@@ -340,7 +361,6 @@
     </g>
   </g>
 </svg>
-    <text x="720" y="666" text-anchor="middle" font-size="22" font-weight="600">Coordinator</text>
-    <text class="note" x="720" y="695" text-anchor="middle">Delegate · integrate</text>
-  </g>
-</svg>
+<rect x="625" y="818" width="550" height="48" rx="4" fill="#edf3d5" stroke="#c4d09e" stroke-width="1.2"/>
+<text x="900" y="848" class="heading" text-anchor="middle">Runtime Orchestrator &amp; SOP Engine</text>
+</g></svg>
