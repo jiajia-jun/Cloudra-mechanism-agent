@@ -21,7 +21,7 @@ test('DAG keeps complexes distinct from separated products and preserves compone
   }));
   await openSpa(page);
   await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
-  await page.getByRole('button', { name: '控制台', exact: true }).click();
+  await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
   await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
 
   const complex = page.locator('.dag-canvas-compact g').filter({ has: page.locator('text.dag-node-label', { hasText: 'Bound pair' }) });

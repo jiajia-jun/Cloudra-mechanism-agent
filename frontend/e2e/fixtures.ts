@@ -1,4 +1,24 @@
 import type { Page, Route } from '@playwright/test';
+import type { RuntimeConfig } from '../src/types';
+
+const RUNTIME_SLOT = {
+  provider: 'custom', model: 'test-model', url: 'https://llm.example/v1',
+  key_set: true, context_window: 200000, timeout: 300,
+  supports_vision: true, reasoning_effort: null,
+};
+
+export const RUNTIME_CONFIG: RuntimeConfig = {
+  config_file: '/tmp/config.yaml',
+  coordinator: { ...RUNTIME_SLOT },
+  follower: { ...RUNTIME_SLOT },
+  search_provider: 'deepseek',
+  deepseek_api_key_set: false,
+  tool_document_loading: {
+    strategy: 'llm', semantic_backend: 'jev',
+    jev: { endpoint: '', model: '', key_set: false, min_probability: null, max_tools: null },
+    reranker: { endpoint: '', model: '', key_set: false, min_score: null, max_tools: null },
+  },
+};
 
 export const PROJECT_ACTIVE = {
   id: 'proj_live',
@@ -87,6 +107,12 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
     }
     if (method === 'GET' && path === '/api/v2/roles') {
       return json(route, [{ role_id: 'coordinator', display_name: 'Coordinator' }]);
+    }
+    if (method === 'GET' && path === '/api/v2/runtime/config') {
+      return json(route, RUNTIME_CONFIG);
+    }
+    if (method === 'GET' && path === '/api/v2/runtime/providers') {
+      return json(route, []);
     }
     if (method === 'GET' && path.match(/^\/api\/v2\/projects\/[^/]+\/agents$/)) {
       return json(route, agents);
@@ -185,8 +211,13 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
 
 export async function openSpa(page: Page, hash = '') {
   await page.goto(`/${hash}`);
-  await page.getByPlaceholder('新建项目名…').waitFor({
+  await page.locator('.app-rail').waitFor({
     state: 'visible',
     timeout: 15_000,
   });
+}
+
+export async function openModelSettings(page: Page) {
+  await page.getByRole('button', { name: '选择模型', exact: true }).click();
+  await page.getByRole('button', { name: '编辑模型…', exact: true }).click();
 }

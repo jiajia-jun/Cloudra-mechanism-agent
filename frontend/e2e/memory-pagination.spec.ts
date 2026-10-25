@@ -112,7 +112,7 @@ test('forum live posts preserve the browsed page and offer bounded refresh inste
   await page.route('**/api/v2/projects/*/hub/posts', (route) => route.fulfill({ json: { posts } }));
   await openSpa(page);
   await page.getByText(PROJECT_ACTIVE.name, { exact: true }).click();
-  await page.getByRole('button', { name: '控制台', exact: true }).click();
+  await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
   await page.getByRole('button', { name: '协同论坛', exact: true }).click();
   await page.locator('.hub-topic-name').filter({ hasText: 'memory-topic' }).click();
   await expect(page.locator('.hub-post')).toHaveCount(500);
@@ -203,7 +203,7 @@ test('audit can retrieve every byte-trimmed event from a short page in both dire
   )));
   await openSpa(page);
   await page.getByText(PROJECT_ACTIVE.name, { exact: true }).click();
-  await page.getByRole('button', { name: '控制台', exact: true }).click();
+  await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
   await page.getByRole('button', { name: '审计日志', exact: true }).click();
   await page.getByRole('button', { name: 'System events' }).click();
   await expect(page.locator('.audit-page-info')).toContainText('–150');

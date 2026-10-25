@@ -2,8 +2,8 @@ import { expect, test } from '@playwright/test';
 import { installApiMocks, openSpa } from './fixtures';
 
 for (const labels of [
-  { language: 'Chinese', more: '更多', benchmark: 'Benchmark 评测', settings: '全局设置', cancel: '取消全部计算' },
-  { language: 'English', more: 'More', benchmark: 'Benchmark', settings: 'Global Settings', cancel: 'Cancel All Compute' },
+  { language: 'Chinese', more: '更多', benchmark: 'Benchmark 评测', settings: '设置', cancel: '取消全部计算' },
+  { language: 'English', more: 'More', benchmark: 'Benchmark', settings: 'Settings', cancel: 'Cancel All Compute' },
 ]) {
   test(`${labels.language}: More opens Benchmark and preserves cancellation consent`, async ({ page }) => {
     const mocks = await installApiMocks(page, { jobs: [] });
@@ -31,7 +31,9 @@ for (const labels of [
 
     await openSpa(page);
     if (labels.language === 'English') {
-      await page.getByRole('button', { name: 'EN', exact: true }).click();
+      await page.getByRole('button', { name: '设置', exact: true }).click();
+      await page.getByLabel('语言', { exact: true }).selectOption('en');
+      await page.getByRole('button', { name: 'Back to chat', exact: true }).click();
     }
     const sidebar = page.locator('aside.left-sidebar');
     const more = sidebar.locator('summary').filter({ hasText: labels.more });
@@ -39,7 +41,7 @@ for (const labels of [
     const cancel = sidebar.getByRole('button', { name: labels.cancel, exact: true });
 
     await expect(more).toBeVisible({ timeout: 1500 });
-    await expect(sidebar.getByRole('button', { name: labels.settings, exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: labels.settings, exact: true })).toBeVisible();
     await expect(benchmark).toBeHidden();
     await expect(cancel).toBeHidden();
     await more.click();

@@ -102,7 +102,7 @@ function actions(globals: Record<string, unknown>) {
     } },
     setSending() {}, setPendingImages() {},
     setPendingMessages: (update: (prev: object[]) => object[]) => { pending = update(pending); },
-    setDraft: (value: string) => { draft = value; },
+    setDraft: (value: string | ((current: string) => string)) => { draft = typeof value === 'function' ? value(draft) : value; },
     selectAgent: async (id: string) => { selected = id; },
     reportError: (error: Error) => errors.push(error.message),
   });
@@ -115,6 +115,50 @@ function actions(globals: Record<string, unknown>) {
   assert.equal(selected, 'created-agent');
   assert.equal(draft, '');
   assert.deepEqual(pending, []);
+}
+
+// 首条消息复用项目创建与发送逻辑，同时把项目选定的模型交给新 Agent。
+{
+  let draft = 'Explore substitution';
+  let selected: string | undefined;
+  let projects: object[] = [];
+  const created = { id: 'new-chat', settings: {
+    orchestration_mode: 'standard', defaults: { model: 'chosen-model', reasoning_effort: 'ultra' },
+  } };
+  const creates: unknown[] = [];
+  const spawns: Record<string, unknown>[] = [];
+  const errors: string[] = [];
+  const calls = actions({
+    activeProject: null, activeAgent: null, interactions: [], draft, sending: false,
+    newProjectWs: '/tmp/study', pendingImages: [], pendingMessageSeqRef: { current: 0 }, lang: 'zh',
+    api: {
+      createProject: async (name: string, workspace: string) => {
+        creates.push({ name, workspace });
+        return { data: created };
+      },
+      spawnAgent: async (projectId: string, body: Record<string, unknown>) => {
+        spawns.push({ projectId, ...body });
+        // 请求未结束时，用户已经在输入下一条消息。
+        draft = 'Next question';
+        return { data: { id: 'new-agent' } };
+      },
+    },
+    setProjects: (update: (prev: object[]) => object[]) => { projects = update(projects); },
+    setActiveProjectId() {}, setSending() {}, setPendingImages() {}, setPendingMessages() {}, pushToast() {},
+    setDraft: (value: string | ((current: string) => string)) => { draft = typeof value === 'function' ? value(draft) : value; },
+    selectAgent: async (id: string) => { selected = id; },
+    reportError: (error: Error) => errors.push(error.message),
+  });
+  await calls.sendMessage();
+  assert.deepEqual(errors, []);
+  assert.deepEqual(structuredClone(creates), [{ name: 'Explore substitution', workspace: '/tmp/study' }]);
+  assert.deepEqual(structuredClone(spawns), [{
+    projectId: 'new-chat', role_id: 'coordinator', query: 'Explore substitution', language: 'zh',
+    settings: { model: 'chosen-model', reasoning_effort: 'ultra', orchestration_mode: 'standard' },
+  }]);
+  assert.equal(selected, 'new-agent');
+  assert.equal(draft, 'Next question');
+  assert.deepEqual(structuredClone(projects), [created]);
 }
 
 console.log('App.actions.test.ts: ok');

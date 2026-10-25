@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { installApiMocks, openSpa } from './fixtures';
+import { installApiMocks, openModelSettings, openSpa } from './fixtures';
 
 async function mockCodex(page: import('@playwright/test').Page) {
   await installApiMocks(page);
@@ -59,7 +59,7 @@ async function mockCodex(page: import('@playwright/test').Page) {
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(result) });
   });
   await openSpa(page);
-  await page.getByRole('button', { name: '全局设置', exact: true }).click();
+  await openModelSettings(page);
   return { saved, searchSaved, polls: () => polls };
 }
 
@@ -75,7 +75,7 @@ test('Codex login uses device code and keeps model configuration explicit', asyn
   await testInfo.attach('Codex device login', { body: await page.screenshot(), contentType: 'image/png' });
   await expect(panel.getByText('已登录', { exact: true })).toBeVisible();
   expect(state.saved).toHaveLength(0);
-  await page.locator('.modal').getByRole('button', { name: 'Save', exact: true }).first().click();
+  await page.locator('.modal').getByRole('button', { name: '保存', exact: true }).first().click();
   expect(state.saved).toHaveLength(1);
   expect(state.saved[0]).toMatchObject({ slot: 'coordinator', changes: { provider: 'openai-codex', key: '' } });
   await panel.getByRole('button', { name: '退出 Codex 登录' }).click();
@@ -110,7 +110,7 @@ test('closing settings stops device-code polling', async ({ page }) => {
   const panel = page.getByRole('region', { name: 'Codex OAuth' });
   await panel.getByRole('button', { name: '登录 ChatGPT / Codex', exact: true }).click();
   await expect(panel.getByText('ABCD-EFGH', { exact: true })).toBeVisible();
-  await page.locator('.modal').getByRole('button', { name: 'close', exact: true }).click();
+  await page.getByRole('button', { name: '返回聊天', exact: true }).click();
   const countAtClose = state.polls();
   await page.waitForTimeout(1200);
   expect(state.polls()).toBe(countAtClose);

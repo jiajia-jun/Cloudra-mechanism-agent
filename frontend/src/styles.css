@@ -1749,6 +1749,19 @@ body {
 .chat-empty { color: var(--fg-faint); text-align: center; margin-top: 80px; font-size: 13px; }
 .chat-empty .big { font-size: 15px; color: var(--fg-tertiary); margin-bottom: 6px; }
 
+.chat-scroll:has(.welcome-state) { display: flex; }
+.chat-scroll:has(.welcome-state) .chat-column {
+  flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0;
+}
+.chat-empty.welcome-state { margin: 0; padding: 48px 20px; }
+.welcome-state .big { font-size: 24px; font-weight: 600; letter-spacing: -0.025em; }
+.welcome-state p { color: var(--fg-tertiary); margin: 10px 0 24px; }
+.welcome-mark {
+  display: grid; place-items: center; width: 56px; height: 56px; margin: 0 auto 24px;
+  border-radius: 16px; border: 1px solid var(--border-strong);
+  background: var(--emerald-dim); color: var(--emerald-soft); font-size: 30px;
+}
+
 /* ------------------------------------------------------------------ composer */
 
 .composer-wrap { padding: 8px 16px 14px; background: linear-gradient(transparent, var(--bg) 30%); }

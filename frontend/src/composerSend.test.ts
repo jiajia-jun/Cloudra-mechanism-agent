@@ -20,7 +20,14 @@ assert.deepEqual(
     activeAgentId: null,
     interactions: [],
   }),
-  { kind: 'noop', reason: 'no_project' },
+  { kind: 'create_project' },
+);
+
+assert.deepEqual(
+  resolveComposerSendTarget({
+    draft: 'new chat', sending: true, hasProject: false, activeAgentId: null, interactions: [],
+  }),
+  { kind: 'noop', reason: 'busy' },
 );
 
 assert.deepEqual(
