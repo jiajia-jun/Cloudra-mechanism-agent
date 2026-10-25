@@ -1,0 +1,147 @@
+/* 外观只覆盖视觉；未选择新外观时，继续使用 styles.css 的原版。 */
+:root[data-appearance='glass'] {
+  color-scheme: light;
+  --bg: #edf8ff;
+  --bg-panel: rgba(244, 251, 255, 0.78);
+  --bg-layer: rgba(223, 243, 255, 0.64);
+  --bg-layer-2: rgba(209, 235, 251, 0.82);
+  --bg-hover: rgba(186, 230, 253, 0.35);
+  --bg-inset: rgba(210, 237, 255, 0.35);
+  --fg: #1e293b;
+  --fg-secondary: #475569;
+  --fg-tertiary: #526176;
+  --fg-faint: #526176;
+  --fg-muted: var(--fg-faint);
+  --border: rgba(94, 152, 184, 0.2);
+  --border-strong: rgba(74, 151, 194, 0.36);
+  --border-hover: var(--border-strong);
+  --border-subtle: var(--border);
+  --emerald: #0369a1;
+  --emerald-soft: #0369a1;
+  --emerald-dim: rgba(59, 130, 246, 0.1);
+  /* 状态仍保持绿 / 黄 / 蓝 / 红，只加深文字以适应浅色底。 */
+  --green: #166534;
+  --green-soft: #166534;
+  --green-dim: rgba(22, 101, 52, 0.09);
+  --yellow: #854d0e;
+  --yellow-soft: #854d0e;
+  --yellow-dim: rgba(245, 158, 11, 0.1);
+  --blue: #0369a1;
+  --blue-soft: #0369a1;
+  --blue-dim: rgba(59, 130, 246, 0.1);
+  --red: #b91c1c;
+}
+
+:root[data-appearance='glass'] body {
+  background: radial-gradient(ellipse at 12% 18%, rgba(125, 211, 252, 0.34), transparent 48%), radial-gradient(ellipse at 85% 75%, rgba(186, 230, 253, 0.5), transparent 55%), linear-gradient(135deg, #f5fbff, #e6f5ff 52%, #f1faff);
+}
+:root[data-appearance='glass'] ::selection { background: rgba(56, 189, 248, 0.25); color: var(--fg); }
+:root[data-appearance='glass'] :is(.left-sidebar, .right-sidebar, .agentbar, .console-subnav-bar, .tabs, .card, .ops-kpi-card, .ops-card, .dag-card, .interaction-card, .approval-card, .attention-card, .audit-card, .modal, .slash-menu, .live-agent-pulse, .composer) {
+  background: var(--bg-panel);
+  border-color: var(--border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 8px 28px rgba(68, 139, 184, 0.07);
+  -webkit-backdrop-filter: blur(14px) saturate(120%);
+  backdrop-filter: blur(14px) saturate(120%);
+}
+:root[data-appearance='glass'] :is(.main, .console-view-wrapper, .console-tab-viewport, .console-content, .panel-body, .left-sidebar-head, .left-sidebar-foot, .right-sidebar-head) { background: transparent; }
+:root[data-appearance='glass'] :is(.card, .ops-kpi-card, .ops-card, .dag-card, .interaction-card, .approval-card, .attention-card, .audit-card, .modal, .composer) { border-radius: 10px; }
+:root[data-appearance='glass'] .modal-backdrop { background: rgba(100, 164, 204, 0.22); backdrop-filter: blur(6px); }
+:root[data-appearance='glass'] :is(.btn, .btn.sm, .panel-toggle, .view-mode-switcher, .view-mode-btn, .console-subnav-btn, .tab, .project-node-header, .sidebar-agent-row, .ws-group-header) { border-radius: 6px; }
+:root[data-appearance='glass'] :is(.input, .select, .textarea, .interaction-textarea, .reject-reason-input, .agentbar select.agentbar-select) {
+  background: var(--bg-layer);
+  color: var(--fg);
+  border-color: var(--border-strong);
+  border-radius: 6px;
+}
+:root[data-appearance='glass'] :is(.input, .select, .textarea, .interaction-textarea):focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16); }
+:root[data-appearance='glass'] :is(.select, .breadcrumb-agent-select) option { background: #edf8ff; color: var(--fg); }
+:root[data-appearance='glass'] .btn.primary { background: linear-gradient(135deg, #bae6fd, #7dd3fc); color: #0f172a; border-color: rgba(255, 255, 255, 0.8); box-shadow: 0 4px 14px rgba(59, 130, 246, 0.15); }
+:root[data-appearance='glass'] .btn.primary:hover:not(:disabled) { background: #7dd3fc; }
+:root[data-appearance='glass'] :is(.tab.active, .console-subnav-btn.active, .view-mode-btn.active, .lang-pill-btn.active, .sidebar-agent-row.active, .project-node.active > .project-node-header) { background: #d8f0ff; color: #075985; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.08); }
+:root[data-appearance='glass'] .ws-group-header { background: var(--bg-layer); color: var(--fg); }
+:root[data-appearance='glass'] :is(.console-subnav-btn, .view-mode-btn) { color: var(--fg-secondary); }
+:root[data-appearance='glass'] .pill-btn.active { color: #fff; }
+:root[data-appearance='glass'] .composer:focus-within { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16); }
+:root[data-appearance='glass'] :is(.interaction-prompt-window, .interaction-collapsed-bar) { background: var(--bg-panel); box-shadow: 0 8px 28px rgba(68, 139, 184, 0.12); }
+:root[data-appearance='glass'] :is(.interaction-textarea:focus, .approval-command-box, .approval-diff-box, .program-children-direct) { background: var(--bg-layer); }
+:root[data-appearance='glass'] :is(.approval-command-box, .interaction-chip.default-chip, .interaction-chip.default-chip:hover, .agent-role-pill.role-compute, .agent-status-badge.state-running) { color: var(--green); }
+:root[data-appearance='glass'] :is(.interaction-agent-tag, .interaction-banner-badge, .approval-tool-tag, .yolo-shortcut-btn, .yolo-shortcut-btn:hover, .kpi-number.amber, .agent-role-pill.role-research, .agent-status-badge.state-waiting) { color: var(--yellow); }
+:root[data-appearance='glass'] :is(.interaction-chip.reject-chip, .interaction-chip.reject-chip:hover, .reject-panel-title, .interaction-reject-btn, .interaction-reject-btn:hover, .agent-status-badge.state-failed) { color: var(--red); }
+:root[data-appearance='glass'] :is(.kpi-number.purple, .agent-role-pill.role-super) { color: #7e22ce; }
+:root[data-appearance='glass'] :is(.agent-role-pill.role-coord, .jobtype-pill, .owner-tag) { color: var(--blue); }
+:root[data-appearance='glass'] :is(.agent-status-badge.state-idle, .agent-status-badge.state-cancelled) { color: var(--fg-tertiary); }
+:root[data-appearance='glass'] *::-webkit-scrollbar-thumb { background: rgba(82, 97, 118, 0.3); border-radius: 6px; }
+
+/* 终端风格沿用现有结构，只换深绿表面与文字质感。 */
+:root[data-appearance='emerald'] {
+  color-scheme: dark;
+  --bg: #090c0a;
+  --bg-panel: #0e120f;
+  --bg-layer: #141b16;
+  --bg-layer-2: #1b271e;
+  --bg-hover: #17251b;
+  --bg-inset: #080b09;
+  --fg: #d5dfd6;
+  --fg-secondary: #b5c5b8;
+  --fg-tertiary: #9aaf9e;
+  --fg-faint: #849b89;
+  --fg-muted: var(--fg-faint);
+  --border: #26372b;
+  --border-strong: #3c5543;
+  --border-hover: var(--border-strong);
+  --border-subtle: var(--border);
+  --emerald: #7bd88f;
+  --emerald-soft: #9ae6a9;
+  --emerald-dim: #17291c;
+  --green: #7bd88f;
+  --green-soft: #9ae6a9;
+  --green-dim: #17291c;
+  --font: 'SF Mono', Consolas, 'JetBrains Mono', 'PingFang SC', 'Microsoft YaHei', monospace;
+}
+:root[data-appearance='emerald'] :is(.left-sidebar, .right-sidebar, .agentbar, .console-subnav-bar, .tabs, .card, .ops-kpi-card, .ops-card, .dag-card, .interaction-card, .approval-card, .attention-card, .audit-card, .modal, .slash-menu, .live-agent-pulse, .composer) {
+  background: var(--bg-panel);
+  border-color: var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-appearance='emerald'] :is(button, input, select, textarea) { font-family: var(--font); }
+:root[data-appearance='emerald'] :is(.btn, .btn.sm, .input, .select, .textarea, .panel-toggle, .view-mode-switcher, .view-mode-btn, .console-subnav-btn, .tab, .project-node-header, .sidebar-agent-row, .ws-group-header) { border-radius: 0; box-shadow: none; }
+:root[data-appearance='emerald'] .btn.primary { background: var(--green-dim); color: var(--green-soft); border-color: var(--green); }
+:root[data-appearance='emerald'] .btn.primary:hover:not(:disabled) { background: var(--green); color: var(--bg); }
+:root[data-appearance='emerald'] :is(.input, .select, .textarea, .interaction-textarea, .reject-reason-input) { background: var(--bg-inset); border-color: var(--border-strong); }
+:root[data-appearance='emerald'] :is(.tab.active, .console-subnav-btn.active, .view-mode-btn.active, .sidebar-agent-row.active) { background: var(--green-dim); color: var(--green-soft); box-shadow: none; }
+:root[data-appearance='emerald'] :is(.interaction-prompt-window, .interaction-collapsed-bar) { background: var(--bg-panel); box-shadow: none; }
+:root[data-appearance='emerald'] .composer:focus-within { border-color: var(--green); box-shadow: none; }
+:root[data-appearance='emerald'] ::selection { background: #294c32; color: #e2f5e6; }
+
+/* 科学绘图保留自己的深色表面、控件对比和原子配色。 */
+:root[data-appearance='glass'] .dag-canvas-compact,
+:root[data-appearance='emerald'] .dag-canvas-compact,
+:root[data-appearance='glass'] .molecule-3d-container,
+:root[data-appearance='emerald'] .molecule-3d-container {
+  color-scheme: dark;
+  background: var(--bg);
+  --bg: #090d12;
+  --bg-panel: #11161f;
+  --bg-layer: #171f2b;
+  --bg-layer-2: #212b3c;
+  --bg-hover: rgba(16, 185, 129, 0.08);
+  --fg: #f8fafc;
+  --fg-secondary: #cbd5e1;
+  --fg-tertiary: #94a3b8;
+  --fg-faint: #64748b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+  --green: #10b981;
+  --green-soft: #34d399;
+  --green-dim: rgba(16, 185, 129, 0.15);
+  --yellow: #f59e0b;
+  --yellow-soft: #fbbf24;
+  --yellow-dim: rgba(245, 158, 11, 0.15);
+  --blue: #38bdf8;
+  --blue-soft: #7dd3fc;
+  --blue-dim: rgba(56, 189, 248, 0.15);
+  --red: rgb(239, 68, 68);
+}

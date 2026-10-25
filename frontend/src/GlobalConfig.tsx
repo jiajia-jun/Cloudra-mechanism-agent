@@ -15,6 +15,8 @@ import SearchConfigSection from './SearchConfigSection';
 import ToolDocumentLoadingSection from './ToolDocumentLoadingSection';
 import { isTrustedAuthMessageOrigin } from './runtimeUrl';
 import type { ProviderPreset, RuntimeConfig } from './types';
+import { APPEARANCES, applyAppearance, readAppearance } from './appearance';
+import { useI18n } from './i18n';
 
 interface GlobalConfigProps {
   onClose: () => void;
@@ -289,6 +291,8 @@ export default function GlobalConfig({
   onClose,
   onToast,
 }: GlobalConfigProps) {
+  const { lang } = useI18n();
+  const [appearance, setAppearance] = useState(readAppearance);
   const [cfg, setCfg] = useState<RuntimeConfig | null>(null);
   const [presets, setPresets] = useState<ProviderPreset[]>([]);
   const [drafts, setDrafts] = useState<Record<Slot, SlotDraft>>({
@@ -445,6 +449,25 @@ export default function GlobalConfig({
           <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={onClose}>
             close
           </button>
+        </div>
+        <div className="modal-section" role="group" aria-label={lang === 'zh' ? '界面风格' : 'Appearance'}>
+          <div className="modal-section-title">{lang === 'zh' ? '界面风格' : 'Appearance'}</div>
+          <div className="modal-actions">
+            {APPEARANCES.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`btn ${appearance === option.id ? 'primary' : 'outline'} sm`}
+                aria-pressed={appearance === option.id}
+                onClick={() => {
+                  applyAppearance(option.id);
+                  setAppearance(option.id);
+                }}
+              >
+                {lang === 'zh' ? option.zh : option.en}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="modal-sub">
           The two fallback slots behind empty per-agent settings: the coordinator role falls back to
