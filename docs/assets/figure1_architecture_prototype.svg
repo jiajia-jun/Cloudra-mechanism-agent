@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="1800" height="1320" viewBox="0 0 1800 1320" role="img" aria-labelledby="architecture-title architecture-desc">
 <title id="architecture-title">Cloudra architecture: hypotheses, computation and scientific evidence</title>
-<desc id="architecture-desc">Four nested modules surround Cloudra's runtime orchestrator and SOP engine: scientific input and delivery DAG; atom mapping, steric traversal, rigid alignment and pathway preparation; scheduling, a durable compute ledger and engine execution; Hessian, mode, short-IRC and evidence checks. Solid arrows show the research cycle. A dashed return carries guided diagnostics. Diagrams are schematic. Transition states annotate reaction-step edges in the delivery DAG. Mode relevance is advisory; short-IRC evidence requires true endpoint optimization and frequency links.</desc>
+<desc id="architecture-desc">Four nested modules surround Cloudra's runtime orchestrator and SOP engine: scientific input and delivery DAG; geometry and pathway preparation; computational infrastructure; and mechanistic validation and refinement. The last module combines same-TS, bidirectional real IRC, endpoint optimization and frequencies with mapped chemical identities, interprets reaction-centered normal-mode motion as advisory diagnostics, and supports evidence-guided revision followed by renewed verification. Solid arrows show the research cycle; the dashed return carries guided diagnostics. Diagrams and motion-composition bars are schematic, not measured results.</desc>
 <defs>
 <style>
 text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
@@ -108,35 +108,69 @@ text {font-family:Arial,Helvetica,sans-serif;fill:#2d3926;}
 <text x="1180" y="1182" class="detail" >Native logs · file locks</text>
 <text x="1098" y="1242" class="detail" >Exit status ≠ scientific validity</text>
 </g>
-<g id="scientific-verification"><rect x="32" y="366" width="450" height="590" rx="8" class="outer"/>
+<!-- 左列以科学问题组织；频率判据放入路径示意，模式组成保持诊断性质。 -->
+<g id="mechanistic-validation-and-refinement">
+<rect x="32" y="366" width="450" height="590" rx="8" class="outer"/>
 <rect x="33" y="367" width="448" height="5" rx="2" fill="#d7e955"/>
-<text x="56" y="408" class="index" >d</text>
-<text x="91" y="408" class="section" >Scientific verification</text>
-<path d="M54 426 H460" class="rule" />
-<rect x="54" y="446" width="406" height="112" rx="5" class="inner"/>
-<rect x="54" y="570" width="406" height="112" rx="5" class="inner"/>
-<rect x="54" y="694" width="406" height="112" rx="5" class="inner"/>
-<rect x="54" y="818" width="406" height="112" rx="5" class="inner"/>
-<g transform="translate(74 470)" class="sketch"><path d="M0 42 H78 M15 42 V65 M32 42 V20 M48 42 V5 M64 42 V14"/><path d="M15 42 V65" stroke="#91a53c" stroke-width="5"/><circle cx="15" cy="65" r="4" fill="#d7e955"/></g>
-<text x="170" y="478" class="heading" >Hessian spectrum</text>
-<text x="170" y="507" class="detail" >TS: n<tspan font-size="11" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> </tspan> = 1</text>
-<text x="170" y="531" class="detail" >Minima: n<tspan font-size="11" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> </tspan> = 0</text>
-<g transform="translate(74 598)" class="sketch"><path d="M21 35 H58"/><circle cx="14" cy="35" r="10" fill="#eff3e2"/><circle cx="65" cy="35" r="10" fill="#d7e955"/><path d="M12 9 H34 M27 4 L34 9 L27 14 M45 61 H67 M52 56 L45 61 L52 66"/></g>
-<text x="170" y="602" class="heading" >Normal-mode analysis</text>
-<text x="170" y="631" class="detail" >Reaction-pair displacements</text>
-<text x="170" y="655" class="detail" >Mode relevance: advisory</text>
-<g transform="translate(74 714)" class="sketch"><circle cx="39" cy="11" r="10" fill="#d7e955"/><path d="M33 21 L13 49 M45 21 L65 49 M10 43 L13 49 L20 47 M58 47 L65 49 L68 43"/><circle cx="13" cy="60" r="10"/><circle cx="65" cy="60" r="10"/></g>
-<text x="170" y="726" class="heading" >Short-IRC connectivity</text>
-<text x="170" y="755" class="detail" >±IRC → endpoint opt/freq</text>
-<text x="170" y="779" class="detail" >Linked minima: n<tspan font-size="11" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline"> </tspan> = 0</text>
-<g transform="translate(77 838)" class="sketch"><rect x="1" y="0" width="70" height="15" rx="2" fill="#f1f5e3"/><rect x="8" y="26" width="56" height="15" rx="2"/><rect x="15" y="52" width="42" height="15" rx="2" fill="#d7e955"/><path d="M36 15 V26 M36 41 V52"/></g>
-<text x="170" y="850" class="heading" >Evidence chain</text>
-<text x="170" y="879" class="detail" >Engine → tool → DAG → review</text>
-<text x="170" y="903" class="detail" >Linked logs · structures · jobs</text>
+<text x="56" y="408" class="index">d</text>
+<text x="91" y="408" class="section" style="font-size:21.5px">Mechanistic validation &amp; refinement</text>
+<path d="M54 426 H460" class="rule"/>
+
+<!-- 同一个 TS 的双向真实路径、端点最小值和化学身份一起确证。 -->
+<g id="identity-resolved-pathways">
+<rect x="54" y="446" width="406" height="152" rx="5" class="inner"/>
+<text x="170" y="478" class="heading">Identity-resolved pathways</text>
+<g transform="translate(74 487)" class="sketch">
+  <circle cx="39" cy="8" r="11" fill="#d7e955"/>
+  <path d="M33 19 L13 46 M45 19 L65 46 M10 40 L13 46 L20 44 M58 44 L65 46 L68 40"/>
+  <circle cx="13" cy="59" r="11"/>
+  <circle cx="65" cy="59" r="11"/>
 </g>
-<path d="M482 660 C568 660 520 391 566 334" class="diagnostic" />
+<text x="113" y="499" font-size="9" text-anchor="middle">TS</text>
+<text x="87" y="550" font-size="10" text-anchor="middle">R</text>
+<text x="139" y="550" font-size="10" text-anchor="middle">P</text>
+<text x="170" y="510" class="detail">Same TS → ±IRC → Opt/Freq</text>
+<text x="170" y="536" class="detail">Atom mapping · species identity</text>
+<text x="257" y="581" class="note" text-anchor="middle">n<tspan font-size="10" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline">(TS) = 1 · n</tspan><tspan font-size="10" baseline-shift="sub">imag</tspan><tspan baseline-shift="baseline">(R/P) = 0</tspan></text>
+</g>
+
+<!-- 反应中心的键向投影和原子运动组成用于解释，不单独判定通过。 -->
+<g id="reaction-centered-mode-interpretation">
+<rect x="54" y="612" width="406" height="152" rx="5" class="inner"/>
+<text x="170" y="644" class="heading">Reaction-centered modes</text>
+<g transform="translate(74 655)" class="sketch">
+  <path d="M24 30 H55"/>
+  <circle cx="14" cy="30" r="10" fill="#eff3e2"/>
+  <circle cx="65" cy="30" r="10" fill="#d7e955"/>
+  <path d="M12 5 H34 M27 0 L34 5 L27 10 M45 55 H67 M52 50 L45 55 L52 60"/>
+  <rect x="8" y="74" width="65" height="8" fill="#edf2df" stroke="#c3cfad" stroke-width="1"/>
+  <rect x="8" y="74" width="43" height="8" fill="#d7e955" stroke="none"/>
+</g>
+<text x="170" y="678" class="detail">Pair projections · atomic motion</text>
+<text x="170" y="704" class="detail">Reaction-center contributions</text>
+<text x="170" y="739" class="note">Advisory interpretation only</text>
+</g>
+
+<!-- 冲突定位后修订相关假设与计算；修订结果仍需重新接受证据检验。 -->
+<g id="evidence-guided-hypothesis-revision">
+<rect x="54" y="778" width="406" height="152" rx="5" class="inner"/>
+<text x="170" y="810" class="heading">Evidence-guided revision</text>
+<g transform="translate(73 838)" class="sketch">
+  <rect x="1" y="8" width="28" height="44" rx="2" fill="#f5f7ed"/>
+  <rect x="54" y="8" width="28" height="44" rx="2" fill="#edf3d5"/>
+  <path d="M8 20 H22 M8 30 H22 M8 40 H17 M61 20 H75 M61 30 H75 M61 40 H70"/>
+  <path d="M32 18 H50 M44 13 L50 18 L44 23"/>
+  <path d="M68 58 C68 79 15 79 15 58 M10 64 L15 58 L20 64"/>
+</g>
+<text x="170" y="844" class="detail">Locate conflicting evidence</text>
+<text x="170" y="870" class="detail">Revise affected calculations</text>
+<text x="170" y="905" class="note">Recheck revised hypotheses</text>
+</g>
+</g>
+<path d="M482 854 C566 854 526 414 566 334" class="diagnostic"/>
 <rect x="491" y="366" width="140" height="28" rx="3" fill="#fff"/>
 <text x="561" y="385" class="note" text-anchor="middle">Guided diagnostics</text>
+
 <g id="runtime-and-sop-engine">
 <rect x="574" y="422" width="652" height="482" rx="8" fill="#fff" stroke="#afbd97" stroke-width="1.5"/>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" x="739" y="449" width="322" height="338" viewBox="326 60 865 909" version="1.1" id="cloudra-logo" role="img" aria-labelledby="cloudra-title cloudra-desc">
