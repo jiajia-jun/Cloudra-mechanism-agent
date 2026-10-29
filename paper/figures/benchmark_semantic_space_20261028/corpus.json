@@ -1,0 +1,940 @@
+[
+  {
+    "task_id": "D1",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/D1.json",
+    "reaction_input": {
+      "name": "butadiene + ethylene Diels-Alder (parent DA)",
+      "reactants": [
+        "C=CC=C",
+        "C=C"
+      ],
+      "products": [
+        "C1CC=CCC1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "butadiene + ethylene Diels-Alder (parent DA)",
+    "description": "Describe the Diels-Alder reaction between butadiene and ethylene, yielding a cyclohexene product. The system is specified with a neutral charge and a singlet multiplicity, representing the parent Diels-Alder transformation."
+  },
+  {
+    "task_id": "D3",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/D3.json",
+    "reaction_input": {
+      "name": "cyclopentadiene dimerization (self Diels-Alder)",
+      "reactants": [
+        "C1=CCC=C1",
+        "C1=CCC=C1"
+      ],
+      "products": [
+        "C12C=CC(C1)C1C=CCC12"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclopentadiene dimerization (self Diels-Alder)",
+    "description": "Describe the self Diels-Alder dimerization of cyclopentadiene, where two neutral, singlet-state cyclopentadiene molecules react to form a single neutral, singlet-state dimeric product."
+  },
+  {
+    "task_id": "D4",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/D4.json",
+    "reaction_input": {
+      "name": "cyclopentadiene + acrolein Diels-Alder",
+      "reactants": [
+        "C1=CCC=C1",
+        "C=CC=O"
+      ],
+      "products": [
+        "O=CC1CC2C=CC1C2"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclopentadiene + acrolein Diels-Alder",
+    "description": "Describe the Diels-Alder reaction between cyclopentadiene and acrolein, yielding the specified bicyclic product. The system is defined with a neutral charge and singlet multiplicity, treating the listed species as the stated targets for this transformation."
+  },
+  {
+    "task_id": "E1",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/E1.json",
+    "reaction_input": {
+      "name": "F- + CH3CH2Cl elimination -> ethylene + HF + Cl-",
+      "reactants": [
+        "[F-]",
+        "CCCl"
+      ],
+      "products": [
+        "C=C",
+        "F",
+        "[Cl-]"
+      ],
+      "charge": -1,
+      "multiplicity": 1
+    },
+    "raw_text": "F- + CH3CH2Cl elimination -> ethylene + HF + Cl-",
+    "description": "Describe the elimination reaction of fluoride ion with chloroethane, yielding ethylene, hydrogen fluoride, and chloride ion. The system has a net charge of -1 and a singlet multiplicity."
+  },
+  {
+    "task_id": "F1",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/F1.json",
+    "reaction_input": {
+      "name": "BH4- + formaldehyde -> borane-methoxide adduct [CH3OBH3]-",
+      "reactants": [
+        "[BH4-]",
+        "C=O"
+      ],
+      "products": [
+        "CO[BH3-]"
+      ],
+      "charge": -1,
+      "multiplicity": 1
+    },
+    "raw_text": "BH4- + formaldehyde -> borane-methoxide adduct [CH3OBH3]-",
+    "description": "Describe the reaction of the tetrahydroborate anion with formaldehyde to form the borane-methoxide adduct, [CH3OBH3]-, maintaining a net charge of -1 and a singlet electronic state."
+  },
+  {
+    "task_id": "F4",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/F4.json",
+    "reaction_input": {
+      "name": "BH3 + formaldehyde -> methoxyborane via Lewis adduct",
+      "reactants": [
+        "[BH3]",
+        "C=O"
+      ],
+      "products": [
+        "COB"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "BH3 + formaldehyde -> methoxyborane via Lewis adduct",
+    "description": "Describe the formation of methoxyborane from borane and formaldehyde via a Lewis adduct, treating the specified product as the target species with neutral charge and singlet multiplicity."
+  },
+  {
+    "task_id": "G2",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/G2.json",
+    "reaction_input": {
+      "name": "diimide cis reduction of ethylene",
+      "reactants": [
+        "N=N",
+        "C=C"
+      ],
+      "products": [
+        "N#N",
+        "CC"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "diimide cis reduction of ethylene",
+    "description": "Describe the cis reduction of ethylene by diimide, converting the N=N and C=C reactants into N#N and CC products, with a total charge of zero and a singlet multiplicity."
+  },
+  {
+    "task_id": "G3",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/G3.json",
+    "reaction_input": {
+      "name": "propylene + ethylene ene reaction (Alder-ene)",
+      "reactants": [
+        "C=CC",
+        "C=C"
+      ],
+      "products": [
+        "C=CCCC"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "propylene + ethylene ene reaction (Alder-ene)",
+    "description": "Describe the Alder-ene reaction between propylene and ethylene, yielding 1-pentene. The system is specified with a net charge of zero and a singlet multiplicity, treating the resulting alkene as the target product."
+  },
+  {
+    "task_id": "L1",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/L1.json",
+    "reaction_input": {
+      "name": "cyclobutene -> butadiene ring opening",
+      "reactants": [
+        "C1=CCC1"
+      ],
+      "products": [
+        "C=CC=C"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclobutene -> butadiene ring opening",
+    "description": "Describe the ring opening of cyclobutene to butadiene. The reactant is cyclobutene, and the target product is butadiene. The system is neutral with a singlet multiplicity. Treat the product as the stated target, not a verified outcome."
+  },
+  {
+    "task_id": "L2",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/L2.json",
+    "reaction_input": {
+      "name": "hexatriene -> cyclohexadiene ring closure",
+      "reactants": [
+        "C=CC=CC=C"
+      ],
+      "products": [
+        "C1=CC=CCC1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "hexatriene -> cyclohexadiene ring closure",
+    "description": "Describe the ring closure transformation converting hexatriene to cyclohexadiene. The reactant is a neutral, singlet-state linear triene, and the target product is a neutral, singlet-state cyclic diene. Focus on the structural change from the open-chain reactant to the closed-ring product without inferring mechanisms or barriers."
+  },
+  {
+    "task_id": "M1",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/M1.json",
+    "reaction_input": {
+      "name": "2,2'-dimethylbiphenyl aryl-aryl rotation",
+      "reactants": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "products": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "2,2'-dimethylbiphenyl aryl-aryl rotation",
+    "description": "Describe the aryl-aryl rotation of 2,2'-dimethylbiphenyl, starting from the specified reactant structure and targeting the identical product structure. The system remains in a neutral charge state with a singlet multiplicity throughout this conformational change."
+  },
+  {
+    "task_id": "M14",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/M14.json",
+    "reaction_input": {
+      "name": "acrolein s-trans <-> s-cis rotation",
+      "reactants": [
+        "C=CC=O"
+      ],
+      "products": [
+        "C=CC=O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "acrolein s-trans <-> s-cis rotation",
+    "description": "Describe the conformational rotation of acrolein from the s-trans to the s-cis state, treating both as specified targets for the neutral, singlet species."
+  },
+  {
+    "task_id": "M15",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/M15.json",
+    "reaction_input": {
+      "name": "HONO cis-trans isomerization",
+      "reactants": [
+        "O=NO"
+      ],
+      "products": [
+        "O=NO"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "HONO cis-trans isomerization",
+    "description": "Describe the cis-trans isomerization of the neutral, singlet HONO species, where the reactant and target product are both represented by the SMILES string O=NO."
+  },
+  {
+    "task_id": "M16",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/M16.json",
+    "reaction_input": {
+      "name": "formic acid dehydrogenation HCOOH -> CO2 + H2",
+      "reactants": [
+        "OC=O"
+      ],
+      "products": [
+        "C(=O)=O",
+        "[H][H]"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "formic acid dehydrogenation HCOOH -> CO2 + H2",
+    "description": "Describe the dehydrogenation of formic acid, converting the reactant OC=O into the target products C(=O)=O and [H][H]. The system is specified with a net charge of zero and a singlet multiplicity."
+  },
+  {
+    "task_id": "M17",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/M17.json",
+    "reaction_input": {
+      "name": "methyl isocyanide -> acetonitrile rearrangement",
+      "reactants": [
+        "C[N+]#[C-]"
+      ],
+      "products": [
+        "CC#N"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "methyl isocyanide -> acetonitrile rearrangement",
+    "description": "Describe the rearrangement of methyl isocyanide to acetonitrile. The reactant is specified as C[N+]#[C-], and the target product is CC#N. The system has a net charge of zero and a singlet multiplicity."
+  },
+  {
+    "task_id": "M3",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/M3.json",
+    "reaction_input": {
+      "name": "NH3 umbrella inversion",
+      "reactants": [
+        "N"
+      ],
+      "products": [
+        "N"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "NH3 umbrella inversion",
+    "description": "Describe the umbrella inversion of the nitrogen species, treating the reactant and product as the same neutral, singlet-state target species without implying a verified outcome or additional mechanistic details."
+  },
+  {
+    "task_id": "M8",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/M8.json",
+    "reaction_input": {
+      "name": "cyclohexane chair flip",
+      "reactants": [
+        "C1CCCCC1"
+      ],
+      "products": [
+        "C1CCCCC1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclohexane chair flip",
+    "description": "Describe the chair flip conformational change of cyclohexane, starting from the specified reactant structure and targeting the identical product structure. The system remains neutral with a singlet multiplicity throughout this particular named transformation."
+  },
+  {
+    "task_id": "P2",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/P2.json",
+    "reaction_input": {
+      "name": "cyclopentadiene degenerate H shift",
+      "reactants": [
+        "C1=CCC=C1"
+      ],
+      "products": [
+        "C1=CCC=C1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclopentadiene degenerate H shift",
+    "description": "Describe the degenerate hydrogen shift in cyclopentadiene, where the reactant and product are both neutral, singlet-state cyclopentadiene molecules, preserving the specified electronic state and structural identity."
+  },
+  {
+    "task_id": "P3",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/P3.json",
+    "reaction_input": {
+      "name": "allyl vinyl ether Claisen rearrangement",
+      "reactants": [
+        "C=CCOC=C"
+      ],
+      "products": [
+        "O=CCCC=C"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "allyl vinyl ether Claisen rearrangement",
+    "description": "Describe the Claisen rearrangement of allyl vinyl ether, converting the specified reactant into the target product, maintaining neutral charge and singlet multiplicity."
+  },
+  {
+    "task_id": "X1",
+    "tier": "easy",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/easy/X1.json",
+    "reaction_input": {
+      "name": "beta-propiolactone -> ethylene + CO2",
+      "reactants": [
+        "O=C1OCC1"
+      ],
+      "products": [
+        "C=C",
+        "C(=O)=O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "beta-propiolactone -> ethylene + CO2",
+    "description": "Describe the transformation of beta-propiolactone into ethylene and carbon dioxide. The reactant is specified by its SMILES, and the target products are ethylene and carbon dioxide. The system is defined with a neutral charge and a singlet multiplicity."
+  },
+  {
+    "task_id": "NB1",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NB1.json",
+    "reaction_input": {
+      "name": "malonic acid thermal decarboxylation: malonic acid -> acetic acid + CO2",
+      "reactants": [
+        "O=C(O)CC(=O)O"
+      ],
+      "products": [
+        "CC(=O)O",
+        "O=C=O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "malonic acid thermal decarboxylation: malonic acid -> acetic acid + CO2",
+    "description": "Describe the thermal decarboxylation of malonic acid, converting the neutral, singlet reactant into acetic acid and carbon dioxide as the specified target products."
+  },
+  {
+    "task_id": "NI1",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NI1.json",
+    "reaction_input": {
+      "name": "imine formation: formaldehyde + methylamine -> N-methylmethanimine + water",
+      "reactants": [
+        "C=O",
+        "CN"
+      ],
+      "products": [
+        "C=NC",
+        "O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "imine formation: formaldehyde + methylamine -> N-methylmethanimine + water",
+    "description": "Describe the imine formation reaction where formaldehyde and methylamine react to produce N-methylmethanimine and water. The system is specified with a net charge of zero and a singlet multiplicity, treating the listed species as the defined reactants and target products."
+  },
+  {
+    "task_id": "NI5",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NI5.json",
+    "reaction_input": {
+      "name": "imine formation (aqueous): formaldehyde + methylamine -> N-methylmethanimine + water",
+      "reactants": [
+        "C=O",
+        "CN"
+      ],
+      "products": [
+        "C=NC",
+        "O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "imine formation (aqueous): formaldehyde + methylamine -> N-methylmethanimine + water",
+    "description": "Describe the aqueous imine formation reaction where formaldehyde and methylamine react to produce N-methylmethanimine and water. The system is specified with a net charge of zero and a singlet multiplicity."
+  },
+  {
+    "task_id": "NQ1",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NQ1.json",
+    "reaction_input": {
+      "name": "aromatic Claisen rearrangement: allyl phenyl ether -> 2-allylphenol",
+      "reactants": [
+        "C=CCOc1ccccc1"
+      ],
+      "products": [
+        "C=CCc1ccccc1O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "aromatic Claisen rearrangement: allyl phenyl ether -> 2-allylphenol",
+    "description": "Describe the aromatic Claisen rearrangement converting allyl phenyl ether to 2-allylphenol, treating the specified reactant and product structures as the stated targets for this neutral description."
+  },
+  {
+    "task_id": "NQ5",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NQ5.json",
+    "reaction_input": {
+      "name": "oxy-Cope rearrangement: 1,5-hexadien-3-ol -> hex-5-enal ([3,3] then enol-keto tautomerization)",
+      "reactants": [
+        "C=CC(O)CC=C"
+      ],
+      "products": [
+        "O=CCCCC=C"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "oxy-Cope rearrangement: 1,5-hexadien-3-ol -> hex-5-enal ([3,3] then enol-keto tautomerization)",
+    "description": "Describe the oxy-Cope rearrangement of 1,5-hexadien-3-ol to hex-5-enal, involving a [3,3] sigmatropic shift followed by enol-keto tautomerization, with neutral charge and singlet multiplicity."
+  },
+  {
+    "task_id": "NR1",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NR1.json",
+    "reaction_input": {
+      "name": "formamide dehydration: formamide -> hydrogen cyanide + water",
+      "reactants": [
+        "NC=O"
+      ],
+      "products": [
+        "C#N",
+        "O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "formamide dehydration: formamide -> hydrogen cyanide + water",
+    "description": "Describe the dehydration of formamide to yield hydrogen cyanide and water, treating the specified neutral, singlet electronic state as the target condition for this transformation."
+  },
+  {
+    "task_id": "NU3",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NU3.json",
+    "reaction_input": {
+      "name": "H3P=CH2 ylide + formaldehyde -> ethylene + H3P=O",
+      "reactants": [
+        "[CH2-][PH3+]",
+        "C=O"
+      ],
+      "products": [
+        "C=C",
+        "O=[PH3]"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "H3P=CH2 ylide + formaldehyde -> ethylene + H3P=O",
+    "description": "Describe the reaction of the H3P=CH2 ylide with formaldehyde to produce ethylene and H3P=O, maintaining the specified neutral charge and singlet multiplicity for the system."
+  },
+  {
+    "task_id": "NU5",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NU5.json",
+    "reaction_input": {
+      "name": "Passerini reaction: formaldehyde + formic acid + methyl isocyanide -> N-methyl-alpha-formyloxyacetamide",
+      "reactants": [
+        "C=O",
+        "O=CO",
+        "C[N+]#[C-]"
+      ],
+      "products": [
+        "CNC(=O)COC=O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "Passerini reaction: formaldehyde + formic acid + methyl isocyanide -> N-methyl-alpha-formyloxyacetamide",
+    "description": "Describe the Passerini reaction involving formaldehyde, formic acid, and methyl isocyanide to form N-methyl-alpha-formyloxyacetamide. The system is specified with a net charge of zero and a singlet multiplicity, treating the listed species as the defined reactants and target product."
+  },
+  {
+    "task_id": "NU6",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NU6.json",
+    "reaction_input": {
+      "name": "Staudinger beta-lactam synthesis: ketene + methanimine -> 2-azetidinone",
+      "reactants": [
+        "C=C=O",
+        "C=N"
+      ],
+      "products": [
+        "O=C1CCN1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "Staudinger beta-lactam synthesis: ketene + methanimine -> 2-azetidinone",
+    "description": "Describe the Staudinger beta-lactam synthesis where ketene and methanimine react to form 2-azetidinone. The system is neutral with a singlet multiplicity. Treat the specified reactants and product as the stated targets for this transformation."
+  },
+  {
+    "task_id": "NY3",
+    "tier": "normal",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/normal/NY3.json",
+    "reaction_input": {
+      "name": "isocyanic acid hydrolysis: HNCO + one water -> ammonia + carbon dioxide",
+      "reactants": [
+        "N=C=O",
+        "O"
+      ],
+      "products": [
+        "N",
+        "O=C=O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "isocyanic acid hydrolysis: HNCO + one water -> ammonia + carbon dioxide",
+    "description": "Describe the hydrolysis of isocyanic acid with one water molecule to yield ammonia and carbon dioxide. The reactants are N=C=O and O, while the target products are N and O=C=O. The system has a total charge of zero and a singlet multiplicity."
+  },
+  {
+    "task_id": "HA1",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HA1.json",
+    "reaction_input": {
+      "name": "3-methylcyclobutene ring opening",
+      "reactants": [
+        "CC1CC=C1"
+      ],
+      "products": [
+        "C=CC=CC"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "3-methylcyclobutene ring opening",
+    "description": "Describe the ring opening of 3-methylcyclobutene to form 1,3-butadiene. The reactant is a neutral, singlet-state cyclic alkene, and the target product is a neutral, singlet-state conjugated diene."
+  },
+  {
+    "task_id": "HA6",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HA6.json",
+    "reaction_input": {
+      "name": "trans-3,4-dimethylcyclobutene ring opening",
+      "reactants": [
+        "C[C@H]1C=C[C@@H]1C"
+      ],
+      "products": [
+        "CC=CC=CC"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "trans-3,4-dimethylcyclobutene ring opening",
+    "description": "Describe the ring opening of trans-3,4-dimethylcyclobutene to form the specified hexatriene product, preserving the defined stereochemistry and electronic state."
+  },
+  {
+    "task_id": "HA8",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HA8.json",
+    "reaction_input": {
+      "name": "(2E,4Z,6E)-octa-2,4,6-triene thermal 6-pi electrocyclization",
+      "reactants": [
+        "C/C=C/C=C\\C=C\\C"
+      ],
+      "products": [
+        "CC1C=CC=CC1C"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "(2E,4Z,6E)-octa-2,4,6-triene thermal 6-pi electrocyclization",
+    "description": "Describe the thermal 6-pi electrocyclization of (2E,4Z,6E)-octa-2,4,6-triene, a neutral singlet species, yielding the specified cyclohexadiene product with its defined stereochemistry and geometry."
+  },
+  {
+    "task_id": "HB1",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HB1.json",
+    "reaction_input": {
+      "name": "cyclopentadiene + maleic anhydride Diels-Alder",
+      "reactants": [
+        "C1=CCC=C1",
+        "O=C1OC(=O)C=C1"
+      ],
+      "products": [
+        "O=C1OC(=O)C2C3C=CC(C3)C12"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclopentadiene + maleic anhydride Diels-Alder",
+    "description": "Describe the Diels-Alder reaction between cyclopentadiene and maleic anhydride, yielding the specified bicyclic adduct. The system is defined with a neutral charge and singlet multiplicity, treating the product as the stated target without inferring mechanism or verifying outcome."
+  },
+  {
+    "task_id": "HB10",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HB10.json",
+    "reaction_input": {
+      "name": "cyclopentadiene + acrylonitrile Diels-Alder reaction",
+      "reactants": [
+        "C1=CCC=C1",
+        "C=CC#N"
+      ],
+      "products": [
+        "N#CC1CC2C=CC1C2"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclopentadiene + acrylonitrile Diels-Alder reaction",
+    "description": "Describe the Diels-Alder reaction between cyclopentadiene and acrylonitrile, yielding the specified bicyclic nitrile product. The system is defined with a neutral charge and singlet multiplicity, treating the listed species as the stated targets for this transformation."
+  },
+  {
+    "task_id": "HD2",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HD2.json",
+    "reaction_input": {
+      "name": "cyclohexene oxide + hydroxide",
+      "reactants": [
+        "C1CCC2OC2C1",
+        "[OH-]"
+      ],
+      "products": [
+        "[O-]C1CCCCC1O"
+      ],
+      "charge": -1,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclohexene oxide + hydroxide",
+    "description": "Describe the reaction of cyclohexene oxide with hydroxide to form the specified anionic product, maintaining the stated charge and multiplicity."
+  },
+  {
+    "task_id": "HF1",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HF1.json",
+    "reaction_input": {
+      "name": "cyclohex-2-en-1-ol peracid epoxidation",
+      "reactants": [
+        "OC1C=CCCC1",
+        "O=COO"
+      ],
+      "products": [
+        "OC1CCCC2OC12",
+        "O=CO"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclohex-2-en-1-ol peracid epoxidation",
+    "description": "Describe the peracid epoxidation of cyclohex-2-en-1-ol, converting the specified reactants into the corresponding epoxide product and carboxylic acid byproduct, maintaining the stated neutral charge and singlet multiplicity."
+  },
+  {
+    "task_id": "HH1",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HH1.json",
+    "reaction_input": {
+      "name": "1,1'-binaphthyl thermal racemization",
+      "reactants": [
+        "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43"
+      ],
+      "products": [
+        "c1ccc2c(-c3cccc4ccccc34)cccc2c1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "1,1'-binaphthyl thermal racemization",
+    "description": "Describe the thermal racemization of 1,1'-binaphthyl, starting from the specified neutral, singlet-state reactant structure and targeting the stated product configuration, while preserving the defined electronic state and molecular identity."
+  },
+  {
+    "task_id": "HI1",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HI1.json",
+    "reaction_input": {
+      "name": "Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide",
+      "reactants": [
+        "CC([N+](C)(C)[O-])C(C)c1ccccc1"
+      ],
+      "products": [
+        "CC=C(C)c1ccccc1",
+        "CN(C)O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide",
+    "description": "Describe the Cope elimination of threo/erythro N,N-dimethyl-3-phenyl-2-butylamine oxide, yielding 2-methyl-1-phenylpropene and N,N-dimethylhydroxylamine as targets, with neutral charge and singlet multiplicity."
+  },
+  {
+    "task_id": "HL1",
+    "tier": "hard",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/hard/HL1.json",
+    "reaction_input": {
+      "name": "formonitrile oxide + norbornene [3+2] cycloaddition",
+      "reactants": [
+        "C#[N+][O-]",
+        "C1=CC2CCC1C2"
+      ],
+      "products": [
+        "C1=NOC2C3CCC(C3)C12"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "formonitrile oxide + norbornene [3+2] cycloaddition",
+    "description": "Describe the [3+2] cycloaddition between formonitrile oxide and norbornene, yielding the specified isoxazolidine product. The system is defined with a total charge of zero and a singlet multiplicity, treating the product structure as the stated target."
+  },
+  {
+    "task_id": "IA1",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IA1.json",
+    "reaction_input": {
+      "name": "cyclobutadiene D4h automerization",
+      "reactants": [
+        "C1=CC=C1"
+      ],
+      "products": [
+        "C1=CC=C1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclobutadiene D4h automerization",
+    "description": "Describe the D4h automerization of cyclobutadiene, where the reactant and product are both represented by the SMILES string C1=CC=C1. The system is specified with a neutral charge and a singlet multiplicity, focusing on the conformational change within the D4h symmetry framework."
+  },
+  {
+    "task_id": "IA5",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IA5.json",
+    "reaction_input": {
+      "name": "cyclobutene disrotatory ring opening",
+      "reactants": [
+        "C1=CCC1"
+      ],
+      "products": [
+        "C=CC=C"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "cyclobutene disrotatory ring opening",
+    "description": "Describe the disrotatory ring opening of cyclobutene to form 1,3-butadiene. The reactant is specified as a neutral, singlet-state molecule, and the target product is the corresponding neutral, singlet-state diene."
+  },
+  {
+    "task_id": "IA7",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IA7.json",
+    "reaction_input": {
+      "name": "Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",
+      "reactants": [
+        "C#C/C=C\\C#C"
+      ],
+      "products": [
+        "[c]1cc[c]cc1"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",
+    "description": "Describe the Bergman cyclization of (Z)-hex-3-ene-1,5-diyne, converting the specified reactant into the target product with a net charge of zero and a singlet multiplicity."
+  },
+  {
+    "task_id": "IA9",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IA9.json",
+    "reaction_input": {
+      "name": "1,2-dioxetane thermolysis to two formaldehyde",
+      "reactants": [
+        "C1COO1"
+      ],
+      "products": [
+        "C=O",
+        "C=O"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "1,2-dioxetane thermolysis to two formaldehyde",
+    "description": "Describe the thermolysis of 1,2-dioxetane, a neutral singlet species, yielding two formaldehyde molecules as the target products."
+  },
+  {
+    "task_id": "IB9",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IB9.json",
+    "reaction_input": {
+      "name": "diazomethane and ethylene to cyclopropane via 1-pyrazoline",
+      "reactants": [
+        "C=[N+]=[N-]",
+        "C=C"
+      ],
+      "products": [
+        "C1CC1",
+        "N#N"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "diazomethane and ethylene to cyclopropane via 1-pyrazoline",
+    "description": "Describe the transformation of diazomethane and ethylene into cyclopropane and dinitrogen, proceeding via a 1-pyrazoline intermediate. The system is specified with a net charge of zero and a singlet multiplicity."
+  },
+  {
+    "task_id": "IC3",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IC3.json",
+    "reaction_input": {
+      "name": "phenylnitrene open-shell singlet state",
+      "reactants": [
+        "[N]c1ccccc1"
+      ],
+      "products": [
+        "[N]c1ccccc1"
+      ],
+      "charge": 0,
+      "multiplicity": 3
+    },
+    "raw_text": "phenylnitrene open-shell singlet state",
+    "description": "Describe the open-shell singlet state of phenylnitrene, represented by the SMILES [N]c1ccccc1, with a net charge of zero and a triplet multiplicity."
+  },
+  {
+    "task_id": "ID2",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/ID2.json",
+    "reaction_input": {
+      "name": "anomalous bonding in dioxygen difluoride (FOOF)",
+      "reactants": [
+        "FOOF"
+      ],
+      "products": [
+        "FOOF"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "anomalous bonding in dioxygen difluoride (FOOF)",
+    "description": "Describe the anomalous bonding characteristics of neutral, singlet dioxygen difluoride (FOOF), treating the specified molecular structure and electronic state as the target for analysis."
+  },
+  {
+    "task_id": "IE2",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IE2.json",
+    "reaction_input": {
+      "name": "nitrogen triple-bond dissociation curve",
+      "reactants": [
+        "N#N"
+      ],
+      "products": [
+        "[N]",
+        "[N]"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "nitrogen triple-bond dissociation curve",
+    "description": "Describe the nitrogen triple-bond dissociation curve for the singlet state, starting from the N#N reactant and targeting two [N] products, with a total charge of zero."
+  },
+  {
+    "task_id": "IF3",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IF3.json",
+    "reaction_input": {
+      "name": "triangulene triplet ground state and singlet-triplet gap",
+      "reactants": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "products": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "charge": 0,
+      "multiplicity": 3
+    },
+    "raw_text": "triangulene triplet ground state and singlet-triplet gap",
+    "description": "Determine the triplet ground state energy and the singlet-triplet gap for the neutral triangulene molecule, using the specified molecular structure and electronic state inputs."
+  },
+  {
+    "task_id": "IG8",
+    "tier": "impossible",
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/ideapool/tasks/impossible/IG8.json",
+    "reaction_input": {
+      "name": "chromium dimer ground-state dissociation curve",
+      "reactants": [
+        "[Cr][Cr]"
+      ],
+      "products": [
+        "[Cr]",
+        "[Cr]"
+      ],
+      "charge": 0,
+      "multiplicity": 1
+    },
+    "raw_text": "chromium dimer ground-state dissociation curve",
+    "description": "Describe the ground-state dissociation curve for the neutral chromium dimer, specifying the transition from the [Cr][Cr] reactant to two separate [Cr] products, maintaining a singlet multiplicity throughout the process."
+  }
+]

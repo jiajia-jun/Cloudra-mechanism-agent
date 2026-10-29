@@ -1,0 +1,43 @@
+{
+  "id": "el_agente_q",
+  "name": "El Agente Q",
+  "first_public_date": "2025-05-05",
+  "physical_target": "finite_molecules_complexes",
+  "demonstrated_target": "organic molecules and coordination complexes",
+  "boundary_conditions": "finite molecular calculations (ORCA/xTB)",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O",
+    "F"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "F": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/abs/2505.02484",
+      "locator": "Abstract; corroborated by ChemGraph Discussion and Quntur Introduction",
+      "evidence_paraphrase": "Quantum chemistry workflows include equilibrium geometries, vibrational/spectral and electronic-property calculations, with adaptive debugging."
+    }
+  ],
+  "family": "El Agente",
+  "aliases": [
+    "El Agente: An Autonomous Agent for Quantum Chemistry",
+    "10.1016/j.matt.2025.102263"
+  ],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

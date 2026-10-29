@@ -1,0 +1,402 @@
+{
+  "records": [
+    {
+      "id": "el_agente_cuantico",
+      "name": "El Agente Cuántico",
+      "first_public_date": "2025-12-21",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "H2 electronic ground-state energies across a molecular bond-length grid",
+      "boundary_conditions": "Finite H2 molecular Hamiltonians in STO-3G; additional spin/circuit/FMO reduced-model studies are outside the target classification",
+      "demonstrated_tasks": [
+        "E"
+      ],
+      "task_evidence": {
+        "E": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2512.18847v3",
+          "locator": "§3.1.1 and Fig.3; Supplementary §S2.1",
+          "evidence_paraphrase": "The orchestrator consults CUDA-Q documentation, delegates generated Python, executes an H2 VQE/diagonalization workflow and plots computed energies over 0.4–2.2 Å bond distances. The supplement records the user approval, software-specialist calls, execution and analysis."
+        },
+        {
+          "url": "https://arxiv.org/abs/2512.18847",
+          "locator": "Submission history",
+          "evidence_paraphrase": "First submitted 21 December 2025; v3 dated 5 March 2026. The journal counterpart is DOI 10.1088/1361-6633/ae8933."
+        }
+      ],
+      "family": "El Agente",
+      "aliases": [
+        "El Agente Cuantico: Automating quantum simulations",
+        "arXiv:2512.18847",
+        "10.1088/1361-6633/ae8933"
+      ],
+      "limitations": "Resolved from the original full report rather than the general quantum-simulation abstract. H2 supplies an actual molecular electronic-structure demonstration. Optimizing circuit parameters is not molecular geometry optimization; the prescribed dissociation scan is not TS/path search. No D mark is assigned from model Hamiltonian dynamics, and no new object class is inferred from quantum-computing examples.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27",
+      "sample_origin": "completion_molecular_20261027"
+    },
+    {
+      "id": "qaos",
+      "name": "QAOS / Quantum Agentic Operating System",
+      "first_public_date": "2026-10-04",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "Zundel cation H5O2+ with a constrained proton-transfer coordinate",
+      "boundary_conditions": "Finite molecular model, fixed O–O distance 2.9 Å, full STO-3G electronic space; no PBC",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2610.05304v1",
+          "locator": "§§2–3; Fig.2; Appendix A.1 and A.3; LLM use disclosure",
+          "evidence_paraphrase": "Agents propose the Zundel model, formalize a human-approved protocol and generate the implemented geometry/electronic-structure workflow. Other atoms are DFT-optimized at each prescribed proton position. Executed PBE, HF, CCSD, FCI and noiseless SQD profiles yield method-dependent proton-transfer barriers. Humans executed calculations and checked evidence."
+        },
+        {
+          "url": "https://arxiv.org/abs/2610.05304",
+          "locator": "Submission metadata",
+          "evidence_paraphrase": "The original demonstration was submitted 4 October 2026."
+        }
+      ],
+      "family": "QAOS / Haiqu",
+      "aliases": [
+        "Demonstration of a Structured Agentic Workflow for Applied Quantum Computing Research",
+        "Quantum Agentic OS",
+        "AgenticOS",
+        "arXiv:2610.05304"
+      ],
+      "limitations": "Human-in-the-loop planning and code generation for actual molecular computations qualifies under this sample boundary, but it is not autonomous job submission. Appendix A.3 explicitly calls the result a prescribed one-dimensional scan rather than a fully relaxed minimum-energy path; R is therefore left blank. The separate prototype-experiments graph node was not executed. This workshop-scale demonstration does not establish general organic mechanism discovery.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27",
+      "sample_origin": "completion_molecular_20261027"
+    },
+    {
+      "id": "electrolyte_agent_ruza",
+      "name": "Electrolyte Agent / Reasoning-to-Simulation",
+      "first_public_date": "2026-03-24",
+      "physical_target": "soft_biomolecular",
+      "demonstrated_target": "Multicomponent sodium-salt liquid electrolytes, including carbonate solvent mixtures",
+      "boundary_conditions": "Periodic liquid boxes of around 16000 atoms; OpenMM with particle-mesh Ewald and velocity Verlet",
+      "demonstrated_tasks": [
+        "T",
+        "D"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://openreview.net/pdf/837f62f17b0f4210dbc1260e813b7fd1ebabd467.pdf",
+          "locator": "Title page; Fig.1; §§2–4; Appendix A.1–A.2",
+          "evidence_paraphrase": "GPT-5 discovery and MD-assistant modes plan electrolyte compositions, obtain missing chemistry information, revise plans after critique and invoke MD. Appendix A.1 describes Packmol construction and actual OpenMM simulations; §4 follows repeated discovery generations using returned transport-property feedback. An EC/DMC/EMC–NaPF6 example has 16952 atoms."
+        },
+        {
+          "url": "https://zenodo.org/records/19198509",
+          "locator": "Official linked dataset metadata and prompt CSV files; published 24 March 2026",
+          "evidence_paraphrase": "The primary dataset identifies the report as Reasoning-to-Simulation: An Agentic Framework for Discovery of Electrolyte Materials and its creator as Jurgis Ruža. The original report names Ruža and Rafael Gómez-Bombarelli, MIT."
+        }
+      ],
+      "family": "Electrolyte Agent / Ruža–Gómez-Bombarelli",
+      "aliases": [
+        "Reasoning-to-Simulation: An Agentic Framework for Discovery of Electrolyte Materials",
+        "OpenReview:MEXl18VhBL",
+        "ElectrolyteAgent"
+      ],
+      "limitations": "The complete original PDF is indexed and supplied primary text for the worked MD methods/results, although direct OpenReview PDF/forum endpoints trigger a browser challenge and API2 returns 403. Title and dated public trace were independently resolved through the authors’ linked Zenodo record. The date is the earliest exact public date located in this pass, not a verified original submission date. Learned electrolyte properties are auxiliary context; T/D rests on actual liquid MD. No O/E/F/R is inferred from a backend feature list.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27",
+      "sample_origin": "completion_molecular_20261027"
+    }
+  ],
+  "updates": [
+    {
+      "id": "el_agente_grafico",
+      "changes": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2602.17902v1",
+            "locator": "Sections 2.1–2.3; Figure 3; Appendix C; Appendix D.1.7",
+            "evidence_paraphrase": "An LLM routing agent orchestrates typed single-point, optimization, frequency and TDDFT nodes. Molecular examples generate CREST conformers and a 15-water microsolvation cluster, optimize them, check imaginary modes and calculate ensemble spectra. A separate demonstrated MOF workflow constructs CIF structures, relaxes them with MACE and analyzes porosity."
+          },
+          {
+            "url": "https://arxiv.org/html/2602.17902v2",
+            "locator": "§2.3 Redox mechanism investigation; Supplementary §G.1",
+            "evidence_paraphrase": "Gráfico selects PhSSPh, its radical anion, thiolate and thiyl radical, assigns charge/spin and dispatches separate B3LYP/def2-SVP/SMD(DMF) geometry/frequency workflows. Computed free energies, redox potentials and S–S elongation support an E–C–E/E–C interpretation; the transcript explicitly notes the absence of a cleavage TS."
+          }
+        ],
+        "demonstrated_target": "finite-molecule quantum chemistry and explicit microsolvation ensembles; metal-organic frameworks; v2 diphenyl-disulfide redox thermochemistry and ethanol/ethanethiol vibrational comparison",
+        "limitations": "Same research family as Q/Quntur/Estructural but a separately described execution-graph system, counted once across versions. Cross-domain classification reflects actual finite molecular and MOF demonstrations. V2 was read directly in this pass: its open-ended diphenyl-disulfide study is a real mechanistic application using species optimization, frequencies and redox thermochemistry. The original transcript explicitly lacks a cleavage TS; it does not establish TS/IRC/path execution, so R stays blank. Molecular imaginary-frequency failure recovery also does not imply TS search.",
+        "reviewed_on": "2026-10-27"
+      },
+      "reason": "Resolved the previously noted v2 disulfide mechanism claim from main text and the actual supplementary transcript; no extra system or task count."
+    },
+    {
+      "id": "namd_agent",
+      "changes": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2507.07887v1",
+            "locator": "§§3.3–3.5; Results §5; SI §§6.1–6.6",
+            "evidence_paraphrase": "Gemini composes, executes and revises code to operate CHARMM-GUI, assemble solvated protein or membrane systems, run NAMD, and analyze actual 1 ns trajectories. Example simulation parameters explicitly enable periodic boundaries."
+          },
+          {
+            "url": "https://arxiv.org/html/2507.07887v2",
+            "locator": "Abstract; Results and five-system case studies; §3 system preparation; supplementary prompts",
+            "evidence_paraphrase": "The October revision switches the documented interface to HTMD MCP/NAMD3 and reports protein–DNA p53 variants, an M2 receptor bilayer, TYK2 ligands, ubiquitin and barnase–barstar simulations, including actual 100 ns p53 trajectories and their structural analyses."
+          }
+        ],
+        "demonstrated_target": "Proteins, protein–DNA, protein–ligand, protein–protein and membrane systems; v2 includes p53 DBD–DNA, M2 receptor–iperoxo, TYK2 inhibitors, ubiquitin and barnase–barstar",
+        "limitations": "V1 and the substantially revised 2 October 2026 report remain one NAMD-Agent record. V2 provides five biomolecular case classes with HTMD MCP/NAMD3; explicit setup/minimization workflow details do not add an independent O mark without separately audited relaxation outcomes. Protein and membrane periodic boxes remain soft/biomolecular.",
+        "reviewed_on": "2026-10-27"
+      },
+      "reason": "Checked the latest primary version found in the October search; update scope/software evidence without counting a new architecture."
+    }
+  ],
+  "screening": [
+    {
+      "name": "ArIA",
+      "url": "https://doi.org/10.26434/chemrxiv.15002344/v2",
+      "status": "unresolved_worked_application_output_not_retrieved",
+      "reason": "V2 full PDF/full-text endpoints still return HTTP 403. Located and read the authors’ official DataverseNL record DOI 10.34894/RNPTDS (release 4 May 2026), its complete ZIP directory and selected small README/code/test files via byte ranges. The archive does contain an executable LangGraph/ORCA application and batch input-runnability tests whose targets are deliberately replaced by H2; App_deployment/RUN and Usage_log directories are empty. No concrete application energy/geometry/spectrum output or worked case was recovered, so generic execution claims and input-runnability figures are not converted into task marks. This is an access/evidence limitation, not evidence of no ORCA ability.",
+      "locator": "ChemRxiv v1/v2; DataverseNL API /api/datasets/:persistentId/?persistentId=doi:10.34894/RNPTDS; ArIA_v1.zip, Model_development/README.md and App_deployment/"
+    },
+    {
+      "name": "Q-planner",
+      "url": "https://www.molsci.jp/2026/present_1.html",
+      "status": "unresolved_original_report_not_located",
+      "reason": "Repeated exact-title, author, ChemRxiv and code searches resolve the primary conference talk 1C03 and authors Ruiqi Zhang, Wenhao Gao and Yuki Kurashige, but do not locate its original ChemRxiv identifier, official repository or worked computation output. The same-name Irfansha Shaik QBF planner is unrelated and not used. The perspective capability table supplies a discovery lead only.",
+      "locator": "Conference program talk 1C03; cross-check arXiv:2608.18508 bibliography"
+    },
+    {
+      "name": "LARA-HPC",
+      "url": "https://arxiv.org/html/2604.22571v1",
+      "status": "unresolved_production_computation_not_established",
+      "reason": "The latest located original remains v1. §V says the implementation reaches Phase 3 validation. The reported corrections and anatase/water memory table are native dry-run results; §IV explicitly says no full SCF cycle is performed. The water centroid result is geometry bookkeeping, and atomization-energy convergence is discussed through validated workflow code without a completed energy output. No production electronic-structure result was found in the actual worked demonstrations; keep outside rather than convert an end-to-end abstract claim into E.",
+      "locator": "§III.5; §IV; §V and Table 1"
+    },
+    {
+      "name": "Electrolyte agent (OpenReview MEXl18VhBL)",
+      "url": "https://openreview.net/forum?id=MEXl18VhBL",
+      "status": "resolved_included",
+      "reason": "Identity and concrete MD execution resolved as the Ruža/Gómez-Bombarelli Reasoning-to-Simulation system, using indexed original PDF pages plus its official linked Zenodo dataset. Added as electrolyte_agent_ruza, counted once across its two operating modes.",
+      "locator": "Original title page, §§2–4 and Appendix A.1; Zenodo 19198509"
+    },
+    {
+      "name": "El Agente Cuántico",
+      "url": "https://arxiv.org/html/2512.18847v3",
+      "status": "resolved_included",
+      "reason": "Original §3.1.1 and supplementary transcript demonstrate molecular H2 Hamiltonian generation and executed VQE/electronic energies. This resolves the former model-only uncertainty; added E, while spin-model/FMO reduced-model dynamics remain outside the coded molecular task evidence.",
+      "locator": "§3.1.1, Fig.3; §S2.1"
+    },
+    {
+      "name": "gromacs_smolagent",
+      "url": "https://github.com/virtualramblas/gromacs_smolagent",
+      "status": "unresolved_md_execution_not_demonstrated",
+      "reason": "Read the official Gallery and visually inspected its system-preparation screenshots. They show a real agent invocation of GROMACS pdb2gmx on penetratin (159 input atoms, 16 residues), successful topology/coordinate output, and water-removal editing. They do not show a trajectory, minimization/energy output or executed dynamics; listed simulation tools and conference presentations alone cannot supply D. The repo was created 6 May 2025, but that is not an MD demonstration date. Kept outside under the actual-physics-execution boundary, with T-only preparation evidence recorded explicitly.",
+      "locator": "docs/Gallery.md; images/system_preparation_1.png and system_preparation_2.png; README"
+    },
+    {
+      "name": "OHMind MD Agent",
+      "url": "https://github.com/lunyang/OHMind",
+      "status": "unresolved_md_execution_not_demonstrated",
+      "reason": "Read the official MD tutorial, source README and published case-study archive index. The tutorial labels numeric MD tables Expected Output. The archived September case studies provide recovery/PSO and learned-property optimization records; no native GROMACS trajectory/energy run was located in that archive. Documentation and callable ORCA/GROMACS tools do not establish a worked MD demonstration. Broader OHMind execution may exist, but this pass cannot positively code atomistic tasks from these materials.",
+      "locator": "https://lunyang.github.io/tutorials/md-simulations/; OHMind_case_studies/PUBLICATION.md and publication_manifest.json"
+    },
+    {
+      "name": "Universal Structure Generator (Pollice group)",
+      "url": "https://doi.org/10.26434/chemrxiv.15006869/v1",
+      "status": "unresolved_primary_worked_case_inaccessible",
+      "reason": "The author group confirms title and authors and the ChemRxiv DOI. Direct original full-text access returns 403; exact-title searches found no accessible official code/dataset or computed case output. Consequently it is not inferred eligible from Plugin Agent or Computational Chemistry in the title, and no atomistic relaxation task is assumed.",
+      "locator": "https://pollicegroup.web.rug.nl/publications-preprints.html, item 28; ChemRxiv full endpoint"
+    },
+    {
+      "name": "PRAXIS-MD",
+      "url": "https://doi.org/10.1016/j.jmgm.2026.109623",
+      "status": "identified_primary_results_still_inaccessible",
+      "reason": "New October lead by Zhenyu Ma et al. Primary publisher abstract/introduction name an independent P4-ATPase/TMEM16F/XKR8 membrane-transport study, but accessible snippets do not expose the executed trajectories, computed outputs or detailed case results. Direct publisher full-text is 403; Elsevier public content API returns bibliographic coredata only with openaccess=false; no official code/preprint was located. Do not count an end-to-end claim without worked-case proof. PubMed/author-index leads give online release 19 October 2026, whereas the issue is January 2027; date remains noted rather than excluded as future.",
+      "locator": "Publisher abstract/introduction and section snippets; Elsevier content API pii S1093326326003499; PMID 42896246"
+    },
+    {
+      "name": "RNADaemon",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42873607/",
+      "status": "excluded_non_llm_reinforcement_learning",
+      "reason": "The newly indexed RNA dynamics system uses a Soft Actor-Critic RL policy for force-field biases; no LLM computational decision loop is established. Actual all-atom MD alone does not meet this LLM-agent sample boundary.",
+      "locator": "Original title/abstract; October 2026 JCIM report"
+    },
+    {
+      "name": "DyME",
+      "url": "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014221",
+      "status": "excluded_deterministic_md_automation",
+      "reason": "The October report describes an MD/mutagenesis engine and open trajectories. No LLM planning, tool execution or computational feedback loop is established in the reported contribution; not added for MD automation alone.",
+      "locator": "Original abstract and Data Availability"
+    },
+    {
+      "name": "El Agente Potente",
+      "url": "https://arxiv.org/html/2609.14840v1",
+      "status": "eligible_owned_by_materials_stream",
+      "reason": "New lead from the October/September search has actual finite-molecule conformer/DFT/frequency and alanine-dipeptide metadynamics plus materials/catalytic NEB demonstrations. Transferred to the materials completion stream to create a single cross-domain record.",
+      "locator": "§2.3.2; Fig.4; §2.3.3; Supplement C"
+    }
+  ],
+  "search_log": [
+    {
+      "query": "ArIA ChemRxiv 15002344 ORCA agent",
+      "source_urls": [
+        "https://doi.org/10.26434/chemrxiv.15002344/v2",
+        "https://pollicegroup.web.rug.nl/publications-preprints.html"
+      ],
+      "notes": "Known-lead closure; original blocked, followed official author page and dataset."
+    },
+    {
+      "query": "\"Molecular Simulations Assisted\" ArIA github",
+      "source_urls": [
+        "https://doi.org/10.34894/RNPTDS"
+      ],
+      "notes": "Located official DataverseNL archive through indexed dataset description, then read primary API and selected archive files."
+    },
+    {
+      "query": "\"Q-planner\" \"Kurashige\"",
+      "source_urls": [
+        "https://www.molsci.jp/2026/present_1.html"
+      ],
+      "notes": "Exact authors/title disambiguated from QBF planning; no computation case recovered."
+    },
+    {
+      "query": "\"Q-planner\" Ruiqi quantum -QBF -Shaik -ICLR -ICAPS -Planner/qplanner",
+      "source_urls": [
+        "https://www.molsci.jp/2026/present_1.html",
+        "https://arxiv.org/html/2608.18508v1"
+      ],
+      "notes": "Followed conference identity and perspective bibliography; original identifier unresolved."
+    },
+    {
+      "query": "\"LARA-HPC\" 2604.22571",
+      "source_urls": [
+        "https://arxiv.org/html/2604.22571"
+      ],
+      "notes": "Re-read entire latest located original, including dry-run limits and actual demonstrations."
+    },
+    {
+      "query": "\"Electrolyte agent\" \"ICLR\" molecular dynamics",
+      "source_urls": [
+        "https://openreview.net/pdf?id=MEXl18VhBL",
+        "https://openreview.net/pdf/837f62f17b0f4210dbc1260e813b7fd1ebabd467.pdf"
+      ],
+      "notes": "Returned indexed original worked-case pages; direct access challenge recorded."
+    },
+    {
+      "query": "\"Reasoning-to-Simulation\" \"Electrolyte\"",
+      "source_urls": [
+        "https://openreview.net/pdf/837f62f17b0f4210dbc1260e813b7fd1ebabd467.pdf",
+        "https://zenodo.org/records/19198509"
+      ],
+      "notes": "Followed original paper to its author-deposited prompt dataset to close title/author identity."
+    },
+    {
+      "query": "\"gromacs_smolagent\" OR \"OHMindMD\"",
+      "source_urls": [
+        "https://github.com/virtualramblas/gromacs_smolagent",
+        "https://lunyang.github.io/agents/md-agent/"
+      ],
+      "notes": "Known MD leads; followed code docs, actual screenshots, tutorial and archive evidence."
+    },
+    {
+      "query": "\"El Agente Cuántico\" molecule",
+      "source_urls": [
+        "https://arxiv.org/abs/2512.18847",
+        "https://arxiv.org/html/2512.18847"
+      ],
+      "notes": "Recovered full original H2 VQE example and execution transcript, overturning earlier unresolved molecular eligibility."
+    },
+    {
+      "query": "\"Universal Structure Generator\" \"agent\" PDF",
+      "source_urls": [
+        "https://doi.org/10.26434/chemrxiv.15006869/v1",
+        "https://pollicegroup.web.rug.nl/publications-preprints.html"
+      ],
+      "notes": "Checked exact title and official author page; blocked original, no feature-list inclusion."
+    },
+    {
+      "query": "LLM agent quantum chemistry molecular simulations October 2026 new",
+      "source_urls": [
+        "https://arxiv.org/abs/2610.27230",
+        "https://arxiv.org/abs/2609.14840",
+        "https://arxiv.org/html/2507.07887v2"
+      ],
+      "notes": "Broad recent-paper search found already-counted Magnolia, new Potente and updated NAMD-Agent; separated versions and new systems."
+    },
+    {
+      "query": "\"agent\" \"molecular dynamics\" \"2026\" \"October\" simulation -site:linkedin.com -site:researchgate.net",
+      "source_urls": [
+        "https://aclanthology.org/2026.emnlp-main.672/",
+        "https://doi.org/10.1016/j.jmgm.2026.109623",
+        "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014221"
+      ],
+      "notes": "New October update sweep found PRAXIS-MD and non-LLM/deterministic neighbors; MDForge deduplicated against baseline."
+    },
+    {
+      "query": "\"agent\" \"quantum chemistry\" \"2026\" \"October\" -site:researchgate.net -site:linkedin.com",
+      "source_urls": [
+        "https://arxiv.org/html/2610.05304",
+        "https://arxiv.org/abs/2609.39302"
+      ],
+      "notes": "Found QAOS and already-counted SQD-Agent, then read QAOS original and appendix."
+    },
+    {
+      "query": "\"autonomous\" \"reaction mechanism\" \"agent\" 2026 LLM",
+      "source_urls": [
+        "https://arxiv.org/html/2602.17902",
+        "https://arxiv.org/abs/2601.13508"
+      ],
+      "notes": "Reaction-mechanism sweep and updated-source check: read Gráfico disulfide transcript; CatMaster already counted."
+    },
+    {
+      "query": "\"PRAXIS-MD\" \"github\"",
+      "source_urls": [
+        "https://www.sciencedirect.com/science/article/abs/pii/S1093326326003499"
+      ],
+      "notes": "Pursued code/preprint/results after initial discovery; only publisher introduction and snippets found."
+    },
+    {
+      "query": "\"PRAXIS-MD\" \"109623\" \"pdf\"",
+      "source_urls": [
+        "https://api.elsevier.com/content/article/pii/S1093326326003499?httpAccept=text/xml"
+      ],
+      "notes": "Attempted original full-text alternative; public API returned coredata and openaccess=false rather than results."
+    },
+    {
+      "query": "\"agent\" \"quantum chemistry\" \"October 27\" \"2026\"",
+      "source_urls": [
+        "https://www.nature.com/articles/s43586-026-00534-y"
+      ],
+      "notes": "Late October cutoff sweep found new Primer but no additional concrete molecular simulation system in its inspected references."
+    },
+    {
+      "query": "\"agent\" \"molecular dynamics\" \"October 2026\" -MDForge -RNADaemon -PRAXIS -site:jove.com",
+      "source_urls": [
+        "https://moleculediscovery.github.io/workshop2026/call-for-papers/"
+      ],
+      "notes": "Cutoff/saturation sweep predominantly returned already-covered systems, non-agent MD and private-review workshop context; no quota-driven inclusion."
+    }
+  ]
+}

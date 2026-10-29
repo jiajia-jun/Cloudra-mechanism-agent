@@ -1,0 +1,44 @@
+{
+  "id": "el_agente_forjador",
+  "name": "El Agente Forjador",
+  "first_public_date": "2026-04-16",
+  "physical_target": "finite_molecules_complexes",
+  "demonstrated_target": "molecular QC plus quantum dynamics",
+  "boundary_conditions": "finite molecular examples; quantum-state dynamics does not imply periodic materials",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O",
+    "F",
+    "D"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "F": {
+      "source_index": 0
+    },
+    "D": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2604.14609v1",
+      "locator": "§4.1; Table 1; §4.4",
+      "evidence_paraphrase": "Creates and reuses tools for molecular optimization, frequencies/thermochemistry and excited states; hybrid cases couple electronic structure to quantum dynamics."
+    }
+  ],
+  "family": "El Agente",
+  "aliases": [],
+  "limitations": "D is quantum dynamics, not necessarily atomistic MD. The physical target is coded by demonstrated molecular calculations, not software breadth.",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

@@ -1,0 +1,36 @@
+{
+  "id": "adsorb-agent",
+  "name": "Adsorb-Agent",
+  "first_public_date": "2024-10-22",
+  "physical_target": "extended_materials_surfaces",
+  "demonstrated_target": "adsorbates on crystalline catalyst slabs",
+  "boundary_conditions": "bulk-derived Miller-index slabs; explicit PBC not independently checked",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2410.16658v4",
+      "locator": "§2; §S3 Table S1",
+      "evidence_paraphrase": "LLM proposes adsorption sites and orientations, with relaxed atomistic adsorption-energy evaluation. Bulk IDs and slab Miller indices are documented."
+    }
+  ],
+  "family": "Adsorb-Agent",
+  "aliases": [],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

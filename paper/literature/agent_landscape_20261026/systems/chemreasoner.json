@@ -1,0 +1,36 @@
+{
+  "id": "chemreasoner",
+  "name": "ChemReasoner",
+  "first_public_date": "2024-02-15",
+  "physical_target": "extended_materials_surfaces",
+  "demonstrated_target": "heterogeneous catalyst slabs and adsorbates",
+  "boundary_conditions": "slab cells and vacuum explicitly reported",
+  "demonstrated_tasks": [
+    "E",
+    "O",
+    "T"
+  ],
+  "task_evidence": {
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "T": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2402.10980v3",
+      "locator": "§3.3; §5.4; Appendix A",
+      "evidence_paraphrase": "LLM-guided catalyst search uses GNN structure relaxation and adsorption-energy feedback; selected slabs are checked by DFT."
+    }
+  ],
+  "family": "ChemReasoner",
+  "aliases": [],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

@@ -1,0 +1,42 @@
+{
+  "id": "aitomia",
+  "name": "Aitomia",
+  "first_public_date": "2025-05-13",
+  "physical_target": "finite_molecules_complexes",
+  "demonstrated_target": "molecular spectra and reaction thermochemistry",
+  "boundary_conditions": "finite molecular examples; no periodic demonstration coded",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O",
+    "F"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "F": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/pdf/2505.08195",
+      "locator": "16 March 2026 version, pp.5–12; Figs.3–6",
+      "evidence_paraphrase": "Demonstrated examples include hexanol IR and multi-species reaction enthalpy workflows using geometry optimization, frequency and electronic calculations."
+    }
+  ],
+  "family": "Aitomia",
+  "aliases": [
+    "10.1021/acs.jctc.6c00591"
+  ],
+  "limitations": "The inspected preprint and current repository are distinct evidence versions. The current repository supports TS/IRC; no negative capability claim follows from uncoded tasks here.",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

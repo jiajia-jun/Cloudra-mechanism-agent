@@ -1,0 +1,14 @@
+CloudraBench descriptive semantic-space exploration
+
+Primary view: the 50 original task names, with the explicit ": determine " instruction suffix removed. These source names are embedded directly with the cached BAAI/bge-m3 model (1024 dimensions). Tier, Gold, scoring instructions, calculation results, and mixed condition/instruction fields are excluded. No benchmark scores or task inputs were changed.
+
+Qwen comparison: qwen3.8:27b receives the source name, reactant/product SMILES, charge and multiplicity. Its native requests and responses are retained in responses/. Chemical rewriting errors were observed; examples are in qwen_review.json. These paraphrases are only an unverified comparison. Agreement with the name-only view is not a controlled paraphrase stability test.
+
+Primary semantic_space and semantic_similarity figures use the original names. Cosine similarities and nearest neighbours use all 1024 embedding dimensions. PCA axes together capture about 18.2% of embedding variance and are a visual overview, not chemical distance or difficulty. The 50-task internal distribution cannot establish coverage of an external chemical population. Species-property and electronic-state questions remain in the Impossible subset; the full corpus is therefore described as chemical problems.
+
+Observed name-based neighbours include Diels-Alder tasks across Easy and Hard, and cyclobutene ring-opening tasks across Easy, Hard and Impossible. This is evidence of descriptive proximity only. It does not show task difficulty, scientific feasibility or system performance.
+
+Reproduce from the repository root in the existing local analysis environment:
+.venv-trans/bin/python scripts/benchmark_semantic_space.py --output paper/figures/benchmark_semantic_space_20261028
+
+The current analysis depends on the selected general-purpose text embedding model; it is not a validated chemical reaction metric.

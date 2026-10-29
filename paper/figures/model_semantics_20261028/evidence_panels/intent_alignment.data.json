@@ -1,0 +1,270 @@
+{
+  "source": "output/cloudra_model_study_20261028/operation_feedback_case.json",
+  "source_sha256": "03d6cf03ba887ba60a1bf566a93bc5b6e4a2b76a97112c8be337ca2fbb20bb01",
+  "source_case_id": "formal48-guided-r2-E1-operation-feedback",
+  "angle_rows": [
+    {
+      "candidate": "A",
+      "atom": "H5",
+      "atom_indices_1_based": [
+        5,
+        2,
+        3,
+        4
+      ],
+      "signed_degrees": -55.78310699190559,
+      "absolute_degrees": 55.78310699190559,
+      "circular_distance_to_180_degrees": 124.21689300809442,
+      "source_result_event": "evt_585eb8c474754439",
+      "xyz_sha256": "6cc6b1ada6be8612be5c28a5da08436f610e5468d62352194f70da014126d9f5"
+    },
+    {
+      "candidate": "A",
+      "atom": "H7",
+      "atom_indices_1_based": [
+        7,
+        2,
+        3,
+        4
+      ],
+      "signed_degrees": 59.375193232167966,
+      "absolute_degrees": 59.375193232167966,
+      "circular_distance_to_180_degrees": 120.62480676783204,
+      "source_result_event": "evt_585eb8c474754439",
+      "xyz_sha256": "6cc6b1ada6be8612be5c28a5da08436f610e5468d62352194f70da014126d9f5"
+    },
+    {
+      "candidate": "B",
+      "atom": "H5",
+      "atom_indices_1_based": [
+        5,
+        2,
+        3,
+        4
+      ],
+      "signed_degrees": 64.21689322650563,
+      "absolute_degrees": 64.21689322650563,
+      "circular_distance_to_180_degrees": 115.78310677349437,
+      "source_result_event": "evt_bd6653fac9064f68",
+      "xyz_sha256": "d7adf5776b65452b9f7227c27caacb341a34d84aece8d0dda3b9ad480948aedc"
+    },
+    {
+      "candidate": "B",
+      "atom": "H7",
+      "atom_indices_1_based": [
+        7,
+        2,
+        3,
+        4
+      ],
+      "signed_degrees": 179.3751934505792,
+      "absolute_degrees": 179.3751934505792,
+      "circular_distance_to_180_degrees": 0.6248065494208106,
+      "source_result_event": "evt_bd6653fac9064f68",
+      "xyz_sha256": "d7adf5776b65452b9f7227c27caacb341a34d84aece8d0dda3b9ad480948aedc"
+    }
+  ],
+  "newman_projection": {
+    "A": [
+      {
+        "atom_1based": 4,
+        "side": "back",
+        "normalized_projection": [
+          -0.8605215518789341,
+          0.5094140347024911
+        ]
+      },
+      {
+        "atom_1based": 8,
+        "side": "back",
+        "normalized_projection": [
+          -0.049928996398639215,
+          -0.9987527698678108
+        ]
+      },
+      {
+        "atom_1based": 9,
+        "side": "back",
+        "normalized_projection": [
+          0.848559231300373,
+          0.5291003978215477
+        ]
+      },
+      {
+        "atom_1based": 5,
+        "side": "front",
+        "normalized_projection": [
+          -0.9051366942812596,
+          -0.4251206471880585
+        ]
+      },
+      {
+        "atom_1based": 6,
+        "side": "front",
+        "normalized_projection": [
+          0.8401840855359819,
+          -0.5423013022407986
+        ]
+      },
+      {
+        "atom_1based": 7,
+        "side": "front",
+        "normalized_projection": [
+          -7.474685716754131e-17,
+          1.0
+        ]
+      }
+    ],
+    "B": [
+      {
+        "atom_1based": 4,
+        "side": "back",
+        "normalized_projection": [
+          -0.010904715345449298,
+          -0.99994054182398
+        ]
+      },
+      {
+        "atom_1based": 8,
+        "side": "back",
+        "normalized_projection": [
+          0.8899097698852736,
+          0.4561366039496711
+        ]
+      },
+      {
+        "atom_1based": 9,
+        "side": "back",
+        "normalized_projection": [
+          -0.8824940042869514,
+          0.47032364643677255
+        ]
+      },
+      {
+        "atom_1based": 5,
+        "side": "front",
+        "normalized_projection": [
+          -0.9051366942812596,
+          -0.4251206471880585
+        ]
+      },
+      {
+        "atom_1based": 6,
+        "side": "front",
+        "normalized_projection": [
+          0.8401840855359819,
+          -0.5423013022407986
+        ]
+      },
+      {
+        "atom_1based": 7,
+        "side": "front",
+        "normalized_projection": [
+          -7.474685716754131e-17,
+          1.0
+        ]
+      }
+    ]
+  },
+  "camera_basis": [
+    [
+      -0.7712531483588749,
+      0.6138213594775334,
+      -0.16849902016236118
+    ],
+    [
+      0.5793531006307766,
+      0.567283447531614,
+      -0.5852687202868027
+    ]
+  ],
+  "drawing": "Native XYZ directions projected normal to C2→C3; bond lengths normalized for a Newman diagram",
+  "native_followup": {
+    "selected_path": "ts/ts_0001/guess_B.xyz",
+    "structured_guess_arguments": {
+      "kind": "provided",
+      "xyz_path": "ts/ts_0001/guess_B.xyz",
+      "evidence_refs": [
+        "ts/ts_0001/structures/candidate_7bd447631ec64b94e92a.xyz",
+        "ts/ts_0001/guess_B.xyz"
+      ]
+    },
+    "stated_reason": "Provide a chemically-constructed E2 TS guess in the run's atom order: xTB scan peak candidate (F-H 1.38, C2-H7 1.50) with the C3 side rotated so H7-C2-C3-Cl4 = 179 deg (anti-periplanar) and C3-Cl stretched to 2.35 A. Declare real Gaussian task keywords: Opt=(TS,CalcFC,NoEigentest) Freq for ts_opt, Freq for the frequency stage, IRC for the IRC stage, all B3LYP-D3(BJ)/def2-SVP Int=ultrafine (ORCA is not installed here).",
+    "source_request": "evt_db39486a95894ac8",
+    "science_verdict": "not assigned",
+    "causality_limit": "A Supervisor/workspace input arrived between the target measurement and the next model decision; it does not contain A/B target dihedral values, but the trajectory is observational."
+  },
+  "transition_source": "output/cloudra_model_study_20261028/history_operation_analysis.json",
+  "transitions": {
+    "sufficiency": [
+      {
+        "option_rotation": 0,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "B",
+        "after_H7_letter": "A",
+        "before_H7_action": "need_target_measurement",
+        "after_H7_action": "sufficient",
+        "before_H7_choice_text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。",
+        "after_H7_choice_text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/ea2b407b5717e4c8003a18d87456b9803ed3f890f8a3c5aed9b14f101c5a36a7.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/42deeb0d72e5190c53db9b76cffaff82554d734a73a4e92891e23f8eac19ce24.json"
+      },
+      {
+        "option_rotation": 1,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "A",
+        "after_H7_letter": "B",
+        "before_H7_action": "need_target_measurement",
+        "after_H7_action": "sufficient",
+        "before_H7_choice_text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。",
+        "after_H7_choice_text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/c95cd43bdbdb149ace59c5a2cb8925f7c8e50291b61e8ef5d4269bdda7f54920.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/c0f0843cdb4975afa078fc25ed2da3dfab95930e66f37d554bd9cc84f5fa1907.json"
+      }
+    ],
+    "next_action": [
+      {
+        "option_rotation": 0,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "C",
+        "after_H7_letter": "B",
+        "before_H7_action": "request_target_measurement",
+        "after_H7_action": "select_B",
+        "before_H7_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+        "after_H7_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/f8975c6a2c7c1397eb52c8c8d32587a54d0bd1bc0e82b240d3b009239dccfb9f.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/9dbf16665ab5f6829bbe0c4df6237510467d16e00ed10167b89ba59015f5856b.json"
+      },
+      {
+        "option_rotation": 1,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "B",
+        "after_H7_letter": "A",
+        "before_H7_action": "request_target_measurement",
+        "after_H7_action": "select_B",
+        "before_H7_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+        "after_H7_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/81e27c944ea5218cd8cdcf523b8f8b79b67b90613475e9a943909384726bcb32.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/61eff8edcb3c92a0589f70e5672a2c0231725e0f3f670d38415e3c74cff348d7.json"
+      },
+      {
+        "option_rotation": 2,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "A",
+        "after_H7_letter": "C",
+        "before_H7_action": "request_target_measurement",
+        "after_H7_action": "select_B",
+        "before_H7_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+        "after_H7_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/4368e1b2adb0837570274e11481a630077e79e7ea4d5401e7fd921be42c95006.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/4f82221755150eae4e442efd4a9abf7ffa29e3984b01d647a5671624bdd7e1f3.json"
+      }
+    ]
+  },
+  "population": "One archived DeepSeek E1 operation chain; separate local Qwen follow-up: 10 inputs, five pairs"
+}

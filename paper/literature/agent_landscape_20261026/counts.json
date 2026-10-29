@@ -1,0 +1,18 @@
+{
+  "sample_n": 26,
+  "physical_target_counts": {
+    "extended_materials_surfaces": 14,
+    "soft_biomolecular": 3,
+    "finite_molecules_complexes": 9
+  },
+  "positive_task_counts": {
+    "T": 18,
+    "D": 8,
+    "E": 17,
+    "O": 18,
+    "R": 6,
+    "F": 9
+  },
+  "counts_are_non_exhaustive": true,
+  "boundary_conditions_are_not_physical_target": true
+}

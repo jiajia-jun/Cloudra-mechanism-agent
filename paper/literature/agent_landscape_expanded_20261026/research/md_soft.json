@@ -1,0 +1,279 @@
+{
+  "records": [
+    {
+      "id": "protagents",
+      "name": "ProtAgents",
+      "first_public_date": "2024-01-27",
+      "physical_target": "soft_biomolecular",
+      "demonstrated_target": "PDB and de novo proteins; coarse-grained protein elastic networks",
+      "boundary_conditions": "Finite protein structures represented by anisotropic spring networks; no periodic-cell example is inferred",
+      "demonstrated_tasks": ["T", "F"],
+      "task_evidence": {"T": {"source_index": 0}, "F": {"source_index": 0}},
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2402.04268v1",
+          "locator": "Results §2.1–2.3 and Fig.3; Materials and Methods, Natural vibrational frequency calculations",
+          "evidence_paraphrase": "GPT-4 agents plan and invoke protein generation/folding and physics calculations; examples execute ProDy anisotropic-network normal-mode calculations on retrieved and generated structures. Chroma and OmegaFold generate the protein geometries."
+        },
+        {
+          "url": "https://arxiv.org/abs/2402.04268",
+          "locator": "Submission history, v1",
+          "evidence_paraphrase": "The primary submission record dates the first version to 27 January 2024."
+        }
+      ],
+      "family": "ProtAgents",
+      "aliases": ["10.1039/D4DD00013G"],
+      "limitations": "F denotes an actual coarse-grained elastic-network vibration calculation, not quantum-chemical molecular frequencies or ideal-gas thermochemistry. No D mark: MD is mentioned as an extensible capability and used in training another predictor, rather than demonstrated as an agent-run dynamics task.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "namd_agent",
+      "name": "NAMD-Agent",
+      "first_public_date": "2025-07-10",
+      "physical_target": "soft_biomolecular",
+      "demonstrated_target": "proteins in explicit solvent and lipid membranes, including 1UBQ, 1L2Y and membrane-builder examples",
+      "boundary_conditions": "Explicit periodic boundary conditions in the solution and membrane examples (SI §§6.1–6.6)",
+      "demonstrated_tasks": ["T", "D"],
+      "task_evidence": {"T": {"source_index": 0}, "D": {"source_index": 0}},
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2507.07887v1",
+          "locator": "§§3.3–3.5; Results §5; SI §§6.1–6.6",
+          "evidence_paraphrase": "Gemini composes, executes and revises code to operate CHARMM-GUI, assemble solvated protein or membrane systems, run NAMD, and analyze actual 1 ns trajectories. Example simulation parameters explicitly enable periodic boundaries."
+        }
+      ],
+      "family": "NAMD-Agent",
+      "aliases": ["Automating MD simulations for Proteins using Large language Models: NAMD-Agent"],
+      "limitations": "The inspected evidence is v1. T and D are positively coded; control over minimization settings alone is not used to infer a separate demonstrated O task. Protein or membrane boxes remain in the soft/biomolecular class despite PBC.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "topolyagent",
+      "name": "ToPolyAgent",
+      "first_public_date": "2025-10-14",
+      "physical_target": "soft_biomolecular",
+      "demonstrated_target": "coarse-grained bead-spring linear, ring, brush, star and dendrimer polymers with solvent",
+      "boundary_conditions": "Polymer–solvent simulation boxes are explicit; PBC is not separately resolved from the inspected article",
+      "demonstrated_tasks": ["T", "D"],
+      "task_evidence": {"T": {"source_index": 0}, "D": {"source_index": 0}},
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2510.12091v1",
+          "locator": "§§II.1–II.3; Results §§III.1–III.3; Figs.2–3",
+          "evidence_paraphrase": "LLM agents invoke polymer/solvent construction and LAMMPS simulation tools. Brush and star examples execute dynamics, and interactive feedback changes grafting density or extends a simulation; research examples compare solvent interactions and polymer conformation."
+        },
+        {
+          "url": "https://arxiv.org/abs/2510.12091",
+          "locator": "Primary arXiv record and submission history",
+          "evidence_paraphrase": "The first report is dated 14 October 2025; the RSC journal title adds bead-spring but describes the same system."
+        }
+      ],
+      "family": "ToPolyAgent",
+      "aliases": ["ToPolyAgent: AI agents for coarse-grained bead-spring topological polymer simulations", "10.1039/D5DD00471C"],
+      "limitations": "Coarse-grained rather than all-atom MD. Interactive and autonomous modes are both included. The article HTML has a later rendering timestamp despite retaining the v1 identifier; date uses the primary submission record. Conformational/transport observables are coded under D, not F.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "dynamate_biomolecular",
+      "name": "DynaMate (protein–ligand)",
+      "first_public_date": "2025-12-10",
+      "physical_target": "soft_biomolecular",
+      "demonstrated_target": "proteins and protein–ligand complexes, including BRD4 BD1 inhibitor MD and endpoint binding energies",
+      "boundary_conditions": "Periodic boundary conditions with explicit TIP3P solvent and neutralizing ions (§4.3)",
+      "demonstrated_tasks": ["T", "O", "D"],
+      "task_evidence": {"T": {"source_index": 0}, "O": {"source_index": 0}, "D": {"source_index": 0}},
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2512.10034v1",
+          "locator": "§§2.1–2.5; §§4.2–4.4; SI Appendix B",
+          "evidence_paraphrase": "Planner/worker/analyzer agents build and parameterize solvated protein complexes, minimize geometry, execute GROMACS equilibration/production, and repair failed tool calls. BRD4 examples run 100 ns dynamics followed by MM/PBSA binding-energy analysis."
+        },
+        {
+          "url": "https://openreview.net/pdf?id=NkLAjIzwei",
+          "locator": "Title, author list and abstract of SimBioChem 2025 workshop counterpart",
+          "evidence_paraphrase": "The earlier workshop title DynAgent has the same five authors and planner/simulation/analyzer architecture. It is treated as the same system, not another agent. Exact public workshop posting date was not resolved."
+        }
+      ],
+      "family": "DynaMate (Guilbert et al.)",
+      "aliases": ["DynAgent: A Modular Multi-Agent Framework for Autonomous Protein-Ligand Molecular Dynamics Simulations", "schwallergroup/DynaMate"],
+      "limitations": "The dated field uses the verified arXiv date; an earlier DynAgent workshop version is identified but its posting date is unresolved, so this is not a secure earliest-appearance claim. This is unrelated to the LAMMPS/Moltemplate DynaMate of de Gillis et al. Endpoint MM/PBSA analysis is included under D, without E/F marks.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "mdagent_biomolecular_2026",
+      "name": "MDAgent (biomolecular, 2026)",
+      "first_public_date": "2026-04-18",
+      "physical_target": "soft_biomolecular",
+      "demonstrated_target": "soluble and membrane proteins, protein–DNA/ligand systems and TMEM16F/XKR8 scramblase dynamics",
+      "boundary_conditions": "Three-dimensional PBC for all simulated systems; explicit aqueous or lipid environments (Methods §4.5)",
+      "demonstrated_tasks": ["T", "O", "D"],
+      "task_evidence": {"T": {"source_index": 0}, "O": {"source_index": 0}, "D": {"source_index": 0}},
+      "sources": [
+        {
+          "url": "https://arxiv.org/pdf/2604.18622",
+          "locator": "Results §§2.1–2.4; Methods §4.5, PDF pp.43–46",
+          "evidence_paraphrase": "The LLM multi-agent system connects research planning to GROMACS system construction, steepest-descent minimization, equilibration and production. Demonstrations include membrane-protein dynamics and enhanced sampling; methods specify 3D periodic systems."
+        },
+        {
+          "url": "https://arxiv.org/abs/2604.18622",
+          "locator": "Primary record, title/authors and first submission",
+          "evidence_paraphrase": "The Ma/Yang/Song/Jiang biomolecular framework was first reported on 18 April 2026."
+        }
+      ],
+      "family": "MDAgent (Ma et al.)",
+      "aliases": ["MDAgent: A Multi-Agent Framework for End-to-End Molecular Dynamics Research"],
+      "limitations": "Distinct from the 2025 materials LAMMPS MDAgent. Umbrella-sampling PMF, metadynamics and SMD transport analyses remain D; no E/F/R mark is inferred from statistical free energies or transport paths. Some evaluation dimensions concern plans/reports, so task coding relies on the separately described executed simulation cases, not review scores.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "paimon",
+      "name": "Paimon",
+      "first_public_date": "2026-06-08",
+      "physical_target": "cross_domain",
+      "demonstrated_target": "LiPF6 liquid electrolytes in DEC/DMC/PC and crystalline solid-electrolyte ion diffusion",
+      "boundary_conditions": "Liquid cells explicitly require PBC in all three directions (§3.6); crystalline solid-electrolyte MD is separately demonstrated",
+      "demonstrated_tasks": ["T", "O", "D"],
+      "task_evidence": {"T": {"source_index": 0}, "O": {"source_index": 0}, "D": {"source_index": 0}},
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2606.09422v1",
+          "locator": "§§2.1, 2.4–2.5; Fig.4 actual MD runs; Fig.5 solid-electrolyte example; Methods §§3.5–3.6",
+          "evidence_paraphrase": "Orchestrator/executor agents build electrolyte cells with PACKMOL, relax structures, run LAMMPS equilibration and production, and revise workflows using intermediate feedback. The article distinguishes 30 actual liquid-MD runs from gated tests with precomputed outputs, and separately demonstrates a crystalline solid-electrolyte MD workflow using LLaMP."
+        }
+      ],
+      "family": "Paimon",
+      "aliases": ["A Robust Agentic Framework for Expert-Level Automation of Atomistic Simulations", "Platform for Agentic Integration in Materials Optimization and Nanoscale-simulations"],
+      "limitations": "Cross-domain coding follows demonstrated liquid and solid examples, not general software support. Many repeated evaluations replace expensive dynamics with precomputed outputs; actual MD evidence is explicitly limited to the separate full runs and worked example. Transport coefficients are D, not F or electronic E.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "cgmas",
+      "name": "CGMas",
+      "first_public_date": "2026-08-07",
+      "physical_target": "soft_biomolecular",
+      "demonstrated_target": "homopolymers and copolymers modeled with paired all-atom and coarse-grained force fields",
+      "boundary_conditions": "Explicit cubic periodic cells and PBC in x, y and z (Methods §4.3)",
+      "demonstrated_tasks": ["T", "O", "D"],
+      "task_evidence": {"T": {"source_index": 0}, "O": {"source_index": 0}, "D": {"source_index": 0}},
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2608.06694v1",
+          "locator": "§§2.1–2.4; PAN worked example, Fig.2; Methods §§4.2–4.5",
+          "evidence_paraphrase": "LLM topology and mapping agents coordinate construction, review and self-correction. Tools build periodic polymer cells, minimize close contacts, execute atomistic annealing/equilibration, derive coarse-grained potentials from the trajectory, and run CG dynamics. PAN and autonomous polymer cases provide executed workflow evidence."
+        }
+      ],
+      "family": "CGMas",
+      "aliases": ["A Multi-Agent Framework for Automated Coarse-Grained Molecular Dynamics of Polymers", "Coarse-Graining Multi-agent system"],
+      "limitations": "Human checkpoints are retained in the interactive route. Numerical stages use deterministic tools under LLM orchestration. Density, cooling-scan glass transitions and Boltzmann-inverted potentials do not establish vibrational thermochemistry; F remains blank.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    }
+  ],
+  "screening": [
+    {
+      "name": "Polymer-Agent / PolyAgent",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13169346/",
+      "status": "excluded_prediction_and_generation_only",
+      "locator": "Methods, Table2/Summary of Tools; Workflow; Open Challenges and Future Work",
+      "reason": "The original report exposes generative/predictive model tools and RDKit validation for polymer SMILES discovery. It places integration of computational characterization and molecular dynamics in future work. No agent-executed atomistic simulation is demonstrated; arXiv:2601.16376 and DOI:10.1021/acs.jcim.6c00343 are counterparts of this same excluded system.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "AutoSolvateWeb",
+      "url": "https://chemrxiv.org/engage/api-gateway/chemrxiv/assets/orp/resource/item/676ccfbe6dde43c90857c4b5/original/main_v23_chemrxiv.pdf",
+      "status": "excluded_llm_only_conversational_fallback",
+      "locator": "§2.2, PDF pp.8–11; §2.3, pp.12–13",
+      "reason": "The original describes predefined intent/dialog flows collecting simulation keywords and triggering the automated backend. Generative LLM fallback only replies to unmatched/out-of-scope questions and redirects the conversation. Actual QM/MM/MD execution is demonstrated, but no LLM planning, computational tool selection, input modification or scientific feedback decision is shown. This is narrower than claiming no LLM is present.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "Large language models design sequence-defined macromolecules via evolutionary optimization",
+      "url": "https://www.nature.com/articles/s41524-024-01449-6",
+      "status": "excluded_surrogate_only_optimizer",
+      "locator": "Main text introduction of optimizer; Methods/LLM prompts",
+      "reason": "The original explicitly takes a learned RNN approximation as ground truth and does not validate the full MD-to-morphology mapping in this work. LLM feedback distances come from that surrogate, not agent-invoked dynamics. Historical MD training data and MD-themed prompts do not establish an executed agentic atomistic workflow.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "DynAgent",
+      "url": "https://openreview.net/pdf?id=NkLAjIzwei",
+      "status": "deduplicated_alias",
+      "locator": "Workshop title/author list and abstract; arXiv:2512.10034v1",
+      "reason": "Same Guilbert/Masschelein/Goumaz/Naida/Schwaller system as the biomolecular DynaMate. Name and evaluation-set size changed between reports; count once. Workshop posting date remains unresolved because the primary forum and metadata access returned challenge/403.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "DynaMate (de Gillis et al., LAMMPS)",
+      "url": "https://pubs.rsc.org/en/content/articlehtml/2025/me/d5me00062a",
+      "status": "distinct_homonym_delegated_to_materials_screen",
+      "reason": "A separate group and software stack use the DynaMate name for LAMMPS/Moltemplate molecular workflows. It must not be merged with Guilbert's protein–ligand framework. Primary screening and record are owned by the materials research file to prevent duplicate entries.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "Multi-agentic AI framework for end-to-end atomistic simulations / LAMMPS-Agents",
+      "url": "https://pubs.rsc.org/en/content/articlelanding/2025/dd/d5dd00435g",
+      "status": "eligible_materials_record_delegated",
+      "locator": "Abstract and first-published metadata; Methods and worked elemental/alloy examples",
+      "reason": "Vriza/Kornu/Koneru/Chan/Sankaranarayanan framework (first published 9 December 2025) uses actual LAMMPS/Atomsk/Phonopy simulations. This is not either DynaMate. Demonstrated targets are elemental/alloy materials, and the materials researcher owns the record.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "Electrolyte agent (ICLR 2026, OpenReview MEXl18VhBL)",
+      "url": "https://openreview.net/pdf?id=MEXl18VhBL",
+      "status": "identified_not_fully_screened",
+      "locator": "Indexed original PDF §§3.1 and 4; alternative original asset 837f62f17b0f4210dbc1260e813b7fd1ebabd467.pdf",
+      "reason": "Primary search results describe an MD-assistant and a discovery agent executing electrolyte simulations, potentially eligible. Direct PDF/forum reads encountered a verification challenge and metadata endpoint access failed; title/author identity, earliest date, full workflow and deduplication were not resolved. Do not add to the denominator from snippets alone.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "gromacs_smolagent",
+      "url": "https://github.com/virtualramblas/gromacs_smolagent",
+      "status": "official_project_lead_not_fully_screened",
+      "reason": "Official repository describes a Smolagents interface for GROMACS and a January 2026 presentation. A specific executed simulation example and first public project date were not independently established in this pass; retain as a lead rather than counting tool availability alone.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "OHMind MD Agent",
+      "url": "https://lunyang.github.io/agents/md-agent/",
+      "status": "official_project_lead_not_fully_screened",
+      "reason": "Official docs describe polymer/ion-exchange membrane system building, GROMACS execution and transport analysis tools. A dated executed atomistic case and independent system identity/publication were not established in this pass.",
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "name": "AIonopedia",
+      "url": "https://arxiv.org/abs/2511.11257",
+      "status": "adjacent_prediction_and_wetlab_lead",
+      "reason": "Primary abstract presents an LLM-orchestrated multimodal property predictor, screening/design and wet-lab validation. No agent-executed atomistic calculation was established from the inspected evidence. Full-text confirmation is incomplete, so this is an adjacent unresolved candidate, not a definitive claim that the project lacks simulation capabilities.",
+      "reviewed_on": "2026-10-26"
+    }
+  ],
+  "search_log": [
+    {"query": "\"Polymer-Agent\" LLM MCP paper", "source_urls": ["https://pmc.ncbi.nlm.nih.gov/articles/PMC13169346/", "https://arxiv.org/abs/2601.16376"], "notes": "Original tool table contains model generation/prediction and RDKit; explicit future-work MD establishes exclusion without confusing it with PolyJarvis."},
+    {"query": "\"ToPolyAgent\"", "source_urls": ["https://arxiv.org/abs/2510.12091", "https://pubs.rsc.org/en/content/articlelanding/2026/dd/d5dd00471c"], "notes": "Resolved the previously blocked ScienceDirect lead via primary arXiv and RSC identity; journal/preprint deduplicated."},
+    {"query": "\"DynaMate\" molecular simulation agent", "source_urls": ["https://arxiv.org/abs/2512.10034", "https://pubs.rsc.org/en/content/articlehtml/2025/me/d5me00062a"], "notes": "Two unrelated same-name systems discovered; biomolecular one screened here, LAMMPS one delegated."},
+    {"query": "\"Multi-agentic AI framework for end-to-end atomistic simulations\"", "source_urls": ["https://pubs.rsc.org/en/content/articlelanding/2025/dd/d5dd00435g", "https://github.com/ANL-NST/LAMMPS-Agents"], "notes": "Resolved exact primary report, first-published date and materials target. Delegated record to materials file."},
+    {"query": "LLM agent molecular dynamics polymer biomolecular autonomous simulation", "source_urls": ["https://arxiv.org/abs/2608.06694", "https://arxiv.org/abs/2512.10034"], "notes": "Broad search independently located CGMas and biomolecular DynaMate."},
+    {"query": "\"LLM\" \"molecular dynamics\" agent \"2023\"", "source_urls": ["https://arxiv.org/html/2608.18508v1"], "notes": "No eligible 2023 soft-matter report established; absence of a hit is not proof of absence."},
+    {"query": "\"LLM\" \"molecular dynamics\" \"agent\" NAMD", "source_urls": ["https://arxiv.org/html/2507.07887v1"], "notes": "NAMD-Agent primary retrieved, with explicit solvent/membrane examples and actual trajectory analysis."},
+    {"query": "\"molecular dynamics\" \"agent\" LLM polymer GROMACS automation -site:reddit.com -site:wikipedia.org", "source_urls": ["https://github.com/virtualramblas/gromacs_smolagent", "https://lunyang.github.io/agents/md-agent/"], "notes": "Official interface/project leads retained as unresolved where executed examples/date were not established."},
+    {"query": "\"AutoSolvateWeb\" chatbot LLM", "source_urls": ["https://chemrxiv.org/engage/api-gateway/chemrxiv/assets/orp/resource/item/676ccfbe6dde43c90857c4b5/original/main_v23_chemrxiv.pdf"], "notes": "Read original §§2.2–2.3 rather than using news alone. LLM is a conversational fallback; scientific workflow remains intent-driven."},
+    {"query": "\"molecular dynamics\" \"LLM\" \"agent\" electrolyte", "source_urls": ["https://openreview.net/pdf?id=MEXl18VhBL", "https://arxiv.org/html/2606.09422v1"], "notes": "Electrolyte discovery lead not counted without full primary screening; Paimon full text supports a separate inclusion."},
+    {"query": "\"LLM\" \"molecular dynamics\" \"Paimon\"", "source_urls": ["https://arxiv.org/html/2606.09422v1"], "notes": "Read executed liquid MD section and solid-electrolyte extension; separated precomputed gated evaluation from actual simulations."},
+    {"query": "\"MDAgent\" \"Ma\" \"2026\"", "source_urls": ["https://arxiv.org/abs/2604.18622", "https://arxiv.org/pdf/2604.18622"], "notes": "Distinct biomolecular MDAgent, not the baseline 2025 LAMMPS materials framework."},
+    {"query": "\"molecular dynamics\" \"LLM agent\" \"2024\" -site:reddit.com -site:wikipedia.org", "source_urls": ["https://arxiv.org/abs/2402.04268", "https://www.nature.com/articles/s41524-024-01449-6"], "notes": "Earlier soft-matter search: ProtAgents performs actual ANM vibrations; Reinhart/Statt optimizer uses an RNN surrogate rather than new agent-run MD."},
+    {"query": "Citation chain: DynaMate introduction and bibliography → NAMD-Agent; survey 2608.18508 Table1 → MDAgent, Paimon, CGMas, ProtAgents", "source_urls": ["https://arxiv.org/html/2512.10034v1", "https://arxiv.org/html/2608.18508v1"], "notes": "Survey used only for discovery. Every included task was checked against its system's original article; survey capability assertions were not copied as demonstration evidence."},
+    {"query": "\"DynAgent\" \"simbiochem\" 2025; \"DynAgent\" \"NkLAjIzwei\"", "source_urls": ["https://openreview.net/pdf?id=NkLAjIzwei", "https://arxiv.org/html/2512.10034v1"], "notes": "Renamed workshop counterpart deduplicated by matching authors and architecture. Earlier exact posting date remains unresolved."},
+    {"query": "\"ProtAgents\" molecular dynamics protein multi-agent; \"ProtAgents\" \"2024-01-27\"", "source_urls": ["https://arxiv.org/abs/2402.04268", "https://arxiv.org/html/2402.04268v1", "https://pmc.ncbi.nlm.nih.gov/articles/PMC11235180/"], "notes": "Verified Jan27 submission history and original ProDy ANM method. Did not mistake the neural mechanical-property predictor's historical training MD for live MD."},
+    {"query": "\"MEXl18VhBL\" title; \"electrolyte agent\" \"ICLR 2026\" -site:openreview.net; \"electrolyte agent\" \"large language\"", "source_urls": ["https://openreview.net/pdf?id=MEXl18VhBL", "https://openreview.net/pdf/837f62f17b0f4210dbc1260e813b7fd1ebabd467.pdf"], "notes": "Original PDF search index suggests eligibility but direct primary access challenged; explicitly unresolved rather than classified by snippets."},
+    {"query": "\"agent\" \"LLM\" \"molecular dynamics\" protein simulation -site:reddit.com -site:wikipedia.org -MDCrow -DynaMate -NAMD -MDForge -MDAgent -Paimon -PolyJarvis", "source_urls": ["https://arxiv.org/abs/2610.27230", "https://arxiv.org/abs/2402.04268"], "notes": "Broader minus-seed query; Magnolia transferred to root researcher, ProtAgents screened here."},
+    {"query": "\"LLM\" \"molecular dynamics\" \"polymer\" agent -PolyJarvis -ToPolyAgent -CGMas -site:reddit.com; \"LLM\" \"molecular dynamics\" \"interface\" agent 2023 2024", "source_urls": ["https://www.nature.com/articles/s41524-024-01449-6", "https://www.nature.com/articles/s41597-026-08045-x"], "notes": "Discovered surrogate optimizer and text-mined polymer-MD dataset; neither establishes an additional executed agentic simulation system."},
+    {"query": "\"Claude\" \"evolutionary\" \"macromolecular self-assembly\"; \"LLM\" \"monomer sequences\" \"morphologies\"", "source_urls": ["https://www.nature.com/articles/s41524-024-01449-6", "https://chemrxiv.org/engage/api-gateway/chemrxiv/assets/orp/resource/item/66d09665f3f4b05290834530/original/main.pdf"], "notes": "Primary text explicitly excludes end-to-end MD validation from optimizer study; surrogate-only exclusion entered."},
+    {"query": "\"AIonopedia\" \"molecular dynamics\"; \"AIonopedia\" arxiv", "source_urls": ["https://arxiv.org/abs/2511.11257", "https://huggingface.co/AIonopedia/AIonopedia"], "notes": "Primary abstract/model description concern property prediction, screening and wet validation; retained adjacent because full workflow screening was incomplete."}
+  ]
+}

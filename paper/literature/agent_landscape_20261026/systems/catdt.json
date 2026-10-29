@@ -1,0 +1,44 @@
+{
+  "id": "catdt",
+  "name": "CatDT",
+  "first_public_date": "2026-06-03",
+  "physical_target": "extended_materials_surfaces",
+  "demonstrated_target": "working heterogeneous catalyst surfaces",
+  "boundary_conditions": "slab/bulk/facet construction with gas–solid and liquid–solid models",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O",
+    "F",
+    "R"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "F": {
+      "source_index": 0
+    },
+    "R": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2606.05050v2",
+      "locator": "§2.1–2.5; Methods",
+      "evidence_paraphrase": "Builds catalyst surfaces, proposes mechanisms, searches paths/TS and computes kinetics using atomistic tools; liquid–solid capability is not finite-molecule evidence."
+    }
+  ],
+  "family": "CatDT",
+  "aliases": [],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

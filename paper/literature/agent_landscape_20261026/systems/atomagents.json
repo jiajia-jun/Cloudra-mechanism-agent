@@ -1,0 +1,42 @@
+{
+  "id": "atomagents",
+  "name": "AtomAgents",
+  "first_public_date": "2024-07-13",
+  "physical_target": "extended_materials_surfaces",
+  "demonstrated_target": "metallic alloys, dislocations and fracture",
+  "boundary_conditions": "explicit periodic boundaries; dislocation cells also have a free direction",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O",
+    "R"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "R": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2407.10022v1",
+      "locator": "Experiments I–IV; §4 Screw dislocation generation/NEB",
+      "evidence_paraphrase": "Runs alloy property calculations, atomic relaxation and dislocation NEB; material-property experiments link simulation feedback to alloy hypotheses."
+    }
+  ],
+  "family": "AtomAgents",
+  "aliases": [
+    "PNAS 2025 journal version"
+  ],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

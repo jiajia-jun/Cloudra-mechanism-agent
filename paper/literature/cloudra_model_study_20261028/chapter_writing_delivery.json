@@ -1,0 +1,29 @@
+{
+  "objective": "完成第三章关于今下午已经研究完毕的部分的写作",
+  "completed_sections": [
+    "3.1",
+    "3.2",
+    "3.3"
+  ],
+  "languages": {
+    "zh": {
+      "source": "paper/sections/03_benchmarks_and_results_zh.md",
+      "source_sha256": "023add6ea09fcf3e146f7f1aaaf3c6a3a5f3fc37c555db6703a99c10fa9040ff",
+      "document": "output/Cloudra_论文当前稿/01_正文/Cloudra_Results_and_Discussion_ZH.docx",
+      "document_sha256": "3e510bf13d0b8ae94388f5c18f09b7fc5024dd5d4741d48bce8e912e24ccf84d",
+      "source_text_blocks_matched": 46,
+      "latest_figures_embedded": 5,
+      "rendered_pages": 7
+    },
+    "en": {
+      "source": "paper/sections/03_benchmarks_and_results.md",
+      "source_sha256": "0d045c3e11f466daf3f6c0dd97982c0cb4e0bb436ddcd63da1499a8adc72e39a",
+      "document": "output/Cloudra_论文当前稿/01_正文/Cloudra_Results_and_Discussion_EN.docx",
+      "document_sha256": "4b60f1318db55b5d05e9dd5387c51647350b490339e2ff415a114f236e057cf2",
+      "source_text_blocks_matched": 46,
+      "latest_figures_embedded": 5,
+      "rendered_pages": 7
+    }
+  },
+  "figure_count": 5
+}

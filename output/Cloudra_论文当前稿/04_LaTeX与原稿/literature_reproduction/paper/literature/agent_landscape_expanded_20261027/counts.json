@@ -1,0 +1,86 @@
+{
+  "sample_n": 85,
+  "baseline_n": 70,
+  "added_n": 15,
+  "physical_target_counts": {
+    "extended_materials_surfaces": 39,
+    "finite_molecules_complexes": 23,
+    "soft_biomolecular": 12,
+    "cross_domain": 11
+  },
+  "physical_target_percentages": {
+    "extended_materials_surfaces": 45.9,
+    "finite_molecules_complexes": 27.1,
+    "soft_biomolecular": 14.1,
+    "cross_domain": 12.9
+  },
+  "positive_task_counts": {
+    "T": 61,
+    "E": 61,
+    "O": 53,
+    "F": 22,
+    "R": 11,
+    "D": 37
+  },
+  "family_collapsed_n": 75,
+  "family_collapsed_target_counts": {
+    "extended_materials_surfaces": 37,
+    "finite_molecules_complexes": 17,
+    "soft_biomolecular": 11,
+    "cross_domain": 10
+  },
+  "family_merge_groups": {
+    "MDAgent": [
+      "mdagent",
+      "mdagent2_runtime"
+    ],
+    "El Agente": [
+      "el_agente_q",
+      "el_agente_cuantico",
+      "el_agente_estructural",
+      "el_agente_quntur",
+      "el_agente_grafico",
+      "el_agente_solido",
+      "el_agente_forjador",
+      "el_agente_potente"
+    ],
+    "DynaMate / Mendible-Barreto–Colón": [
+      "dynamate_mendible_barreto",
+      "dynamate2"
+    ],
+    "MatAgent (Lv)": [
+      "matagent_lv",
+      "chatmat"
+    ]
+  },
+  "without_official_only": {
+    "n": 82,
+    "excluded_ids": [
+      "chelatron",
+      "matmcp",
+      "protomia"
+    ],
+    "target_counts": {
+      "extended_materials_surfaces": 38,
+      "finite_molecules_complexes": 21,
+      "soft_biomolecular": 12,
+      "cross_domain": 11
+    }
+  },
+  "without_official_only_and_planning_copilot": {
+    "n": 81,
+    "target_counts": {
+      "extended_materials_surfaces": 37,
+      "finite_molecules_complexes": 21,
+      "soft_biomolecular": 12,
+      "cross_domain": 11
+    }
+  },
+  "latest_screening_record_n": 25,
+  "latest_search_log_entries": 41,
+  "previous_search_log_entries": 54,
+  "search_cutoff": "2026-10-27",
+  "counts_are_non_exhaustive": true,
+  "boundary_conditions_are_not_physical_target": true,
+  "cross_domain_counted_once": true
+}

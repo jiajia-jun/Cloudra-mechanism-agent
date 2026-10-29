@@ -1,0 +1,28 @@
+{
+  "id": "mdcrow",
+  "name": "MDCrow",
+  "first_public_date": "2025-02-13",
+  "physical_target": "soft_biomolecular",
+  "demonstrated_target": "proteins and common solvents",
+  "boundary_conditions": "not resolved from inspected article; do not assume isolated molecules",
+  "demonstrated_tasks": [
+    "D"
+  ],
+  "task_evidence": {
+    "D": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2502.09565v1",
+      "locator": "§2.1; §3; Appendix C Table 1",
+      "evidence_paraphrase": "Executes OpenMM MD and MDTraj analysis on protein tasks including temperature comparisons; demonstrated scope is biomolecular simulation."
+    }
+  ],
+  "family": "MDCrow",
+  "aliases": [],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

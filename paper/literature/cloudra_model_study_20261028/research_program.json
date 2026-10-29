@@ -1,0 +1,474 @@
+{
+  "date": "2026-10-28",
+  "status": "completed_exploratory_research_delivery",
+  "working_thesis_zh": "Cloudra将化学意图落实为可检查的空间操作，并将计算产物组织成受证据约束的科学结论。研究这两次转换中哪些责任由模型承担、哪些由确定性程序承担，以及反馈如何影响下一步研究。",
+  "user_direction": "全部主要方法贡献围绕两条主线展开；局部模型解释必须回到Cloudra系统设计。",
+  "mainlines": [
+    {
+      "id": "A",
+      "title_zh": "从化学意图到可靠空间操作",
+      "question_zh": "错误发生在化学对象识别、几何关系计算、操作选择还是坐标执行？",
+      "contributions": [
+        {
+          "feature_zh": "化学身份、原子映射与反应中心",
+          "why_zh": "跨结构、重编号和端点转换时，同一化学对象必须保持对应。",
+          "test_zh": "同步置换原子编号与查询编号，或改变整体姿态，检查所选原子、片段和操作是否等价；真实改变连接或立体信息时，应改变相应判断。",
+          "status": "Identity sensitivity measured with 64 frozen inputs and 72 native follow-ups; chemical-object responsibilities mapped to the source and real operation chain."
+        },
+        {
+          "feature_zh": "键长、键角、二面角等关系测量",
+          "why_zh": "把模型需要的空间关系从坐标文本中明确算出，并与具体原子绑定。",
+          "test_zh": "分别比较原始坐标、显式编号、仅相关坐标与工具测量；区分重排已有信息和额外完成数值计算。",
+          "status": "Four-source coordinate/measurement controls, native rendering/thinking comparison and separate budget follow-up completed."
+        },
+        {
+          "feature_zh": "按化学意图选择片段并执行局部几何操作",
+          "why_zh": "模型选择科学目标；程序维持指定片段和坐标变换的确定性。",
+          "test_zh": "单独评估意图是否正确、操作是否忠实执行、未要求改变的结构关系是否保留。",
+          "status": "Two archived operation chains located; E1 target-specific measurement and subsequent candidate choice reconstructed; ten target-feedback inputs completed."
+        },
+        {
+          "feature_zh": "反应物预组织、端点对齐和路径初猜",
+          "why_zh": "把方向和接触关系落实到可计算的候选构型，减少手工配置。",
+          "test_zh": "固定反应、信息与计算预算，比较候选可用性及后续科学证据；候选生成、数值收敛与合格TS分别报告。",
+          "status": "Existing implementation and manuscript methods connected to the chemical-intent mainline and candidate preparation."
+        },
+        {
+          "feature_zh": "测量—修改—重测反馈",
+          "why_zh": "将工具执行结果转化为模型可以核对的几何目标，使后续调整有对象。",
+          "test_zh": "测量显示目标尚未达到或副作用出现时，检查下一动作是否针对该问题，而非仅重复操作。",
+          "status": "Real E1 feedback/choice chain and source-backed goal-alignment figure completed; ten short feedback/action probes completed with target-dependent action changes."
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "title_zh": "从局部计算结果到有证据的科学结论",
+      "question_zh": "模型能否把事实绑定到正确主张，并使未满足项约束后续行动与交付声明？",
+      "contributions": [
+        {
+          "feature_zh": "以物种和基元步骤为对象的证据DAG",
+          "why_zh": "把研究义务保留在化学对象上，避免一次局部成功代表整个机理完成。",
+          "test_zh": "同一事实集合使用平铺与关联表示；只改变目标或尝试的绑定，检查缺口定位与下一动作。",
+          "status": "Four-chain binding32 and paired native follow-up completed; interpretation integrated into the chapter narrative."
+        },
+        {
+          "feature_zh": "原生日志、几何、频率、路径与端点的证据关联",
+          "why_zh": "各份结果单独正确，仍需证明它们来自同一个有效计算链并支持该主张。",
+          "test_zh": "保持事实数值不变，改变TS、方向或端点来源关联；检查是否能识别缺证，程序验证与模型判断分别记录。",
+          "status": "Source-grounded relation diagnostics and actual feedback-to-action cases completed."
+        },
+        {
+          "feature_zh": "执行、数值收敛与科学支持分别记录",
+          "why_zh": "进程结束、结构收敛、证据充分表达不同事实。",
+          "test_zh": "保持证据缺口不变，仅改变成功措辞，测完成声明和下一动作。",
+          "status": "Report138, authority12 and quoted short/window12 measured; full-history first request reached its waiting limit, recorded as execution cost."
+        },
+        {
+          "feature_zh": "Supervisor审阅与独立交付状态",
+          "why_zh": "审阅意见与计算支持分别留存，认可措辞不能悄悄变成新的计算事实或生效豁免。",
+          "test_zh": "保持DAG未满足项不变，仅改变来源权威标签与行政范围说明，分别测状态读取和完成决策。",
+          "status": "Original IA1 review/state conflict reconstructed and short authority controls completed; full-history first request reached its waiting limit, recorded as execution cost."
+        },
+        {
+          "feature_zh": "定向诊断、继续补证与如实部分交付",
+          "why_zh": "反馈指向缺失对象或关联；不能完成时保留科学边界。",
+          "test_zh": "分别测声明是否收敛、是否实际补到缺证、是否最终获得科学支持；不以阻止complete代替成功修复。",
+          "status": "Three actual scientific-feedback trajectories and the original complete-to-partial sequence reconstructed and integrated."
+        }
+      ]
+    }
+  ],
+  "cross_cutting": [
+    {
+      "feature_zh": "工具输出与信息利用",
+      "role_zh": "贯穿两条主线：输入是否存在、是否被表示、是否参与决策。短结果比长结果好不能自动解释为关键信息丢失。"
+    },
+    {
+      "feature_zh": "多智能体、异步执行与事件溯源",
+      "role_zh": "支持两条研究链协作和取证；独立创新主张需要相应比较，不能从功能存在直接推出研究收益。"
+    },
+    {
+      "feature_zh": "CloudraBench与独立原生产物评分",
+      "role_zh": "检验两条主线能否转化为科学交付收益。分别报告运行期自主行为、离线整理、组合分与科学验收。"
+    },
+    {
+      "feature_zh": "化学与语义空间覆盖",
+      "role_zh": "说明任务覆盖与外推范围；语义邻近不能替代机理或势能面难度。四arm后纳入用户已开展的小范围补充实验；该批原始记录与具体变化因素尚待核对。"
+    }
+  ],
+  "current_observations": {
+    "formal_corpus": {
+      "runs": 48,
+      "arms": 4,
+      "chemical_tasks": 4,
+      "repeats_per_condition": 3,
+      "provider_alias": "deepseek-v4-flash",
+      "immutable_provider_revision": "unknown",
+      "extracted_selected_tool_result_events": 6087,
+      "event_count_scope": "Only result events for the extractor-selected tools; not all tool calls or all runtime events."
+    },
+    "geometry": {
+      "source_structures": 4,
+      "original_xyz_correct": 4,
+      "original_xyz_n": 8,
+      "tool_measured_distance_correct": 8,
+      "tool_measured_distance_n": 8,
+      "indexed_coordinates_correct": 5,
+      "indexed_coordinates_n": 8,
+      "coordinate_lookup_correct": 8,
+      "coordinate_lookup_n": 8,
+      "relevant_pair_coordinates_correct": 6,
+      "relevant_pair_coordinates_n": 8,
+      "scope": "Counterbalanced local Qwen diagnostics; the XYZ pair responses often retain literal A. Tool distances add external numerical computation; this is not a pure format-only contrast."
+    },
+    "completion": {
+      "source_reports": 17,
+      "report_probe_results": 138,
+      "correct": 138,
+      "scope": "All are short local report-consistency tasks; actual displayed fragments exist for only nine sources. No original-long-context comprehension claim."
+    },
+    "historical_conflict": {
+      "case": "brief-errors/r2/IA1",
+      "observed_zh": "DAG明确缺short_irc，Supervisor正文称例外已获认可，行政字段却明确没有改变或豁免阶段。原模型记录识别缺口、选择依赖认可；具体反馈后改为partial。",
+      "interpretation_zh": "首先检查系统如何表达认可权限与生效状态；不能把该例直接归咎于读不懂报告，也不裁决替代化学证据是否可接受。"
+    },
+    "activation": {
+      "model": "local qwen3.8:27b GGUF Q4_K_M",
+      "digit_contrast": "2.029 -> 1.029; all other input tokens unchanged",
+      "source_cases": 1,
+      "affected_input_token": 53,
+      "readout_token": 123,
+      "early_layer_result_zh": "第7/15层替换在一种选项顺序恢复原答案，在另一顺序仅有限移动概率；第31/47层无恢复。",
+      "controls_zh": "自身替换及未变化前缀替换全词表logit相同；早层尚缺非平凡无关扰动等控制。",
+      "interpretation_zh": "局部数值事实传递的探索性因果影响；未建立通用几何机制、唯一通路或历史DeepSeek机制。"
+    },
+    "authority_conflict_short_diagnostic": {
+      "study_phase": "exploratory_short_diagnostic",
+      "n_inputs": 12,
+      "source_cases": 1,
+      "delivery_decisions": {
+        "correct": 8,
+        "n": 8
+      },
+      "stage_waiver_reading": {
+        "correct": 4,
+        "n": 4
+      },
+      "counterbalanced_pairs": 6,
+      "observed_zh": "六组对调选项的短诊断均按记录中的未完成/未豁免状态作答。改变认可意见来源标签或加入行政范围说明，均未改变离散选择。",
+      "not_established_zh": [
+        "未在本组短输入中复现权威标签覆盖DAG状态；不能据原历史单例直接声称Qwen存在同一失败。",
+        "本实验不判断例外材料的科学可接受性。",
+        "短输入显式询问工作流状态，原始研究过程为约204k-206k输入token且任务不同；结果不排除长上下文、目标竞争或分布差异。",
+        "12条变体来自同一案例，不是12个独立化学样本。"
+      ],
+      "probability_scope": "Exact A/B first-token logprob margins only. Missing alternatives are censored, not zero-probability. No intervention mechanism inferred from these probabilities."
+    },
+    "native_geometry_modes": {
+      "source_structures": 4,
+      "native_inputs": 32,
+      "direct_xyz": {
+        "correct": 4,
+        "n": 8,
+        "all_answers": "A"
+      },
+      "direct_distances": {
+        "correct": 8,
+        "n": 8
+      },
+      "thinking_xyz_budget1024": {
+        "correct": 7,
+        "valid_wrong": 0,
+        "budget_truncated": 1,
+        "n": 8
+      },
+      "thinking_distances_budget1024": {
+        "correct": 8,
+        "n": 8
+      },
+      "separate_budget2048_followup": {
+        "selected": "The sole budget-truncated XYZ input",
+        "correct": 1,
+        "n": 1,
+        "generated_tokens": 1353
+      },
+      "interpretation_zh": "这些局部几何比较会受推理模式与预算影响；工具测量减少模型需自行完成的数值工作。没有建立固有几何缺陷、纯计算量因果效应或真实几何操作整体收益。"
+    },
+    "chemical_identity_controls": {
+      "base_pairs": 16,
+      "inputs": 64,
+      "correct": 58,
+      "format_failures": 0,
+      "same_identity_literal": {
+        "correct": 16,
+        "n": 16,
+        "scope": "Identical-string baseline"
+      },
+      "same_identity_rewrite": {
+        "correct": 14,
+        "n": 16
+      },
+      "scope_zh": "去atom-map的RDKit身份读取；非反应理解。错误随选项顺序与等价表示变化；需要原生思考模式跟进。"
+    },
+    "evidence_binding_controls": {
+      "source_chains": 4,
+      "inputs": 32,
+      "correct": 30,
+      "flat": {
+        "correct": 14,
+        "n": 16
+      },
+      "linked": {
+        "correct": 16,
+        "n": 16
+      },
+      "scope_zh": "题设关联事实的synthetic诊断；两处flat错误均只出现在一种选项顺序。不能据此宣称普遍图推理优势或科学验收改善。"
+    },
+    "context_capacity": {
+      "counting_mode": "same-GGUF vocabulary only; no weights, inference context or GPU",
+      "stored_full_history_messages": 306,
+      "full_history_tokens": 242618,
+      "wrapped_full_history_tokens": 242670,
+      "whole_message_window_messages": 12,
+      "window_tokens": 12442,
+      "wrapped_window_tokens": 12494,
+      "metadata_limit": 262144,
+      "interpretation_zh": "完整历史数据包装占元数据上限约92.6%；尚未扣研究问题、模板与输出预算，也未验证长推理内存。这不是原provider wire提示重建。",
+      "evidence": "output/cloudra_model_study_20261028/context_capacity/capacity_summary.json"
+    },
+    "quoted_history_window": {
+      "short_report_correct": 6,
+      "short_report_n": 6,
+      "whole_message_window_correct": 6,
+      "whole_message_window_n": 6,
+      "raw_input_tokens": "591–602 and 12627–12638; all native reported counts exactly match the counted inputs",
+      "status": "completed"
+    },
+    "native_error_conditioned_followup": {
+      "selection": "5 identity pairs +2 evidence chains after stage-one errors; all variants retained",
+      "native_false": {
+        "identity_correct": 14,
+        "identity_n": 20,
+        "binding_correct": 14,
+        "binding_n": 16
+      },
+      "native_true": {
+        "identity_correct": 8,
+        "identity_budget_truncated": 12,
+        "identity_n": 20,
+        "binding_correct": 16,
+        "binding_n": 16
+      },
+      "interpretation_zh": "思考有助于完成关系核对，也会消耗额外预算；化学表示处理的成本值得通过工具接口分担。"
+    },
+    "real_operation_feedback": {
+      "case": "guided/r2/E1",
+      "source": "output/cloudra_model_study_20261028/operation_feedback_case.json",
+      "observation_zh": "目标为H7二面角，工具代表量对应H5；模型通过程序补测H7并选择更接近180°目标的B候选。"
+    },
+    "scientific_feedback_trajectories": {
+      "cases": 3,
+      "source": "output/cloudra_model_study_20261028/scientific_feedback_trajectory_cases.json",
+      "design_connections_zh": [
+        "输出截断会影响阻塞对象能否被看见。",
+        "科学反馈需要定位具体证据关联与下一次计算。",
+        "修改意图需要直接对应到实际计算定义。"
+      ]
+    },
+    "operation_feedback_diagnostic": {
+      "inputs": 10,
+      "correct": 10,
+      "proxy_only_action": "request_target_measurement in all three option rotations",
+      "proxy_plus_target_action": "select_B in all three option rotations",
+      "design_explanation_zh": "补入研究目标所对应的H7测量，使模型从请求目标信息转向采用具体候选。"
+    },
+    "full_history_execution": {
+      "status": "request_timeout",
+      "n_planned": 6,
+      "n_attempted": 1,
+      "n_completed": 0,
+      "n_not_attempted": 5,
+      "counted_raw_prompt_tokens": 242803,
+      "http_wait_limit_seconds": 3600,
+      "exception": "TimeoutError: timed out"
+    }
+  },
+  "evidence_tiers_zh": [
+    "正式运行观察：问题在真实系统怎样出现。",
+    "受控行为对照：哪一种信息、绑定或措辞改变行为。",
+    "局部激活干预：指定内部状态对指定决策有何因果影响。",
+    "返回系统验证：设计变化是否改善真实几何任务或科学证据交付。"
+  ],
+  "chapter_structure_proposal_zh": [
+    "实验体系与任务覆盖：保留已有可用内容；化学/语义分布交代范围。",
+    "化学意图到空间操作：按身份、关系、选择、执行和反馈定位收益。",
+    "计算结果到科学交付：按证据绑定、完成判断、权威冲突和恢复定位收益。",
+    "完整自主运行与稳健性：四arm后纳入用户已开展的小范围补充实验；定位记录并核对变化因素与结果后，检验结论的适用范围。"
+  ],
+  "priorities": [
+    {
+      "order": 1,
+      "task_zh": "已完成原IA1冲突的12条短诊断；保留阴性结果，下一步只在明确上下文或任务差异的假设下扩展。",
+      "status": "Completed 12 frozen local Qwen inputs: 8/8 workflow decisions, 4/4 waiver readings, all six counterbalanced pairs correct. No discrete authority-label effect observed."
+    },
+    {
+      "order": 2,
+      "task_zh": "已完成真实E1操作反馈链、目标测量对照和配套研究图。",
+      "status": "completed"
+    },
+    {
+      "order": 3,
+      "task_zh": "激活读取与替换入口、局部事实影响分析已交付；更广定位可作为后续研究。",
+      "status": "optional_future_extension"
+    },
+    {
+      "order": 4,
+      "task_zh": "局部结果已回到正式轨迹并形成两主线设计解释；系统总分整表另随论文实验材料整理。",
+      "status": "current_research_complete; publication_tables_separate"
+    }
+  ],
+  "manuscript_issues_to_resolve_zh": [
+    "现有附加文档提到200个独立运行；本研究实际读取的是48运行包，不能混为同一完整实验。",
+    "现稿将P1b IA1误写为环丁烷裂解；原任务是环丁二烯矩形/正方形构型间自变，解释行为应以原任务为准。",
+    "对几何固有限制、整体无人介入和完整科学成功的措辞需按实际运行与证据分别限定。运行中的人工介入和事后评分整理分开说明。",
+    "评分公式、历史参考审计和内部协议字段不能挤占两条主线的结果论证；在方法或补充材料中保留可复现信息。"
+  ],
+  "literature_methods": [
+    {
+      "title": "Towards Best Practices of Activation Patching in Language Models: Metrics and Methods",
+      "url": "https://proceedings.iclr.cc/paper_files/paper/2024/hash/06a52a54c8ee03cd86771136bc91eb1f-Abstract-Conference.html",
+      "use_zh": "选择何种扰动和度量会改变解释结论；预先固定对照并保留负结果。"
+    },
+    {
+      "title": "Lost in the Middle: How Language Models Use Long Contexts",
+      "url": "https://aclanthology.org/2024.tacl-1.9/",
+      "use_zh": "短报告一致性不能外推为长研究上下文中的事实利用；原案例记录约204k输入token。"
+    }
+  ],
+  "evidence_paths": {
+    "private_raw_and_pilot_outputs": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028",
+    "literature_matrix": "paper/literature/cloudra_model_study_20261028/literature.json",
+    "code": "scripts/model_semantics/",
+    "original_archive_modified": false
+  },
+  "scope_boundaries_zh": [
+    "不修改Cloudra生产代码、原生日志或原始归档。",
+    "不为获得预期故事补造机制、计算证据或科学成功。",
+    "不设新的化学阈值、量化方法或评分权重。",
+    "Qwen可访问内部状态，原运行DeepSeek不可访问；两者结论分开。"
+  ],
+  "readable_memo": "paper/literature/cloudra_model_study_20261028/study_findings_20261028.txt",
+  "current_followup": {
+    "status": "finished",
+    "final_analysis": "output/cloudra_model_study_20261028/history_operation_analysis.json"
+  },
+  "presentation": "Lead with useful observations and their connections to Cloudra design. Distinguish interpretation with concise natural language; do not center the narrative on preemptive objections.",
+  "question_answers_zh": [
+    {
+      "question": "模型对化学的敏感度如何？",
+      "explanation": "真实连接、电荷和立体差异会影响判断，等价写法与选项顺序也会影响部分回答。化学身份需要在表示变化中保持稳定。",
+      "cloudra_connection": "用明确的分子身份、原子映射和反应中心维持模型所指向的研究对象。",
+      "evidence": [
+        "chemical_identity_controls/chemical_identity_probes.jsonl",
+        "identity_binding_analysis.json",
+        "native_diagnostic_analysis.json"
+      ]
+    },
+    {
+      "question": "为什么几何推理会变得困难，内坐标为什么有用？",
+      "explanation": "从化学意图到坐标需要同时处理对象、空间关系、数值运算与结构保持。工具把这几部分工作明确分开，使模型能围绕化学目标选择操作。",
+      "cloudra_connection": "内坐标、片段算子、预组织与端点对齐执行重复计算，并把结果变成目标相关的测量。",
+      "evidence": [
+        "native_chat_analysis.json",
+        "pilot_native_budget2048/results.json",
+        "operation_feedback_case.json"
+      ]
+    },
+    {
+      "question": "模型面对DAG会利用什么？",
+      "explanation": "按对象组织的事实更便于核对同一步骤中的来源关系。显式未满足项也能被读入完成判断。",
+      "cloudra_connection": "DAG保存物种、步骤、计算证据和研究义务，减少从长历史重新拼接状态的工作。",
+      "evidence": [
+        "identity_binding_analysis.json",
+        "native_diagnostic_analysis.json",
+        "pilot_history_window/results.json"
+      ]
+    },
+    {
+      "question": "为什么模型会认为研究已经完成？",
+      "explanation": "结束判断会综合局部成果、审阅认可与当前状态；原IA1案例显示，模型会依赖一套结束解释，具体缺口反馈又能使其调整交付。",
+      "cloudra_connection": "全局状态和Supervisor意见清楚对应，使结束决定持续围绕现有证据。",
+      "evidence": [
+        "completion_replay_material.json",
+        "authority_conflict_analysis.json"
+      ]
+    },
+    {
+      "question": "科学提示怎样影响下一步？",
+      "explanation": "提示需要指出具体对象、缺失关联和可执行修改。它是否可见、是否指向正确计算，会影响模型实际改什么。",
+      "cloudra_connection": "定向诊断与直接的修改接口共同支持恢复，后续计算再带来新的观察。",
+      "evidence": [
+        "scientific_feedback_trajectory_cases.json",
+        "operation_feedback_case.json"
+      ]
+    },
+    {
+      "question": "工具输出中什么最关键？",
+      "explanation": "研究需要的事实能否进入可见返回、绑定正确对象，并被下一步动作使用。E1中目标H7的补测，使几何反馈直接服务于候选选择。",
+      "cloudra_connection": "将原始结果组织成模型当前研究需要的信息。",
+      "evidence": [
+        "formal_cases.jsonl",
+        "operation_feedback_case.json",
+        "scientific_feedback_trajectory_cases.json"
+      ]
+    },
+    {
+      "question": "激活实验怎样帮助解释？",
+      "explanation": "局部内部状态替换已经能够改变模型对测量值的选择倾向，为分析事实如何参与决定提供一个直接入口。",
+      "cloudra_connection": "沿事实表示、对象绑定和动作选择观察工具信息如何被使用。",
+      "evidence": [
+        "activation_runner_validation.json",
+        "fact_token_patch_pilot/measurements.json",
+        "fact_token_patch_review.json"
+      ]
+    }
+  ],
+  "chapter_deliverables": {
+    "argument_map": "paper/literature/cloudra_model_study_20261028/chapter_argument_map.json",
+    "argument_zh": "paper/literature/cloudra_model_study_20261028/chapter_argument_zh.txt",
+    "figure": "paper/figures/model_semantics_20261028/operation_goal_alignment.svg"
+  },
+  "finish_current_study": [],
+  "optional_future_extensions": [
+    "Broader chemical systems and independent repetitions.",
+    "Additional internal-state controls or localization.",
+    "Full autonomous benchmark comparison with uniformly prepared evidence."
+  ],
+  "publication_followup": "The existing four-arm and small supplementary experiment records can be incorporated into the paper after their result tables are assembled; they are not used to infer the present local diagnostic outcomes.",
+  "completed_at_utc": "2026-10-28T12:02:55.949837+00:00",
+  "delivery": {
+    "narrative": "paper/literature/cloudra_model_study_20261028/study_findings_20261028.txt",
+    "chapter_chinese": "paper/literature/cloudra_model_study_20261028/chapter_argument_zh.txt",
+    "chapter_english": "paper/literature/cloudra_model_study_20261028/chapter_argument_en.txt",
+    "chapter_map": "paper/literature/cloudra_model_study_20261028/chapter_argument_map.json",
+    "figure_png": "paper/figures/model_semantics_20261028/operation_goal_alignment.png",
+    "figure_svg": "paper/figures/model_semantics_20261028/operation_goal_alignment.svg",
+    "code": "scripts/model_semantics/",
+    "final_result": "output/cloudra_model_study_20261028/history_operation_analysis.json"
+  },
+  "completed_controls": {
+    "native_chat_and_thinking": {
+      "status": "completed",
+      "observations": 32,
+      "budget_followup_observations": 1,
+      "evidence": "output/cloudra_model_study_20261028/native_chat_analysis.json",
+      "separate_budget_followup": "output/cloudra_model_study_20261028/pilot_native_budget2048/results.json"
+    }
+  },
+  "historical_context_provenance": {
+    "status": "not_replayed",
+    "reason": "Stored pre-decision contexts are available but exact provider wire input and immutable model checkpoint are unknown. Original prompt usage was about 204k-206k tokens.",
+    "role": "Original stored projections support the trajectory analysis; quoted-history local diagnostics are documented as a separate study condition."
+  }
+}

@@ -1,0 +1,942 @@
+[
+  {
+    "id": "llamp",
+    "name": "LLaMP",
+    "first_public_date": "2024-01-30",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Si crystal/interstitial and crystal annealing MD",
+    "boundary_conditions": "crystalline supercells demonstrated; PBC not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2401.17244v3",
+        "locator": "§5.3 Language-driven simulation; Table 5",
+        "evidence_paraphrase": "Fetches a crystal, constructs a supercell, runs temperature-cycling ML-potential MD and analyzes its trajectory."
+      }
+    ],
+    "family": "LLaMP",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "chemreasoner",
+    "name": "ChemReasoner",
+    "first_public_date": "2024-02-15",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "heterogeneous catalyst slabs and adsorbates",
+    "boundary_conditions": "slab cells and vacuum explicitly reported",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "T"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "T": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2402.10980v3",
+        "locator": "§3.3; §5.4; Appendix A",
+        "evidence_paraphrase": "LLM-guided catalyst search uses GNN structure relaxation and adsorption-energy feedback; selected slabs are checked by DFT."
+      }
+    ],
+    "family": "ChemReasoner",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "atomagents",
+    "name": "AtomAgents",
+    "first_public_date": "2024-07-13",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "metallic alloys, dislocations and fracture",
+    "boundary_conditions": "explicit periodic boundaries; dislocation cells also have a free direction",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2407.10022v1",
+        "locator": "Experiments I–IV; §4 Screw dislocation generation/NEB",
+        "evidence_paraphrase": "Runs alloy property calculations, atomic relaxation and dislocation NEB; material-property experiments link simulation feedback to alloy hypotheses."
+      }
+    ],
+    "family": "AtomAgents",
+    "aliases": [
+      "PNAS 2025 journal version"
+    ],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "adsorb-agent",
+    "name": "Adsorb-Agent",
+    "first_public_date": "2024-10-22",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "adsorbates on crystalline catalyst slabs",
+    "boundary_conditions": "bulk-derived Miller-index slabs; explicit PBC not independently checked",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2410.16658v4",
+        "locator": "§2; §S3 Table S1",
+        "evidence_paraphrase": "LLM proposes adsorption sites and orientations, with relaxed atomistic adsorption-energy evaluation. Bulk IDs and slab Miller indices are documented."
+      }
+    ],
+    "family": "Adsorb-Agent",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "mdcrow",
+    "name": "MDCrow",
+    "first_public_date": "2025-02-13",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "proteins and common solvents",
+    "boundary_conditions": "not resolved from inspected article; do not assume isolated molecules",
+    "demonstrated_tasks": [
+      "D"
+    ],
+    "task_evidence": {
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2502.09565v1",
+        "locator": "§2.1; §3; Appendix C Table 1",
+        "evidence_paraphrase": "Executes OpenMM MD and MDTraj analysis on protein tasks including temperature comparisons; demonstrated scope is biomolecular simulation."
+      }
+    ],
+    "family": "MDCrow",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "mdagent",
+    "name": "MDAgent",
+    "first_public_date": "2025-03-25",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "LAMMPS materials thermodynamics",
+    "boundary_conditions": "not resolved from inspected article",
+    "demonstrated_tasks": [
+      "D"
+    ],
+    "task_evidence": {
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.nature.com/articles/s41598-025-92337-6",
+        "locator": "Abstract; Results; Methods/LSCF dataset",
+        "evidence_paraphrase": "Generates, executes and reviews LAMMPS simulation code for material thermodynamic tasks."
+      }
+    ],
+    "family": "MDAgent",
+    "aliases": [],
+    "limitations": "Semi-automated: the paper explicitly retains human involvement. It is included because the scope includes LLM modification/execution, not only fully autonomous agents.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "el_agente_q",
+    "name": "El Agente Q",
+    "first_public_date": "2025-05-05",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "organic molecules and coordination complexes",
+    "boundary_conditions": "finite molecular calculations (ORCA/xTB)",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/abs/2505.02484",
+        "locator": "Abstract; corroborated by ChemGraph Discussion and Quntur Introduction",
+        "evidence_paraphrase": "Quantum chemistry workflows include equilibrium geometries, vibrational/spectral and electronic-property calculations, with adaptive debugging."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [
+      "El Agente: An Autonomous Agent for Quantum Chemistry",
+      "10.1016/j.matt.2025.102263"
+    ],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "aitomia",
+    "name": "Aitomia",
+    "first_public_date": "2025-05-13",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "molecular spectra and reaction thermochemistry",
+    "boundary_conditions": "finite molecular examples; no periodic demonstration coded",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/pdf/2505.08195",
+        "locator": "16 March 2026 version, pp.5–12; Figs.3–6",
+        "evidence_paraphrase": "Demonstrated examples include hexanol IR and multi-species reaction enthalpy workflows using geometry optimization, frequency and electronic calculations."
+      }
+    ],
+    "family": "Aitomia",
+    "aliases": [
+      "10.1021/acs.jctc.6c00591"
+    ],
+    "limitations": "The inspected preprint and current repository are distinct evidence versions. The current repository supports TS/IRC; no negative capability claim follows from uncoded tasks here.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "chemgraph",
+    "name": "ChemGraph",
+    "first_public_date": "2025-06-03",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "PubChem small molecules and reaction thermochemistry",
+    "boundary_conditions": "finite molecular benchmarks; ASE supports PBC but support is not counted as a demonstration",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.nature.com/articles/s42004-025-01776-9",
+        "locator": "Results; Methods/Benchmarking; Table 2",
+        "evidence_paraphrase": "Thirteen molecular tasks include DFT optimization, vibrations and reaction enthalpy/Gibbs calculations; no periodic benchmark is inferred from ASE support."
+      }
+    ],
+    "family": "ChemGraph",
+    "aliases": [
+      "arXiv:2506.06363",
+      "Communications Chemistry 9, 33 (2026)"
+    ],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "dreams",
+    "name": "DREAMS",
+    "first_public_date": "2025-07-18",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Sol27LC crystals and CO/Pt(111)",
+    "boundary_conditions": "periodic crystal/lattice-constant and crystalline slab models",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2507.14267v2",
+        "locator": "Main text; Sol27LC and CO/Pt(111) challenges",
+        "evidence_paraphrase": "Executes lattice-constant and adsorption-energy studies with DFT workflows and provenance checking."
+      }
+    ],
+    "family": "DREAMS",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "vaspilot",
+    "name": "VASPilot",
+    "first_public_date": "2025-08-09",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "crystalline solids and transition-metal dichalcogenides",
+    "boundary_conditions": "band structure/Brillouin-zone crystalline models",
+    "demonstrated_tasks": [
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/abs/2508.07035",
+        "locator": "Abstract; benchmark description",
+        "evidence_paraphrase": "Demonstrates band structures, density of states, cutoff convergence, lattice-constant optimization and band-gap comparisons."
+      }
+    ],
+    "family": "VASPilot",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "master",
+    "name": "MASTER",
+    "first_public_date": "2025-12-15",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "CO on Cu(100) adatoms and M–N–C catalysts",
+    "boundary_conditions": "explicit 4×4 periodic six-layer Cu(100) slab",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2512.13930v1",
+        "locator": "Computational methods; Fig.2; Supplementary geometry tips",
+        "evidence_paraphrase": "LLM reasoning chooses catalyst candidates and executes atomistic adsorption-energy simulations; Cu(100) geometry is explicitly periodic."
+      }
+    ],
+    "family": "MASTER",
+    "aliases": [
+      "10.1038/s41524-026-02139-1"
+    ],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "masgent",
+    "name": "Masgent",
+    "first_public_date": "2025-12-28",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "LaCoO3 vacancies and metallic/crystalline materials",
+    "boundary_conditions": "crystal/supercell/slab models documented",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/pdf/2512.23010",
+        "locator": "pp.7–8 Fig.3; pp.16–20 case studies",
+        "evidence_paraphrase": "Agent executes LaCoO3 vacancy construction and MLP defect-energy workflow. VASP workflows are prepared; the agent does not directly execute VASP."
+      }
+    ],
+    "family": "Masgent",
+    "aliases": [],
+    "limitations": "Do not equate VASP input preparation with completed VASP calculations; task marks refer to demonstrated MLP/structure work.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "el_agente_estructural",
+    "name": "El Agente Estructural",
+    "first_public_date": "2026-02-04",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "molecules, organometallic complexes and TS-like geometries",
+    "boundary_conditions": "finite molecular cases; slabs/solids are future extensions in inspected v1",
+    "demonstrated_tasks": [
+      "T",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2602.04849v1",
+        "locator": "§2.3.2; §3.2.6 Fig.12; §4.2.6",
+        "evidence_paraphrase": "Invokes xTB constrained optimization to create intended molecular geometry; agentic geometric operations are real. Subsequent independent DFT TS checks are not coded as agent TS execution."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [],
+    "limitations": "Included despite editor emphasis because xTB constrained relaxation is an actual quantum-chemical computation, beyond pure string/generative molecular design.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "el_agente_quntur",
+    "name": "El Agente Quntur",
+    "first_public_date": "2026-02-04",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "molecular and coordination quantum chemistry",
+    "boundary_conditions": "finite molecular cases including isocyanide and acetylacetone",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2602.04850v3",
+        "locator": "Results/case studies; Discussion/Geometric reasoning; Appendix B",
+        "evidence_paraphrase": "Demonstrates electronic methods, optimization/frequencies and reaction-path cases; isocyanide mechanistic refinement includes TS correction. NEB geometry failures are discussed, so this is task coverage rather than blanket success."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "matsciagent",
+    "name": "MatSciAgent",
+    "first_public_date": "2026-03-26",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Al and NiAl crystal MD; auxiliary continuum tasks",
+    "boundary_conditions": "FCC and CIF-derived crystalline models; explicit PBC not independently audited",
+    "demonstrated_tasks": [
+      "T",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.nature.com/articles/s43246-025-00994-x",
+        "locator": "Molecular dynamics Case 1; Joint Implementation; Figs.11–12",
+        "evidence_paraphrase": "Executes Al NVE MD and CIF-generated NiAl NVT MD; continuum-only examples do not determine inclusion."
+      }
+    ],
+    "family": "MatSciAgent",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "polyjarvis",
+    "name": "PolyJarvis",
+    "first_public_date": "2026-04-02",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "amorphous homopolymers",
+    "boundary_conditions": "condensed simulation cells; self-imaging/PPPM documented; PBC wording not separately resolved",
+    "demonstrated_tasks": [
+      "T",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2604.02537v3",
+        "locator": "§2.3–2.6; SI §3.4–3.5",
+        "evidence_paraphrase": "Builds polymer cells and orchestrates equilibration, cooling, density, glass-transition and mechanical-property MD workflows."
+      }
+    ],
+    "family": "PolyJarvis",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "el_agente_forjador",
+    "name": "El Agente Forjador",
+    "first_public_date": "2026-04-16",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "molecular QC plus quantum dynamics",
+    "boundary_conditions": "finite molecular examples; quantum-state dynamics does not imply periodic materials",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2604.14609v1",
+        "locator": "§4.1; Table 1; §4.4",
+        "evidence_paraphrase": "Creates and reuses tools for molecular optimization, frequencies/thermochemistry and excited states; hybrid cases couple electronic structure to quantum dynamics."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [],
+    "limitations": "D is quantum dynamics, not necessarily atomistic MD. The physical target is coded by demonstrated molecular calculations, not software breadth.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "tsagent",
+    "name": "TSAgent",
+    "first_public_date": "2026-05-13",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "heterogeneous catalytic reactions on slabs",
+    "boundary_conditions": "VASP slab geometry; 2×2×1 k-point grid explicitly reported",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2605.14154v1",
+        "locator": "§4; Appendix F.1",
+        "evidence_paraphrase": "Adapts geometry optimization, NEB and vibrational TS verification on OC20NEB surface-reaction cases."
+      }
+    ],
+    "family": "TSAgent",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "catdt",
+    "name": "CatDT",
+    "first_public_date": "2026-06-03",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "working heterogeneous catalyst surfaces",
+    "boundary_conditions": "slab/bulk/facet construction with gas–solid and liquid–solid models",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2606.05050v2",
+        "locator": "§2.1–2.5; Methods",
+        "evidence_paraphrase": "Builds catalyst surfaces, proposes mechanisms, searches paths/TS and computes kinetics using atomistic tools; liquid–solid capability is not finite-molecule evidence."
+      }
+    ],
+    "family": "CatDT",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "mdforge",
+    "name": "MDForge",
+    "first_public_date": "2026-06-11",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "SAMPL host–guest binding free energies",
+    "boundary_conditions": "not resolved from inspected article; explicit/implicit solvent workflow details need separate audit",
+    "demonstrated_tasks": [
+      "D"
+    ],
+    "task_evidence": {
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2606.12916v2",
+        "locator": "Abstract; §3–5",
+        "evidence_paraphrase": "LLM writes and refines MD pipelines with physics feedback on host–guest binding benchmarks."
+      }
+    ],
+    "family": "MDForge",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "adsmind",
+    "name": "AdsMind",
+    "first_public_date": "2026-06-17",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "adsorbate configurations on catalyst slabs",
+    "boundary_conditions": "cell and periodic boundary conditions explicitly retained in ASE slab reconstruction",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2606.19152v1",
+        "locator": "§II.1.2; §II.5",
+        "evidence_paraphrase": "Closed-loop agent uses MLFF relaxation feedback to revise adsorption hypotheses. Main benchmark has Langevin warmup disabled; no MD mark is assigned."
+      }
+    ],
+    "family": "AdsMind",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "agent-md",
+    "name": "Agent-MD",
+    "first_public_date": "2026-08-07",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "montmorillonite clay–water desorption",
+    "boundary_conditions": "explicit periodic boundaries in all three directions",
+    "demonstrated_tasks": [
+      "D"
+    ],
+    "task_evidence": {
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2608.07637v1",
+        "locator": "§2.3.1; §2.4; Results",
+        "evidence_paraphrase": "LLM reasoning supports campaign construction and event review around deterministic GCMC–MD; production cycles need no live LLM invocation."
+      }
+    ],
+    "family": "Agent-MD",
+    "aliases": [],
+    "limitations": "Selective LLM placement is included; counting requires actual planning/modification decisions, not a live LLM at every MD step.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "evolving_ts_workflows",
+    "name": "Evolving TS workflows",
+    "first_public_date": "2026-09-03",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "TS1X molecular elementary reactions",
+    "boundary_conditions": "finite molecular endpoint/TS geometries",
+    "demonstrated_tasks": [
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.nature.com/articles/s41524-026-02301-9",
+        "locator": "Results/Evolutionary architecture; Methods",
+        "evidence_paraphrase": "LLM evolves TS-search code; execution feedback includes Hessian and IRC endpoint checks. The LLM optimizes the workflow rather than directly making every reaction decision."
+      }
+    ],
+    "family": "Evolving TS workflows",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "arche",
+    "name": "ARCHE",
+    "first_public_date": "2026-09-10",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "organic/organometallic molecular mechanisms",
+    "boundary_conditions": "finite molecular asymmetric, radical and Ni-catalysis examples",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/abs/2609.11147",
+        "locator": "Abstract; SI TSPipeline/C.10 independently checked by parent researcher",
+        "evidence_paraphrase": "Closed-loop mechanistic hypotheses are checked computationally across stereocontrol, radical cleavage and Ni-catalyzed selectivity examples."
+      }
+    ],
+    "family": "ARCHE",
+    "aliases": [],
+    "limitations": "Full PDF exceeds web-reader size limit; main inclusion/object/task claims use the abstract. Parent independently inspected SI mapping/force-field/TS and frequency/IRC/endpoint chain. Do not infer absent geometric or scientific validation capabilities.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  },
+  {
+    "id": "multireference_qc_agent",
+    "name": "Multireference QC agent",
+    "first_public_date": "2026-09-11",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "QUEST molecular excited states and transition-metal complexes",
+    "boundary_conditions": "finite molecular ORCA calculations",
+    "demonstrated_tasks": [
+      "E"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2609.13357v1",
+        "locator": "§II–IV; QUESTDB benchmark",
+        "evidence_paraphrase": "Selects active spaces, submits ORCA calculations, recovers convergence and identifies electronic states; evaluation covers molecular vertical transition energies."
+      }
+    ],
+    "family": "Multireference QC agent",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26"
+  }
+]

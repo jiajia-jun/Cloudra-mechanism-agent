@@ -1,0 +1,44 @@
+{
+  "id": "arche",
+  "name": "ARCHE",
+  "first_public_date": "2026-09-10",
+  "physical_target": "finite_molecules_complexes",
+  "demonstrated_target": "organic/organometallic molecular mechanisms",
+  "boundary_conditions": "finite molecular asymmetric, radical and Ni-catalysis examples",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O",
+    "F",
+    "R"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "F": {
+      "source_index": 0
+    },
+    "R": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/abs/2609.11147",
+      "locator": "Abstract; SI TSPipeline/C.10 independently checked by parent researcher",
+      "evidence_paraphrase": "Closed-loop mechanistic hypotheses are checked computationally across stereocontrol, radical cleavage and Ni-catalyzed selectivity examples."
+    }
+  ],
+  "family": "ARCHE",
+  "aliases": [],
+  "limitations": "Full PDF exceeds web-reader size limit; main inclusion/object/task claims use the abstract. Parent independently inspected SI mapping/force-field/TS and frequency/IRC/endpoint chain. Do not infer absent geometric or scientific validation capabilities.",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

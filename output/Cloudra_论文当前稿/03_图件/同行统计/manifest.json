@@ -1,0 +1,1442 @@
+[
+  {
+    "stem": "targets",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 60,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "counts": {
+      "extended_materials_surfaces": 39,
+      "finite_molecules_complexes": 23,
+      "soft_biomolecular": 12,
+      "cross_domain": 11
+    }
+  },
+  {
+    "stem": "tasks",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 78,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "counts": {
+      "T": 61,
+      "E": 61,
+      "O": 53,
+      "F": 22,
+      "R": 11,
+      "D": 37
+    }
+  },
+  {
+    "stem": "matrix_extended_materials_surfaces_01",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 97.8,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 39,
+    "record_ids": [
+      "llamp",
+      "chemreasoner",
+      "atomagents",
+      "adsorb-agent",
+      "langsim",
+      "mdagent",
+      "topomas",
+      "dreams",
+      "sparksmatter",
+      "vaspilot",
+      "amlp",
+      "genius",
+      "lammps_agents",
+      "agapi_agents"
+    ],
+    "record_names": [
+      "LLaMP",
+      "ChemReasoner",
+      "AtomAgents",
+      "Adsorb-Agent",
+      "LangSim",
+      "MDAgent",
+      "TopoMAS",
+      "DREAMS",
+      "SparksMatter",
+      "VASPilot",
+      "AMLP",
+      "GENIUS",
+      "LAMMPS-Agents",
+      "AGAPI-Agents"
+    ],
+    "positive_tasks": {
+      "llamp": [
+        "T",
+        "D"
+      ],
+      "chemreasoner": [
+        "E",
+        "O",
+        "T"
+      ],
+      "atomagents": [
+        "T",
+        "E",
+        "O",
+        "R"
+      ],
+      "adsorb-agent": [
+        "T",
+        "E",
+        "O"
+      ],
+      "langsim": [
+        "T",
+        "E",
+        "O"
+      ],
+      "mdagent": [
+        "D"
+      ],
+      "topomas": [
+        "T",
+        "E"
+      ],
+      "dreams": [
+        "T",
+        "E",
+        "O"
+      ],
+      "sparksmatter": [
+        "T",
+        "E",
+        "O"
+      ],
+      "vaspilot": [
+        "E",
+        "O"
+      ],
+      "amlp": [
+        "E",
+        "O",
+        "D"
+      ],
+      "genius": [
+        "E",
+        "O"
+      ],
+      "lammps_agents": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "D"
+      ],
+      "agapi_agents": [
+        "T",
+        "E",
+        "O"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_extended_materials_surfaces_02",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 97.8,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 39,
+    "record_ids": [
+      "master",
+      "vasp_agent_xia",
+      "masgent",
+      "cascade",
+      "mdagent2_runtime",
+      "catmaster",
+      "el_agente_solido",
+      "catalyst_agent",
+      "tritondft",
+      "matsciagent",
+      "simmof",
+      "matclaw",
+      "xdft",
+      "tsagent"
+    ],
+    "record_names": [
+      "MASTER",
+      "VASP Agent",
+      "Masgent",
+      "CASCADE",
+      "MDAgent2-RUNTIME",
+      "CatMaster",
+      "El Agente Sólido",
+      "Catalyst-Agent",
+      "TritonDFT",
+      "MatSciAgent",
+      "SimMOF",
+      "MatClaw",
+      "XDFT",
+      "TSAgent"
+    ],
+    "positive_tasks": {
+      "master": [
+        "T",
+        "E",
+        "O"
+      ],
+      "vasp_agent_xia": [
+        "E",
+        "O",
+        "R"
+      ],
+      "masgent": [
+        "T",
+        "E",
+        "O"
+      ],
+      "cascade": [
+        "E",
+        "O"
+      ],
+      "mdagent2_runtime": [
+        "D"
+      ],
+      "catmaster": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "el_agente_solido": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "catalyst_agent": [
+        "T",
+        "E",
+        "O"
+      ],
+      "tritondft": [
+        "E",
+        "O",
+        "F"
+      ],
+      "matsciagent": [
+        "T",
+        "D"
+      ],
+      "simmof": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ],
+      "matclaw": [
+        "E",
+        "D"
+      ],
+      "xdft": [
+        "T",
+        "E"
+      ],
+      "tsagent": [
+        "E",
+        "O",
+        "F",
+        "R"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_extended_materials_surfaces_03",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 82.2,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 39,
+    "record_ids": [
+      "lang2mlip",
+      "chatmosp",
+      "catdt",
+      "ursa_lammps",
+      "adsmind",
+      "agent-md",
+      "matmcp",
+      "pvmatagent",
+      "agent_e2md",
+      "mlp_copilot",
+      "gbclaw"
+    ],
+    "record_names": [
+      "Lang2MLIP",
+      "ChatMOSP",
+      "CatDT",
+      "URSA LAMMPS agent",
+      "AdsMind",
+      "Agent-MD",
+      "matmcp",
+      "PVmatAgent",
+      "Agent-E2MD",
+      "MLP Copilot",
+      "GBClaw"
+    ],
+    "positive_tasks": {
+      "lang2mlip": [
+        "T",
+        "E",
+        "D"
+      ],
+      "chatmosp": [
+        "T"
+      ],
+      "catdt": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "ursa_lammps": [
+        "T",
+        "E",
+        "D"
+      ],
+      "adsmind": [
+        "T",
+        "E",
+        "O"
+      ],
+      "agent-md": [
+        "D"
+      ],
+      "matmcp": [
+        "T",
+        "E",
+        "O"
+      ],
+      "pvmatagent": [
+        "T",
+        "E",
+        "O"
+      ],
+      "agent_e2md": [
+        "E",
+        "O",
+        "D"
+      ],
+      "mlp_copilot": [
+        "E",
+        "D"
+      ],
+      "gbclaw": [
+        "T",
+        "E",
+        "O",
+        "R"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_finite_molecules_complexes_01",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 97.8,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 23,
+    "record_ids": [
+      "buehler_molecular_dft_multiagent",
+      "el_agente_q",
+      "aitomia",
+      "matagent_lv",
+      "chemgraph",
+      "autosolvate_agent",
+      "chemagents_azobenzene",
+      "el_agente_cuantico",
+      "chatmat",
+      "el_agente_estructural",
+      "el_agente_quntur",
+      "chelatron",
+      "openclaw_compchem_skills",
+      "protomia"
+    ],
+    "record_names": [
+      "Buehler molecular-DFT multi-agent demonstration",
+      "El Agente Q",
+      "Aitomia",
+      "MatAgent (Lv et al.)",
+      "ChemGraph",
+      "AutoSolvate-Agent",
+      "ChemAgents molecular simulation workflow",
+      "El Agente Cuántico",
+      "ChatMat",
+      "El Agente Estructural",
+      "El Agente Quntur",
+      "Chelatron",
+      "OpenClaw computational-chemistry skills workflow",
+      "Protomia"
+    ],
+    "positive_tasks": {
+      "buehler_molecular_dft_multiagent": [
+        "T",
+        "E"
+      ],
+      "el_agente_q": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "aitomia": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "matagent_lv": [
+        "T",
+        "E"
+      ],
+      "chemgraph": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "autosolvate_agent": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "chemagents_azobenzene": [
+        "F",
+        "D"
+      ],
+      "el_agente_cuantico": [
+        "E"
+      ],
+      "chatmat": [
+        "T",
+        "E"
+      ],
+      "el_agente_estructural": [
+        "T",
+        "O"
+      ],
+      "el_agente_quntur": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "chelatron": [
+        "T",
+        "E"
+      ],
+      "openclaw_compchem_skills": [
+        "T",
+        "O",
+        "D"
+      ],
+      "protomia": [
+        "T",
+        "E",
+        "F"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_finite_molecules_complexes_02",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 74.4,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 23,
+    "record_ids": [
+      "el_agente_forjador",
+      "virtuallab_cc",
+      "ladeq",
+      "evolving_ts_workflows",
+      "arche",
+      "multireference_qc_agent",
+      "sqd_agent",
+      "qaos",
+      "pulses"
+    ],
+    "record_names": [
+      "El Agente Forjador",
+      "VirtualLab_CC",
+      "LADeQ",
+      "Evolving TS workflows",
+      "ARCHE",
+      "Multireference QC agent",
+      "SQD-Agent",
+      "QAOS / Quantum Agentic Operating System",
+      "PULSES"
+    ],
+    "positive_tasks": {
+      "el_agente_forjador": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "D"
+      ],
+      "virtuallab_cc": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "ladeq": [
+        "E"
+      ],
+      "evolving_ts_workflows": [
+        "O",
+        "F",
+        "R"
+      ],
+      "arche": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "multireference_qc_agent": [
+        "E"
+      ],
+      "sqd_agent": [
+        "E"
+      ],
+      "qaos": [
+        "T",
+        "E",
+        "O"
+      ],
+      "pulses": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_soft_biomolecular_01",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 90.0,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 12,
+    "record_ids": [
+      "protagents",
+      "mdcrow",
+      "namd_agent",
+      "topolyagent",
+      "dynamate_biomolecular",
+      "electrolyte_agent_ruza",
+      "polyjarvis",
+      "mdagent_biomolecular_2026",
+      "dynamate2",
+      "mdforge",
+      "mutexagpt",
+      "cgmas"
+    ],
+    "record_names": [
+      "ProtAgents",
+      "MDCrow",
+      "NAMD-Agent",
+      "ToPolyAgent",
+      "DynaMate (protein–ligand)",
+      "Electrolyte Agent / Reasoning-to-Simulation",
+      "PolyJarvis",
+      "MDAgent (biomolecular, 2026)",
+      "DynaMate2",
+      "MDForge",
+      "MutexaGPT",
+      "CGMas"
+    ],
+    "positive_tasks": {
+      "protagents": [
+        "T",
+        "F"
+      ],
+      "mdcrow": [
+        "D"
+      ],
+      "namd_agent": [
+        "T",
+        "D"
+      ],
+      "topolyagent": [
+        "T",
+        "D"
+      ],
+      "dynamate_biomolecular": [
+        "T",
+        "O",
+        "D"
+      ],
+      "electrolyte_agent_ruza": [
+        "T",
+        "D"
+      ],
+      "polyjarvis": [
+        "T",
+        "D"
+      ],
+      "mdagent_biomolecular_2026": [
+        "T",
+        "O",
+        "D"
+      ],
+      "dynamate2": [
+        "T",
+        "D"
+      ],
+      "mdforge": [
+        "D"
+      ],
+      "mutexagpt": [
+        "T",
+        "D"
+      ],
+      "cgmas": [
+        "T",
+        "O",
+        "D"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_cross_domain_01",
+    "language": "en",
+    "width_mm": 86.0,
+    "height_mm": 84.8,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 11,
+    "record_ids": [
+      "dynamate_mendible_barreto",
+      "quasar",
+      "el_agente_grafico",
+      "fermilink",
+      "catgo",
+      "atomisticskills",
+      "autodft",
+      "mlipilot",
+      "paimon",
+      "el_agente_potente",
+      "magnolia"
+    ],
+    "record_names": [
+      "DynaMate (Mendible-Barreto et al.)",
+      "QUASAR",
+      "El Agente Gráfico",
+      "FermiLink",
+      "CatGo",
+      "AtomisticSkills",
+      "AutoDFT",
+      "MLIPilot",
+      "Paimon",
+      "El Agente Potente",
+      "Magnolia"
+    ],
+    "positive_tasks": {
+      "dynamate_mendible_barreto": [
+        "T",
+        "O",
+        "D"
+      ],
+      "quasar": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ],
+      "el_agente_grafico": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "fermilink": [
+        "E",
+        "D"
+      ],
+      "catgo": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "atomisticskills": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ],
+      "autodft": [
+        "E",
+        "O",
+        "F",
+        "D"
+      ],
+      "mlipilot": [
+        "E",
+        "O",
+        "D"
+      ],
+      "paimon": [
+        "T",
+        "O",
+        "D"
+      ],
+      "el_agente_potente": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R",
+        "D"
+      ],
+      "magnolia": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ]
+    }
+  },
+  {
+    "stem": "targets",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 60,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "counts": {
+      "extended_materials_surfaces": 39,
+      "finite_molecules_complexes": 23,
+      "soft_biomolecular": 12,
+      "cross_domain": 11
+    }
+  },
+  {
+    "stem": "tasks",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 78,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "counts": {
+      "T": 61,
+      "E": 61,
+      "O": 53,
+      "F": 22,
+      "R": 11,
+      "D": 37
+    }
+  },
+  {
+    "stem": "matrix_extended_materials_surfaces_01",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 97.8,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 39,
+    "record_ids": [
+      "llamp",
+      "chemreasoner",
+      "atomagents",
+      "adsorb-agent",
+      "langsim",
+      "mdagent",
+      "topomas",
+      "dreams",
+      "sparksmatter",
+      "vaspilot",
+      "amlp",
+      "genius",
+      "lammps_agents",
+      "agapi_agents"
+    ],
+    "record_names": [
+      "LLaMP",
+      "ChemReasoner",
+      "AtomAgents",
+      "Adsorb-Agent",
+      "LangSim",
+      "MDAgent",
+      "TopoMAS",
+      "DREAMS",
+      "SparksMatter",
+      "VASPilot",
+      "AMLP",
+      "GENIUS",
+      "LAMMPS-Agents",
+      "AGAPI-Agents"
+    ],
+    "positive_tasks": {
+      "llamp": [
+        "T",
+        "D"
+      ],
+      "chemreasoner": [
+        "E",
+        "O",
+        "T"
+      ],
+      "atomagents": [
+        "T",
+        "E",
+        "O",
+        "R"
+      ],
+      "adsorb-agent": [
+        "T",
+        "E",
+        "O"
+      ],
+      "langsim": [
+        "T",
+        "E",
+        "O"
+      ],
+      "mdagent": [
+        "D"
+      ],
+      "topomas": [
+        "T",
+        "E"
+      ],
+      "dreams": [
+        "T",
+        "E",
+        "O"
+      ],
+      "sparksmatter": [
+        "T",
+        "E",
+        "O"
+      ],
+      "vaspilot": [
+        "E",
+        "O"
+      ],
+      "amlp": [
+        "E",
+        "O",
+        "D"
+      ],
+      "genius": [
+        "E",
+        "O"
+      ],
+      "lammps_agents": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "D"
+      ],
+      "agapi_agents": [
+        "T",
+        "E",
+        "O"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_extended_materials_surfaces_02",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 97.8,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 39,
+    "record_ids": [
+      "master",
+      "vasp_agent_xia",
+      "masgent",
+      "cascade",
+      "mdagent2_runtime",
+      "catmaster",
+      "el_agente_solido",
+      "catalyst_agent",
+      "tritondft",
+      "matsciagent",
+      "simmof",
+      "matclaw",
+      "xdft",
+      "tsagent"
+    ],
+    "record_names": [
+      "MASTER",
+      "VASP Agent",
+      "Masgent",
+      "CASCADE",
+      "MDAgent2-RUNTIME",
+      "CatMaster",
+      "El Agente Sólido",
+      "Catalyst-Agent",
+      "TritonDFT",
+      "MatSciAgent",
+      "SimMOF",
+      "MatClaw",
+      "XDFT",
+      "TSAgent"
+    ],
+    "positive_tasks": {
+      "master": [
+        "T",
+        "E",
+        "O"
+      ],
+      "vasp_agent_xia": [
+        "E",
+        "O",
+        "R"
+      ],
+      "masgent": [
+        "T",
+        "E",
+        "O"
+      ],
+      "cascade": [
+        "E",
+        "O"
+      ],
+      "mdagent2_runtime": [
+        "D"
+      ],
+      "catmaster": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "el_agente_solido": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "catalyst_agent": [
+        "T",
+        "E",
+        "O"
+      ],
+      "tritondft": [
+        "E",
+        "O",
+        "F"
+      ],
+      "matsciagent": [
+        "T",
+        "D"
+      ],
+      "simmof": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ],
+      "matclaw": [
+        "E",
+        "D"
+      ],
+      "xdft": [
+        "T",
+        "E"
+      ],
+      "tsagent": [
+        "E",
+        "O",
+        "F",
+        "R"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_extended_materials_surfaces_03",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 82.2,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 39,
+    "record_ids": [
+      "lang2mlip",
+      "chatmosp",
+      "catdt",
+      "ursa_lammps",
+      "adsmind",
+      "agent-md",
+      "matmcp",
+      "pvmatagent",
+      "agent_e2md",
+      "mlp_copilot",
+      "gbclaw"
+    ],
+    "record_names": [
+      "Lang2MLIP",
+      "ChatMOSP",
+      "CatDT",
+      "URSA LAMMPS agent",
+      "AdsMind",
+      "Agent-MD",
+      "matmcp",
+      "PVmatAgent",
+      "Agent-E2MD",
+      "MLP Copilot",
+      "GBClaw"
+    ],
+    "positive_tasks": {
+      "lang2mlip": [
+        "T",
+        "E",
+        "D"
+      ],
+      "chatmosp": [
+        "T"
+      ],
+      "catdt": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "ursa_lammps": [
+        "T",
+        "E",
+        "D"
+      ],
+      "adsmind": [
+        "T",
+        "E",
+        "O"
+      ],
+      "agent-md": [
+        "D"
+      ],
+      "matmcp": [
+        "T",
+        "E",
+        "O"
+      ],
+      "pvmatagent": [
+        "T",
+        "E",
+        "O"
+      ],
+      "agent_e2md": [
+        "E",
+        "O",
+        "D"
+      ],
+      "mlp_copilot": [
+        "E",
+        "D"
+      ],
+      "gbclaw": [
+        "T",
+        "E",
+        "O",
+        "R"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_finite_molecules_complexes_01",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 97.8,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 23,
+    "record_ids": [
+      "buehler_molecular_dft_multiagent",
+      "el_agente_q",
+      "aitomia",
+      "matagent_lv",
+      "chemgraph",
+      "autosolvate_agent",
+      "chemagents_azobenzene",
+      "el_agente_cuantico",
+      "chatmat",
+      "el_agente_estructural",
+      "el_agente_quntur",
+      "chelatron",
+      "openclaw_compchem_skills",
+      "protomia"
+    ],
+    "record_names": [
+      "Buehler molecular-DFT multi-agent demonstration",
+      "El Agente Q",
+      "Aitomia",
+      "MatAgent (Lv et al.)",
+      "ChemGraph",
+      "AutoSolvate-Agent",
+      "ChemAgents molecular simulation workflow",
+      "El Agente Cuántico",
+      "ChatMat",
+      "El Agente Estructural",
+      "El Agente Quntur",
+      "Chelatron",
+      "OpenClaw computational-chemistry skills workflow",
+      "Protomia"
+    ],
+    "positive_tasks": {
+      "buehler_molecular_dft_multiagent": [
+        "T",
+        "E"
+      ],
+      "el_agente_q": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "aitomia": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "matagent_lv": [
+        "T",
+        "E"
+      ],
+      "chemgraph": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "autosolvate_agent": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "chemagents_azobenzene": [
+        "F",
+        "D"
+      ],
+      "el_agente_cuantico": [
+        "E"
+      ],
+      "chatmat": [
+        "T",
+        "E"
+      ],
+      "el_agente_estructural": [
+        "T",
+        "O"
+      ],
+      "el_agente_quntur": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "chelatron": [
+        "T",
+        "E"
+      ],
+      "openclaw_compchem_skills": [
+        "T",
+        "O",
+        "D"
+      ],
+      "protomia": [
+        "T",
+        "E",
+        "F"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_finite_molecules_complexes_02",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 74.4,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 23,
+    "record_ids": [
+      "el_agente_forjador",
+      "virtuallab_cc",
+      "ladeq",
+      "evolving_ts_workflows",
+      "arche",
+      "multireference_qc_agent",
+      "sqd_agent",
+      "qaos",
+      "pulses"
+    ],
+    "record_names": [
+      "El Agente Forjador",
+      "VirtualLab_CC",
+      "LADeQ",
+      "Evolving TS workflows",
+      "ARCHE",
+      "Multireference QC agent",
+      "SQD-Agent",
+      "QAOS / Quantum Agentic Operating System",
+      "PULSES"
+    ],
+    "positive_tasks": {
+      "el_agente_forjador": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "D"
+      ],
+      "virtuallab_cc": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "ladeq": [
+        "E"
+      ],
+      "evolving_ts_workflows": [
+        "O",
+        "F",
+        "R"
+      ],
+      "arche": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "multireference_qc_agent": [
+        "E"
+      ],
+      "sqd_agent": [
+        "E"
+      ],
+      "qaos": [
+        "T",
+        "E",
+        "O"
+      ],
+      "pulses": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_soft_biomolecular_01",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 90.0,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 12,
+    "record_ids": [
+      "protagents",
+      "mdcrow",
+      "namd_agent",
+      "topolyagent",
+      "dynamate_biomolecular",
+      "electrolyte_agent_ruza",
+      "polyjarvis",
+      "mdagent_biomolecular_2026",
+      "dynamate2",
+      "mdforge",
+      "mutexagpt",
+      "cgmas"
+    ],
+    "record_names": [
+      "ProtAgents",
+      "MDCrow",
+      "NAMD-Agent",
+      "ToPolyAgent",
+      "DynaMate (protein–ligand)",
+      "Electrolyte Agent / Reasoning-to-Simulation",
+      "PolyJarvis",
+      "MDAgent (biomolecular, 2026)",
+      "DynaMate2",
+      "MDForge",
+      "MutexaGPT",
+      "CGMas"
+    ],
+    "positive_tasks": {
+      "protagents": [
+        "T",
+        "F"
+      ],
+      "mdcrow": [
+        "D"
+      ],
+      "namd_agent": [
+        "T",
+        "D"
+      ],
+      "topolyagent": [
+        "T",
+        "D"
+      ],
+      "dynamate_biomolecular": [
+        "T",
+        "O",
+        "D"
+      ],
+      "electrolyte_agent_ruza": [
+        "T",
+        "D"
+      ],
+      "polyjarvis": [
+        "T",
+        "D"
+      ],
+      "mdagent_biomolecular_2026": [
+        "T",
+        "O",
+        "D"
+      ],
+      "dynamate2": [
+        "T",
+        "D"
+      ],
+      "mdforge": [
+        "D"
+      ],
+      "mutexagpt": [
+        "T",
+        "D"
+      ],
+      "cgmas": [
+        "T",
+        "O",
+        "D"
+      ]
+    }
+  },
+  {
+    "stem": "matrix_cross_domain_01",
+    "language": "zh",
+    "width_mm": 86.0,
+    "height_mm": 84.8,
+    "minimum_font_pt": 7.5,
+    "sample_n": 85,
+    "group_n": 11,
+    "record_ids": [
+      "dynamate_mendible_barreto",
+      "quasar",
+      "el_agente_grafico",
+      "fermilink",
+      "catgo",
+      "atomisticskills",
+      "autodft",
+      "mlipilot",
+      "paimon",
+      "el_agente_potente",
+      "magnolia"
+    ],
+    "record_names": [
+      "DynaMate (Mendible-Barreto et al.)",
+      "QUASAR",
+      "El Agente Gráfico",
+      "FermiLink",
+      "CatGo",
+      "AtomisticSkills",
+      "AutoDFT",
+      "MLIPilot",
+      "Paimon",
+      "El Agente Potente",
+      "Magnolia"
+    ],
+    "positive_tasks": {
+      "dynamate_mendible_barreto": [
+        "T",
+        "O",
+        "D"
+      ],
+      "quasar": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ],
+      "el_agente_grafico": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "fermilink": [
+        "E",
+        "D"
+      ],
+      "catgo": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "atomisticskills": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ],
+      "autodft": [
+        "E",
+        "O",
+        "F",
+        "D"
+      ],
+      "mlipilot": [
+        "E",
+        "O",
+        "D"
+      ],
+      "paimon": [
+        "T",
+        "O",
+        "D"
+      ],
+      "el_agente_potente": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R",
+        "D"
+      ],
+      "magnolia": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ]
+    }
+  }
+]

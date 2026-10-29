@@ -1,0 +1,44 @@
+{
+  "id": "el_agente_quntur",
+  "name": "El Agente Quntur",
+  "first_public_date": "2026-02-04",
+  "physical_target": "finite_molecules_complexes",
+  "demonstrated_target": "molecular and coordination quantum chemistry",
+  "boundary_conditions": "finite molecular cases including isocyanide and acetylacetone",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O",
+    "F",
+    "R"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "F": {
+      "source_index": 0
+    },
+    "R": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2602.04850v3",
+      "locator": "Results/case studies; Discussion/Geometric reasoning; Appendix B",
+      "evidence_paraphrase": "Demonstrates electronic methods, optimization/frequencies and reaction-path cases; isocyanide mechanistic refinement includes TS correction. NEB geometry failures are discussed, so this is task coverage rather than blanket success."
+    }
+  ],
+  "family": "El Agente",
+  "aliases": [],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

@@ -1,0 +1,38 @@
+{
+  "id": "master",
+  "name": "MASTER",
+  "first_public_date": "2025-12-15",
+  "physical_target": "extended_materials_surfaces",
+  "demonstrated_target": "CO on Cu(100) adatoms and M–N–C catalysts",
+  "boundary_conditions": "explicit 4×4 periodic six-layer Cu(100) slab",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2512.13930v1",
+      "locator": "Computational methods; Fig.2; Supplementary geometry tips",
+      "evidence_paraphrase": "LLM reasoning chooses catalyst candidates and executes atomistic adsorption-energy simulations; Cu(100) geometry is explicitly periodic."
+    }
+  ],
+  "family": "MASTER",
+  "aliases": [
+    "10.1038/s41524-026-02139-1"
+  ],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

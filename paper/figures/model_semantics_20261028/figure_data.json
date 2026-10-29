@@ -1,0 +1,167 @@
+{
+  "figure": "operation_goal_alignment",
+  "source_case_id": "formal48-guided-r2-E1-operation-feedback",
+  "source_json": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+  "source_json_sha256": "03d6cf03ba887ba60a1bf566a93bc5b6e4a2b76a97112c8be337ca2fbb20bb01",
+  "source_database": {
+    "database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+    "database_relative": "guided/r2/runtime/runtime-v2.db",
+    "read_mode": "SQLite URI mode=ro&immutable=1; PRAGMA query_only=ON",
+    "database_bytes": 227246080,
+    "database_mtime_ns": 1793174326007285911,
+    "formal_corpus": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal_cases.jsonl",
+    "historical_arm_commit": "9e0388807eb7907888dd3ed47923ba65a635bfad",
+    "current_source_is_historical_runtime": false,
+    "provider_wire_messages": "unknown",
+    "bytes_and_mtime_unchanged_after_read": true
+  },
+  "target_degrees": 180.0,
+  "target_source": "original intent evt_3303b940e55a4806, not a new scientific threshold",
+  "dihedral_function": "cloudra.tools.Chemtool.internal_coordinates._dihedral_deg",
+  "dihedral_source_file": "cloudra/tools/Chemtool/internal_coordinates.py",
+  "dihedral_source_sha256": "c70dd9b2fde0fb8b241a129682e6397ea9b2800fdc4a2ddb975ba55206c1384b",
+  "value_source": "geometric_recalculation.candidates.{A,B}.measurements.{H5,H7}-C2-C3-Cl4.circular_distance_to_180_degrees",
+  "rows": [
+    {
+      "candidate": "A",
+      "rotation_degrees": 120,
+      "atom": "H5",
+      "quantity": "H5-C2-C3-Cl4",
+      "role": "comparator",
+      "atom_indices_1_based": [
+        5,
+        2,
+        3,
+        4
+      ],
+      "signed_degrees": -55.78310699190559,
+      "absolute_degrees": 55.78310699190559,
+      "circular_distance_to_180_degrees": 124.21689300809442,
+      "residual_degrees": 124.21689300809442,
+      "source_result_event": "evt_585eb8c474754439",
+      "source_request_event": "evt_fa4ecf09494e4d60",
+      "source_event_locator": {
+        "event_id": "evt_585eb8c474754439",
+        "source_rowid": 1075,
+        "project_id": "prj_cef935901bb8417c",
+        "session_id": "as_dff8bff45c8f4abb",
+        "run_id": "run_e1448c7c429d44e4",
+        "seq": 669,
+        "session_seq": 353,
+        "type": "tool.result_recorded",
+        "created_at": "2026-10-23T23:59:55.546884+00:00"
+      },
+      "xyz_field": "data.result.data.xyz_text",
+      "xyz_sha256": "6cc6b1ada6be8612be5c28a5da08436f610e5468d62352194f70da014126d9f5"
+    },
+    {
+      "candidate": "A",
+      "rotation_degrees": 120,
+      "atom": "H7",
+      "quantity": "H7-C2-C3-Cl4",
+      "role": "specified_target_measure",
+      "atom_indices_1_based": [
+        7,
+        2,
+        3,
+        4
+      ],
+      "signed_degrees": 59.375193232167966,
+      "absolute_degrees": 59.375193232167966,
+      "circular_distance_to_180_degrees": 120.62480676783204,
+      "residual_degrees": 120.62480676783204,
+      "source_result_event": "evt_585eb8c474754439",
+      "source_request_event": "evt_fa4ecf09494e4d60",
+      "source_event_locator": {
+        "event_id": "evt_585eb8c474754439",
+        "source_rowid": 1075,
+        "project_id": "prj_cef935901bb8417c",
+        "session_id": "as_dff8bff45c8f4abb",
+        "run_id": "run_e1448c7c429d44e4",
+        "seq": 669,
+        "session_seq": 353,
+        "type": "tool.result_recorded",
+        "created_at": "2026-10-23T23:59:55.546884+00:00"
+      },
+      "xyz_field": "data.result.data.xyz_text",
+      "xyz_sha256": "6cc6b1ada6be8612be5c28a5da08436f610e5468d62352194f70da014126d9f5"
+    },
+    {
+      "candidate": "B",
+      "rotation_degrees": -120,
+      "atom": "H5",
+      "quantity": "H5-C2-C3-Cl4",
+      "role": "comparator",
+      "atom_indices_1_based": [
+        5,
+        2,
+        3,
+        4
+      ],
+      "signed_degrees": 64.21689322650563,
+      "absolute_degrees": 64.21689322650563,
+      "circular_distance_to_180_degrees": 115.78310677349437,
+      "residual_degrees": 115.78310677349437,
+      "source_result_event": "evt_bd6653fac9064f68",
+      "source_request_event": "evt_8cc68d56dbfb4bc0",
+      "source_event_locator": {
+        "event_id": "evt_bd6653fac9064f68",
+        "source_rowid": 1084,
+        "project_id": "prj_cef935901bb8417c",
+        "session_id": "as_dff8bff45c8f4abb",
+        "run_id": "run_e1448c7c429d44e4",
+        "seq": 675,
+        "session_seq": 359,
+        "type": "tool.result_recorded",
+        "created_at": "2026-10-23T23:59:55.875249+00:00"
+      },
+      "xyz_field": "data.result.data.xyz_text",
+      "xyz_sha256": "d7adf5776b65452b9f7227c27caacb341a34d84aece8d0dda3b9ad480948aedc"
+    },
+    {
+      "candidate": "B",
+      "rotation_degrees": -120,
+      "atom": "H7",
+      "quantity": "H7-C2-C3-Cl4",
+      "role": "specified_target_measure",
+      "atom_indices_1_based": [
+        7,
+        2,
+        3,
+        4
+      ],
+      "signed_degrees": 179.3751934505792,
+      "absolute_degrees": 179.3751934505792,
+      "circular_distance_to_180_degrees": 0.6248065494208106,
+      "residual_degrees": 0.6248065494208106,
+      "source_result_event": "evt_bd6653fac9064f68",
+      "source_request_event": "evt_8cc68d56dbfb4bc0",
+      "source_event_locator": {
+        "event_id": "evt_bd6653fac9064f68",
+        "source_rowid": 1084,
+        "project_id": "prj_cef935901bb8417c",
+        "session_id": "as_dff8bff45c8f4abb",
+        "run_id": "run_e1448c7c429d44e4",
+        "seq": 675,
+        "session_seq": 359,
+        "type": "tool.result_recorded",
+        "created_at": "2026-10-23T23:59:55.875249+00:00"
+      },
+      "xyz_field": "data.result.data.xyz_text",
+      "xyz_sha256": "d7adf5776b65452b9f7227c27caacb341a34d84aece8d0dda3b9ad480948aedc"
+    }
+  ],
+  "display_precision_degrees": 1,
+  "scope": "One archived E1 decision; read-only arithmetic on retained native XYZ, not new QM or independent scientific evidence. No TS or scientific-acceptance label or threshold.",
+  "uncertainty": "Four deterministic archived geometry measurements; no statistical intervals estimated.",
+  "encoding": {
+    "H5": {
+      "marker": "square",
+      "color": "#777777"
+    },
+    "H7": {
+      "marker": "circle",
+      "color": "#707A37"
+    }
+  }
+}

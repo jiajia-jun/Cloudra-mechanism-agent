@@ -1,0 +1,24 @@
+{
+  "zh": {
+    "pages": 15,
+    "images": 9,
+    "bibliography_entries": 18,
+    "prose_columns": 2,
+    "wide_figure_blocks": 6,
+    "wide_equation_blocks": 4,
+    "architecture_svg_sha256": "23c1e30d20d69e91bc39165420b362c215d980a29aaa89c213e13f002ac86906",
+    "math_unchanged": true,
+    "document_sha256": "8a095d8df675395c2af6c3e320a1e2895c7faedea2c842576dec1eade4f713c5"
+  },
+  "en": {
+    "pages": 15,
+    "images": 9,
+    "bibliography_entries": 18,
+    "prose_columns": 2,
+    "wide_figure_blocks": 6,
+    "wide_equation_blocks": 4,
+    "architecture_svg_sha256": "23c1e30d20d69e91bc39165420b362c215d980a29aaa89c213e13f002ac86906",
+    "math_unchanged": true,
+    "document_sha256": "82b5606e183c924a13ea5adf53796870718373855f6689e71e51d1119419ea36"
+  }
+}

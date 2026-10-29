@@ -1,0 +1,267 @@
+{
+  "records": [
+    {
+      "id": "cascade",
+      "name": "CASCADE",
+      "first_public_date": "2025-12-29",
+      "physical_target": "extended_materials_surfaces",
+      "demonstrated_target": "Li_xCoO2 battery cathode crystals and MLIP density/volume comparisons",
+      "boundary_conditions": "crystalline materials; explicit PBC wording not separately audited",
+      "demonstrated_tasks": [
+        "E",
+        "O"
+      ],
+      "task_evidence": {
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2512.23880v1",
+          "locator": "Section 2.3, Collaborative research with memory; Fig. 5; Appendix B.3",
+          "evidence_paraphrase": "In human-agent exchanges, the system selects MLIPs, executes structural relaxations and energy calculations, and obtains lithium-intercalation voltages. Separate wet-lab and database-only cases do not determine inclusion."
+        }
+      ],
+      "family": "CASCADE",
+      "aliases": [
+        "SkillPuzzler",
+        "DeepSolver"
+      ],
+      "limitations": "Only the inspected crystalline simulation case determines the target class and task marks. Molecular QC questions listed in SciSkillBench are not by themselves treated as demonstrated additional targets. Human guidance is retained. SkillPuzzler is a related earlier title, not counted again. The earlier SkillPuzzler workshop predecessor predates 29 December; this dated field identifies the verified CASCADE-title preprint, not a secure family-first appearance.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26",
+      "date_basis": "verified CASCADE-title arXiv date; predecessor posting date unresolved"
+    },
+    {
+      "id": "fermilink",
+      "name": "FermiLink",
+      "first_public_date": "2026-04-03",
+      "physical_target": "cross_domain",
+      "demonstrated_target": "finite molecular electronic structure and biomolecular/soft-matter MD; additional materials simulations",
+      "boundary_conditions": "multiple packages and models; no single boundary condition assigned",
+      "demonstrated_tasks": [
+        "E",
+        "D"
+      ],
+      "task_evidence": {
+        "E": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2604.03460v1",
+          "locator": "Sections II.1–II.2; Table S1 Chemistry and Molecular Science (GROMACS, LAMMPS, Psi4, PySCF); Table S2 CP2K",
+          "evidence_paraphrase": "Codex-driven workflows rerun molecular electronic-structure and molecular-dynamics packages. The paper distinguishes newly executed simulations from merely replotted figures; only executed cases support these marks."
+        }
+      ],
+      "family": "FermiLink",
+      "aliases": [],
+      "limitations": "General scientific infrastructure; non-atomistic physics and engineering tasks are not counted as chemistry evidence. Replotted and blocked tasks are not simulation successes. T/O/F/R remain unencoded without case-level evidence in this pass.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "atomisticskills",
+      "name": "AtomisticSkills",
+      "first_public_date": "2026-05-18",
+      "physical_target": "cross_domain",
+      "demonstrated_target": "solid electrolytes, MOFs, catalyst surfaces and protein–ligand complexes",
+      "boundary_conditions": "crystal and surface cells plus explicit-water biomolecular MD; not a single PBC class",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2605.24002v1",
+          "locator": "Sections II.2–II.5; Figs. 3–6",
+          "evidence_paraphrase": "Coding agents construct and relax solids, submit DFT energies/forces, sample configurations by MD, and execute explicit-water MD refinement of docked protein–ligand complexes."
+        }
+      ],
+      "family": "AtomisticSkills",
+      "aliases": [],
+      "limitations": "A skills/tool harness for general coding agents. Human review of campaign plans is retained. Drug docking alone does not establish inclusion; the executed downstream MD does. MD-derived binding free energies are under D, not vibrational F.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "sqd_agent",
+      "name": "SQD-Agent",
+      "first_public_date": "2026-09-30",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "small-molecule ground-state energies including N2 and CH2O",
+      "boundary_conditions": "finite molecular electronic Hamiltonians",
+      "demonstrated_tasks": [
+        "E"
+      ],
+      "task_evidence": {
+        "E": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2609.39302v1",
+          "locator": "Section I Figs. 1–5; Section II Discussions and Future Scope",
+          "evidence_paraphrase": "An LLM orchestration layer generates and executes molecular SQD electronic-structure workflows on classical simulators and a quantum processor, with explicit human confirmation before hardware submission."
+        }
+      ],
+      "family": "SQD-Agent",
+      "aliases": [],
+      "limitations": "Proof of concept in a minimal basis; the authors explicitly describe human-supervised reconfiguration and no autonomous closed feedback loop. Inclusion does not imply full autonomy or quantum advantage.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "magnolia",
+      "name": "Magnolia",
+      "first_public_date": "2026-10-19",
+      "physical_target": "cross_domain",
+      "demonstrated_target": "aromatic molecules, gas-phase butane and modified DNA",
+      "boundary_conditions": "finite molecular QC/gas-phase dynamics and solvated DNA cells",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O",
+        "D"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2610.27230v1",
+          "locator": "Sections 2.3, 3.1–3.3; Figs. 3–5",
+          "evidence_paraphrase": "The agent generates and optimizes aromatic structures, evaluates electronic properties, runs butane dynamics and a relaxed torsion scan, and constructs and tracks modified-DNA MD campaigns."
+        }
+      ],
+      "family": "Magnolia",
+      "aliases": [],
+      "limitations": "Human-reviewed memory and scientific decisions remain explicit. A torsional scan is not coded as a TS/IRC proof. Docking claims and proprietary targets do not determine task marks.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    }
+  ],
+  "screening": [
+    {
+      "name": "CatGo",
+      "url": "https://doi.org/10.1039/d6dd00273k",
+      "status": "primary_paper_access_unresolved",
+      "reason": "Official repository https://github.com/Hello-QM/catgo-LRG and author CP2K announcement confirm geometry tools, an agent-driven DAG workflow executor and QC/MD integrations. Publisher HTML/PDF and ChemRxiv 10.26434/chemrxiv.15002984/v1 were inaccessible in this pass; keep implemented support distinct from inspected executed case evidence. Important architectural neighbour requiring full-paper review, not an absence-of-capability claim.",
+      "locator": "Official README, Releases v1.4.14, CP2K discussion 5221; paper DOI"
+    },
+    {
+      "name": "Mimosa",
+      "url": "https://arxiv.org/html/2603.28986v1",
+      "status": "adjacent_general_data_science_agent",
+      "reason": "Original report evaluates ScienceAgentBench data-driven research tasks and workflow evolution. This pass did not establish an agent-executed molecular/atomistic calculation case; generic simulation language or computational-chemistry dataset labels do not suffice for the main denominator.",
+      "locator": "Sections 4.1–4.2 and Appendix 12.1"
+    },
+    {
+      "name": "Science Done on a Machine by a Machine",
+      "url": "https://arxiv.org/html/2608.18508v1",
+      "status": "discovery_review_not_system",
+      "reason": "Perspective and Table 1 provide a major citation-chain seed list of 49 systems. It is a discovery source, not another system, and its capability coding and denominator are not copied into the present dataset.",
+      "locator": "Appendix Table 1 and References"
+    }
+  ],
+  "search_log": [
+    {
+      "query": "LLM agent quantum chemistry automation simulation survey",
+      "source_urls": [
+        "https://arxiv.org/html/2608.18508v1"
+      ],
+      "notes": "Broad discovery followed by original-report checks; review used as citation-chain map only."
+    },
+    {
+      "query": "LLM agents atomistic simulations review",
+      "source_urls": [
+        "https://arxiv.org/html/2608.18508v1"
+      ],
+      "notes": "49-system Table 1 distributed across three independent domain searches."
+    },
+    {
+      "query": "ChemAgent quantum simulations agent; chemistry agent DFT autonomous 2024 2025 2026",
+      "source_urls": [
+        "https://arxiv.org/html/2610.27230v1",
+        "https://arxiv.org/html/2609.39302v1"
+      ],
+      "notes": "Late-2026 systems missed by earlier survey cutoff."
+    },
+    {
+      "query": "CASCADE agent computational chemistry 2026; CASCADE Ceder self-evolving agent chemistry materials arxiv",
+      "source_urls": [
+        "https://arxiv.org/html/2512.23880v1"
+      ],
+      "notes": "Inspected actual MLIP structural-relaxation and voltage case; did not infer molecular demonstration from benchmark task wording."
+    },
+    {
+      "query": "Mimosa agent molecular simulation; Mimosa computational chemistry agent",
+      "source_urls": [
+        "https://arxiv.org/html/2603.28986v1"
+      ],
+      "notes": "Screened as adjacent general data-science infrastructure pending atomistic-case proof."
+    },
+    {
+      "query": "LLM agent computational chemistry October 2026; agent quantum chemistry September 2026",
+      "source_urls": [
+        "https://arxiv.org/html/2610.27230v1",
+        "https://arxiv.org/html/2609.39302v1"
+      ],
+      "notes": "Cutoff checked against original arXiv front matter."
+    },
+    {
+      "query": "Citation chaining: FermiLink, AtomisticSkills, CatGo",
+      "source_urls": [
+        "https://arxiv.org/html/2604.03460v1",
+        "https://arxiv.org/html/2605.24002v1",
+        "https://doi.org/10.1039/d6dd00273k"
+      ],
+      "notes": "Checked results and case tables; CatGo original paper access unresolved, retained transparently outside denominator."
+    },
+    {
+      "query": "CatGo Liu Ma Zhang Pascasio 2026 github paper; CatGo Hello github; CatGo formic NEB; CatGo 2026-05-11",
+      "source_urls": [
+        "https://github.com/Hello-QM/catgo-LRG",
+        "https://github.com/cp2k/cp2k/discussions/5221",
+        "https://chemrxiv.org/doi/abs/10.26434/chemrxiv.15002984/v1"
+      ],
+      "notes": "Official implementation evidence found; original paper unavailable through inspected endpoints."
+    }
+  ]
+}

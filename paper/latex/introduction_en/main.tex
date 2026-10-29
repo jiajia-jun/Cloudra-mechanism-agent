@@ -1,0 +1,35 @@
+\documentclass[journal=jctcce,manuscript=article,layout=twocolumn]{achemso}
+\usepackage{fontspec}
+\setmainfont{texgyretermes-regular.otf}[BoldFont=texgyretermes-bold.otf,ItalicFont=texgyretermes-italic.otf,BoldItalicFont=texgyretermes-bolditalic.otf]
+\setsansfont{texgyreheros-regular.otf}[BoldFont=texgyreheros-bold.otf,ItalicFont=texgyreheros-italic.otf,BoldItalicFont=texgyreheros-bolditalic.otf]
+\usepackage{titlesec}
+\titleformat{\section}{\normalfont\fontsize{11}{13}\selectfont\bfseries\raggedright}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries\raggedright}{\thesubsection}{0.6em}{}
+\titlespacing*{\section}{0pt}{1.5ex}{0.8ex}
+\titlespacing*{\subsection}{0pt}{1.4ex}{0.7ex}
+\usepackage[hidelinks]{hyperref}
+\SectionNumbersOn
+\setcounter{secnumdepth}{2}
+\setkeys{acs}{articletitle=true,maxauthors=3,email=false}
+\makeatletter
+\renewcommand\normalsize{\@setfontsize\normalsize{10}{12}}
+\makeatother
+\AtBeginDocument{\normalsize}
+\renewcommand{\titlesize}{\fontsize{18}{21}\selectfont}
+\setlength{\emergencystretch}{3em}
+\DeclareCaptionFont{cloudracaption}{\fontsize{8.5}{10.5}\selectfont}
+\captionsetup{font=cloudracaption,labelfont=bf}
+\renewcommand{\bibfont}{\fontsize{8.5}{10.5}\selectfont}
+\setcounter{topnumber}{3}
+\setcounter{totalnumber}{4}
+\renewcommand{\topfraction}{0.9}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.08}
+\renewcommand{\refname}{\normalfont\fontsize{11}{13}\selectfont\bfseries References}
+\title{Cloudra: Geometric Reasoning and Scientific Evidence in Autonomous Mechanism Exploration}
+\author{Introduction draft}
+\affiliation{English version - 27 October 2026}
+\begin{document}
+\input{introduction.tex}
+\bibliography{references}
+\end{document}

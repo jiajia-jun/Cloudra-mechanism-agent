@@ -1,0 +1,2775 @@
+[
+  {
+    "id": "buehler_molecular_dft_multiagent",
+    "name": "Buehler molecular-DFT multi-agent demonstration",
+    "first_public_date": "2023-10-30",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "finite organic molecules CCCCXCC, with X = C, O or N",
+    "boundary_conditions": "molecular-coordinate DFT calculations; boundary conditions not independently resolved",
+    "demonstrated_tasks": [
+      "T",
+      "E"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://pubs.acs.org/doi/abs/10.1021/acsengineeringau.3c00058",
+        "locator": "Section 2.3.1 Molecular Design; Table 8; Materials and Methods",
+        "evidence_paraphrase": "Planner, coordinate-retriever and execution-capable chatbot agents devise a plan, obtain molecular coordinates from SMILES, call a supplied DFT function for the three molecular variants, analyze computed energies and answer the user."
+      },
+      {
+        "url": "https://arxiv.org/abs/2310.19998",
+        "locator": "Submission record, 30 October 2023; abstract",
+        "evidence_paraphrase": "The preprint introduces multi-agent code generation and execution connected to DFT-derived physical data; its first submission predates the 2024 journal publication."
+      }
+    ],
+    "family": "Buehler MechGPT/ontologic-graph multi-agent studies",
+    "aliases": [
+      "Generative Retrieval-Augmented Ontologic Graph and Multiagent Strategies for Interpretive Large Language Model-Based Materials Design",
+      "arXiv:2310.19998",
+      "10.1021/acsengineeringau.3c00058"
+    ],
+    "limitations": "Unnamed, small worked demonstration rather than a separately branded general-purpose package. Counting demonstrates agent-run DFT, not scientific validity of ranking absolute energies of molecules with different compositions. The MechGPT/RAG question-answering demonstrations in the same paper are not separately counted.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "protagents",
+    "name": "ProtAgents",
+    "first_public_date": "2024-01-27",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "PDB and de novo proteins; coarse-grained protein elastic networks",
+    "boundary_conditions": "Finite protein structures represented by anisotropic spring networks; no periodic-cell example is inferred",
+    "demonstrated_tasks": [
+      "T",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2402.04268v1",
+        "locator": "Results §2.1–2.3 and Fig.3; Materials and Methods, Natural vibrational frequency calculations",
+        "evidence_paraphrase": "GPT-4 agents plan and invoke protein generation/folding and physics calculations; examples execute ProDy anisotropic-network normal-mode calculations on retrieved and generated structures. Chroma and OmegaFold generate the protein geometries."
+      },
+      {
+        "url": "https://arxiv.org/abs/2402.04268",
+        "locator": "Submission history, v1",
+        "evidence_paraphrase": "The primary submission record dates the first version to 27 January 2024."
+      }
+    ],
+    "family": "ProtAgents",
+    "aliases": [
+      "10.1039/D4DD00013G"
+    ],
+    "limitations": "F denotes an actual coarse-grained elastic-network vibration calculation, not quantum-chemical molecular frequencies or ideal-gas thermochemistry. No D mark: MD is mentioned as an extensible capability and used in training another predictor, rather than demonstrated as an agent-run dynamics task.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_md_soft"
+  },
+  {
+    "id": "llamp",
+    "name": "LLaMP",
+    "first_public_date": "2024-01-30",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Si crystal/interstitial and crystal annealing MD",
+    "boundary_conditions": "crystalline supercells demonstrated; PBC not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2401.17244v3",
+        "locator": "§5.3 Language-driven simulation; Table 5",
+        "evidence_paraphrase": "Fetches a crystal, constructs a supercell, runs temperature-cycling ML-potential MD and analyzes its trajectory."
+      }
+    ],
+    "family": "LLaMP",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "chemreasoner",
+    "name": "ChemReasoner",
+    "first_public_date": "2024-02-15",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "heterogeneous catalyst slabs and adsorbates",
+    "boundary_conditions": "slab cells and vacuum explicitly reported",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "T"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "T": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2402.10980v3",
+        "locator": "§3.3; §5.4; Appendix A",
+        "evidence_paraphrase": "LLM-guided catalyst search uses GNN structure relaxation and adsorption-energy feedback; selected slabs are checked by DFT."
+      }
+    ],
+    "family": "ChemReasoner",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "atomagents",
+    "name": "AtomAgents",
+    "first_public_date": "2024-07-13",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "metallic alloys, dislocations and fracture",
+    "boundary_conditions": "explicit periodic boundaries; dislocation cells also have a free direction",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2407.10022v1",
+        "locator": "Experiments I–IV; §4 Screw dislocation generation/NEB",
+        "evidence_paraphrase": "Runs alloy property calculations, atomic relaxation and dislocation NEB; material-property experiments link simulation feedback to alloy hypotheses."
+      }
+    ],
+    "family": "AtomAgents",
+    "aliases": [
+      "PNAS 2025 journal version"
+    ],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "adsorb-agent",
+    "name": "Adsorb-Agent",
+    "first_public_date": "2024-10-22",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "adsorbates on crystalline catalyst slabs",
+    "boundary_conditions": "bulk-derived Miller-index slabs; explicit PBC not independently checked",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2410.16658v4",
+        "locator": "§2; §S3 Table S1",
+        "evidence_paraphrase": "LLM proposes adsorption sites and orientations, with relaxed atomistic adsorption-energy evaluation. Bulk IDs and slab Miller indices are documented."
+      }
+    ],
+    "family": "Adsorb-Agent",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "langsim",
+    "name": "LangSim",
+    "first_public_date": "2024-11-20",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "elemental crystals and Cu–Au solid solutions",
+    "boundary_conditions": "crystal cells and energy–volume curves; explicit periodic-boundary flag not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2411.15221v1",
+        "locator": "Individual project report §9 LangSim, especially crystal construction/optimization and bulk-modulus protocol",
+        "evidence_paraphrase": "Project authors describe an LLM calling ASE/EMT or MACE workflows that construct a crystal, optimize its geometry, and evaluate energy versus volume to obtain the bulk modulus."
+      },
+      {
+        "url": "https://www.mpie.de/5063016/LangSim",
+        "locator": "Project description, Al bulk-modulus and Cu–Au inverse-design examples",
+        "evidence_paraphrase": "Official institute page reports successful agent-run Al calculations and iterative Cu–Au composition evaluation against a target bulk modulus."
+      }
+    ],
+    "family": "LangSim",
+    "aliases": [
+      "Language + Simulation"
+    ],
+    "limitations": "Date is the earliest dated primary report inspected here, not a verified software launch date; the official page identifies a 2024 hackathon. The later 34 Examples report is the same project and is not counted again.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "mdcrow",
+    "name": "MDCrow",
+    "first_public_date": "2025-02-13",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "proteins and common solvents",
+    "boundary_conditions": "not resolved from inspected article; do not assume isolated molecules",
+    "demonstrated_tasks": [
+      "D"
+    ],
+    "task_evidence": {
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2502.09565v1",
+        "locator": "§2.1; §3; Appendix C Table 1",
+        "evidence_paraphrase": "Executes OpenMM MD and MDTraj analysis on protein tasks including temperature comparisons; demonstrated scope is biomolecular simulation."
+      }
+    ],
+    "family": "MDCrow",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "mdagent",
+    "name": "MDAgent",
+    "first_public_date": "2025-03-25",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "LAMMPS materials thermodynamics",
+    "boundary_conditions": "not resolved from inspected article",
+    "demonstrated_tasks": [
+      "D"
+    ],
+    "task_evidence": {
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.nature.com/articles/s41598-025-92337-6",
+        "locator": "Abstract; Results; Methods/LSCF dataset",
+        "evidence_paraphrase": "Generates, executes and reviews LAMMPS simulation code for material thermodynamic tasks."
+      }
+    ],
+    "family": "MDAgent",
+    "aliases": [],
+    "limitations": "Semi-automated: the paper explicitly retains human involvement. It is included because the scope includes LLM modification/execution, not only fully autonomous agents.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "el_agente_q",
+    "name": "El Agente Q",
+    "first_public_date": "2025-05-05",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "organic molecules and coordination complexes",
+    "boundary_conditions": "finite molecular calculations (ORCA/xTB)",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/abs/2505.02484",
+        "locator": "Abstract; corroborated by ChemGraph Discussion and Quntur Introduction",
+        "evidence_paraphrase": "Quantum chemistry workflows include equilibrium geometries, vibrational/spectral and electronic-property calculations, with adaptive debugging."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [
+      "El Agente: An Autonomous Agent for Quantum Chemistry",
+      "10.1016/j.matt.2025.102263"
+    ],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "aitomia",
+    "name": "Aitomia",
+    "first_public_date": "2025-05-13",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "molecular spectra and reaction thermochemistry",
+    "boundary_conditions": "finite molecular examples; no periodic demonstration coded",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/pdf/2505.08195",
+        "locator": "16 March 2026 version, pp.5–12; Figs.3–6",
+        "evidence_paraphrase": "Demonstrated examples include hexanol IR and multi-species reaction enthalpy workflows using geometry optimization, frequency and electronic calculations."
+      }
+    ],
+    "family": "Aitomia",
+    "aliases": [
+      "10.1021/acs.jctc.6c00591"
+    ],
+    "limitations": "The inspected preprint and current repository are distinct evidence versions. The current repository supports TS/IRC; no negative capability claim follows from uncoded tasks here.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "matagent_lv",
+    "name": "MatAgent (Lv et al.)",
+    "first_public_date": "2025-05-27",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "water octamer, (H2O)8, total energy and maximum force",
+    "boundary_conditions": "finite molecular cluster is the concrete worked target; PWDFT is a plane-wave engine, but boundary conditions for this cluster are not established by the article",
+    "demonstrated_tasks": [
+      "T",
+      "E"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://onlinelibrary.wiley.com/doi/full/10.1002/mgea.70013",
+        "locator": "§2.1; §2.3.2; §3.4 and Fig.6",
+        "evidence_paraphrase": "GPT-4 chooses tools, supplies inputs and evaluates returned results. The structure tool supplies geometry and a PWDFT API executes first-principles energy/force calculations. The specific worked example asks for total energy and maximum force of a water octamer."
+      }
+    ],
+    "family": "MatAgent (Lv)",
+    "aliases": [
+      "Bridging language models and computational materials science: A prompt-driven framework for material property prediction",
+      "10.1002/mgea.70013"
+    ],
+    "limitations": "The article's materials terminology and Materials Project interface are broader than its concrete demonstrated water-cluster case. Do not label its physical target extended materials solely because it uses PWDFT; no MD mark is inferred from a general AIMD equation or cited PWDFT work. Distinct from other systems also called MatAgent.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "chemgraph",
+    "name": "ChemGraph",
+    "first_public_date": "2025-06-03",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "PubChem small molecules and reaction thermochemistry",
+    "boundary_conditions": "finite molecular benchmarks; ASE supports PBC but support is not counted as a demonstration",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.nature.com/articles/s42004-025-01776-9",
+        "locator": "Results; Methods/Benchmarking; Table 2",
+        "evidence_paraphrase": "Thirteen molecular tasks include DFT optimization, vibrations and reaction enthalpy/Gibbs calculations; no periodic benchmark is inferred from ASE support."
+      }
+    ],
+    "family": "ChemGraph",
+    "aliases": [
+      "arXiv:2506.06363",
+      "Communications Chemistry 9, 33 (2026)"
+    ],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "topomas",
+    "name": "TopoMAS",
+    "first_public_date": "2025-07-05",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "SrSbO3 and Sr2Sb2O7 crystal generation; SrSbO3 topological classification",
+    "boundary_conditions": "crystallographic space-group-constrained structures and VASP k-point files; periodic crystal workflow",
+    "demonstrated_tasks": [
+      "T",
+      "E"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2507.04053v1",
+        "locator": "§3.5.1 Stage3; §3.5.2 Stages1–4",
+        "evidence_paraphrase": "LLM agents invoke CrystalFormer for crystal generation, plan and submit VASP calculations through an HPC API, inspect outputs, recover an intentionally corrupted completion check, and compute topological invariants with SymTopo."
+      }
+    ],
+    "family": "TopoMAS",
+    "aliases": [
+      "10.1002/mgea.70045"
+    ],
+    "limitations": "Interactive human–AI framework; benchmark QA results do not determine simulation task marks. Journal and preprint are one system.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "namd_agent",
+    "name": "NAMD-Agent",
+    "first_public_date": "2025-07-10",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "proteins in explicit solvent and lipid membranes, including 1UBQ, 1L2Y and membrane-builder examples",
+    "boundary_conditions": "Explicit periodic boundary conditions in the solution and membrane examples (SI §§6.1–6.6)",
+    "demonstrated_tasks": [
+      "T",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2507.07887v1",
+        "locator": "§§3.3–3.5; Results §5; SI §§6.1–6.6",
+        "evidence_paraphrase": "Gemini composes, executes and revises code to operate CHARMM-GUI, assemble solvated protein or membrane systems, run NAMD, and analyze actual 1 ns trajectories. Example simulation parameters explicitly enable periodic boundaries."
+      }
+    ],
+    "family": "NAMD-Agent",
+    "aliases": [
+      "Automating MD simulations for Proteins using Large language Models: NAMD-Agent"
+    ],
+    "limitations": "The inspected evidence is v1. T and D are positively coded; control over minimization settings alone is not used to infer a separate demonstrated O task. Protein or membrane boxes remain in the soft/biomolecular class despite PBC.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_md_soft"
+  },
+  {
+    "id": "dreams",
+    "name": "DREAMS",
+    "first_public_date": "2025-07-18",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Sol27LC crystals and CO/Pt(111)",
+    "boundary_conditions": "periodic crystal/lattice-constant and crystalline slab models",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2507.14267v2",
+        "locator": "Main text; Sol27LC and CO/Pt(111) challenges",
+        "evidence_paraphrase": "Executes lattice-constant and adsorption-energy studies with DFT workflows and provenance checking."
+      }
+    ],
+    "family": "DREAMS",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "sparksmatter",
+    "name": "SparksMatter",
+    "first_public_date": "2025-08-04",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "inorganic thermoelectrics, semiconductors and perovskite oxides",
+    "boundary_conditions": "CIF crystal structures and periodic inorganic-material models; individual PBC flags not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2508.02956v1",
+        "locator": "§2.2 case studies; §4.2.2–4.2.3",
+        "evidence_paraphrase": "A coder agent invokes MatterGen for structures and a MatterSim-based evaluation module for atomistic relaxation and formation-energy convex-hull construction. Case studies use this feedback for inorganic-material candidate design."
+      }
+    ],
+    "family": "SparksMatter",
+    "aliases": [
+      "10.1038/s41524-026-02205-8"
+    ],
+    "limitations": "Included because actual atomistic force-field relaxation is executed, not because CGCNN predicts properties. Follow-up DFT and synthesis recommendations in the report are not counted as agent-executed DFT.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "autosolvate_agent",
+    "name": "AutoSolvate-Agent",
+    "first_public_date": "2025-08-06",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "water IR; molecular orbital, bond-order and charge analyses; benzaldehyde in implicit solvent; coordination complexes",
+    "boundary_conditions": "finite molecular TeraChem calculations; PCM solvent in the benzaldehyde example",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://openreview.net/pdf?id=ATEtqdGn6W",
+        "locator": "Sections 4.1 Frequency Analysis and 4.2 Solvatochromism Prediction; Figures 2–3; Appendix A.2 Table 1",
+        "evidence_paraphrase": "For water IR, the agent retrieves a geometry, interprets TeraChem's large-gradient frequency failure, inserts and completes a geometry optimization, and reruns frequency analysis. For benzaldehyde it sets up and executes PCM quantum chemistry and directs Multiwfn orbital-population analysis."
+      },
+      {
+        "url": "https://openreview.net/pdf/395d4c9eda83111a078ba05d86adcf84ec77e4aa.pdf",
+        "locator": "Appendix A.2, Table 1",
+        "evidence_paraphrase": "Ten evaluated problems include water IR and optimization, methane orbital energies, coordination-bond analyses, liquid-phase water dipole and cis/trans-2-butene energy differences."
+      },
+      {
+        "url": "https://www.linkedin.com/in/fren5",
+        "locator": "Author Fangning Ren's Publications entry for AutoSolvate-Agent",
+        "evidence_paraphrase": "The author's publication entry dates the workshop contribution to 8 June 2025; the paper itself prints the KDD workshop date of 6 August 2025."
+      }
+    ],
+    "family": "AutoSolvate",
+    "aliases": [
+      "AutoSolvate-Agent: An Autonomous Agent for GPU-accelerated Solution-phase Quantum Chemistry"
+    ],
+    "limitations": "The dated field uses 6 August 2025 printed on the original workshop paper. An author publication list gives 8 June; exact OpenReview first-posting time remains unresolved. Original PDF text was inspected via its index while direct OpenReview opening encountered a browser challenge. This LLM workflow is distinct from intent-based AutoSolvateWeb. Solvatochromism is qualitatively inferred from orbitals, not an excited-state dynamics calculation.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "date_basis": "dated original KDD workshop paper; exact first posting unresolved",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "vaspilot",
+    "name": "VASPilot",
+    "first_public_date": "2025-08-09",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "crystalline solids and transition-metal dichalcogenides",
+    "boundary_conditions": "band structure/Brillouin-zone crystalline models",
+    "demonstrated_tasks": [
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/abs/2508.07035",
+        "locator": "Abstract; benchmark description",
+        "evidence_paraphrase": "Demonstrates band structures, density of states, cutoff convergence, lattice-constant optimization and band-gap comparisons."
+      }
+    ],
+    "family": "VASPilot",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "chemagents_azobenzene",
+    "name": "ChemAgents molecular simulation workflow",
+    "first_public_date": "2025-08-12",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "bridged azobenzenes and azobenzene ground-state conformers and IR/Raman spectra",
+    "boundary_conditions": "molecular AIMD/DFT examples; gas and solvent spectral data; explicit simulation boundaries not independently audited",
+    "demonstrated_tasks": [
+      "F",
+      "D"
+    ],
+    "task_evidence": {
+      "F": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://pubs.rsc.org/en/content/articlehtml/2026/sc/d5sc08794e",
+        "locator": "Abstract; Figure 1; Results and discussion / Computation–experimentation integration and automated workflow execution; Conclusions",
+        "evidence_paraphrase": "LLM agents formulate the study plan and coordinate automated computations. The Computation Performer runs ground-state AIMD conformer sampling and DFT IR/Raman calculations; the paper explicitly separates these from human-designed and trained neural-network analysis."
+      },
+      {
+        "url": "https://doi.org/10.26434/chemrxiv-2025-4kh1r",
+        "locator": "Version 1 record, 12 August 2025; abstract",
+        "evidence_paraphrase": "The original preprint describes the ChemAgents-orchestrated computational/experimental workflow and supplies its first-public date."
+      }
+    ],
+    "family": "ChemAgents / USTC robotic AI chemist",
+    "aliases": [
+      "Unlocking azobenzene isomerization mechanisms via an LLM agent-driven workflow integrating simulation, experiment, and machine learning",
+      "10.1039/d5sc08794e"
+    ],
+    "limitations": "The system's molecular-computation demonstration is counted once, rather than counting the accompanying robotic experiment or spectral prediction model as additional systems. Ground-state sampling and steady-state spectra do not demonstrate nonadiabatic photoisomerization dynamics or validated transition-state/IRC searches. Earlier ChemAgents platform work may establish an earlier family release, but this is the first verified atomistic demonstration located in this screening.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "amlp",
+    "name": "AMLP",
+    "first_public_date": "2025-09-25",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "acridine molecular-crystal polymorphs",
+    "boundary_conditions": "monoclinic crystal cells, cell optimization and crystal AIMD; molecular identity does not make the demonstrated crystal an isolated molecule",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2509.21647v1",
+        "locator": "§2.1.1–2.1.6; §3.1 Acridine case study; Fig.1",
+        "evidence_paraphrase": "LLM agents assist electronic-structure code and parameter selection, input construction and conversion in a pipeline that performs DFT geometry/cell optimization and AIMD, trains a MACE potential and validates it with relaxation and NVE/NVT dynamics on acridine crystals."
+      }
+    ],
+    "family": "AMLP",
+    "aliases": [
+      "Automated Machine Learning Pipeline",
+      "10.1021/acs.jctc.5c01610"
+    ],
+    "limitations": "LLM assistance sits within a substantially scripted pipeline. Article revisions and the JCTC counterpart are one system. MLIP development itself is not a new seventh task code.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "topolyagent",
+    "name": "ToPolyAgent",
+    "first_public_date": "2025-10-14",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "coarse-grained bead-spring linear, ring, brush, star and dendrimer polymers with solvent",
+    "boundary_conditions": "Polymer–solvent simulation boxes are explicit; PBC is not separately resolved from the inspected article",
+    "demonstrated_tasks": [
+      "T",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2510.12091v1",
+        "locator": "§§II.1–II.3; Results §§III.1–III.3; Figs.2–3",
+        "evidence_paraphrase": "LLM agents invoke polymer/solvent construction and LAMMPS simulation tools. Brush and star examples execute dynamics, and interactive feedback changes grafting density or extends a simulation; research examples compare solvent interactions and polymer conformation."
+      },
+      {
+        "url": "https://arxiv.org/abs/2510.12091",
+        "locator": "Primary arXiv record and submission history",
+        "evidence_paraphrase": "The first report is dated 14 October 2025; the RSC journal title adds bead-spring but describes the same system."
+      }
+    ],
+    "family": "ToPolyAgent",
+    "aliases": [
+      "ToPolyAgent: AI agents for coarse-grained bead-spring topological polymer simulations",
+      "10.1039/D5DD00471C"
+    ],
+    "limitations": "Coarse-grained rather than all-atom MD. Interactive and autonomous modes are both included. The article HTML has a later rendering timestamp despite retaining the v1 identifier; date uses the primary submission record. Conformational/transport observables are coded under D, not F.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_md_soft"
+  },
+  {
+    "id": "genius",
+    "name": "GENIUS",
+    "first_public_date": "2025-12-06",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "MC2D/MC3D materials; PdS2 geometry-relaxation example",
+    "boundary_conditions": "2D/3D crystal database targets; PdS2 example has a 7×7×2 k-point mesh",
+    "demonstrated_tasks": [
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2512.06404v1",
+        "locator": "Prompt Dataset; Automated Error Handling; Results/Figs.6–7",
+        "evidence_paraphrase": "LLMs generate Quantum ESPRESSO input and repair failed executions using a parameter knowledge graph. The benchmark contains structural relaxation and single-shot DFT tasks; the worked PdS2 case generates BFGS relaxation input and shows an execution/recovery timeline."
+      },
+      {
+        "url": "https://www.nature.com/articles/s43246-026-01167-0",
+        "locator": "Journal abstract",
+        "evidence_paraphrase": "The journal version describes its benchmark outcome as passing early execution validation, which is narrower than a verified converged physical result."
+      }
+    ],
+    "family": "GENIUS",
+    "aliases": [
+      "10.1038/s43246-026-01167-0"
+    ],
+    "limitations": "Task marks denote executed calculation types, not scientific completion. The preprint's run-to-completion wording must not overwrite the journal's early-execution-validation qualification. Geometry retrieval/standardization alone was not assigned an additional construction mark.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "lammps_agents",
+    "name": "LAMMPS-Agents",
+    "first_public_date": "2025-12-09",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "elemental metals and binary alloys, including gold and Cu–Au",
+    "boundary_conditions": "crystal models; exact PBC flags not independently audited from the inspected repository",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 1
+      },
+      "E": {
+        "source_index": 1
+      },
+      "O": {
+        "source_index": 1
+      },
+      "F": {
+        "source_index": 1
+      },
+      "D": {
+        "source_index": 1
+      }
+    },
+    "sources": [
+      {
+        "url": "https://github.com/ANL-NST/LAMMPS-Agents",
+        "locator": "README; lammps_agents.py demonstration prompts and simulation workflow",
+        "evidence_paraphrase": "Official project implements a natural-language multi-agent simulator with specialized structure, potential, property, HPC and analysis agents."
+      },
+      {
+        "url": "https://doi.org/10.1039/D5DD00435G",
+        "locator": "Introduction; Results static/dynamic property examples; Conclusion",
+        "evidence_paraphrase": "Authors report executed crystal construction, lattice/cohesive-energy and elastic-property calculations, structure relaxation, Phonopy phonon dispersion and melting-point MD for elemental and alloy targets."
+      },
+      {
+        "url": "https://www.alcf.anl.gov/publications/multi-agentic-ai-framework-end-end-atomistic-simulations",
+        "locator": "Publication metadata",
+        "evidence_paraphrase": "Author institution identifies the paper and its 9 December 2025 publication date."
+      }
+    ],
+    "family": "LAMMPS-Agents (Vriza)",
+    "aliases": [
+      "Multi-agentic AI framework for end-to-end atomistic simulations",
+      "unnamed Vriza multi-agent framework",
+      "10.1039/D5DD00435G"
+    ],
+    "limitations": "The publisher's full text was available as a cached primary search response but direct opens returned 403; official repository and source were also inspected. Distinct from both DynaMate systems, AtomAgents and URSA. No soft-matter mark is inferred from future extensibility.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "dynamate_biomolecular",
+    "name": "DynaMate (protein–ligand)",
+    "first_public_date": "2025-12-10",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "proteins and protein–ligand complexes, including BRD4 BD1 inhibitor MD and endpoint binding energies",
+    "boundary_conditions": "Periodic boundary conditions with explicit TIP3P solvent and neutralizing ions (§4.3)",
+    "demonstrated_tasks": [
+      "T",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2512.10034v1",
+        "locator": "§§2.1–2.5; §§4.2–4.4; SI Appendix B",
+        "evidence_paraphrase": "Planner/worker/analyzer agents build and parameterize solvated protein complexes, minimize geometry, execute GROMACS equilibration/production, and repair failed tool calls. BRD4 examples run 100 ns dynamics followed by MM/PBSA binding-energy analysis."
+      },
+      {
+        "url": "https://openreview.net/pdf?id=NkLAjIzwei",
+        "locator": "Title, author list and abstract of SimBioChem 2025 workshop counterpart",
+        "evidence_paraphrase": "The earlier workshop title DynAgent has the same five authors and planner/simulation/analyzer architecture. It is treated as the same system, not another agent. Exact public workshop posting date was not resolved."
+      }
+    ],
+    "family": "DynaMate (Guilbert et al.)",
+    "aliases": [
+      "DynAgent: A Modular Multi-Agent Framework for Autonomous Protein-Ligand Molecular Dynamics Simulations",
+      "schwallergroup/DynaMate"
+    ],
+    "limitations": "The dated field uses the verified arXiv date; an earlier DynAgent workshop version is identified but its posting date is unresolved, so this is not a secure earliest-appearance claim. This is unrelated to the LAMMPS/Moltemplate DynaMate of de Gillis et al. Endpoint MM/PBSA analysis is included under D, without E/F marks.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_md_soft"
+  },
+  {
+    "id": "agapi_agents",
+    "name": "AGAPI-Agents",
+    "first_public_date": "2025-12-12",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "TiAu relaxation, Al substitution in GaN, semiconductor defects and interfaces",
+    "boundary_conditions": "POSCAR crystal cells, supercells and heterostructures; explicit PBC flag not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2512.11935v1",
+        "locator": "§2.4 ML Force Field Optimization; §2.5 Case Study1/Fig.8",
+        "evidence_paraphrase": "The agent runs ALIGNN-FF iterative relaxation for an arbitrary TiAu structure. Its semiconductor-defect workflow constructs a supercell, substitutes atoms, optimizes the same structure and calculates a tight-binding band structure."
+      }
+    ],
+    "family": "AGAPI",
+    "aliases": [
+      "AtomGPT.org API",
+      "10.1021/acs.jpclett.6c00837"
+    ],
+    "limitations": "Database retrieval and scalar predictor calls alone are not the inclusion basis. No MD or protein-simulation mark is inferred from the platform's tool list. Journal and preprint count once.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "master",
+    "name": "MASTER",
+    "first_public_date": "2025-12-15",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "CO on Cu(100) adatoms and M–N–C catalysts",
+    "boundary_conditions": "explicit 4×4 periodic six-layer Cu(100) slab",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2512.13930v1",
+        "locator": "Computational methods; Fig.2; Supplementary geometry tips",
+        "evidence_paraphrase": "LLM reasoning chooses catalyst candidates and executes atomistic adsorption-energy simulations; Cu(100) geometry is explicitly periodic."
+      }
+    ],
+    "family": "MASTER",
+    "aliases": [
+      "10.1038/s41524-026-02139-1"
+    ],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "vasp_agent_xia",
+    "name": "VASP Agent",
+    "first_public_date": "2025-12-22",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "bulk crystals, CO adsorption slabs, methane activation and acetylene hydrogenation on Pd/Ag",
+    "boundary_conditions": "VASP periodic bulk and surface cells; surface k-point meshes explicitly reported",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "R"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2512.19458v1",
+        "locator": "§2.2–2.3/Table1; §4.1 Structural Relaxation/Band Structure/Adsorption/Transition State",
+        "evidence_paraphrase": "A separately proposed domain agent plans and executes VASP structural relaxation, band-structure and adsorption calculations, plus surface-reaction CI-NEB. The paper evaluates completion separately from physical accuracy and reports persistent TS accuracy failures."
+      }
+    ],
+    "family": "VASP Agent (Xia)",
+    "aliases": [
+      "AgenticDFT",
+      "An Agentic Framework for Autonomous Materials Computation",
+      "An Agentic Framework for Autonomous First-principles Calculations"
+    ],
+    "limitations": "Do not deduplicate with VASPilot or AutoDFT. Isolated CO is a reference component of the adsorption workflow, not a demonstrated separate molecular research domain. R denotes executed NEB task coverage and does not establish full mechanism validation.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "masgent",
+    "name": "Masgent",
+    "first_public_date": "2025-12-28",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "LaCoO3 vacancies and metallic/crystalline materials",
+    "boundary_conditions": "crystal/supercell/slab models documented",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/pdf/2512.23010",
+        "locator": "pp.7–8 Fig.3; pp.16–20 case studies",
+        "evidence_paraphrase": "Agent executes LaCoO3 vacancy construction and MLP defect-energy workflow. VASP workflows are prepared; the agent does not directly execute VASP."
+      }
+    ],
+    "family": "Masgent",
+    "aliases": [],
+    "limitations": "Do not equate VASP input preparation with completed VASP calculations; task marks refer to demonstrated MLP/structure work.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "cascade",
+    "name": "CASCADE",
+    "first_public_date": "2025-12-29",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Li_xCoO2 battery cathode crystals and MLIP density/volume comparisons",
+    "boundary_conditions": "crystalline materials; explicit PBC wording not separately audited",
+    "demonstrated_tasks": [
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2512.23880v1",
+        "locator": "Section 2.3, Collaborative research with memory; Fig. 5; Appendix B.3",
+        "evidence_paraphrase": "In human-agent exchanges, the system selects MLIPs, executes structural relaxations and energy calculations, and obtains lithium-intercalation voltages. Separate wet-lab and database-only cases do not determine inclusion."
+      }
+    ],
+    "family": "CASCADE",
+    "aliases": [
+      "SkillPuzzler",
+      "DeepSolver"
+    ],
+    "limitations": "Only the inspected crystalline simulation case determines the target class and task marks. Molecular QC questions listed in SciSkillBench are not by themselves treated as demonstrated additional targets. Human guidance is retained. SkillPuzzler is a related earlier title, not counted again. The earlier SkillPuzzler workshop predecessor predates 29 December; this dated field identifies the verified CASCADE-title preprint, not a secure family-first appearance.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "date_basis": "verified CASCADE-title arXiv date; predecessor posting date unresolved",
+    "sample_origin": "expanded_root"
+  },
+  {
+    "id": "catmaster",
+    "name": "CatMaster",
+    "first_public_date": "2026-01-20",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Fe(110)/CO, Au(111)/O paths, catalytic surface models and single-atom catalysts",
+    "boundary_conditions": "bulk/slab/adsorbate models; exact PBC settings not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2601.13508v3",
+        "locator": "Results/Operational autonomy; Literature-grounded model construction; Mechanistic autonomy; Full-cycle SAC design",
+        "evidence_paraphrase": "CatMaster plans and executes adsorption screening, DOS workflows, catalytic model construction and a MACE-driven Au(111)-O TS/NEB task with vibrational analysis. The paper explicitly discusses a run that analyzed the endpoint minimum instead of the TS."
+      }
+    ],
+    "family": "CatMaster",
+    "aliases": [
+      "Toward Autonomous Computational Catalysis Research via Agentic Systems",
+      "Autonomous Computational Catalysis Research via Agentic Systems"
+    ],
+    "limitations": "Inspected v3 is from May2026; first report was January2026. R/F are positive task coverage, not an assertion all runs satisfy scientific acceptance. MatBench scalar-prediction exercises are not the atomistic inclusion basis.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "quasar",
+    "name": "QUASAR",
+    "first_public_date": "2026-01-30",
+    "physical_target": "cross_domain",
+    "demonstrated_target": "bulk Cu/NiO/Al and porous crystals, plus liquid-water NPT equilibration",
+    "boundary_conditions": "periodic electronic-structure crystals, MOF/COF adsorption cells and condensed water; exact water PBC flags not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2602.00185v1",
+        "locator": "§2 System Architecture; §3/Table2 and TiersI–III",
+        "evidence_paraphrase": "Strategist, Operator and Evaluator agents execute QE convergence/relaxation and NiO electronic calculations, prepare doped perovskites, run liquid-water NPT and Al melting MD, and execute porous-framework adsorption Monte Carlo."
+      }
+    ],
+    "family": "QUASAR",
+    "aliases": [
+      "A Universal Autonomous Agent for Atomistic Simulation and Benchmarking Its Capabilities",
+      "A Universal Autonomous System for Atomistic Simulation and a Benchmark of Its Capabilities"
+    ],
+    "limitations": "Cross-domain follows a separately demonstrated liquid-water task and extended-material tasks; it is not inferred from an ASE interface. Monte Carlo adsorption does not receive D by itself; water and Al MD provide that evidence. AI4X and arXiv reports are one system.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "el_agente_estructural",
+    "name": "El Agente Estructural",
+    "first_public_date": "2026-02-04",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "molecules, organometallic complexes and TS-like geometries",
+    "boundary_conditions": "finite molecular cases; slabs/solids are future extensions in inspected v1",
+    "demonstrated_tasks": [
+      "T",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2602.04849v1",
+        "locator": "§2.3.2; §3.2.6 Fig.12; §4.2.6",
+        "evidence_paraphrase": "Invokes xTB constrained optimization to create intended molecular geometry; agentic geometric operations are real. Subsequent independent DFT TS checks are not coded as agent TS execution."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [],
+    "limitations": "Included despite editor emphasis because xTB constrained relaxation is an actual quantum-chemical computation, beyond pure string/generative molecular design.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "el_agente_quntur",
+    "name": "El Agente Quntur",
+    "first_public_date": "2026-02-04",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "molecular and coordination quantum chemistry",
+    "boundary_conditions": "finite molecular cases including isocyanide and acetylacetone",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2602.04850v3",
+        "locator": "Results/case studies; Discussion/Geometric reasoning; Appendix B",
+        "evidence_paraphrase": "Demonstrates electronic methods, optimization/frequencies and reaction-path cases; isocyanide mechanistic refinement includes TS correction. NEB geometry failures are discussed, so this is task coverage rather than blanket success."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "el_agente_grafico",
+    "name": "El Agente Gráfico",
+    "first_public_date": "2026-02-19",
+    "physical_target": "cross_domain",
+    "demonstrated_target": "finite-molecule quantum chemistry and explicit microsolvation ensembles; metal-organic frameworks",
+    "boundary_conditions": "finite molecular gas/implicit-solvent/15-water-cluster examples; separate MOF crystal/CIF construction and MLIP relaxation",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2602.17902v1",
+        "locator": "Sections 2.1–2.3; Figure 3; Appendix C; Appendix D.1.7",
+        "evidence_paraphrase": "An LLM routing agent orchestrates typed single-point, optimization, frequency and TDDFT nodes. Molecular examples generate CREST conformers and a 15-water microsolvation cluster, optimize them, check imaginary modes and calculate ensemble spectra. A separate demonstrated MOF workflow constructs CIF structures, relaxes them with MACE and analyzes porosity."
+      },
+      {
+        "url": "https://arxiv.org/html/2602.17902v2",
+        "locator": "Version 2 front matter, abstract, Sections 2.1–2.3 and Appendix E",
+        "evidence_paraphrase": "The updated semantic-execution-runtime report retains typed operations and frequency-based intermediate checks, and additionally reports open-ended disulfide redox-mechanism studies. Its expanded claims are distinguished from the v1 task-coding basis."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [
+      "El Agente Gráfico: Structured Execution Graphs for Scientific Agents",
+      "arXiv:2602.17902"
+    ],
+    "limitations": "Same research family as Q/Quntur/Estructural but a separately described execution-graph system, so not deduplicated merely by family. Cross-domain classification reflects actual finite molecular and MOF demonstrations. Its molecular imaginary-frequency failure recovery is not evidence of TS/IRC execution. The present matrix retains the inspected v1 task basis. Version 2 (7 August) has a revised title/author list and reports disulfide redox-mechanism work; the blank R cell is not a claim that the current system has no mechanistic applications. The polishing manuscript cites v2.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "el_agente_solido",
+    "name": "El Agente Sólido",
+    "first_public_date": "2026-02-19",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "crystals, Pt(111) oxygenated adsorbates, NMC-811, MOFs/COFs",
+    "boundary_conditions": "Quantum ESPRESSO solid-state k-point workflows and periodic SQS/framework cells",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2602.17886v1",
+        "locator": "§3.1; §3.2.1–3.2.4; SI Figs.S6–S11",
+        "evidence_paraphrase": "A separate solid-state agent team runs QE and UMA relaxation/property workflows, constructs adsorbates/SQS and reticular structures, and uses Phonopy for Si/NaCl/Fe phonon bands and temperature-dependent thermal quantities."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [
+      "El Agente Solido: A New Age(nt) for Solid State Simulations"
+    ],
+    "limitations": "Separate architecture/tool composition and benchmark from Q, Quntur, Estructural and Forjador, with family-level merge available. OER free-energy diagrams are not a transition-path/TS search, so no R is assigned from them.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "catalyst_agent",
+    "name": "Catalyst-Agent",
+    "first_public_date": "2026-03-01",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "catalyst slabs/adsorbates screened for ORR, NRR and CO2RR",
+    "boundary_conditions": "crystalline bulk-derived slab construction; explicit PBC flags not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2603.01311v1",
+        "locator": "§2.1.4–2.1.6; Energy Evaluation Server; reaction-screening results",
+        "evidence_paraphrase": "The LLM retrieves crystals, modifies surfaces and invokes FAIRchem AdsorbML/UMA to place adsorbates, relax geometries and calculate adsorption energies, then revises near-miss candidates using returned energetic feedback."
+      }
+    ],
+    "family": "Catalyst-Agent",
+    "aliases": [
+      "Autonomous heterogeneous catalyst screening and optimization with an LLM Agent"
+    ],
+    "limitations": "DFT validation is downstream future confirmation in the inspected report, not counted as agent-executed DFT. Reaction labels do not imply explicit TS or path search.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "tritondft",
+    "name": "TritonDFT",
+    "first_public_date": "2026-03-02",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "DFTBench crystalline materials spanning metals, insulators and correlated/topological solids",
+    "boundary_conditions": "periodic QE crystals and Brillouin-zone sampling; 73-material benchmark",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2603.03372v1",
+        "locator": "§5.1–5.4, especially Broader Task Types/Fig.7",
+        "evidence_paraphrase": "A Plan–Execute–Refine agent runs QE variable-cell relaxation, SCF, band-gap and DOS calculations; its phonon case autonomously sequences pw.x, ph.x, q2r.x and matdyn.x."
+      }
+    ],
+    "family": "TritonDFT",
+    "aliases": [
+      "Automating DFT with a Multi-Agent Framework"
+    ],
+    "limitations": "A software-supported task list is not used to add unsupported task marks. Broadening beyond the inspected four main tasks and phonon case would require further evidence.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "chelatron",
+    "name": "Chelatron",
+    "first_public_date": "2026-03-24",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "actinium–chelator coordination complexes",
+    "boundary_conditions": "finite Architector metal–ligand complexes evaluated by high-throughput quantum calculations",
+    "demonstrated_tasks": [
+      "T",
+      "E"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://science.osti.gov/-/media/About/pdf/scac/meetings/2026/lab-contributions-to-GM-03-24-2026v2.pdf",
+        "locator": "LANL contribution, slide headed CHELATRON: AI-Driven Molecular Discovery for Cancer Treatment (printed slide 76)",
+        "evidence_paraphrase": "The LANL project report describes Nemotron-generated chemical hypotheses, GenMol candidate generation, Architector complex construction and high-throughput quantum binding-affinity evaluation, with those assessments returned to the LLM for iterative hypothesis refinement."
+      }
+    ],
+    "family": "Chelatron / LANL",
+    "aliases": [
+      "Chelatron: Charting Chemical Space with Agentic AI for Metal-Ligand Discovery",
+      "CHELATRON: AI-Driven Molecular Discovery for Cancer Treatment"
+    ],
+    "limitations": "Evidence is an official DOE/LANL project presentation rather than the original ChemRxiv paper, whose identifier was not resolved. The meeting document is dated 24 March 2026; the later perspective instead lists the preprint on 31 July 2026. This earlier public project appearance and the later paper should be deduplicated, not counted twice. xTB optimization details reported by secondary paper listings are not used to code O here.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "date_basis": "dated official DOE/LANL project presentation, not paper publication date",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "matsciagent",
+    "name": "MatSciAgent",
+    "first_public_date": "2026-03-26",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Al and NiAl crystal MD; auxiliary continuum tasks",
+    "boundary_conditions": "FCC and CIF-derived crystalline models; explicit PBC not independently audited",
+    "demonstrated_tasks": [
+      "T",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.nature.com/articles/s43246-025-00994-x",
+        "locator": "Molecular dynamics Case 1; Joint Implementation; Figs.11–12",
+        "evidence_paraphrase": "Executes Al NVE MD and CIF-generated NiAl NVT MD; continuum-only examples do not determine inclusion."
+      }
+    ],
+    "family": "MatSciAgent",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "openclaw_compchem_skills",
+    "name": "OpenClaw computational-chemistry skills workflow",
+    "first_public_date": "2026-03-26",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "isolated methane/oxygen preparation and quantum-chemical optimization; reactive molecular methane/oxygen mixture",
+    "boundary_conditions": "isolated CH4/O2 QC followed by a packed 50-CH4/100-O2 molecular gas mixture; MD boundary conditions not independently resolved",
+    "demonstrated_tasks": [
+      "T",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2603.25522v1",
+        "locator": "Section 3 Case Study: Methane Oxidation Reactive MD Automation; Figure 3",
+        "evidence_paraphrase": "From a natural-language request, the LLM-controlled workflow builds isolated molecules, runs B3LYP geometry optimizations, packs a methane/oxygen system, performs 3000-K reactive Deep-Potential/LAMMPS MD and extracts reactions with ReacNetGenerator. Repeated end-to-end demonstrations use error feedback to repair stages."
+      }
+    ],
+    "family": "OpenClaw computational chemistry / Ding et al.",
+    "aliases": [
+      "Automating Computational Chemistry Workflows via OpenClaw and Domain-Specific Skills",
+      "arXiv:2603.25522",
+      "10.1021/acs.jctc.6c00622"
+    ],
+    "limitations": "This record counts the separately reported chemistry skills/workflow, not every use of the general OpenClaw host. Periodic-box use would not make the simulated molecular gas an extended solid. Reaction-network extraction from reactive MD is not coded as a saddle/IRC path-search demonstration. The Deep Potential is supplied pretrained, not developed by the agent.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "protomia",
+    "name": "Protomia",
+    "first_public_date": "2026-03-26",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "Diels–Alder reaction energy and molecular thermochemistry",
+    "boundary_conditions": "finite molecular reaction examples; platform's broader supported periodic scope is not inferred as demonstrated",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 1
+      },
+      "E": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 1
+      }
+    },
+    "sources": [
+      {
+        "url": "https://aitomistic.com/protomia/docs/research-workflow",
+        "locator": "Usage Examples / Reaction Energy and Thermodynamics; worked-session screenshot",
+        "evidence_paraphrase": "The official worked example shows autonomous reaction calculations and an output spreadsheet of extracted species and reaction energies. The page distinguishes this from its list of generally supported calculation types."
+      },
+      {
+        "url": "https://arxiv.org/html/2608.18508v1",
+        "locator": "Section 4, Figure 4; reference to developer's Protomia release",
+        "evidence_paraphrase": "Protomia's developers reproduce a session that prepares molecular structures and executes calculations for ethylene/butadiene Diels–Alder energy, enthalpy and Gibbs energy, and date the release to 26 March 2026."
+      }
+    ],
+    "family": "Aitomia / Protomia",
+    "aliases": [
+      "Protomia Solution",
+      "Protomia Solution 2"
+    ],
+    "limitations": "Separately named successor to Aitomia with a distinct hosted agent implementation. Evidence is developer documentation and a developer-authored perspective demonstration; no independent paper evaluation was located. TS/IRC/MD appear in supported-feature lists but are left uncoded without a verified worked demonstration. First-release date is developer-reported.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "date_basis": "developer-reported release date, independently unverified",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "simmof",
+    "name": "SimMOF",
+    "first_public_date": "2026-03-31",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "UiO-66/CO2 transport, HKUST-1 and ZIF-8 binding, high-throughput MOF adsorption",
+    "boundary_conditions": "periodic MOF networks and framework–guest simulation cells; molecular reference species are components of the materials workflow",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/pdf/2603.29152",
+        "locator": "v3, pp.18–22 Figs.4–5; case studies",
+        "evidence_paraphrase": "The LLM framework builds and repairs a UiO-66/CO2 LAMMPS transport simulation and executes it after human confirmation. For HKUST-1/ZIF-8 it generates adsorption configurations, prescreens with MACE and executes host/guest optimization, DFT binding-energy and charge-density/Bader workflows."
+      }
+    ],
+    "family": "SimMOF",
+    "aliases": [
+      "AI agent for Automated MOF Simulations"
+    ],
+    "limitations": "Inspected latest v3 is August2026, with March first appearance. Mention of vibrational frequencies as a generic scheduling example was not assigned an F mark. Human confirmation in the shown corrected MD case is retained.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "polyjarvis",
+    "name": "PolyJarvis",
+    "first_public_date": "2026-04-02",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "amorphous homopolymers",
+    "boundary_conditions": "condensed simulation cells; self-imaging/PPPM documented; PBC wording not separately resolved",
+    "demonstrated_tasks": [
+      "T",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2604.02537v3",
+        "locator": "§2.3–2.6; SI §3.4–3.5",
+        "evidence_paraphrase": "Builds polymer cells and orchestrates equilibration, cooling, density, glass-transition and mechanical-property MD workflows."
+      }
+    ],
+    "family": "PolyJarvis",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "fermilink",
+    "name": "FermiLink",
+    "first_public_date": "2026-04-03",
+    "physical_target": "cross_domain",
+    "demonstrated_target": "finite molecular electronic structure and biomolecular/soft-matter MD; additional materials simulations",
+    "boundary_conditions": "multiple packages and models; no single boundary condition assigned",
+    "demonstrated_tasks": [
+      "E",
+      "D"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2604.03460v1",
+        "locator": "Sections II.1–II.2; Table S1 Chemistry and Molecular Science (GROMACS, LAMMPS, Psi4, PySCF); Table S2 CP2K",
+        "evidence_paraphrase": "Codex-driven workflows rerun molecular electronic-structure and molecular-dynamics packages. The paper distinguishes newly executed simulations from merely replotted figures; only executed cases support these marks."
+      }
+    ],
+    "family": "FermiLink",
+    "aliases": [],
+    "limitations": "General scientific infrastructure; non-atomistic physics and engineering tasks are not counted as chemistry evidence. Replotted and blocked tasks are not simulation successes. T/O/F/R remain unencoded without case-level evidence in this pass.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_root"
+  },
+  {
+    "id": "matclaw",
+    "name": "MatClaw",
+    "first_public_date": "2026-04-03",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "monolayer CuInP2S6 ferroelectric MD, potential distillation and domain-wall dynamics",
+    "boundary_conditions": "2D material and MD supercell targets; explicit PBC flags not separately audited",
+    "demonstrated_tasks": [
+      "E",
+      "D"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2604.02688v1",
+        "locator": "§3.1–3.3 Demonstration tasks and failure analysis",
+        "evidence_paraphrase": "The code-writing LLM runs active-learning force-field distillation, atomistic energy/force evaluation, Curie-temperature MD and a field/temperature search for domain-wall propagation. Demonstrations discuss failed sampling/equilibration choices and researcher interventions."
+      }
+    ],
+    "family": "MatClaw",
+    "aliases": [
+      "An Autonomous Code-First LLM Agent for End-to-End Materials Exploration",
+      "Zhang–Yakobson ferroelectric agent"
+    ],
+    "limitations": "Guided autonomy: high-level expert constraints and literature self-learning assist the agent. Do not count the March2026 APS presentation on the same CuInP2S6 agent as a second system; exact identity of that early abstract is retained in screening.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "el_agente_forjador",
+    "name": "El Agente Forjador",
+    "first_public_date": "2026-04-16",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "molecular QC plus quantum dynamics",
+    "boundary_conditions": "finite molecular examples; quantum-state dynamics does not imply periodic materials",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2604.14609v1",
+        "locator": "§4.1; Table 1; §4.4",
+        "evidence_paraphrase": "Creates and reuses tools for molecular optimization, frequencies/thermochemistry and excited states; hybrid cases couple electronic structure to quantum dynamics."
+      }
+    ],
+    "family": "El Agente",
+    "aliases": [],
+    "limitations": "D is quantum dynamics, not necessarily atomistic MD. The physical target is coded by demonstrated molecular calculations, not software breadth.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "mdagent_biomolecular_2026",
+    "name": "MDAgent (biomolecular, 2026)",
+    "first_public_date": "2026-04-18",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "soluble and membrane proteins, protein–DNA/ligand systems and TMEM16F/XKR8 scramblase dynamics",
+    "boundary_conditions": "Three-dimensional PBC for all simulated systems; explicit aqueous or lipid environments (Methods §4.5)",
+    "demonstrated_tasks": [
+      "T",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/pdf/2604.18622",
+        "locator": "Results §§2.1–2.4; Methods §4.5, PDF pp.43–46",
+        "evidence_paraphrase": "The LLM multi-agent system connects research planning to GROMACS system construction, steepest-descent minimization, equilibration and production. Demonstrations include membrane-protein dynamics and enhanced sampling; methods specify 3D periodic systems."
+      },
+      {
+        "url": "https://arxiv.org/abs/2604.18622",
+        "locator": "Primary record, title/authors and first submission",
+        "evidence_paraphrase": "The Ma/Yang/Song/Jiang biomolecular framework was first reported on 18 April 2026."
+      }
+    ],
+    "family": "MDAgent (Ma et al.)",
+    "aliases": [
+      "MDAgent: A Multi-Agent Framework for End-to-End Molecular Dynamics Research"
+    ],
+    "limitations": "Distinct from the 2025 materials LAMMPS MDAgent. Umbrella-sampling PMF, metadynamics and SMD transport analyses remain D; no E/F/R mark is inferred from statistical free energies or transport paths. Some evaluation dimensions concern plans/reports, so task coding relies on the separately described executed simulation cases, not review scores.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_md_soft"
+  },
+  {
+    "id": "virtuallab_cc",
+    "name": "VirtualLab_CC",
+    "first_public_date": "2026-04-27",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "stabilized Criegee intermediates and biogenic terpenes; molecular conformers, thermochemistry and PES study",
+    "boundary_conditions": "finite molecular Gaussian/ORCA calculations with CREST/xTB conformer search",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.sciencedirect.com/science/article/pii/S2949747726000230",
+        "locator": "Section 2.1 and Table 1; prototype Criegee case study; Section 5.3; Section 6 Limitations",
+        "evidence_paraphrase": "Claude coordinates method proposals, task decomposition and failure interpretation around executed CREST conformer, DFT optimization/frequency and coupled-cluster jobs. The molecular campaign includes real production outputs and automatic repair of cluster-invocation failures, with human approvals for scientific decisions."
+      },
+      {
+        "url": "https://github.com/CCBG-Lab/VirtualLab_CC",
+        "locator": "README / Architecture; HPC Integration; Method Protocols; release v1.1.0",
+        "evidence_paraphrase": "The official release documents its skill-driven LLM coordination, Gaussian/ORCA/CREST execution, result extraction and the Criegee–terpene case-study protocol."
+      },
+      {
+        "url": "https://doi.org/10.26434/chemrxiv.15002407/v1",
+        "locator": "Original preprint record, 27 April 2026",
+        "evidence_paraphrase": "Original preprint counterpart of the journal article; used to deduplicate the publication family and identify first appearance."
+      }
+    ],
+    "family": "VirtualLab_CC",
+    "aliases": [
+      "VirtualLab_CC: An LLM-Augmented Virtual Laboratory for Automated Computational Chemistry Research",
+      "10.1016/j.aichem.2026.100129",
+      "10.5281/zenodo.21396720"
+    ],
+    "limitations": "The paper explicitly says transition-state location remains semi-manual and no automated reaction-discovery engine is included. Path/TS task R is therefore conservatively left uncoded here. Human approval at critical scientific decisions does not exclude demonstrated LLM planning, invocation and repair. Journal text was inspected through the indexed publisher original; direct opening returned HTTP 403.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "xdft",
+    "name": "XDFT",
+    "first_public_date": "2026-04-29",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "correlated and structurally complex crystalline metal/semiconductor mismatches",
+    "boundary_conditions": "VASP crystal/supercell calculations with k-point density; defect, strain and polymorph interventions",
+    "demonstrated_tasks": [
+      "T",
+      "E"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/pdf/2604.26703v1",
+        "locator": "Architecture pp.2–3; Methods p.10, Hypothesis library/First-principles/Bayesian hypothesis selection",
+        "evidence_paraphrase": "For each material an LLM advisor contributes a per-material hypothesis score to a Bayesian selector. The selected intervention modifies crystal structures or VASP inputs and executes first-principles tests; the resulting verdict updates the selector's state."
+      }
+    ],
+    "family": "XDFT",
+    "aliases": [
+      "eXplainable DFT",
+      "A self-evolving agent for explainable diagnosis of DFT–experiment band-gap mismatch",
+      "Discovering physical mechanisms from experiment–simulation mismatches"
+    ],
+    "limitations": "The LLM is not the entire selector: v1 explicitly weights the advisor score 0.2. Include because the LLM influences actual per-material computational choices. Later revisions change the benchmark and title; do not mix their result counts. R is chemical/structural paths, not diagnostic mechanism attribution, so none is assigned.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "tsagent",
+    "name": "TSAgent",
+    "first_public_date": "2026-05-13",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "heterogeneous catalytic reactions on slabs",
+    "boundary_conditions": "VASP slab geometry; 2×2×1 k-point grid explicitly reported",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2605.14154v1",
+        "locator": "§4; Appendix F.1",
+        "evidence_paraphrase": "Adapts geometry optimization, NEB and vibrational TS verification on OC20NEB surface-reaction cases."
+      }
+    ],
+    "family": "TSAgent",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "lang2mlip",
+    "name": "Lang2MLIP",
+    "first_public_date": "2026-05-14",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "graphite/Li2CO3/LEDC/liquid-electrolyte multilayer solid-electrolyte interphase",
+    "boundary_conditions": "solid, amorphous and liquid component cells and interfaces; explicit PBC flags not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2605.14527v1",
+        "locator": "§4/Table3; §4.1–4.4; AppendixG",
+        "evidence_paraphrase": "Agents construct 60 component/interface configurations and an LLM decision-maker adaptively chooses reference calculations, MD sampling, training and evaluation. The demonstrated reference is the PFP interatomic potential, not DFT."
+      }
+    ],
+    "family": "Lang2MLIP",
+    "aliases": [
+      "End-to-End Language-to-Machine Learning Interatomic Potential Development with Autonomous Agentic Workflows"
+    ],
+    "limitations": "Target coding follows the integrated solid–electrolyte interface study. Generic support for polymers, isolated clusters and other structure classes does not establish separate demonstrated research domains. No DFT-execution claim is inferred from interchangeable reference backends.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "atomisticskills",
+    "name": "AtomisticSkills",
+    "first_public_date": "2026-05-18",
+    "physical_target": "cross_domain",
+    "demonstrated_target": "solid electrolytes, MOFs, catalyst surfaces and protein–ligand complexes",
+    "boundary_conditions": "crystal and surface cells plus explicit-water biomolecular MD; not a single PBC class",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2605.24002v1",
+        "locator": "Sections II.2–II.5; Figs. 3–6",
+        "evidence_paraphrase": "Coding agents construct and relax solids, submit DFT energies/forces, sample configurations by MD, and execute explicit-water MD refinement of docked protein–ligand complexes."
+      }
+    ],
+    "family": "AtomisticSkills",
+    "aliases": [],
+    "limitations": "A skills/tool harness for general coding agents. Human review of campaign plans is retained. Drug docking alone does not establish inclusion; the executed downstream MD does. MD-derived binding free energies are under D, not vibrational F.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_root"
+  },
+  {
+    "id": "chatmosp",
+    "name": "ChatMOSP",
+    "first_public_date": "2026-05-22",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "Pd and Pt catalytic nanoparticles under CO oxidation",
+    "boundary_conditions": "finite metal nanoparticles with exposed surface facets; finite nanoparticles remain material/surface targets, not isolated molecular chemistry",
+    "demonstrated_tasks": [
+      "T"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/pdf/2605.24265",
+        "locator": "pp.5–12, workflow and Pd/Pt morphology-reconstruction case studies",
+        "evidence_paraphrase": "An OpenClaw/GLM-5 agent translates reaction conditions, obtains model parameters and executes MOSP multiscale atomistic morphology reconstruction plus kinetic Monte Carlo. Pd temperature-series structures and Pt pressure/coverage/morphology/activity studies are demonstrated."
+      }
+    ],
+    "family": "ChatMOSP",
+    "aliases": [
+      "A Chemistry-Grounded Mobile Agent for Working-State Catalyst Simulations"
+    ],
+    "limitations": "Its actual physics simulation is sufficient for inclusion although the six-bin scheme only encodes structure reconstruction. KMC does not receive the MD/quantum-dynamics code D, and a prescribed kinetic network does not establish TS/path search R. Energetic parameters are retrieved, not newly calculated by the agent.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "autodft",
+    "name": "AutoDFT",
+    "first_public_date": "2026-05-25",
+    "physical_target": "cross_domain",
+    "demonstrated_target": "bulk/surface materials plus standalone CO and H2O optimization/vibration tasks",
+    "boundary_conditions": "VASP crystal/slab workflows and finite molecular targets represented in plane-wave cells; molecular target identity is distinct from cell periodicity",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "F",
+      "D"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2605.26179v1",
+        "locator": "§3–4; AppendixC.1 Tables12–13",
+        "evidence_paraphrase": "A seven-agent VASP framework performs adaptive planning, monitoring and recovery. Its evaluated 34-task table explicitly includes ionic/volume relaxation, SCF/DOS, DFPT phonons and MD, including standalone CO/H2O relaxation and vibration cases alongside crystal and slab tasks."
+      }
+    ],
+    "family": "AutoDFT",
+    "aliases": [
+      "A Closed-Loop Multi-Agent Framework for Autonomous DFT Calculations"
+    ],
+    "limitations": "Cross-domain is based on evaluated standalone molecular tasks, not VASP's general support. The system is separately proposed from its VASPBench benchmark and therefore one system, not one system per calculation type. Gaussian portability is an aspiration, not demonstrated evidence.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "mlipilot",
+    "name": "MLIPilot",
+    "first_public_date": "2026-05-29",
+    "physical_target": "cross_domain",
+    "demonstrated_target": "QM7 molecular systems and periodic Cu supercells",
+    "boundary_conditions": "article explicitly contrasts finite molecular QM7 and periodic Cu EMT datasets",
+    "demonstrated_tasks": [
+      "E",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2605.30889v1",
+        "locator": "§3.3–3.5; §4.1–4.4",
+        "evidence_paraphrase": "LLMs edit MACE training code and submit experiments whose fixed atomistic evaluation executes energy/force tests, FIRE geometry relaxation and 5,000-step NVE dynamics. Agents accept or revert experiments using returned physical diagnostics on molecular and Cu benchmarks."
+      }
+    ],
+    "family": "MLIPilot",
+    "aliases": [
+      "LLM-Driven Auto-Research for Machine-Learned Interatomic Potentials"
+    ],
+    "limitations": "The LLM optimizes training rather than directly writing each MD step, but actual simulation feedback determines its choices. Pre-generated QM7 B3LYP labels are not counted as agent-run DFT. Source calls this MLIPilot, distinct from VASPilot.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "catdt",
+    "name": "CatDT",
+    "first_public_date": "2026-06-03",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "working heterogeneous catalyst surfaces",
+    "boundary_conditions": "slab/bulk/facet construction with gas–solid and liquid–solid models",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2606.05050v2",
+        "locator": "§2.1–2.5; Methods",
+        "evidence_paraphrase": "Builds catalyst surfaces, proposes mechanisms, searches paths/TS and computes kinetics using atomistic tools; liquid–solid capability is not finite-molecule evidence."
+      }
+    ],
+    "family": "CatDT",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "paimon",
+    "name": "Paimon",
+    "first_public_date": "2026-06-08",
+    "physical_target": "cross_domain",
+    "demonstrated_target": "LiPF6 liquid electrolytes in DEC/DMC/PC and crystalline solid-electrolyte ion diffusion",
+    "boundary_conditions": "Liquid cells explicitly require PBC in all three directions (§3.6); crystalline solid-electrolyte MD is separately demonstrated",
+    "demonstrated_tasks": [
+      "T",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2606.09422v1",
+        "locator": "§§2.1, 2.4–2.5; Fig.4 actual MD runs; Fig.5 solid-electrolyte example; Methods §§3.5–3.6",
+        "evidence_paraphrase": "Orchestrator/executor agents build electrolyte cells with PACKMOL, relax structures, run LAMMPS equilibration and production, and revise workflows using intermediate feedback. The article distinguishes 30 actual liquid-MD runs from gated tests with precomputed outputs, and separately demonstrates a crystalline solid-electrolyte MD workflow using LLaMP."
+      }
+    ],
+    "family": "Paimon",
+    "aliases": [
+      "A Robust Agentic Framework for Expert-Level Automation of Atomistic Simulations",
+      "Platform for Agentic Integration in Materials Optimization and Nanoscale-simulations"
+    ],
+    "limitations": "Cross-domain coding follows demonstrated liquid and solid examples, not general software support. Many repeated evaluations replace expensive dynamics with precomputed outputs; actual MD evidence is explicitly limited to the separate full runs and worked example. Transport coefficients are D, not F or electronic E.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_md_soft"
+  },
+  {
+    "id": "mdforge",
+    "name": "MDForge",
+    "first_public_date": "2026-06-11",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "SAMPL host–guest binding free energies",
+    "boundary_conditions": "not resolved from inspected article; explicit/implicit solvent workflow details need separate audit",
+    "demonstrated_tasks": [
+      "D"
+    ],
+    "task_evidence": {
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2606.12916v2",
+        "locator": "Abstract; §3–5",
+        "evidence_paraphrase": "LLM writes and refines MD pipelines with physics feedback on host–guest binding benchmarks."
+      }
+    ],
+    "family": "MDForge",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "ursa_lammps",
+    "name": "URSA LAMMPS agent",
+    "first_public_date": "2026-06-12",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "metal crystals/liquids, Cu cohesive energy and thermomechanical properties",
+    "boundary_conditions": "bulk crystal/liquid atomistic models and stacking-fault cells; exact PBC flags not separately audited",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2607.22596v1",
+        "locator": "§2–4; cohesive-energy/cold-curve/thermal-expansion/liquid-RDF/melting/stacking-fault benchmarks",
+        "evidence_paraphrase": "The LLM selects a potential from NIST metadata, authors and runs LAMMPS input, iteratively repairs execution failures, and hands outputs to analysis agents. Benchmarks include cohesive energies, volume curves, thermal expansion, liquid RDF, melting and generalized stacking-fault energy."
+      },
+      {
+        "url": "https://arxiv.org/abs/2607.22596",
+        "locator": "Submission history",
+        "evidence_paraphrase": "The inspected arXiv metadata explicitly gives first submission as 12 June 2026."
+      }
+    ],
+    "family": "URSA atomistic agent",
+    "aliases": [
+      "An Agentic Orchestration of Atomistic Simulations",
+      "URSA MD agent"
+    ],
+    "limitations": "First date follows source metadata, even though the arXiv identifier begins 2607. Distinct from LAMMPS-Agents (Vriza) and the generic URSA framework. No R mark is assigned to static generalized stacking-fault energies without an explicit path search.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "adsmind",
+    "name": "AdsMind",
+    "first_public_date": "2026-06-17",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "adsorbate configurations on catalyst slabs",
+    "boundary_conditions": "cell and periodic boundary conditions explicitly retained in ASE slab reconstruction",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2606.19152v1",
+        "locator": "§II.1.2; §II.5",
+        "evidence_paraphrase": "Closed-loop agent uses MLFF relaxation feedback to revise adsorption hypotheses. Main benchmark has Langevin warmup disabled; no MD mark is assigned."
+      }
+    ],
+    "family": "AdsMind",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "ladeq",
+    "name": "LADeQ",
+    "first_public_date": "2026-06-17",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "alkanes C15H32/C20H42, coronene and porphyrin electronic correlation energies",
+    "boundary_conditions": "finite molecular PySCF CCSD/CISD; STO-3G and single-thread evaluation",
+    "demonstrated_tasks": [
+      "E"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2606.20729v1",
+        "locator": "Sections 2.1 and 3.3; Figure 5; Methods 5.1–5.5",
+        "evidence_paraphrase": "The LLM proposes approximations, edits PySCF CCSD/CISD implementations, and revises them using computed correlation-energy errors, timing and diagnostic logs. The paper reports executed molecular calculations for development and cross-molecule evaluation."
+      }
+    ],
+    "family": "LADeQ",
+    "aliases": [
+      "LLM-Guided Test-Time Discovery of Quantum-Chemical Approximation Algorithms",
+      "LLM-guided Automatic approximation Design for Quantum chemistry",
+      "arXiv:2606.20729"
+    ],
+    "limitations": "An algorithm-discovery workflow rather than a general researcher-facing QC assistant. Inclusion follows the explicit rule allowing LLM code modification and feedback decisions in executed molecular electronic-structure calculations. Demonstrated conclusions are limited to ground-state correlation energies, four molecules and a minimal basis; no geometry, path or dynamics capabilities are inferred.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_molecular"
+  },
+  {
+    "id": "agent-md",
+    "name": "Agent-MD",
+    "first_public_date": "2026-08-07",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "montmorillonite clay–water desorption",
+    "boundary_conditions": "explicit periodic boundaries in all three directions",
+    "demonstrated_tasks": [
+      "D"
+    ],
+    "task_evidence": {
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2608.07637v1",
+        "locator": "§2.3.1; §2.4; Results",
+        "evidence_paraphrase": "LLM reasoning supports campaign construction and event review around deterministic GCMC–MD; production cycles need no live LLM invocation."
+      }
+    ],
+    "family": "Agent-MD",
+    "aliases": [],
+    "limitations": "Selective LLM placement is included; counting requires actual planning/modification decisions, not a live LLM at every MD step.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "cgmas",
+    "name": "CGMas",
+    "first_public_date": "2026-08-07",
+    "physical_target": "soft_biomolecular",
+    "demonstrated_target": "homopolymers and copolymers modeled with paired all-atom and coarse-grained force fields",
+    "boundary_conditions": "Explicit cubic periodic cells and PBC in x, y and z (Methods §4.3)",
+    "demonstrated_tasks": [
+      "T",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2608.06694v1",
+        "locator": "§§2.1–2.4; PAN worked example, Fig.2; Methods §§4.2–4.5",
+        "evidence_paraphrase": "LLM topology and mapping agents coordinate construction, review and self-correction. Tools build periodic polymer cells, minimize close contacts, execute atomistic annealing/equilibration, derive coarse-grained potentials from the trajectory, and run CG dynamics. PAN and autonomous polymer cases provide executed workflow evidence."
+      }
+    ],
+    "family": "CGMas",
+    "aliases": [
+      "A Multi-Agent Framework for Automated Coarse-Grained Molecular Dynamics of Polymers",
+      "Coarse-Graining Multi-agent system"
+    ],
+    "limitations": "Human checkpoints are retained in the interactive route. Numerical stages use deterministic tools under LLM orchestration. Density, cooling-scan glass transitions and Boltzmann-inverted potentials do not establish vibrational thermochemistry; F remains blank.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_md_soft"
+  },
+  {
+    "id": "evolving_ts_workflows",
+    "name": "Evolving TS workflows",
+    "first_public_date": "2026-09-03",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "TS1X molecular elementary reactions",
+    "boundary_conditions": "finite molecular endpoint/TS geometries",
+    "demonstrated_tasks": [
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://www.nature.com/articles/s41524-026-02301-9",
+        "locator": "Results/Evolutionary architecture; Methods",
+        "evidence_paraphrase": "LLM evolves TS-search code; execution feedback includes Hessian and IRC endpoint checks. The LLM optimizes the workflow rather than directly making every reaction decision."
+      }
+    ],
+    "family": "Evolving TS workflows",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "arche",
+    "name": "ARCHE",
+    "first_public_date": "2026-09-10",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "organic/organometallic molecular mechanisms",
+    "boundary_conditions": "finite molecular asymmetric, radical and Ni-catalysis examples",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "F",
+      "R"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "F": {
+        "source_index": 0
+      },
+      "R": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/abs/2609.11147",
+        "locator": "Abstract; SI TSPipeline/C.10 independently checked by parent researcher",
+        "evidence_paraphrase": "Closed-loop mechanistic hypotheses are checked computationally across stereocontrol, radical cleavage and Ni-catalyzed selectivity examples."
+      }
+    ],
+    "family": "ARCHE",
+    "aliases": [],
+    "limitations": "Full PDF exceeds web-reader size limit; main inclusion/object/task claims use the abstract. Parent independently inspected SI mapping/force-field/TS and frequency/IRC/endpoint chain. Do not infer absent geometric or scientific validation capabilities.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "multireference_qc_agent",
+    "name": "Multireference QC agent",
+    "first_public_date": "2026-09-11",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "QUEST molecular excited states and transition-metal complexes",
+    "boundary_conditions": "finite molecular ORCA calculations",
+    "demonstrated_tasks": [
+      "E"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2609.13357v1",
+        "locator": "§II–IV; QUESTDB benchmark",
+        "evidence_paraphrase": "Selects active spaces, submits ORCA calculations, recovers convergence and identifies electronic states; evaluation covers molecular vertical transition energies."
+      }
+    ],
+    "family": "Multireference QC agent",
+    "aliases": [],
+    "limitations": "",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "retained_baseline"
+  },
+  {
+    "id": "sqd_agent",
+    "name": "SQD-Agent",
+    "first_public_date": "2026-09-30",
+    "physical_target": "finite_molecules_complexes",
+    "demonstrated_target": "small-molecule ground-state energies including N2 and CH2O",
+    "boundary_conditions": "finite molecular electronic Hamiltonians",
+    "demonstrated_tasks": [
+      "E"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2609.39302v1",
+        "locator": "Section I Figs. 1–5; Section II Discussions and Future Scope",
+        "evidence_paraphrase": "An LLM orchestration layer generates and executes molecular SQD electronic-structure workflows on classical simulators and a quantum processor, with explicit human confirmation before hardware submission."
+      }
+    ],
+    "family": "SQD-Agent",
+    "aliases": [],
+    "limitations": "Proof of concept in a minimal basis; the authors explicitly describe human-supervised reconfiguration and no autonomous closed feedback loop. Inclusion does not imply full autonomy or quantum advantage.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_root"
+  },
+  {
+    "id": "mlp_copilot",
+    "name": "MLP Copilot",
+    "first_public_date": "2026-10-15",
+    "physical_target": "extended_materials_surfaces",
+    "demonstrated_target": "bare and oxide-shell aluminum nanoparticle oxidation",
+    "boundary_conditions": "finite nanoparticles in a reactive simulation environment; atomistic materials target regardless of box periodicity",
+    "demonstrated_tasks": [
+      "E",
+      "D"
+    ],
+    "task_evidence": {
+      "E": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13684298/",
+        "locator": "§1.1; Methods §3.3 Human-Audited Multiagent Framework; MovieS1 description",
+        "evidence_paraphrase": "Language-model agents organize evidence, assist validation planning and prepare decisions in an executed active-learning MLP campaign, including CP2K energy/force labeling, model evaluation and ANP oxidation MD. Scientific acceptance and deployment remain human controlled."
+      },
+      {
+        "url": "https://github.com/flarecentury/mlpcopilot",
+        "locator": "README/Simulation Data And DigAuto; Start With Initial Data",
+        "evidence_paraphrase": "Official project links the earlier Auto-MLP campaign, retained nanoparticle MD trajectories and energy/force data, and tools/skills for dataset planning and potential evaluation."
+      }
+    ],
+    "family": "MLP Copilot / Auto-MLP",
+    "aliases": [
+      "Multi-AI agent framework reveals the oxide gatekeeper in aluminum nanoparticle oxidation",
+      "10.1073/pnas.2537780123",
+      "DigAuto",
+      "Auto-MLP"
+    ],
+    "limitations": "Human-audited planning/validation assistance qualifies under the broad inclusion rule; do not describe it as an autonomous MD scientist or claim the LLM directly made every execution decision. October15 is the inspected online publication date, not a verified first software release. Auto-MLP and the current runtime are treated as one campaign family to avoid duplicate counting.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_materials"
+  },
+  {
+    "id": "magnolia",
+    "name": "Magnolia",
+    "first_public_date": "2026-10-19",
+    "physical_target": "cross_domain",
+    "demonstrated_target": "aromatic molecules, gas-phase butane and modified DNA",
+    "boundary_conditions": "finite molecular QC/gas-phase dynamics and solvated DNA cells",
+    "demonstrated_tasks": [
+      "T",
+      "E",
+      "O",
+      "D"
+    ],
+    "task_evidence": {
+      "T": {
+        "source_index": 0
+      },
+      "E": {
+        "source_index": 0
+      },
+      "O": {
+        "source_index": 0
+      },
+      "D": {
+        "source_index": 0
+      }
+    },
+    "sources": [
+      {
+        "url": "https://arxiv.org/html/2610.27230v1",
+        "locator": "Sections 2.3, 3.1–3.3; Figs. 3–5",
+        "evidence_paraphrase": "The agent generates and optimizes aromatic structures, evaluates electronic properties, runs butane dynamics and a relaxed torsion scan, and constructs and tracks modified-DNA MD campaigns."
+      }
+    ],
+    "family": "Magnolia",
+    "aliases": [],
+    "limitations": "Human-reviewed memory and scientific decisions remain explicit. A torsional scan is not coded as a TS/IRC proof. Docking claims and proprietary targets do not determine task marks.",
+    "include_main": true,
+    "reviewed_on": "2026-10-26",
+    "sample_origin": "expanded_root"
+  }
+]

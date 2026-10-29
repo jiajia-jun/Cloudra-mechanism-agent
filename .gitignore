@@ -197,6 +197,9 @@ vector_store/vectors.f16.npy
 /output/Cloudra_省自科*.pptx
 /output/Cloudra_研发新范式版*.pptx
 
+# 本地模型解释研究：正式运行库、私有上下文副本和激活二进制保留在本机。
+/output/cloudra_model_study_20261028/
+
 # 已确认的根目录失败下载残留；不忽略真实文献 PDF。
 /ojs.bin
 /prox.bin

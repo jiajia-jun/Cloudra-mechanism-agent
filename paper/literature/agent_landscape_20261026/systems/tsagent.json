@@ -1,0 +1,40 @@
+{
+  "id": "tsagent",
+  "name": "TSAgent",
+  "first_public_date": "2026-05-13",
+  "physical_target": "extended_materials_surfaces",
+  "demonstrated_target": "heterogeneous catalytic reactions on slabs",
+  "boundary_conditions": "VASP slab geometry; 2×2×1 k-point grid explicitly reported",
+  "demonstrated_tasks": [
+    "E",
+    "O",
+    "F",
+    "R"
+  ],
+  "task_evidence": {
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "F": {
+      "source_index": 0
+    },
+    "R": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/html/2605.14154v1",
+      "locator": "§4; Appendix F.1",
+      "evidence_paraphrase": "Adapts geometry optimization, NEB and vibrational TS verification on OC20NEB surface-reaction cases."
+    }
+  ],
+  "family": "TSAgent",
+  "aliases": [],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

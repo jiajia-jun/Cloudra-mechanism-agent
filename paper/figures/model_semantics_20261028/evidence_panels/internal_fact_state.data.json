@@ -1,0 +1,112 @@
+{
+  "figure": "internal_fact_state",
+  "width_mm": 178,
+  "height_mm": 118,
+  "sources": {
+    "measurements.json": {
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/measurements.json",
+      "sha256": "233b7c25fc8ca67ea1bdb299466a72312da0aa3ef778ead0d9608369ab7881d6"
+    },
+    "controls.json": {
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/controls.json",
+      "sha256": "1d0145f54e1847269e7226073581b09a59b3b964ab1a0ed431f8cdaf078bab50"
+    },
+    "manifest.json": {
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/manifest.json",
+      "sha256": "7048ec8a9381cc0e42ec1ce720e6c1d3b53b1c5b720c101d466bdc7fe715e9dc"
+    }
+  },
+  "position": 53,
+  "layers_0_based": [
+    7,
+    15,
+    31,
+    47
+  ],
+  "input_edit": {
+    "source": "2.029",
+    "counterfactual": "1.029",
+    "unchanged_other": "1.248"
+  },
+  "probability_definition": "Full-vocabulary-softmax probability mass of the original-fact answer, combining its bare and leading-space token spellings; not A/B renormalization or success rate.",
+  "original_fact_answer": "O3-H8 is shorter under the original 2.029Å versus 1.248 Å facts; B forward and A swapped.",
+  "plotted": {
+    "forward": {
+      "original_fact_answer_letter": "B",
+      "clean": 0.9540323006238164,
+      "changed": 0.008693776415417975,
+      "patch": [
+        0.029099432143372534,
+        0.015033140257853184,
+        0.007961186266546844,
+        0.008762733111927566
+      ]
+    },
+    "swapped": {
+      "original_fact_answer_letter": "A",
+      "clean": 0.99693236659096,
+      "changed": 0.07362626165427581,
+      "patch": [
+        0.9559080723209845,
+        0.7176603733164583,
+        0.0721174181832125,
+        0.0698104872775299
+      ]
+    }
+  },
+  "controls": {
+    "forward": {
+      "changed_token_positions": [
+        53
+      ],
+      "clean_expected": "B",
+      "counterfactual_expected": "A",
+      "self_patch": {
+        "all_vocab_exactly_equal": true,
+        "max_absolute_logit_difference": 0.0
+      },
+      "prefix_control": {
+        "all_vocab_exactly_equal": true,
+        "max_absolute_logit_difference": 0.0
+      }
+    },
+    "swapped": {
+      "changed_token_positions": [
+        53
+      ],
+      "clean_expected": "A",
+      "counterfactual_expected": "B",
+      "self_patch": {
+        "all_vocab_exactly_equal": true,
+        "max_absolute_logit_difference": 0.0
+      },
+      "prefix_control": {
+        "all_vocab_exactly_equal": true,
+        "max_absolute_logit_difference": 0.0
+      }
+    }
+  },
+  "source_manifest": {
+    "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/geometry_activation_pilot",
+    "fact_token_position": 53,
+    "changed_measurement": {
+      "source": "2.029",
+      "counterfactual": "1.029",
+      "unchanged_other": "1.248"
+    },
+    "synthetic": true,
+    "patch_layers_fixed_before_results": [
+      7,
+      15,
+      31,
+      47
+    ],
+    "controls": [
+      "same-corrupt-state self-patch at the fact token",
+      "unchanged-prefix patch at token 0",
+      "both answer-option orders"
+    ],
+    "scope": "Transmission of a reported numerical fact in one short comparison. Not XYZ computation, scientific validity, original DeepSeek mechanism or a chemistry neuron."
+  },
+  "schematic": "Residual-state replacement at one input token; boxes do not encode measured activation magnitudes."
+}

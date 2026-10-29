@@ -1,0 +1,508 @@
+[
+  {
+    "query": "LLM agent density functional theory materials simulation",
+    "source_urls": [
+      "https://arxiv.org/abs/2605.26179",
+      "https://www.nature.com/articles/s43246-026-01167-0",
+      "https://pubs.acs.org/doi/10.1021/acs.jpclett.6c00837"
+    ],
+    "notes": "Broad primary-source discovery; led to AutoDFT, GENIUS and AGAPI, all followed to full original reports.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "MatAgent Lv materials PWDFT",
+    "source_urls": [
+      "https://onlinelibrary.wiley.com/doi/full/10.1002/mgea.70013"
+    ],
+    "notes": "Resolved the baseline citation lead; concrete worked example is a finite water cluster, contrary to inference from materials terminology.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "DynaMate atomistic simulations agent",
+    "source_urls": [
+      "https://pubs.rsc.org/en/content/articlehtml/2025/me/d5me00062a",
+      "https://arxiv.org/abs/2512.10034",
+      "https://github.com/omendibleba/DynaMate"
+    ],
+    "notes": "Resolved two same-name, different-author systems. Guilbert system transferred; Mendible-Barreto system retained unresolved target audit.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "agent LAMMPS 2026 autonomous LLM",
+    "source_urls": [
+      "https://doi.org/10.1039/D5DD00435G",
+      "https://github.com/ANL-NST/LAMMPS-Agents",
+      "https://arxiv.org/abs/2607.22596"
+    ],
+    "notes": "Found LAMMPS-Agents and URSA; checked distinct identities and actual simulation scope.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "LLM autonomous agent atomistic simulation materials Quantum ESPRESSO 2025 2026",
+    "source_urls": [
+      "https://arxiv.org/abs/2603.03372",
+      "https://arxiv.org/abs/2512.06404",
+      "https://arxiv.org/abs/2602.17886"
+    ],
+    "notes": "Expanded QE agents rather than treating one engine as one system.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "LLM materials simulation agent MatPilot MatAgent VASP JARVIS 2024 2025 2026",
+    "source_urls": [
+      "https://arxiv.org/abs/2411.08063",
+      "https://arxiv.org/html/2512.11935v1",
+      "https://arxiv.org/html/2512.19458v1"
+    ],
+    "notes": "Discovery followed to primary simulation papers; MatPilot remained incomplete.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "Generative Retrieval-Augmented Ontologic Graph quantum calculations agents",
+    "source_urls": [
+      "https://arxiv.org/html/2411.15221v1"
+    ],
+    "notes": "Early-2024 citation lead handed to molecular researcher; hackathon primary report supplied LangSim evidence and additional adjacent-generation candidates.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "autonomous agent catalysis simulation 2026 LLM",
+    "source_urls": [
+      "https://arxiv.org/html/2601.13508v3",
+      "https://arxiv.org/html/2603.01311v1",
+      "https://arxiv.org/pdf/2605.24265"
+    ],
+    "notes": "Separated catalyst-screening energetics, actual NEB/TS work and kinetic-Monte-Carlo morphology workflows.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "ChatMat arxiv; GENIUS Quantum ESPRESSO arxiv; LangSim atomistic simulation agent; SparksMatter arxiv",
+    "source_urls": [
+      "https://github.com/Xiaobu-USTC/ChatMat",
+      "https://arxiv.org/html/2512.06404v1",
+      "https://www.mpie.de/5063016/LangSim",
+      "https://arxiv.org/html/2508.02956v1"
+    ],
+    "notes": "Targeted identity resolution and primary-text follow-up after broad discovery.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "QUASAR Yang Evans materials agent; AGAPI-Agents arxiv; DynaMate leveraging 2025",
+    "source_urls": [
+      "https://arxiv.org/html/2602.00185v1",
+      "https://arxiv.org/html/2512.11935v1",
+      "https://scholarworks.merrimack.edu/cs_facpub/39/"
+    ],
+    "notes": "Version/family/date checks; preserved actual water MD cross-domain coverage for QUASAR.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "Multi-agentic AI framework end-to-end atomistic arxiv; Agentic Framework Autonomous Materials Computation Xia; El Agente Sólido",
+    "source_urls": [
+      "https://www.alcf.anl.gov/publications/multi-agentic-ai-framework-end-end-atomistic-simulations",
+      "https://arxiv.org/html/2512.19458v1",
+      "https://arxiv.org/html/2602.17886v1"
+    ],
+    "notes": "Primary provenance and deduplication. VASP Agent/AgenticDFT is separate from VASPilot.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "Shen Qian agentic X-ray Photoelectron ChemRxiv; LLM topological agent DFT Zhang2025; atomistic agent September2026",
+    "source_urls": [
+      "https://qiangrouppage.lbl.gov/research",
+      "https://arxiv.org/html/2507.04053v1",
+      "https://www.nature.com/articles/s42256-026-01298-6",
+      "https://pmc.ncbi.nlm.nih.gov/articles/PMC13684298/"
+    ],
+    "notes": "Late-window check added TopoMAS and MLP Copilot; MatBrain and ISAAC left transparent unresolved entries.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "Citation chain: Science Done on a Machine by a Machine Table1 and references",
+    "source_urls": [
+      "https://arxiv.org/html/2608.18508v1",
+      "https://arxiv.org/html/2509.21647v1",
+      "https://arxiv.org/pdf/2603.29152",
+      "https://arxiv.org/html/2604.02688v1",
+      "https://arxiv.org/html/2605.14527v1",
+      "https://arxiv.org/html/2605.30889v1"
+    ],
+    "notes": "Survey used only as candidate inventory; tasks recoded from original papers. This contributed AMLP, SimMOF, MatClaw, Lang2MLIP and MLIPilot, among others.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "Citation chain: QUASAR reference3 and LangSim hackathon project report",
+    "source_urls": [
+      "https://arxiv.org/html/2504.14110v1",
+      "https://arxiv.org/html/2411.15221v1"
+    ],
+    "notes": "Read original MOFGen report; retained a borderline exclusion because LLM formula generation followed by fixed quantum validation does not by itself demonstrate LLM control of atomistic computation.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "LLM agent quantum chemistry molecular simulation autonomous computational chemistry 2025 2026; agent quantum chemistry large language",
+    "source_urls": [
+      "https://arxiv.org/abs/2505.02484",
+      "https://openreview.net/pdf?id=ATEtqdGn6W",
+      "https://arxiv.org/html/2608.18508v1"
+    ],
+    "notes": "Broad discovery; identified AutoSolvate-Agent and a perspective citation chain. Existing baseline systems were deduplicated.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "LLM quantum chemistry agent; computational chemistry agent Gaussian; transition state LLM agent chemistry",
+    "source_urls": [
+      "https://www.nature.com/articles/s41524-026-02301-9",
+      "https://arxiv.org/abs/2609.08503",
+      "https://arxiv.org/html/2608.18508v1"
+    ],
+    "notes": "Transition-state discovery searches mainly returned baseline Evolving TS, ARCHE and benchmark-only TSBench; no duplicate record added.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "Citation chaining from Science Done on a Machine by a Machine, Table 1 and references",
+    "source_urls": [
+      "https://arxiv.org/html/2608.18508v1",
+      "https://arxiv.org/html/2602.17902v1",
+      "https://arxiv.org/html/2606.20729v1",
+      "https://arxiv.org/html/2603.25522v1",
+      "https://arxiv.org/html/2601.10194v1"
+    ],
+    "notes": "Perspective served as discovery index, not sufficient task evidence. Original reports checked for Gráfico, LADeQ, OpenClaw and the reduced-model tensor-network agent.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "AutoSolvate-Agent; AutoSolvate-Agent Table; AutoSolvate-Agent geometry optimization; AutoSolvate-Agent water",
+    "source_urls": [
+      "https://openreview.net/pdf?id=ATEtqdGn6W",
+      "https://openreview.net/pdf/395d4c9eda83111a078ba05d86adcf84ec77e4aa.pdf",
+      "https://www.linkedin.com/in/fren5"
+    ],
+    "notes": "Inspected original indexed paper Sections 4.1–4.2 and benchmark Table 1. Direct opening returned OpenReview browser challenge. Earlier date from author publication list is explicitly qualified.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "Unlocking azobenzene isomerization mechanisms LLM agent ChemAgents",
+    "source_urls": [
+      "https://pubs.rsc.org/en/content/articlehtml/2026/sc/d5sc08794e",
+      "https://doi.org/10.26434/chemrxiv-2025-4kh1r",
+      "https://pmc.ncbi.nlm.nih.gov/articles/PMC13034178/"
+    ],
+    "notes": "Original journal text confirms agent-directed ground-state AIMD and DFT spectra, and explicitly limits excited-state mechanistic interpretation. Preprint used for first date.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "Q-planner quantum chemistry harness; Q-planner Ruiqi Zhang; Chelatron Summers Ward; VirtualLab_CC Kieninger ChemRxiv",
+    "source_urls": [
+      "https://www.molsci.jp/2026/present_1.html",
+      "https://science.osti.gov/-/media/About/pdf/scac/meetings/2026/lab-contributions-to-GM-03-24-2026v2.pdf",
+      "https://www.sciencedirect.com/science/article/pii/S2949747726000230",
+      "https://github.com/CCBG-Lab/VirtualLab_CC"
+    ],
+    "notes": "Resolved VirtualLab_CC journal/software identity and an official Chelatron project demonstration. Q-planner original paper remained unresolved.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "Molecular Simulations Assisted by an Artificial Intelligence Agent ArIA; ArIA ORCA Chanmungkalakul; ArIA TDDFT water",
+    "source_urls": [
+      "https://doi.org/10.26434/chemrxiv.15002344/v1",
+      "https://pollicegroup.web.rug.nl/publications-preprints.html"
+    ],
+    "notes": "Original abstract and version history establish ArIA; individual task detail limited by direct full-text access. Different ARIA acronym systems excluded.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "LARA autonomous quantum chemistry; LARA atomization research assistant HPC",
+    "source_urls": [
+      "https://arxiv.org/html/2604.22571v1",
+      "https://journals.aps.org/prxintelligence/accepted/10.1103/cp6v-t93q"
+    ],
+    "notes": "Primary v1 inspected. Native dry-runs and repair are demonstrated, but production SCF completion was not verified; retained unresolved.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "Generative Retrieval-Augmented Ontologic Graph multi-agent DFT",
+    "source_urls": [
+      "https://pubs.acs.org/doi/abs/10.1021/acsengineeringau.3c00058",
+      "https://arxiv.org/abs/2310.19998"
+    ],
+    "notes": "Original publisher Section 2.3.1 Table 8 positively confirms finite-molecule DFT invocation, revealing a 2023 predecessor omitted by the baseline and the later 49-system perspective.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "LLM NWChem agent chemistry; LLM-driven ORCA agent 2024; recent reaction-mechanism agent searches",
+    "source_urls": [
+      "https://www.nature.com/articles/s42004-025-01776-9",
+      "https://arxiv.org/abs/2602.04850",
+      "https://arxiv.org/abs/2609.08503"
+    ],
+    "notes": "Broader backend/timeframe searches mostly recurred to existing baseline and newly captured systems; commercial tool catalogs without a concrete executed demonstration were not counted.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "Protomia official capabilities and usage examples; AutoSolvateWeb original implementation",
+    "source_urls": [
+      "https://aitomistic.com/protomia/docs/research-workflow",
+      "https://aitomistic.com/protomia/docs/capabilities",
+      "https://pubs.rsc.org/en/content/articlehtml/2025/sc/d4sc08677e"
+    ],
+    "notes": "Counted the Protomia reaction-energy demonstration conservatively. Original AutoSolvateWeb source restricts LLM use to fallback conversation and is excluded under the computational decision-loop criterion.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"Polymer-Agent\" LLM MCP paper",
+    "source_urls": [
+      "https://pmc.ncbi.nlm.nih.gov/articles/PMC13169346/",
+      "https://arxiv.org/abs/2601.16376"
+    ],
+    "notes": "Original tool table contains model generation/prediction and RDKit; explicit future-work MD establishes exclusion without confusing it with PolyJarvis.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"ToPolyAgent\"",
+    "source_urls": [
+      "https://arxiv.org/abs/2510.12091",
+      "https://pubs.rsc.org/en/content/articlelanding/2026/dd/d5dd00471c"
+    ],
+    "notes": "Resolved the previously blocked ScienceDirect lead via primary arXiv and RSC identity; journal/preprint deduplicated.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"DynaMate\" molecular simulation agent",
+    "source_urls": [
+      "https://arxiv.org/abs/2512.10034",
+      "https://pubs.rsc.org/en/content/articlehtml/2025/me/d5me00062a"
+    ],
+    "notes": "Two unrelated same-name systems discovered; biomolecular one screened here, LAMMPS one delegated.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"Multi-agentic AI framework for end-to-end atomistic simulations\"",
+    "source_urls": [
+      "https://pubs.rsc.org/en/content/articlelanding/2025/dd/d5dd00435g",
+      "https://github.com/ANL-NST/LAMMPS-Agents"
+    ],
+    "notes": "Resolved exact primary report, first-published date and materials target. Delegated record to materials file.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "LLM agent molecular dynamics polymer biomolecular autonomous simulation",
+    "source_urls": [
+      "https://arxiv.org/abs/2608.06694",
+      "https://arxiv.org/abs/2512.10034"
+    ],
+    "notes": "Broad search independently located CGMas and biomolecular DynaMate.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"LLM\" \"molecular dynamics\" agent \"2023\"",
+    "source_urls": [
+      "https://arxiv.org/html/2608.18508v1"
+    ],
+    "notes": "No eligible 2023 soft-matter report established; absence of a hit is not proof of absence.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"LLM\" \"molecular dynamics\" \"agent\" NAMD",
+    "source_urls": [
+      "https://arxiv.org/html/2507.07887v1"
+    ],
+    "notes": "NAMD-Agent primary retrieved, with explicit solvent/membrane examples and actual trajectory analysis.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"molecular dynamics\" \"agent\" LLM polymer GROMACS automation -site:reddit.com -site:wikipedia.org",
+    "source_urls": [
+      "https://github.com/virtualramblas/gromacs_smolagent",
+      "https://lunyang.github.io/agents/md-agent/"
+    ],
+    "notes": "Official interface/project leads retained as unresolved where executed examples/date were not established.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"AutoSolvateWeb\" chatbot LLM",
+    "source_urls": [
+      "https://chemrxiv.org/engage/api-gateway/chemrxiv/assets/orp/resource/item/676ccfbe6dde43c90857c4b5/original/main_v23_chemrxiv.pdf"
+    ],
+    "notes": "Read original §§2.2–2.3 rather than using news alone. LLM is a conversational fallback; scientific workflow remains intent-driven.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"molecular dynamics\" \"LLM\" \"agent\" electrolyte",
+    "source_urls": [
+      "https://openreview.net/pdf?id=MEXl18VhBL",
+      "https://arxiv.org/html/2606.09422v1"
+    ],
+    "notes": "Electrolyte discovery lead not counted without full primary screening; Paimon full text supports a separate inclusion.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"LLM\" \"molecular dynamics\" \"Paimon\"",
+    "source_urls": [
+      "https://arxiv.org/html/2606.09422v1"
+    ],
+    "notes": "Read executed liquid MD section and solid-electrolyte extension; separated precomputed gated evaluation from actual simulations.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"MDAgent\" \"Ma\" \"2026\"",
+    "source_urls": [
+      "https://arxiv.org/abs/2604.18622",
+      "https://arxiv.org/pdf/2604.18622"
+    ],
+    "notes": "Distinct biomolecular MDAgent, not the baseline 2025 LAMMPS materials framework.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"molecular dynamics\" \"LLM agent\" \"2024\" -site:reddit.com -site:wikipedia.org",
+    "source_urls": [
+      "https://arxiv.org/abs/2402.04268",
+      "https://www.nature.com/articles/s41524-024-01449-6"
+    ],
+    "notes": "Earlier soft-matter search: ProtAgents performs actual ANM vibrations; Reinhart/Statt optimizer uses an RNN surrogate rather than new agent-run MD.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "Citation chain: DynaMate introduction and bibliography → NAMD-Agent; survey 2608.18508 Table1 → MDAgent, Paimon, CGMas, ProtAgents",
+    "source_urls": [
+      "https://arxiv.org/html/2512.10034v1",
+      "https://arxiv.org/html/2608.18508v1"
+    ],
+    "notes": "Survey used only for discovery. Every included task was checked against its system's original article; survey capability assertions were not copied as demonstration evidence.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"DynAgent\" \"simbiochem\" 2025; \"DynAgent\" \"NkLAjIzwei\"",
+    "source_urls": [
+      "https://openreview.net/pdf?id=NkLAjIzwei",
+      "https://arxiv.org/html/2512.10034v1"
+    ],
+    "notes": "Renamed workshop counterpart deduplicated by matching authors and architecture. Earlier exact posting date remains unresolved.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"ProtAgents\" molecular dynamics protein multi-agent; \"ProtAgents\" \"2024-01-27\"",
+    "source_urls": [
+      "https://arxiv.org/abs/2402.04268",
+      "https://arxiv.org/html/2402.04268v1",
+      "https://pmc.ncbi.nlm.nih.gov/articles/PMC11235180/"
+    ],
+    "notes": "Verified Jan27 submission history and original ProDy ANM method. Did not mistake the neural mechanical-property predictor's historical training MD for live MD.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"MEXl18VhBL\" title; \"electrolyte agent\" \"ICLR 2026\" -site:openreview.net; \"electrolyte agent\" \"large language\"",
+    "source_urls": [
+      "https://openreview.net/pdf?id=MEXl18VhBL",
+      "https://openreview.net/pdf/837f62f17b0f4210dbc1260e813b7fd1ebabd467.pdf"
+    ],
+    "notes": "Original PDF search index suggests eligibility but direct primary access challenged; explicitly unresolved rather than classified by snippets.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"agent\" \"LLM\" \"molecular dynamics\" protein simulation -site:reddit.com -site:wikipedia.org -MDCrow -DynaMate -NAMD -MDForge -MDAgent -Paimon -PolyJarvis",
+    "source_urls": [
+      "https://arxiv.org/abs/2610.27230",
+      "https://arxiv.org/abs/2402.04268"
+    ],
+    "notes": "Broader minus-seed query; Magnolia transferred to root researcher, ProtAgents screened here.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"LLM\" \"molecular dynamics\" \"polymer\" agent -PolyJarvis -ToPolyAgent -CGMas -site:reddit.com; \"LLM\" \"molecular dynamics\" \"interface\" agent 2023 2024",
+    "source_urls": [
+      "https://www.nature.com/articles/s41524-024-01449-6",
+      "https://www.nature.com/articles/s41597-026-08045-x"
+    ],
+    "notes": "Discovered surrogate optimizer and text-mined polymer-MD dataset; neither establishes an additional executed agentic simulation system.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"Claude\" \"evolutionary\" \"macromolecular self-assembly\"; \"LLM\" \"monomer sequences\" \"morphologies\"",
+    "source_urls": [
+      "https://www.nature.com/articles/s41524-024-01449-6",
+      "https://chemrxiv.org/engage/api-gateway/chemrxiv/assets/orp/resource/item/66d09665f3f4b05290834530/original/main.pdf"
+    ],
+    "notes": "Primary text explicitly excludes end-to-end MD validation from optimizer study; surrogate-only exclusion entered.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "\"AIonopedia\" \"molecular dynamics\"; \"AIonopedia\" arxiv",
+    "source_urls": [
+      "https://arxiv.org/abs/2511.11257",
+      "https://huggingface.co/AIonopedia/AIonopedia"
+    ],
+    "notes": "Primary abstract/model description concern property prediction, screening and wet validation; retained adjacent because full workflow screening was incomplete.",
+    "search_stream": "md_soft"
+  },
+  {
+    "query": "LLM agent quantum chemistry automation simulation survey",
+    "source_urls": [
+      "https://arxiv.org/html/2608.18508v1"
+    ],
+    "notes": "Broad discovery followed by original-report checks; review used as citation-chain map only.",
+    "search_stream": "root"
+  },
+  {
+    "query": "LLM agents atomistic simulations review",
+    "source_urls": [
+      "https://arxiv.org/html/2608.18508v1"
+    ],
+    "notes": "49-system Table 1 distributed across three independent domain searches.",
+    "search_stream": "root"
+  },
+  {
+    "query": "ChemAgent quantum simulations agent; chemistry agent DFT autonomous 2024 2025 2026",
+    "source_urls": [
+      "https://arxiv.org/html/2610.27230v1",
+      "https://arxiv.org/html/2609.39302v1"
+    ],
+    "notes": "Late-2026 systems missed by earlier survey cutoff.",
+    "search_stream": "root"
+  },
+  {
+    "query": "CASCADE agent computational chemistry 2026; CASCADE Ceder self-evolving agent chemistry materials arxiv",
+    "source_urls": [
+      "https://arxiv.org/html/2512.23880v1"
+    ],
+    "notes": "Inspected actual MLIP structural-relaxation and voltage case; did not infer molecular demonstration from benchmark task wording.",
+    "search_stream": "root"
+  },
+  {
+    "query": "Mimosa agent molecular simulation; Mimosa computational chemistry agent",
+    "source_urls": [
+      "https://arxiv.org/html/2603.28986v1"
+    ],
+    "notes": "Screened as adjacent general data-science infrastructure pending atomistic-case proof.",
+    "search_stream": "root"
+  },
+  {
+    "query": "LLM agent computational chemistry October 2026; agent quantum chemistry September 2026",
+    "source_urls": [
+      "https://arxiv.org/html/2610.27230v1",
+      "https://arxiv.org/html/2609.39302v1"
+    ],
+    "notes": "Cutoff checked against original arXiv front matter.",
+    "search_stream": "root"
+  },
+  {
+    "query": "Citation chaining: FermiLink, AtomisticSkills, CatGo",
+    "source_urls": [
+      "https://arxiv.org/html/2604.03460v1",
+      "https://arxiv.org/html/2605.24002v1",
+      "https://doi.org/10.1039/d6dd00273k"
+    ],
+    "notes": "Checked results and case tables; CatGo original paper access unresolved, retained transparently outside denominator.",
+    "search_stream": "root"
+  },
+  {
+    "query": "CatGo Liu Ma Zhang Pascasio 2026 github paper; CatGo Hello github; CatGo formic NEB; CatGo 2026-05-11",
+    "source_urls": [
+      "https://github.com/Hello-QM/catgo-LRG",
+      "https://github.com/cp2k/cp2k/discussions/5221",
+      "https://chemrxiv.org/doi/abs/10.26434/chemrxiv.15002984/v1"
+    ],
+    "notes": "Official implementation evidence found; original paper unavailable through inspected endpoints.",
+    "search_stream": "root"
+  }
+]

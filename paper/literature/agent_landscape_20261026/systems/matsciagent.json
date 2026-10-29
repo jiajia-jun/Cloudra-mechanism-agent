@@ -1,0 +1,32 @@
+{
+  "id": "matsciagent",
+  "name": "MatSciAgent",
+  "first_public_date": "2026-03-26",
+  "physical_target": "extended_materials_surfaces",
+  "demonstrated_target": "Al and NiAl crystal MD; auxiliary continuum tasks",
+  "boundary_conditions": "FCC and CIF-derived crystalline models; explicit PBC not independently audited",
+  "demonstrated_tasks": [
+    "T",
+    "D"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "D": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://www.nature.com/articles/s43246-025-00994-x",
+      "locator": "Molecular dynamics Case 1; Joint Implementation; Figs.11–12",
+      "evidence_paraphrase": "Executes Al NVE MD and CIF-generated NiAl NVT MD; continuum-only examples do not determine inclusion."
+    }
+  ],
+  "family": "MatSciAgent",
+  "aliases": [],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

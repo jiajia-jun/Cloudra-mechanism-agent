@@ -1,0 +1,173 @@
+## 2 系统设计与方法
+
+### 2.1 系统全貌与职责划分
+Cloudra 将反应物结构、反应条件、目标物种或机理问题以及计算方法需求作为输入。系统在交付证据图中形式化表示候选基元反应步骤，生成三维分子构型，分发量子化学计算任务，并将返回的几何结构、单点能量、振动频率及反应路径绑定至对应的物种节点或步骤边。该图记录已提议与已验证的化学对象，以及当前待满足的计算要求。
+
+系统的多智能体角色按职责划分协作。协调智能体负责构思机理假说、提出候选基元反应步，并维护探索分支。计算智能体负责执行具体的基元反应步，调用几何算子构建三维构型并调度底层量子化学计算。当底层计算遭遇几何发散、鞍点优化失败或产物漂移等阻碍时，计算智能体结合结构化诊断反馈，评估当前反应步是否合理；若认为当前步骤难以走通，则向协调智能体反馈诊断信息，交由协调智能体调整机理假设或切换分支。督导智能体独立对照任务要求审阅交付图及提交的证据，其审阅意见与计算产物解析出的事实分别保存。
+
+#### 2.1.1 异步计算调度与资源管理
+计算调度底座通过中央计算账本数据库（`ComputeDB`）对作业全生命周期实施状态化管理。系统在本地多进程、远程 SSH 集群及 Slurm 超算节点之间建立独立的容量池，依据预设的硬件并发配额实施排队，防止跨节点溢出。在分发作业前，调度器基于分子的三维坐标、自旋电荷以及量化方法指令生成不可变的 SHA-256 内容哈希；对于已完成或处于运行态的相同作业复用其计算产物，实现任务提交的去重。底层进程的状态通过操作系统的文件排他锁（`flock`）进行跟踪，在监控与异常处理链路中不终止持有排他锁的底层量子化学进程。计算智能体与调度底座之间采用事件驱动方式交互，作业结束时由调度器派发通知，智能体异步读取计算产物，避免同步轮询。
+
+### 2.2 分子表征与几何算子
+系统中的三维分子输入由属性图 $H=(A,B)$ 以及 Cartesian 坐标矩阵 $\mathbf{X}\in\mathbb{R}^{n\times 3}$ 共同表征。其中 $A$ 为原子集合，$B$ 为化学键集合，$\mathbf{X}$ 的每一行对应一个原子的空间三维坐标。原子与化学键的属性编码其固有化学身份；坐标算子更新 $\mathbf{X}$ 并返回测得的几何变化量；涉及原子替换或官能团修饰的算子同步更新拓扑图 $H$。
+
+#### 2.2.1 原子对应关系与反应中心感知
+原子属性显式保留元素种类、同位素标号、形式电荷、显式氢数、自由基电子数以及声明的手性立体构型；化学键属性保留键级与顺反立体构型。缺失三维坐标的分子组分由 ETKDGv3 算法生成初始三维构象 [6,7]，多组分体系分别构建后执行空间对接，已有坐标予以保留。两端均具有完整且唯一的原子映射标号时，直接依据标号确定对应关系（要求两端元素与同位素严格一致）。未提供标号时，设产物与反应物的重原子集合分别为 $A_{\mathrm{P}}$ 与 $A_{\mathrm{R}}$，在保持元素与同位素守恒的候选双射 $\pi:A_{\mathrm{P}}\to A_{\mathrm{R}}$（满足 $z_i^{\mathrm{P}}=z_{\pi(i)}^{\mathrm{R}}$ 且 $\iota_i^{\mathrm{P}}=\iota_{\pi(i)}^{\mathrm{R}}$）中进行搜索，并依据如下目标函数对候选映射进行打分：
+
+$$
+J(\pi)=2(N_{\mathrm{f}}+N_{\mathrm{b}})+N_{\mathrm{o}}+4\Delta_H+8\Delta_q+8\Delta_r+2N_{\mathrm{s}}.
+$$
+
+令 $B_{\mathrm{P}}^\pi$ 表示以反应物原子编号表示的产物化学键集合。成键与断键分别是集合差 $B_{\mathrm{P}}^\pi\setminus B_{\mathrm{R}}$ 与 $B_{\mathrm{R}}\setminus B_{\mathrm{P}}^\pi$，对应基数分别为 $N_{\mathrm{f}}$ 与 $N_{\mathrm{b}}$。$N_{\mathrm{o}}$ 统计 $B_{\mathrm{P}}^\pi\cap B_{\mathrm{R}}$ 中键级改变的键对数。对于 $a\in\{H,q,r\}$，环境差量定义为 $\Delta_a=\sum_{i\in A_{\mathrm{P}}}|a_i^{\mathrm{P}}-a_{\pi(i)}^{\mathrm{R}}|$，分别度量原子显式氢数、形式电荷与未配对电子数的变化。$N_{\mathrm{s}}$ 统计立体化学环境的不一致数：单一声明的四面体中心不匹配增加惩罚 2；当两端对应原子均声明立体标签时，算法要求其具备四个匹配邻居（含必要氢原子），并在比较标签前校正邻居排序的置换奇偶性；非可比的立体环境不计入惩罚。
+
+对于各元素同位素等价类（大小记为 $n_g$），全排列空间大小为 $N_\Pi=\prod_g n_g!$。当 $N_\Pi\le 10^5$ 时，算法遍历全部双射；超过该阈值时，以最大公共子图（MCS）作为种子扩展映射，要求元素严格匹配、放开键级限制并强制保留完整环结构 [7]。MCS 搜索超时时间为 10 秒，每个端点最多贡献 64 个子图匹配。未匹配原子按氢数、连接度及输入序号在同类原子中排序配对。算法合并具有相同编辑事实和得分的映射，保留字典序最小的代表；候选按得分与映射序列升序排序，前 16 个代表构成重原子候选集 $C$。对于非空集合 $C$，定义最优得分 $J_{\min}=\min_{\pi\in C}J(\pi)$ 以及容差集合 $\mathcal{N}=\{\pi\in C:J(\pi)\le J_{\min}+2\}$。当 $|\mathcal{N}|=1$ 时映射确定为唯一最优；$|\mathcal{N}|>1$ 时标记为歧义候选；$C=\emptyset$ 时判定为无解。
+
+保留的重原子候选映射进一步扩展至全原子对应关系。系统优先保留端点已有的显式氢标号，剩余同位素氢原子在对应的重原子上进行同位素分组配对。未匹配氢原子组（大小为 $h_g$）的置换空间 $N_H=\prod_g h_g!$ 在 $N_H<257$ 时执行完全枚举；超出该范围时若缺乏相容的显式氢标签则判定为排列爆炸。全原子映射经过去重、排序，并依据相同的 $+2$ 容差规则评估歧义性。选定的全原子双射将产物原子重新排列至与反应物严格对齐的原子序号顺序。反应映射输出的成键与断键原子对构成反应中心监控集合，用于后续内禀坐标与路径插值监测；键级改变记录于变换后的拓扑图中。
+
+#### 2.2.2 结构测量与刚体变换算子
+空间几何感知将三维坐标转换为键长、键角、二面角、环构象以及空间近邻接触。对于坐标 $\mathbf{x}_i$，原子间距为 $d_{ij}=\|\mathbf{x}_j-\mathbf{x}_i\|$；以原子 $j$ 为顶点的键角由两条成键单位向量的内积反余弦求得。测量所得键长与参考标准共价半径及范德华接触距离的对比构成几何畸变诊断，同时分子拓扑图维持既定化学身份。纯坐标输入在系统入口处完成成键拓扑感知；后续局部坐标变换沿用该拓扑骨架，并在变换前后测量几何异常。
+
+对于非环单键两侧的分子片段选择，系统通过图连通性自动解析：临时切断指定键 $a-b$，选取包含原子 $b$ 的连通子图 $\mathcal{F}_b$。若切除该键后两端依然连通（处于环体系内部），则要求显式传入移动原子列表。记移动原子集合为 $\mathcal{F}$（由显式指定或切键提取的 $\mathcal{F}_b$ 构成）。将移动片段绕指定空间轴旋转时，对集合内所有原子 $i\in\mathcal{F}$ 应用 Rodrigues 旋转公式：
+
+$$
+\mathbf{x}_i'=\mathbf{a}+\mathbf{R}(\hat{\mathbf{u}},\theta)(\mathbf{x}_i-\mathbf{a}),\qquad\mathbf{R}=\cos\theta\,\mathbf{I}+(1-\cos\theta)\hat{\mathbf{u}}\hat{\mathbf{u}}^{\mathsf{T}}+\sin\theta\,[\hat{\mathbf{u}}]_\times.
+$$
+
+式中 $\mathbf{a}$ 为旋转轴上基准点，$\hat{\mathbf{u}}$ 为轴的单位方向向量，$\theta$ 为旋转角度，$\mathbf{I}$ 为三阶单位矩阵，$[\hat{\mathbf{u}}]_\times\mathbf{v}=\hat{\mathbf{u}}\times\mathbf{v}$ 为反对称叉乘算子。移动片段之外的原子坐标保持不变。沿指定键 $a-b$ 伸缩距离时，将片段 $\mathcal{F}_b$ 整体平移：
+
+$$
+\mathbf{x}_i'=\mathbf{x}_i+(L-d_{ab})\frac{\mathbf{x}_b-\mathbf{x}_a}{d_{ab}},\qquad i\in\mathcal{F}_b.
+$$
+
+式中 $L$ 为目标平衡键长。手性反转算子通过围绕立体中心协同旋转两个可分离分支以调换空间取向。基团取代算子切除指定侧片段，将携带对接位点的新官能团沿原始成键方向组装，并同步更新拓扑图。在量子化学优化前后对比结构时，系统在一致的元素序列下对基于截断半径感知的连接集合进行差分，解析内部键联与片段间接触的产生与断裂。
+
+#### 2.2.3 分支拥挤描述符与反应物预组织
+对于通过了杂化轨道、非环结构及取代基拓扑不等价性筛查的候选旋转轴，系统采用基于图深度指数衰减的分支拥挤描述符提取局部空间位阻特征：
+
+$$
+B_s=\sum_{k\in T_s} c_k r_k \rho^{\ell_k},\qquad\rho=0.5,\quad 0\le \ell_k\le 5.
+$$
+
+式中 $r_k$ 为原子 $k$ 的范德华半径，用于衡量各原子的固有空间占位。遍历树 $T_s$ 通过后进先出（LIFO）深度优先遍历生成，以取代基根原子为深度 0 起点，并将旋转轴另一端原子预先标记为已访问。弹出未访问原子时记录其搜索深度 $\ell_k$，并在 $\ell_k<5$ 时将其未访问邻居按拓扑顺序压栈。权重系数 $c_k$ 在根原子图连接度大于等于 3 时取 1.5，其余原子取 1.0。
+
+该描述符采用标准范德华半径标度（Å）：H 1.20, B 1.92, C 1.70, N 1.55, O 1.52, F 1.47, P 1.80, S 1.80, Cl 1.75, Br 1.85, I 1.98（未列出元素统一采用 1.70）。将旋转轴两侧四个取代基分支计算得出的 $B_s$ 值四舍五入保留三位小数并求和，累积位阻得分达到 $B_s\ge 9.0$ 时，该键被标记为拥挤轴，供后续构象探查参考。
+
+在多组分反应物预组织中，主反应组分固定于坐标原点，其余反应物分子绕各自质心在三维空间中进行取向采样。在 $K$ 个采样点下，第 $s$ 个采样方向为：
+
+$$
+\hat{\mathbf{u}}_s=(a_s\cos s\gamma,\,y_s,\,a_s\sin s\gamma),\quad a_s=\sqrt{1-y_s^2},\quad y_s=1-\frac{2s}{K-1},\quad\gamma=\pi(3-\sqrt{5}).
+$$
+
+其中参数 $\gamma=\pi(3-\sqrt{5})\approx 2.3999\text{ rad}$（约为 $137.5^\circ$）为黄金角，对应斐波那契球面螺旋分布；绕 $\hat{\mathbf{u}}_s$ 轴的自旋角取 $2\pi s/K$（默认采样 $K=32$）。沿组分质心向量平移以消除原子重叠冲突。对于显式指定的引导原子对集合 $W$ 及其目标距离窗口 $[l_{ij},u_{ij}]$，构型 $\mathbf{X}$ 的违背惩罚评分为：
+
+$$
+S(\mathbf{X})=\max_{(i,j)\in W}\{0,\,l_{ij}-d_{ij}(\mathbf{X}),\,d_{ij}(\mathbf{X})-u_{ij}\}.
+$$
+
+选出的低惩罚构型作为初始种子，在距离谐振子势能约束下进行受限 MMFF94 力场优化，引导分子片段松弛至目标距离窗口内。合格构型需满足力场收敛、距离落入窗口、立体构型守恒以及多组分接触连通性条件 $d_{i^*j^*}\le 1.7(r_{i^*}+r_{j^*})$。合格构型按无约束力场单点能排序，并采用 0.5 Å 的重原子 Kabsch RMSD 阈值聚类去重，生成预组织初始构型集合。
+
+#### 2.2.4 端点刚体对齐与 IDPP 路径插值
+在全原子拓扑对应确立后，两端构型平移至各自坐标原点。令 $\mathbf{P}$ 与 $\mathbf{R}$ 分别为中心化后的产物与反应物坐标矩阵，Kabsch 最小二乘刚体旋转求解如下正交变换：
+
+$$
+\min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\quad\mathbf{P}^{\mathsf{T}}\mathbf{R}=\mathbf{U}\mathbf{\Sigma}\mathbf{V}^{\mathsf{T}},\quad\mathbf{Q}=\mathbf{U}\operatorname{diag}[1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})]\mathbf{V}^{\mathsf{T}}.
+$$
+
+求得的 $\mathbf{Q}$ 即为消除整体平动与转动后的纯刚体旋转矩阵。公式中对角项引入行列式因子 $\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})$，使 $\det\mathbf{Q}=+1$，排除镜像反射并保持手性构型一致。
+
+对于包含端点在内的 $M$ 个路径插值镜像帧，定义进度参数 $\lambda_k=k/(M-1)$，并初始化线性内插坐标 $\mathbf{X}_k=(1-\lambda_k)\mathbf{R}+\lambda_k\mathbf{P}\mathbf{Q}$。基于图像的双原子势能（IDPP）算法 [2] 在内坐标距离空间中对原子对距离进行线性插值（$d_{ij,k}^*=(1-\lambda_k)d_{ij}^{\mathrm{R}}+\lambda_k d_{ij}^{\mathrm{P}}$），其目标泛函定义为：
+
+$$
+d_{ij,k}^*=(1-\lambda_k)d_{ij}^{\mathrm{R}}+\lambda_k d_{ij}^{\mathrm{P}},\qquad V_k=\sum_{i<j}\frac{(d_{ij,k}-d_{ij,k}^*)^2}{d_{ij,k}^4}.
+$$
+
+该泛函的分母引入距离负四次方权重 $d_{ij,k}^{-4}$，使短程成键区域具有较高的刚性恢复力，优先保持化学键尺度，同时允许长程非键相互作用松弛。标准模式将中间镜像帧通过改进切线法弹性带（NEB）弹簧耦合，并利用 MDMin 算法执行能量最小化，以移动原子受力的最大残差评估收敛性；轻量模式则将分母设定为 $\max(d_{ij,k}^*,0.1\,\text{Å})^4$，使用 Adam 优化器对各个中间镜像帧独立进行几何松弛。
+
+动态监控原子对集合 $W$ 自动提取反应映射中的成断键对、两端成键但键长变化 $|\Delta d|\ge 0.15$ Å 的键对，以及两端距离变化最大的前 5 对原子。在集合 $W$ 中，算法选取距离变化最大的主反应坐标 $p^*\in\operatorname{argmax}_{p\in W}|d_p^{\mathrm{P}}-d_p^{\mathrm{R}}|$，计算中点距离 $m=(d_{p^*}^{\mathrm{R}}+d_{p^*}^{\mathrm{P}})/2$。初始过渡态初猜选取首个跨越中点的镜像帧 $k$（满足 $(d_{p^*,k}-m)(d_{p^*}^{\mathrm{R}}-m)\le 0$），或与中点距离偏差最小的帧。提取出的三维构型直接作为后续一阶鞍点优化的输入种子。
+
+### 2.3 证据图谱与科学校验门禁
+
+#### 2.3.1 物种实体与阶段证据契约
+交付证据图定义为有向无环图 $G=(V,E)$，其中节点 $v\in V$ 代表化学物种的具体发生实体（Species Occurrence），有向边 $e=(v_i,v_j)\in E$ 代表基元反应转化步骤。映射函数 $\kappa:V\to\mathcal{S}$ 将每个发生实体映射至其规范化学身份，允许催化循环中初始催化剂与再生催化剂作为共享同一化学身份的独立拓扑节点存在。稳定点几何、振动频率与绝对能量绑定至物种节点；过渡态构型、虚频振动向量与反应路径绑定至反应步骤边。
+
+每个图元素承载声明式的阶段契约集合 $K$。基元反应步默认要求 $K=\{\text{ts\_opt}, \text{frequency}, \text{short\_irc}\}$ 阶段链，并可依据任务要求追加热力学校正。底层计算日志以内容哈希摘要的形式归档。解析事实表示为四元组 $f=(c,o,r,d)$，其中 $c$ 为检查项，$o\in\{+,-,?\}$ 分别代表支持、矛盾或未定，$r$ 为溯源引用索引，$d$ 记录提取出的数值度量。
+
+对于声明了显式必需事实检查 $R$ 和可选检查 $O$ 的任务，针对目标实体 $t$ 关联事实集合 $F_t$ 的科学证据通过判据定义为：
+
+$$
+S_t=\mathbf{1}[R\ne\emptyset]\wedge \bigwedge_{c\in R}\mathbf{1}[\exists f\in F_t:f.c=c,\, f.o=+]\wedge \mathbf{1}[\nexists f\in F_t:f.c\in R\cup O,\, f.o=-].
+$$
+
+当 $R\ne\emptyset$ 时，任何必需项缺失或存在矛盾项均使 $S_t$ 判定为假；当 $R=\emptyset$ 时，事实层检查跳过，证据审查由阶段链验收完成。
+
+#### 2.3.2 势能面曲率与简正振动模式对齐诊断
+驻点的物理曲率性质由质量加权黑塞矩阵（Hessian）决定：
+
+$$
+\mathbf{H}_{\mathrm{mw}}=\mathbf{M}^{-1/2}\nabla_{\mathbf{x}}^2 U\,\mathbf{M}^{-1/2},\qquad\mathbf{H}_{\mathrm{mw}}\mathbf{v}_k=\lambda_k\mathbf{v}_k.
+$$
+
+在消除平动与转动自由度的振动子空间内，负本征值 $\lambda_k<0$ 对应虚频 $\nu_k<0$。虚频总数统计为 $n_{\mathrm{imag}}=\sum_k \mathbf{1}[\nu_k<0]$。基态反应中间体要求 $n_{\mathrm{imag}}=0$；一阶鞍点要求 $n_{\mathrm{imag}}=1$。
+
+溯源校验机制核验振动频率计算的初始几何构型与鞍点优化收敛构型是否一致。对于中心化后的坐标矩阵 $\mathbf{X}$ 与 $\mathbf{Y}$，几何匹配要求满足 $\delta_\pi(\mathbf{X},\mathbf{Y})=\max_i\|\mathbf{Y}_{\pi(i)}\mathbf{Q}_\pi-\mathbf{X}_i\|\le 3\times 10^{-6}\text{ Å}$，该式遍历所有元素守恒的原子置换映射 $\pi$ 与最佳 Kabsch 旋转矩阵 $\mathbf{Q}_\pi$ 进行判定。
+
+对于满足一阶鞍点且具有唯一虚频位移向量 $\mathbf{u}$ 的过渡态，振动模式对齐诊断计算虚频向量在监控反应中心对 $W$ 上的投影位移占比：
+
+$$
+\eta=\frac{\max_{(i,j)\in W}\|\mathbf{u}_i-\mathbf{u}_j\|}{\max_{i<j}\|\mathbf{u}_i-\mathbf{u}_j\|}.
+$$
+
+对齐度度量 $\eta\in[0,1]$ 用于在启动 IRC 积分前，检查虚频简正模是否主要落在设定的反应活性坐标上，以识别甲基面外晃动或溶剂扰动等模式。
+
+#### 2.3.3 内禀反应坐标（IRC）方向与端点一致性
+内禀反应坐标（IRC）是在质量加权坐标 $\mathbf{q}=\mathbf{M}^{1/2}\mathbf{x}$ 下从过渡态出发的最陡下降路径 [3,4]：
+
+$$
+\frac{\mathrm{d}\mathbf{q}_{\pm}}{\mathrm{d}s}=-\frac{\nabla_{\mathbf{q}}U}{\|\nabla_{\mathbf{q}}U\|},\qquad\mathbf{q}_{\mathrm{init},\pm}\approx\mathbf{q}_{\mathrm{TS}}\pm\epsilon\mathbf{v}_-.
+$$
+
+系统检查 IRC 积分起始帧与过渡态几何的一致性，并分别提取正反两个积分方向上的最外侧末端帧。对于闭环反应基元步，以两侧最外侧末端帧作为初始坐标分别进行无约束几何优化，核验优化收敛构型具备零虚频（$n_{\mathrm{imag}}=0$），且化学结构与声明的反应物和产物在分子拓扑与立体构型上一致（通过规范异构 SMILES 比对）。
+
+对于产物发生解离的多组分反应步，解离生成的产物分子分别独立优化收敛至零虚频稳定极小值。路径方向性通过反应物侧的距离区间断言进行裁定。在监控原子对集合 $W$ 上，设过渡态、IRC 外侧末端帧及反应物参考构型的距离向量分别为 $\mathbf{q}_{\mathrm{TS}}$、$\mathbf{q}_{\mathrm{E}}$ 与 $\mathbf{q}_{\mathrm{R}}$。取共价截断半径 $c_{ij}=1.25(r_i+r_j)$ 及容差 $\tau=0.10$ Å，定义共价集合 $W_{\mathrm{c}}=\{(i,j)\in W:d_{ij}^{\mathrm{R}}\le c_{ij}\}$ 以及边界区间 $[a_p,b_p]=[\min(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})-\tau, \max(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})+\tau]$。布尔断言 $\operatorname{is\_between}$ 要求满足 $\|\mathbf{q}_{\mathrm{E}}-\mathbf{q}_{\mathrm{R}}\|_2<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2$ 且 $a_p\le d_p^{\mathrm{E}}\le b_p$ 对所有 $p\in W_{\mathrm{c}}$ 均成立。解离型产物通道需同时满足产物极小值确证与 $\operatorname{is\_between}$ 判定。
+
+#### 2.3.4 证据汇总与定量能垒
+对于基元反应步 $e$，设 $K_e$ 为该步骤声明的法定强制科学阶段集合。阶段验证指示变量 $P_{e,k}=1$ 表示阶段 $k$ 绑定的原生计算证据已通过该阶段的核验（未通过则为 0）。该步骤的阶段链完备性条件定义为：
+
+$$
+A_e=\bigwedge_{k\in K_e}P_{e,k}.
+$$
+
+当任务显式声明属性检查集合 $R$ 时，该步骤的完全交付要求 $A_e\wedge S_e$ 成立。阶段状态通过显式状态枚举（支持、待决、跳过、拒绝）记录，使方法学不可达声明或豁免与实际完成的物理证据在账本中区分开来。
+
+电子活化能垒由驻点能量差计算：
+
+$$
+\Delta E_e^\ddagger=E_{\mathrm{TS},e}-E_{\mathrm{ref},e}.
+$$
+
+所用能量来源于相同的量子化学方法与基组级别。对于热力学性质，零点能校正、焓变与 Gibbs 自由能校正在指定温度与压强下基于谐性配分函数提取。
+
+### 2.4 引导式诊断与自愈恢复
+系统将探索中遭遇的计算挫折归入运行执行错误、数值不收敛与科学证据缺陷三类。运行错误涵盖语法错误、环境异常或输出解析失败；数值状态捕捉自洽场（SCF）或几何优化步数超限；科学证据缺陷则定位曲率异常（$n_{\mathrm{imag}}\ne 1$）、虚频投影模式未对齐（$\eta<\eta_{\mathrm{thresh}}$）、IRC 漂移或端点物种拓扑不匹配。
+
+设 $T$ 为任务声明的目标物种与反应步集合。将 $P_{e,k}$ 推广至任意目标对象 $t\in T$，未满足的科学证据契约集合形式化为：
+
+$$
+U=\{(t,k):t\in T,\, k\in K_t,\, P_{t,k}=0\}.
+$$
+
+集合 $U$ 记录智能体在当前探索轮次中的待决目标。结构化诊断反馈将 $U$ 中未满足的项对应至底层的 SCF 发散、虚频模式失配、IRC 证据链断裂或产物拓扑不符等具体原因。计算受阻时，系统保留历史计算产物，并在状态机中更新 $U$，向智能体提供关于几何与计算状态的信息以供调整。
+
+恢复时保留历史尝试与原始计算日志，受影响的下游依赖阶段重新排队。原子编号重排、证据挂载与图状态迁移由底层状态机处理，智能体可据此调整二面角约束、修改反应构型假设或切换电子结构方法。
+
+### 2.5 实施默认参数
+本文描述的系统实现基于 Cloudra 提交版本 70daa5a。反应物预组织中多组分球面采样取 32 个刚体旋转方向，保留至多 8 个引导对接构型，组分间最小初始间距 1.0 Å，分子接触截断乘子 1.7，重原子 RMSD 聚类阈值 0.5 Å。MMFF94 距离约束力场松弛每阶段上限 2000 步，距离谐振子力常数设为 100.0。路径插值中标准 IDPP 默认采用 10 个图像帧，使用 MDMin 算法松弛（上限 100 步，受力容差 $f_{\max}=0.1$，NEB 弹簧系数 $k=0.1$）；轻量 IDPP 采用 Adam 优化器（上限 4000 步，步长 0.02，梯度容差 $10^{-7}$）。路径收敛性由中间镜像帧的最大受力残差判定。
+
+### 参考文献
+[1] Kabsch, W. A discussion of the solution for the best rotation to relate two sets of vectors. Acta Crystallographica Section A 1978, 34, 827–828. https://doi.org/10.1107/S0567739478001680
+[2] Smidstrup, S.; Pedersen, A.; Stokbro, K.; Jónsson, H. Improved initial guess for minimum energy path calculations. The Journal of Chemical Physics 2014, 140, 214106. https://doi.org/10.1063/1.4878664
+[3] Fukui, K. Formulation of the reaction coordinate. The Journal of Physical Chemistry 1970, 74, 4161–4163. https://doi.org/10.1021/j100717a029
+[4] Maeda, S.; Harabuchi, Y.; Ono, Y.; Taketsugu, T.; Morokuma, K. Intrinsic reaction coordinate: Calculation, bifurcation, and automated search. International Journal of Quantum Chemistry 2015, 115, 258–269. https://doi.org/10.1002/qua.24757
+[5] FACCTs. ORCA 6.1 Manual: Vibrational frequencies and Intrinsic reaction coordinate. https://www.faccts.de/docs/orca/6.1/manual/contents/structurereactivity/frequencies.html ; https://www.faccts.de/docs/orca/6.1/manual/contents/structurereactivity/irc.html
+[6] Riniker, S.; Landrum, G. A. Better Informed Distance Geometry: Using What We Know To Improve Conformation Generation. Journal of Chemical Information and Modeling 2015, 55, 2562–2574. https://doi.org/10.1021/acs.jcim.5b00654
+[7] RDKit. Getting Started in Python: Conformer Generation and Maximum Common Substructure. https://www.rdkit.org/docs/GettingStartedInPython.html

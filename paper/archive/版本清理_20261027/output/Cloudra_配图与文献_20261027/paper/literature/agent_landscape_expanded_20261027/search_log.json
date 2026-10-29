@@ -1,0 +1,339 @@
+[
+  {
+    "date": "2026-10-27",
+    "query": "CatGo d6dd00273k; DynaMate d5me00062a; ChatMat D5DD00582E; ISAAC XPS Shen Qian agent",
+    "purpose": "Resolve four named baseline access gaps from primary paper/project identities",
+    "result": "Publisher403; original full manuscripts recovered for CatGo/ChatMat/DynaMate via publisher/author-hosted ResearchGate full text. ISAAC only abstract and group identity resolved.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "materials agent atomistic simulations2026 September October",
+    "purpose": "Broad recent materials sweep",
+    "result": "El Agente Potente identified and its full original report read.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "catalysis LLM agent2026 simulation",
+    "purpose": "Broad catalyst execution sweep",
+    "result": "Existing MASTER/CatMaster/CatDT; CatGo original workflow closure prioritized.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "materials MCP agent DFT2026",
+    "purpose": "Broad general-tool/MCP sweep with actual case requirement",
+    "result": "matmcp actual dated cases and run artifacts; DFT AutoPilot kept outside pending real-run evidence.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "MatBrain relaxation",
+    "purpose": "Close relaxation-tool-versus-execution ambiguity",
+    "result": "Official code and figure transcript located; the complete visible trace demonstrates generation but no relaxation.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "An Agentic Artificial-Intelligence Framework X-ray Photoelectron Shen Qian",
+    "purpose": "Resolve XPS physical target and actual-case claim",
+    "result": "Original abstract explicitly shows eleven gas-phase molecules, contradicting any automatic extended-material label from VASP support.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "Agent-E2MD arxiv",
+    "purpose": "Close broad-sweep source-code-generation lead",
+    "result": "Original arXiv2609.26657 read, including full benchmark methods and reactive-system composition.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "atomistic agent2026-10",
+    "purpose": "Broad October discovery sweep",
+    "result": "GBClaw identified;51-page original PDF retrieved/read. Existing MLP Copilot deduplicated.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "atomistic agent2026 September",
+    "purpose": "Broad September discovery sweep",
+    "result": "Potente/Agent-E2MD and PVmatAgent leads; no extra count for review articles.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "materials simulation agent October2026 LLM",
+    "purpose": "Broad recent workflow sweep",
+    "result": "Official FHI conference lead retained; ALCHEMI secondary lead remains unverified.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "DFT agent September2026 new",
+    "purpose": "Broad electronic-structure sweep",
+    "result": "PVmatAgent original journal full text verified through indexed primary page, with explicit CHGNet case.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "MDAgent2 2026",
+    "purpose": "Close pair-style-paper citation chain and distinguish homonyms",
+    "result": "Original2601.02075 runtime/benchmark/case study read; separate architecture added, shared family retained.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "DynaMate de Gillis; DynaMate alanine MOF; PVmatAgent github; MatBrain relaxation case",
+    "purpose": "Targeted identity/case closure",
+    "result": "DynaMate de Gillis attribution corrected to Mendible-Barreto/Colón. PVmatAgent repo found. MatBrain original trace still insufficient for atomistic-execution inclusion.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "CatGo May11 2026;15002984 date; ISAAC Shen github XPS; MatBrain github MatGL",
+    "purpose": "Date/version/repository closure",
+    "result": "CatGo preprint date located with provenance caveat; author archives verify actual DAG templates. MatBrain official release/transcript located. No ISAAC full code or manuscript retrieved.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "Citation chaining from arXiv2608.18508 Appendix Table1",
+    "purpose": "Reconcile all49 survey members against baseline and screen gaps",
+    "result": "No remaining unassigned materials member beyond ISAAC after CatGo addition. Survey capability marks not copied.",
+    "search_stream": "materials"
+  },
+  {
+    "date": "2026-10-27",
+    "query": "Root-discovered DynaMate2 arXiv2605.20819; originalv2PDF closure",
+    "purpose": "Distinguish architecture successor from paper-version duplicate",
+    "result": "Full20-page original read. Introduction and Conclusion explicitly distinguish new supervisor/runtime-registration architecture from first DynaMate; concrete250ps aqueous-NaCl workflow supports separateT/D record with shared family.",
+    "search_stream": "materials"
+  },
+  {
+    "query": "ArIA ChemRxiv 15002344 ORCA agent",
+    "source_urls": [
+      "https://doi.org/10.26434/chemrxiv.15002344/v2",
+      "https://pollicegroup.web.rug.nl/publications-preprints.html"
+    ],
+    "notes": "Known-lead closure; original blocked, followed official author page and dataset.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"Molecular Simulations Assisted\" ArIA github",
+    "source_urls": [
+      "https://doi.org/10.34894/RNPTDS"
+    ],
+    "notes": "Located official DataverseNL archive through indexed dataset description, then read primary API and selected archive files.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"Q-planner\" \"Kurashige\"",
+    "source_urls": [
+      "https://www.molsci.jp/2026/present_1.html"
+    ],
+    "notes": "Exact authors/title disambiguated from QBF planning; no computation case recovered.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"Q-planner\" Ruiqi quantum -QBF -Shaik -ICLR -ICAPS -Planner/qplanner",
+    "source_urls": [
+      "https://www.molsci.jp/2026/present_1.html",
+      "https://arxiv.org/html/2608.18508v1"
+    ],
+    "notes": "Followed conference identity and perspective bibliography; original identifier unresolved.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"LARA-HPC\" 2604.22571",
+    "source_urls": [
+      "https://arxiv.org/html/2604.22571"
+    ],
+    "notes": "Re-read entire latest located original, including dry-run limits and actual demonstrations.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"Electrolyte agent\" \"ICLR\" molecular dynamics",
+    "source_urls": [
+      "https://openreview.net/pdf?id=MEXl18VhBL",
+      "https://openreview.net/pdf/837f62f17b0f4210dbc1260e813b7fd1ebabd467.pdf"
+    ],
+    "notes": "Returned indexed original worked-case pages; direct access challenge recorded.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"Reasoning-to-Simulation\" \"Electrolyte\"",
+    "source_urls": [
+      "https://openreview.net/pdf/837f62f17b0f4210dbc1260e813b7fd1ebabd467.pdf",
+      "https://zenodo.org/records/19198509"
+    ],
+    "notes": "Followed original paper to its author-deposited prompt dataset to close title/author identity.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"gromacs_smolagent\" OR \"OHMindMD\"",
+    "source_urls": [
+      "https://github.com/virtualramblas/gromacs_smolagent",
+      "https://lunyang.github.io/agents/md-agent/"
+    ],
+    "notes": "Known MD leads; followed code docs, actual screenshots, tutorial and archive evidence.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"El Agente Cuántico\" molecule",
+    "source_urls": [
+      "https://arxiv.org/abs/2512.18847",
+      "https://arxiv.org/html/2512.18847"
+    ],
+    "notes": "Recovered full original H2 VQE example and execution transcript, overturning earlier unresolved molecular eligibility.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"Universal Structure Generator\" \"agent\" PDF",
+    "source_urls": [
+      "https://doi.org/10.26434/chemrxiv.15006869/v1",
+      "https://pollicegroup.web.rug.nl/publications-preprints.html"
+    ],
+    "notes": "Checked exact title and official author page; blocked original, no feature-list inclusion.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "LLM agent quantum chemistry molecular simulations October 2026 new",
+    "source_urls": [
+      "https://arxiv.org/abs/2610.27230",
+      "https://arxiv.org/abs/2609.14840",
+      "https://arxiv.org/html/2507.07887v2"
+    ],
+    "notes": "Broad recent-paper search found already-counted Magnolia, new Potente and updated NAMD-Agent; separated versions and new systems.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"agent\" \"molecular dynamics\" \"2026\" \"October\" simulation -site:linkedin.com -site:researchgate.net",
+    "source_urls": [
+      "https://aclanthology.org/2026.emnlp-main.672/",
+      "https://doi.org/10.1016/j.jmgm.2026.109623",
+      "https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1014221"
+    ],
+    "notes": "New October update sweep found PRAXIS-MD and non-LLM/deterministic neighbors; MDForge deduplicated against baseline.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"agent\" \"quantum chemistry\" \"2026\" \"October\" -site:researchgate.net -site:linkedin.com",
+    "source_urls": [
+      "https://arxiv.org/html/2610.05304",
+      "https://arxiv.org/abs/2609.39302"
+    ],
+    "notes": "Found QAOS and already-counted SQD-Agent, then read QAOS original and appendix.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"autonomous\" \"reaction mechanism\" \"agent\" 2026 LLM",
+    "source_urls": [
+      "https://arxiv.org/html/2602.17902",
+      "https://arxiv.org/abs/2601.13508"
+    ],
+    "notes": "Reaction-mechanism sweep and updated-source check: read Gráfico disulfide transcript; CatMaster already counted.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"PRAXIS-MD\" \"github\"",
+    "source_urls": [
+      "https://www.sciencedirect.com/science/article/abs/pii/S1093326326003499"
+    ],
+    "notes": "Pursued code/preprint/results after initial discovery; only publisher introduction and snippets found.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"PRAXIS-MD\" \"109623\" \"pdf\"",
+    "source_urls": [
+      "https://api.elsevier.com/content/article/pii/S1093326326003499?httpAccept=text/xml"
+    ],
+    "notes": "Attempted original full-text alternative; public API returned coredata and openaccess=false rather than results.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"agent\" \"quantum chemistry\" \"October 27\" \"2026\"",
+    "source_urls": [
+      "https://www.nature.com/articles/s43586-026-00534-y"
+    ],
+    "notes": "Late October cutoff sweep found new Primer but no additional concrete molecular simulation system in its inspected references.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "\"agent\" \"molecular dynamics\" \"October 2026\" -MDForge -RNADaemon -PRAXIS -site:jove.com",
+    "source_urls": [
+      "https://moleculediscovery.github.io/workshop2026/call-for-papers/"
+    ],
+    "notes": "Cutoff/saturation sweep predominantly returned already-covered systems, non-agent MD and private-review workshop context; no quota-driven inclusion.",
+    "search_stream": "molecular"
+  },
+  {
+    "query": "chemistry agents computational chemistry October 2026 broad search; Nature theoretical chemistry listings",
+    "source_urls": [
+      "https://www.nature.com/subjects/theoretical-chemistry/natcomputsci",
+      "https://arxiv.org/abs/2610.32392"
+    ],
+    "notes": "Discovered MutexaGPT and PULSES; original records inspected.",
+    "search_stream": "root"
+  },
+  {
+    "query": "MutexaGPT EnzyHTP-GPT physics-based enzyme engineering original paper PMC",
+    "source_urls": [
+      "https://pmc.ncbi.nlm.nih.gov/articles/PMC13308407/",
+      "https://www.nature.com/articles/s43588-026-01049-y",
+      "https://github.com/ChemBioHTP/EnzyHTP-GPT"
+    ],
+    "notes": "PMC preprint original supplied full workflow and case-study evidence; identity matched to journal and repository.",
+    "search_stream": "root"
+  },
+  {
+    "query": "PULSES 2610.32392 original PDF scientific assurance model building dynamics",
+    "source_urls": [
+      "https://arxiv.org/pdf/2610.32392",
+      "https://arxiv.org/abs/2610.32392"
+    ],
+    "notes": "Read primary workflow, benchmarks and three application sections; E/O/T/D based on worked results, no R from reactive dynamics.",
+    "search_stream": "root"
+  },
+  {
+    "query": "AgenticOS Haiqu quantum chemistry proton transfer original report",
+    "source_urls": [
+      "https://haiqu.ai/agenticos",
+      "https://www.haiqu.ai/insights",
+      "https://arxiv.org/html/2610.05304v1"
+    ],
+    "notes": "Identical authors and Zundel SQD/FCI case to QAOS owned by molecular stream; one system, not a second commercial alias.",
+    "search_stream": "root"
+  },
+  {
+    "query": "Science Done on a Machine by a Machine Table1 49-system citation-chain crosswalk",
+    "source_urls": [
+      "https://arxiv.org/html/2608.18508v1"
+    ],
+    "notes": "Crosswalk each system name to current records or explicit exclusions/pending originals. Original capability codes are not copied; the review accepts implemented features whereas our coding requires inspected worked evidence.",
+    "search_stream": "root"
+  },
+  {
+    "query": "LLM agent enzyme QM/MM; autonomous agent transition state 2026; molecular dynamics agent recent workflows",
+    "source_urls": [
+      "https://arxiv.org/abs/2605.20819",
+      "https://www.nature.com/articles/s41524-026-02301-9",
+      "https://arxiv.org/abs/2609.08503"
+    ],
+    "notes": "DynaMate2 passed to materials owner. Evolving TS workflows already included; TSBench remains separate benchmark-environment sensitivity.",
+    "search_stream": "root"
+  },
+  {
+    "query": "ChemCrow Coscientist CACTUS ChemToolAgent ChemAgent primary reports and scope check",
+    "source_urls": [
+      "https://www.nature.com/articles/s42256-024-00832-8",
+      "https://www.nature.com/articles/s41586-023-06792-0",
+      "https://arxiv.org/abs/2405.00972",
+      "https://arxiv.org/html/2411.07228v3",
+      "https://arxiv.org/abs/2501.06590"
+    ],
+    "notes": "Named adjacent chemistry agents are explicitly registered, not silently omitted or added to the simulation denominator. Two different ChemAgent names are disambiguated.",
+    "search_stream": "root"
+  }
+]

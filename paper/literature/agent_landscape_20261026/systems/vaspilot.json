@@ -1,0 +1,32 @@
+{
+  "id": "vaspilot",
+  "name": "VASPilot",
+  "first_public_date": "2025-08-09",
+  "physical_target": "extended_materials_surfaces",
+  "demonstrated_target": "crystalline solids and transition-metal dichalcogenides",
+  "boundary_conditions": "band structure/Brillouin-zone crystalline models",
+  "demonstrated_tasks": [
+    "E",
+    "O"
+  ],
+  "task_evidence": {
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://arxiv.org/abs/2508.07035",
+      "locator": "Abstract; benchmark description",
+      "evidence_paraphrase": "Demonstrates band structures, density of states, cutoff convergence, lattice-constant optimization and band-gap comparisons."
+    }
+  ],
+  "family": "VASPilot",
+  "aliases": [],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

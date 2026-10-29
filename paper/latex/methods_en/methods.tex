@@ -1,0 +1,207 @@
+\section{System Design and Methods}
+
+\subsection{System Overview and Division of Responsibilities}
+
+Cloudra organizes organic reaction mechanism exploration as a research process linking chemical hypotheses, geometric operations, quantum chemical calculations, and evidence updates. Task inputs specify the reactants, research objectives, reaction conditions, and necessary methodological constraints. Research agents use these inputs to propose candidate elementary steps and competing pathways, construct and modify three-dimensional structures through tools, and test the candidates computationally. A directed acyclic graph of delivery evidence (Delivery DAG) continuously records species, steps, and their evidence status, allowing subsequent exploration to proceed from existing structures and computational facts.
+
+Responsibilities are divided across three layers. The model formulates mechanistic hypotheses, selects pathways, plans calculations, and makes research decisions following failures; cheminformatics and geometry tools associate atom identities, measure structures, perform local coordinate operations, and prepare paths; computational backends and evidence-checking procedures perform the calculations, parse native results, and conduct scientific checks appropriate to the object under study. The Coordinator organizes research tasks, computational agents carry out the corresponding work, and the Supervisor reviews the Delivery DAG and submitted evidence against the task requirements. Supervisor comments are retained separately from computational facts such as frequencies and paths; scientific evidence is supplied by the corresponding calculation outputs.
+
+“Intelligent restraint” is expressed through the boundaries between these responsibilities. The model expresses research intent in terms of reaction sites, moving fragments, and target configurations, while the program maintains the correspondence between that intent and specific atoms, coordinates, and computational files. Each exploration cycle generates new candidates and updates the evidence status of existing claims. For competing pathways sharing the same starting state, candidate configurations and transition-state evidence are associated with their respective steps. This organization allows the model to compare hypotheses while retaining the specific computational basis for each conclusion.
+
+\subsection{Cheminformatics and Geometric Operators: Translating Research Intent into Computable Structures}
+
+Cloudra uses molecular graphs to represent chemical identity and associated three-dimensional configurations to represent spatial positions. The model selects reaction sites, moving fragments, and target orientations; the program establishes atom correspondence, measures structures, transforms coordinates, and screens candidates. Together, these operations form a cycle of reading a structure, proposing a local change, and checking the resulting configuration, translating research intent into structures suitable for further calculation.
+
+\subsubsection{Atom Identity, Correspondence between Endpoints, and Reaction Centers}
+
+Molecular representations retain elements, isotopes, bond orders, formal charges, and declared stereochemical information. Components without three-dimensional coordinates are embedded using ETKDGv3 \textsuperscript{6,7}; multicomponent systems are constructed component by component and then assembled, while existing three-dimensional coordinates are retained. Correspondence between reactants and products is first established from complete atom labels. When labels are absent, a search over heavy-atom bijections that conserve elements and isotopes ranks candidates using the following objective:
+
+\begin{equation}\label{eq:methods-1}
+\begin{aligned}
+J(\pi)={}&2(N_{\mathrm f}+N_{\mathrm b})+N_{\mathrm o}\\
+&+4\Delta_H+8\Delta_q+8\Delta_r+2N_{\mathrm s}.
+\end{aligned}
+\end{equation}
+
+Here, $\pi$ maps product atoms to reactant atoms; $N_{\mathrm f}$, $N_{\mathrm b}$, and $N_{\mathrm o}$ are the numbers of bonds formed, bonds broken, and bond-order changes after mapping, respectively; $\Delta_H$, $\Delta_q$, and $\Delta_r$ are the sums of the absolute differences in hydrogen counts, formal charges, and radical-electron counts between corresponding atoms; and $N_{\mathrm s}$ counts inconsistencies in comparable, declared stereochemical environments. This objective favors preservation of local chemical environments while allowing reactions to be expressed as graph edits. When both endpoints carry tetrahedral labels, the comparison first corrects for the parity of neighbor ordering; this chirality comparison is skipped when the neighbor set has changed.
+
+When the product of the permutation counts for all element–isotope groups does not exceed $10^5$, all element-conserving candidates are compared. For larger search spaces, maximum common substructure (MCS) matching generates seeds using element matching, allowing different bond orders, and requiring complete ring matches \textsuperscript{7}; unmatched atoms are then assigned according to hydrogen counts, degree, and input order. The latter approach searches a finite set of candidates. Candidates with identical edit facts and scores are merged, and ambiguity annotations are retained for near-optimal candidates. After a heavy-atom correspondence is selected, it is bound to the specific configurations. Explicit hydrogen labels and local isotope correspondence are preferentially retained, and the remaining hydrogen correspondences are enumerated. The complete all-atom mapping is used to reorder the product so that the endpoints share the same atom order; graph differencing identifies atom pairs involved in bond formation and cleavage and records bond-order changes separately.
+
+\subsubsection{Structural Measurements and Local Rigid-Body Operations}
+
+Structural perception converts coordinates into bond lengths, bond angles, dihedral angles, ring conformations, and close contacts. For coordinates $\mathbf x_i$, the interatomic distance is $d_{ij}=\|\mathbf x_j-\mathbf x_i\|$; the bond angle at vertex $j$ is obtained from the normalized dot product of the two bond vectors. Comparisons of distances with reference bond lengths and van der Waals contact scales provide geometric diagnostics, while the molecular graph retains the established identity. Connectivity is perceived at entry for coordinate-only inputs; subsequent local coordinate transformations retain this graph and remeasure anomalies before and after transformation.
+
+Default fragment selection on either side of an acyclic bond uses graph connectivity: the specified bond $a-b$ is temporarily removed, and the connected component containing $b$, denoted $\mathcal F_b$, is selected. If the endpoints remain connected after bond removal, the bond does not uniquely define a side, and movement within a ring framework requires an explicit atom group. Let $\mathcal F$ denote the explicitly specified moving atom group or the component $\mathcal F_b$ obtained by bond removal. To rotate the selected fragment about an axis, Rodrigues' formula is applied to every $i\in\mathcal F$:
+
+\begin{equation}\label{eq:methods-2}
+\begin{aligned}
+\mathbf x'_i&=\mathbf a+\mathbf R(\hat{\mathbf u},\theta)(\mathbf x_i-\mathbf a),\\
+\mathbf R&=\cos\theta\,\mathbf I+(1-\cos\theta)\hat{\mathbf u}\hat{\mathbf u}^{\mathsf T}
++\sin\theta\,[\hat{\mathbf u}]_\times .
+\end{aligned}
+\end{equation}
+
+Here, $\mathbf a$ is a point on the axis, $\hat{\mathbf u}$ is its unit direction, $\theta$ is the target rotation angle, $\mathbf I$ is the identity matrix, and $[\hat{\mathbf u}]_\times\mathbf v=\hat{\mathbf u}\times\mathbf v$. The operation preserves distances within the selected fragment while changing its orientation relative to the rest of the structure. Stretching a specified bond translates $\mathcal F_b$ as a whole:
+
+\begin{equation}\label{eq:methods-3}
+\mathbf x'_i=\mathbf x_i+(L-d_{ab})\frac{\mathbf x_b-\mathbf x_a}{d_{ab}},\qquad i\in\mathcal F_b,
+\end{equation}
+
+where $L$ is the target bond length and all other atom coordinates remain unchanged. Chirality inversion is implemented by separately rotating two separable branches around the center to exchange their directions. Group substitution removes the fragment on the specified side, docks a new group with an attachment site along the original bond direction, and explicitly updates the molecular graph. These operations generate candidate configurations with well-defined local meanings and return the resulting distances and contact changes. When comparing structures before and after optimization, the system computes differences between distance-perceived connectivity sets under the same element sequence, listing gained or lost contacts and identifying whether they are within or between fragments. This record diagnoses geometric changes; their chemical meaning must still be interpreted in light of the research hypothesis.
+
+\subsubsection{Branch Crowding Descriptors and Reactant Preorganization}
+
+For candidate axes that pass checks of hybridization, ring structure, and substituent graph inequivalence, the system uses a decaying branch descriptor to provide local crowding information:
+
+\begin{equation}\label{eq:methods-4}
+B_s=\sum_{k\in\mathcal T_s}c_k r_k^{\mathrm{vdW}}\rho^{\ell_k},\qquad
+\rho=0.5,\quad 0\leq\ell_k\leq5.
+\end{equation}
+
+$\mathcal T_s$ is the traversal set starting at the substituent root atom and excluding the adjacent axis-end atom; $\ell_k$ is the depth at first visit, and $r_k^{\mathrm{vdW}}$ is the atomic van der Waals radius. Only when $k$ is the root atom of the branch and has graph degree at least 3 is $c_k=1.5$; otherwise, $c_k=1$. The crowding descriptor for a candidate axis is the sum of $B_s$ over its four branches at the two ends. Depth decay emphasizes contributions near the axis; the current implementation uses a four-branch total score of at least 9.0 as an empirical criterion for screening candidate axes. This is a topological heuristic; rotational barriers and selectivity still require potential energy surface calculations.
+
+In the RDKit preorganization route, multicomponent systems requiring assembly are sampled by fixing the first fragment and applying deterministic Fibonacci-sphere direction sampling and axial twisting to the remaining fragments. For $K$ samples, direction $s$ is
+
+\begin{equation}\label{eq:methods-5}
+\begin{aligned}
+\mathbf u_s&=(a_s\cos s\gamma,\ y_s,\ a_s\sin s\gamma),\\
+a_s&=\sqrt{1-y_s^2},\quad y_s=1-\frac{2s}{K-1},\\
+\gamma&=\pi(3-\sqrt5).
+\end{aligned}
+\end{equation}
+
+Here, $s=0,\ldots,K-1$; each fragment is first rotated to align its reference axis with $\mathbf u_s$ and then twisted by $2\pi s/K$ about that direction. The default is $K=32$. Internal fragment geometries are preserved in each placement, and interfragment clashes are removed by translating whole fragments. When reaction atom pairs and their distance windows are declared, placements are ranked by the maximum window violation:
+
+\begin{equation}\label{eq:methods-6}
+S(\mathbf X)=\max_{(i,j)\in\mathcal W}
+\{0,\,l_{ij}-d_{ij}(\mathbf X),\,d_{ij}(\mathbf X)-u_{ij}\}.
+\end{equation}
+
+$\mathbf X$ contains all coordinates, $\mathcal W$ is the set of guided atom pairs, and $[l_{ij},u_{ij}]$ is the allowed distance interval for each pair; $S=0$ when all distances lie within their intervals. The program retains the placement with the smallest violation and relaxes it after adding MMFF94 distance restraints. Explicit guidance windows are retained until preorganization is complete. The output is checked separately for distances, stereochemistry, clashes, and interfragment contact connectivity, then deduplicated by heavy-atom RMSD; candidates are ranked using force-field single-point energies with the restraint penalty removed. For a single component, the distance windows are incorporated into the distance-geometry bounds matrix, followed by bounds smoothing, embedding, and restrained relaxation. The resulting structures are preorganization seeds.
+
+\subsubsection{Endpoint Alignment and Image-Dependent Pair Potential Interpolation}
+
+After all-atom correspondence is established, each endpoint is centered by subtracting its mean coordinates. Let $\mathbf P$ and $\mathbf R$ be the centered product and reactant coordinate matrices, with one atom per row. Kabsch alignment solves
+
+\begin{equation}\label{eq:methods-7}
+\begin{aligned}
+&\min_{\mathbf Q^{\mathsf T}\mathbf Q=\mathbf I,\,\det\mathbf Q=1}
+\|\mathbf P\mathbf Q-\mathbf R\|_F^2,\\
+&\mathbf P^{\mathsf T}\mathbf R=\mathbf U\Sigma\mathbf V^{\mathsf T},\\
+&\mathbf Q=\mathbf U\operatorname{diag}[1,1,\det(\mathbf U\mathbf V^{\mathsf T})]\mathbf V^{\mathsf T}.
+\end{aligned}
+\end{equation}
+
+$\|\cdot\|_F$ is the square root of the sum of squared matrix elements, and $\mathbf U\Sigma\mathbf V^{\mathsf T}$ is the singular value decomposition; the determinant correction restricts the transformation to a proper rotation, preserving chirality. \textsuperscript{1} Intermediate images are initialized by linear Cartesian interpolation between the aligned endpoints. For image $k$, $\lambda_k=k/(M-1)$, where $M$ is the number of images including both endpoints. The target pair distances and the standard image-dependent pair potential (IDPP) objective are \textsuperscript{2}
+
+\begin{equation}\label{eq:methods-8}
+\begin{aligned}
+d^*_{ij,k}&=(1-\lambda_k)d^R_{ij}+\lambda_k d^P_{ij},\\
+V_k&=\sum_{i<j}\frac{[d_{ij,k}-d^*_{ij,k}]^2}{d_{ij,k}^{4}}.
+\end{aligned}
+\end{equation}
+
+$d^R_{ij}$ and $d^P_{ij}$ are the endpoint distances, and $d_{ij,k}$ is the current image distance. The inverse-fourth-power weight is updated with the current distance, penalizing deviations more strongly at short distances. The default standard mode fixes both endpoints, couples the intermediate images using improved-tangent NEB, and optimizes the geometric objective with MDMin. An explicit lightweight approximation is also available: the denominator is replaced by the fixed value $\max(d^*_{ij,k},0.1\,\text{Å})^4$, and Adam independently updates each intermediate image. Each mode records its own numerical termination status. A candidate frame is selected at the position where the most strongly changing monitored atom pair crosses the midpoint of its endpoint distances. The generated path and numerical convergence are geometric preparation results; transition-state identity is tested through subsequent optimization, frequency, and connectivity evidence.
+
+\subsection{Mechanistic Evidence DAG and Scientific Validation}
+
+\subsubsection{Scientific Objects, Evidence Associations, and Research Contracts}
+
+Cloudra represents the mechanism under investigation as a directed acyclic graph $G=(V,E)$. A node $v\in V$ denotes a species state with a defined chemical identity, and an edge $e=(v_i,v_j)\in E$ denotes an elementary step from a starting species to a target species. A transition state is bound to an edge as computational evidence for the step, while structural, frequency, and energy evidence for a species is associated with its corresponding node. The graph thus expresses both the proposed mechanism and the calculations supporting it, rather than treating a list of computational tasks as a reaction mechanism.
+
+Each graph element carries a stage set $K$ specified by the research contract. By default, a mechanistic step requires saddle-point optimization, frequency confirmation, and short-IRC directional evidence; an initial guess supplies only a candidate structure and does not replace this evidence. Whether stages such as thermochemical corrections are required depends on the specific task. Evidence references record source types and identifiers. File submission for review additionally produces archived snapshots with content digests and checks that the snapshots and IRC sidecar files remain consistent with their records. Tool outputs can also be converted into typed facts $f=(c,o,r,d)$, where $c$ is a check item, $o\in\{+,-,?\}$ denotes support, contradiction, or uncertainty, $r$ is the source reference, and $d$ contains parsed details such as frequency counts and energies. Fact records retain the parser version and target association, allowing supporting and contradicting evidence for the same conclusion to coexist. An archived snapshot fixes the evidence version on which that review submission is based.
+
+The system records stage coverage and scientific support separately. Stage binding identifies which result has been submitted to which stage; a specific scientific check determines whether that result supports the claim. If a task explicitly declares required checks $R$ and optional checks $O$, and $F_t$ denotes the facts associated with target $t$, the condition for support is
+
+\begin{equation}\label{eq:methods-9}
+\begin{aligned}
+S_t={}&\mathbf 1[R\ne\emptyset]\\
+&\land\bigwedge_{c\in R}\mathbf 1[\exists f\in F_t:f.c=c,\ f.o=+]\\
+&\land\mathbf 1[\not\exists f\in F_t:f.c\in R\cup O,\ f.o=-].
+\end{aligned}
+\end{equation}
+
+A conclusion remains unresolved when supporting evidence is missing or relevant contradicting evidence is present; an empty check set does not automatically establish support. A parseable spectrum is likewise only an observed fact. Whether it satisfies the requirements for a minimum or saddle point is determined by scientific checks appropriate to that object.
+
+\subsubsection{Stationary-Point Curvature and Reaction-Mode Diagnostics}
+
+The physical basis for stationary-point curvature is the mass-weighted Hessian. Let $U(\mathbf x)$ be the potential energy, $\mathbf x$ the Cartesian coordinates, and $M$ the diagonal matrix in which each atomic mass is repeated along its three coordinates. Then
+
+\begin{equation}\label{eq:methods-10}
+\begin{aligned}
+H_{\mathrm{mw}}&=M^{-1/2}\nabla_{\mathbf x}^{2}U\,M^{-1/2},\\
+H_{\mathrm{mw}}\mathbf v_k&=\lambda_k\mathbf v_k.
+\end{aligned}
+\end{equation}
+
+In the vibrational subspace with overall translation and rotation removed, negative eigenvalues correspond to imaginary angular frequencies. An ordinary minimum has no negative-curvature direction, whereas a first-order saddle point has exactly one. In practice, validation reads signed wavenumbers from the quantum chemical backend and counts them as $n_{\mathrm{imag}}=\sum_k\mathbf 1[\tilde\nu_k<0]$, where negative $\tilde\nu_k$ denotes an imaginary frequency. A species minimum requires zero imaginary frequencies, and a transition state requires exactly one; no additional tolerance is introduced to disregard small negative frequencies. Missing frequencies remain unknown. The system separately checks native normal termination and optimization convergence and verifies that the frequency calculation and final optimization frame refer to the same geometry. A frequency single-point calculation alone cannot establish optimization convergence. \textsuperscript{5}
+
+A single negative-curvature direction is still insufficient to determine reaction identity. The system also reports the motion of reaction-center atom pairs in the imaginary mode. When the parsed mode displacements are nonzero, the relative-displacement diagnostic for atomic displacements $\mathbf u_i$ and the monitored atom-pair set $W$ is
+
+\begin{equation}\label{eq:methods-11}
+\eta=\frac{\max_{(i,j)\in W}\|\mathbf u_i-\mathbf u_j\|}
+{\max_{i<j}\|\mathbf u_i-\mathbf u_j\|}.
+\end{equation}
+
+This quantity lies between 0 and 1 and describes the participation of the reaction center relative to the global motion. It helps identify atom pairs and motions requiring further inspection. When displacements are missing or torsional motion is difficult to interpret through atom-pair distances, the system retains the corresponding diagnostic status; acceptance of reaction direction depends on actual path and endpoint evidence.
+
+\subsubsection{IRC Direction and Endpoint Identity}
+
+The IRC is theoretically a steepest-descent path from a transition state in mass-weighted coordinates. \textsuperscript{3,4} Let $\mathbf q=M^{1/2}\mathbf x$ and let $s\ge0$ be the arc length increasing outward from either side of the saddle point. The two branches satisfy
+
+\begin{equation}\label{eq:methods-12}
+\begin{aligned}
+\frac{d\mathbf q_{\pm}}{ds}&=-\frac{\nabla_{\mathbf q}U}{\|\nabla_{\mathbf q}U\|},\\
+\mathbf q_{\mathrm{init},\pm}&\approx\mathbf q_{\mathrm{TS}}\pm\epsilon\mathbf v_{-}.
+\end{aligned}
+\end{equation}
+
+The first line defines the continuous path; the second gives a numerical starting approximation for departure from the stationary point, where $\mathbf v_-$ is the unique negative-curvature direction and $\epsilon>0$ is a small initial displacement. Path integration is performed by the quantum chemical backend. Cloudra first checks that the IRC starting geometry matches the verified saddle point, then extracts the actual outermost frame from each direction. For steps whose two endpoints are represented by complete minima, the starting geometry in each native endpoint optimization log must match the corresponding outer frame, the optimization must converge, and its final frame must match the geometry of a zero-imaginary-frequency calculation and the declared reactant or product identity. The two sides may match in either the direct or swapped assignment. When these associations hold, the short IRC need not itself converge fully to the minima; geometric interval consistency serves only as a prompt to inspect the trajectory. Separated products follow a distinct branch: the complete chemical graph of the actual product outer frame and the zero-imaginary-frequency minima of its individual components are checked, while the geometric interval check is retained for the reactant direction. In this case, no claim is made that a bound product-complex minimum has been verified.
+
+\subsubsection{Evidence Aggregation and Quantitative Claims}
+
+Evidence acceptance proceeds by parsing native facts, checking structural associations, applying stage criteria, and aggregating contract gaps. Let $K_e$ be the set of stages required for step $e$, and let $P_{e,k}$ indicate that stage $k$ has evidence consistent with the chemical identity of that step and passing the corresponding scientific checks. The required-evidence condition for the step can then be written as
+
+\begin{equation}\label{eq:methods-13}
+A_e=\bigwedge_{k\in K_e}P_{e,k}.
+\end{equation}
+
+Delivery of the complete mechanism must also cover the declared target species and steps. Missing materials, unresolved contradictions, and claims awaiting review remain associated with their specific targets. The Supervisor reviews the correspondence between mechanistic hypotheses and evidence against the complete task and requests additional calculations or revisions; outstanding gaps in frequency, path, or identity evidence must still be filled by the corresponding computational facts. The workflow permits stages to be skipped or declared inapplicable with reasons. These dispositions are recorded separately from the scientific support provided by existing evidence.
+
+For electronic activation barriers, quantitative claims are additionally linked to native energies of the saddle point and declared reference state:
+
+\begin{equation}\label{eq:methods-14}
+\Delta E_e^{\ddagger}=E_{\mathrm{TS},e}-E_{\mathrm{ref},e}.
+\end{equation}
+
+The two energies use the same units and the level of theory required by the task; the reference state is defined by the corresponding research task. Nodes and steps record their respective energy sources and structural identities, making the numerical difference traceable to actual calculations. When enthalpies or free energies are required, thermochemical corrections, temperature, and standard state are declared separately according to the task requirements and distinguished from the purely electronic energy difference.
+
+\subsection{Guided Diagnostics and Exploration Recovery}
+
+Failures in mechanism exploration do not all have the same scientific meaning. Cloudra separately reports execution errors, numerical nonconvergence, and insufficient scientific evidence. The first category concerns inputs, the execution environment, or reading outputs; the second is identified from optimization or self-consistent-field convergence information in native logs; the third includes missing frequencies, failure to satisfy the first-order-saddle condition, and IRC endpoints that cannot be assigned to the declared species. Execution completion and scientific validation thus remain independent, and failure of one initial guess is not interpreted as evidence that the reaction is inaccessible. Warnings about anomalous geometric intervals or unclear vibrational-mode correspondence are reported separately and retain their advisory status when delivered to the model.
+
+Diagnostics are organized around objects that can be corrected, including the stage at which the issue arose, observed facts, relevant structures or logs, and inputs requiring inspection. When reaction-center indices are invalid, the feedback also provides the current structure's atom table and valid index range. When an endpoint structure does not match the declared species, feedback identifies that endpoint's structure source or species declaration, preventing a species error from being concealed by changing the mapping. Missing frequencies leave the candidate structure unverified. When IRC endpoint optimization does not support the target species, feedback requests reinspection of the relevant endpoint source and identity. These checks locate objects requiring correction or additional evidence; the chemical cause of failure must still be assessed in light of the research hypothesis.
+
+Feedback enters subsequent reasoning through two complementary routes. Immediate check results are returned with the tool call and retained alongside it. After a longer calculation finishes, the system sends the agent responsible for the step its stage, decision rationale, evidence locations, and suggestions for further inspection. The program connects declared, successfully completed calculations to subsequent stages without requiring the model to poll each one. Decisions requiring revised research inputs or interpretation of evidence are returned to the model. Delivery checks also locate open gaps at specific nodes, edges, and stages. Supervisor comments can supplement the rationale and suggestions for subsequent work but cannot replace missing native computational evidence.
+
+This feedback loop can be expressed as
+
+\begin{equation}\label{eq:methods-15}
+d_t=\Phi(y_t,G_t,C),\qquad
+a_{t+1}=\pi_{\mathrm{LLM}}(H_t,d_t).
+\end{equation}
+
+Here, $y_t$ denotes observations from the current tool call or calculation, $G_t$ is the current evidence graph, and $C$ contains the task requirements. $\Phi$ organizes programmatic check results into diagnostic feedback $d_t$, and the model uses the existing research record $H_t$ to select its next action $a_{t+1}$. The equation uses $\Phi$ to represent the program's organization of facts and $\pi_{\mathrm{LLM}}$ to represent the model's research decisions, linked through specific diagnostics.
+
+During recovery, the model declares the inputs to be modified and the reasons within the existing research workflow. The program retains historical attempts and original outputs and reschedules subsequent steps affected by the changes. The model selects new configurations, initial guesses, or checks that distinguish competing hypotheses; the program handles index conversion, evidence association, and state recording. The system does not silently change theoretical methods or parameters in response to failure, nor does it equate a successful repair call with establishment of the mechanism.
+
+\section*{References}
+\begingroup\fontsize{8.5}{10.5}\selectfont
+\par\noindent\hangindent=1.5em\hangafter=1 [1] Kabsch, W. A discussion of the solution for the best rotation to relate two sets of vectors. Acta Crystallographica Section A 1978, 34, 827–828. \url{https://doi.org/10.1107/S0567739478001680}\par\smallskip
+\par\noindent\hangindent=1.5em\hangafter=1 [2] Smidstrup, S.; Pedersen, A.; Stokbro, K.; Jónsson, H. Improved initial guess for minimum energy path calculations. The Journal of Chemical Physics 2014, 140, 214106. \url{https://doi.org/10.1063/1.4878664}\par\smallskip
+\par\noindent\hangindent=1.5em\hangafter=1 [3] Fukui, K. Formulation of the reaction coordinate. The Journal of Physical Chemistry 1970, 74, 4161–4163. \url{https://doi.org/10.1021/j100717a029}\par\smallskip
+\par\noindent\hangindent=1.5em\hangafter=1 [4] Maeda, S.; Harabuchi, Y.; Ono, Y.; Taketsugu, T.; Morokuma, K. Intrinsic reaction coordinate: Calculation, bifurcation, and automated search. International Journal of Quantum Chemistry 2015, 115, 258–269. \url{https://doi.org/10.1002/qua.24757}\par\smallskip
+\par\noindent\hangindent=1.5em\hangafter=1 [5] FACCTs. ORCA 6.1 Manual: Vibrational frequencies and Intrinsic reaction coordinate. \url{https://www.faccts.de/docs/orca/6.1/manual/contents/structurereactivity/frequencies.html}; \url{https://www.faccts.de/docs/orca/6.1/manual/contents/structurereactivity/irc.html}\par\smallskip
+\par\noindent\hangindent=1.5em\hangafter=1 [6] Riniker, S.; Landrum, G. A. Better Informed Distance Geometry: Using What We Know To Improve Conformation Generation. Journal of Chemical Information and Modeling 2015, 55, 2562–2574. \url{https://doi.org/10.1021/acs.jcim.5b00654}\par\smallskip
+\par\noindent\hangindent=1.5em\hangafter=1 [7] RDKit. Getting Started in Python: Conformer Generation and Maximum Common Substructure. \url{https://www.rdkit.org/docs/GettingStartedInPython.html}\par\smallskip
+\endgroup

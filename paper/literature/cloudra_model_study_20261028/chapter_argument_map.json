@@ -1,0 +1,395 @@
+{
+  "date": "2026-10-28",
+  "purpose_zh": "下一章的研究论证顺序；供讨论与写作使用，未改动主稿。",
+  "proposed_chapter_title_en": "Results and Discussion",
+  "proposed_chapter_title_zh": "结果与讨论",
+  "central_argument_zh": "Cloudra通过维持化学意图、物理对象和证据要求之间的对应关系，把模型的研究判断持续落实为可执行的空间改变和有依据的科学交付。",
+  "narrative_progression_zh": [
+    "先说明任务覆盖哪些化学与研究要求",
+    "解释化学意图如何进入可靠空间操作",
+    "解释局部结果如何进入有证据的科学交付",
+    "用完整自主实验检验两条设计链的协同，再用已有补充实验讨论结论稳健性"
+  ],
+  "accepted_user_direction_zh": [
+    "保留实验体系与任务覆盖为3.1；覆盖讨论同时包含化学内容与研究任务语义。",
+    "全部正式研究运行按用户确认的无人介入设置叙述；事后分析记录单独交代。",
+    "四arm属于主实验，不代表全部实验；已有小范围补充实验紧随其后。",
+    "以已有发现之间的联系解释系统设计；使用自然的提示、可能等措辞表达解释，不围绕预设审稿质疑组织正文。"
+  ],
+  "sections": [
+    {
+      "number": "3.1",
+      "title_en": "Experimental System and Task Coverage",
+      "title_zh": "实验体系与任务覆盖",
+      "question_zh": "这些任务分别要求Agent对什么化学对象作出什么研究判断，两条设计主线会在哪些问题上受到检验？",
+      "core_explanation_zh": "以反应类型、结构和立体特征描述化学覆盖，再以构建构型、寻找通路、比较竞争过程和判断目标可达性等研究要求解释任务语义。两种视角一起说明题库怎样触发几何操作与证据交付需求。",
+      "paragraph_order_zh": [
+        "介绍正式任务输入、实验条件与自主执行方式。",
+        "以实际题目归纳反应分布及代表性空间难点。",
+        "讨论任务语义分布，使相近反应的不同研究要求与不同反应的共同要求都能被看见。",
+        "从覆盖过渡到下两节：任务需要哪些空间改变，最终需要哪些证据。"
+      ],
+      "existing_evidence": [
+        {
+          "source": "/Users/cloudrayyy/Desktop/Cloudra_Introduction_and_Methods.docx",
+          "role_zh": "已有引言的任务范围与Methods的输入和科学对象定义。"
+        },
+        {
+          "source": "paper/literature/cloudra_model_study_20261028/research_program.json",
+          "locator": "cross_cutting; current_observations.formal_corpus",
+          "role_zh": "本轮读取语料与任务设计的分工；正式语料观察和整套题库规模分别标注。"
+        }
+      ],
+      "figure_plan": [
+        {
+          "kind": "proposed",
+          "figure_zh": "化学覆盖与研究要求并置图",
+          "use_zh": "左侧显示实际反应类别和结构特征，右侧显示题目要求；以代表题连接两侧。现有语义分布若已有计算结果，可放在此处解释覆盖，表现随语义变化的结果留给3.4。"
+        }
+      ],
+      "transition_zh": "同一研究要求需要被落实到具体原子、片段和几何目标，因此转入3.2。"
+    },
+    {
+      "number": "3.2",
+      "title_en": "From Chemical Intent to Reliable Spatial Operations",
+      "title_zh": "从化学意图到可靠空间操作",
+      "question_zh": "模型提出的化学目标，怎样经过身份识别、几何测量、局部执行和结果反馈，成为可以继续计算的构型？",
+      "core_explanation_zh": "将模型的工作集中在目标与候选选择上，由程序保持原子和片段对应、执行坐标操作，并返回与目标直接相关的测量。收益在于研究判断与可检查的物理变化相连。",
+      "subarguments": [
+        {
+          "label_zh": "保持化学对象",
+          "explanation_zh": "化学身份、原子映射和反应中心使不同表示、端点和编号下的结构仍能指向同一研究对象。",
+          "innovations": [
+            "A1"
+          ],
+          "evidence": [
+            {
+              "source": "output/cloudra_model_study_20261028/identity_binding_analysis.json",
+              "role_zh": "等价表示和选项顺序会改变部分局部身份判断。"
+            },
+            {
+              "source": "output/cloudra_model_study_20261028/native_diagnostic_analysis.json",
+              "locator": "modes.native_think_false; modes.native_think_true",
+              "role_zh": "原生跟进显示身份核对需要不同推理预算，支持由程序持续保留对象参照的设计解释。"
+            }
+          ]
+        },
+        {
+          "label_zh": "把空间关系变成可计算的目标",
+          "explanation_zh": "键长、键角、二面角和片段关系直接对应化学意图；确定性几何操作完成重复的数值工作。",
+          "innovations": [
+            "A2",
+            "A3",
+            "A4"
+          ],
+          "evidence": [
+            {
+              "source": "output/cloudra_model_study_20261028/native_chat_analysis.json",
+              "role_zh": "四结构几何比较中，原生思考与预算影响XYZ判断；工具测量减少需在文本中完成的数值工作。"
+            },
+            {
+              "source": "/Users/cloudrayyy/Desktop/Cloudra_Introduction_and_Methods.docx",
+              "locator": "2.2 Molecular Representations and Geometric Operators",
+              "role_zh": "测量、刚体操作、预组织、端点对齐与路径准备的方法依据；本节用发现解释其责任分工，不重复公式。"
+            }
+          ]
+        },
+        {
+          "label_zh": "反馈应测量真正的研究目标",
+          "explanation_zh": "E1轨迹把目标原子、局部旋转、补充测量和候选选择连起来，展示模型能够主动检查工具代表量是否回答当前问题。",
+          "innovations": [
+            "A5"
+          ],
+          "evidence": [
+            {
+              "source": "output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "locator": "chain; presentation_boundary; geometric_recalculation; native_followup",
+              "case": "guided/r2/E1",
+              "facts_zh": [
+                "原目标H7–C2–C3–Cl4接近180°。",
+                "默认代表性二面角涉及H5。",
+                "模型主动补测H7：A约59.4°，B约179.4°。",
+                "后续选择B进入下一阶段。"
+              ],
+              "role_zh": "用真实目标—操作—重测—选择链解释所有几何设计怎样协同。"
+            }
+          ]
+        }
+      ],
+      "figure_plan": [
+        {
+          "kind": "existing",
+          "path": "paper/figures/model_semantics_20261028/operation_goal_alignment.png",
+          "use_zh": "作为主图中心，突出H7目标、H5代表量与主动补测后的B选择；将身份保持、局部操作和反馈以链条连接。"
+        },
+        {
+          "kind": "proposed",
+          "figure_zh": "局部几何比较与推理预算的小面板",
+          "use_zh": "并列XYZ、程序测量与原生思考结果，使能力、计算工作和预算的关系清晰；图注给出四个源结构和配对变体单位。"
+        }
+      ],
+      "literature_context": [
+        {
+          "id": "L14",
+          "role_zh": "支持将结构识别、原子定位和编辑执行分别讨论。"
+        },
+        {
+          "id": "L15",
+          "role_zh": "程序执行分工的背景；正文强调Cloudra如何将其落实到化学对象与空间关系。"
+        }
+      ],
+      "transition_zh": "可用构型进入后续计算，研究对象还需贯穿结构、能量、频率与路径，因此转入3.3。"
+    },
+    {
+      "number": "3.3",
+      "title_en": "From Local Results to Evidence Supported Scientific Delivery",
+      "title_zh": "从局部计算结果到有证据的科学交付",
+      "question_zh": "不断累积的局部结果怎样支持同一物种或步骤，尚未满足的要求又怎样进入下一次研究动作和结束判断？",
+      "core_explanation_zh": "DAG将计算成果和研究义务保留在物种与基元步骤上，原生证据关联说明各结果怎样共同支持主张，定向反馈与Supervisor审阅帮助模型选择继续补证或如实交付。",
+      "subarguments": [
+        {
+          "label_zh": "将成功结果组织成支持关系",
+          "explanation_zh": "物种与步骤提供稳定的索引，TS、频率、IRC和端点证据通过来源与几何关联形成支持链。局部关联对照使这项设计对应到模型实际需要完成的关系核对。",
+          "innovations": [
+            "B1",
+            "B2"
+          ],
+          "evidence": [
+            {
+              "source": "output/cloudra_model_study_20261028/identity_binding_analysis.json",
+              "role_zh": "四个源链的局部关联对照，平铺与关联表示的判断比较。"
+            },
+            {
+              "source": "output/cloudra_model_study_20261028/native_diagnostic_analysis.json",
+              "locator": "modes.native_think_false; modes.native_think_true",
+              "role_zh": "被选中的两源链中，开启思考后平铺表示的关系判断得到纠正，提示关联表示可减轻核对工作。"
+            }
+          ]
+        },
+        {
+          "label_zh": "让科学状态进入研究决定",
+          "explanation_zh": "执行、数值收敛和证据支持分别表达不同事实；明确显示当前研究义务，能帮助模型保留未完成项并解释下一步需要什么。",
+          "innovations": [
+            "B3"
+          ],
+          "evidence": [
+            {
+              "source": "paper/literature/cloudra_model_study_20261028/research_program.json",
+              "locator": "current_observations.completion; current_observations.quoted_history_window",
+              "role_zh": "短报告与12条原消息窗口的判断均能保留科学缺口；用来说明明确状态可以被模型使用。"
+            }
+          ]
+        },
+        {
+          "label_zh": "把科学反馈转成具体动作",
+          "explanation_zh": "三个正式案例沿事实生成、可见输出、对象定位、实际参数修改和返回状态展开，说明科学提示与工具接口共同决定恢复动作能否指向缺口。",
+          "innovations": [
+            "B5"
+          ],
+          "evidence": [
+            {
+              "source": "output/cloudra_model_study_20261028/scientific_feedback_trajectory_cases.json",
+              "locator": "cases[0]",
+              "case": "SF01_record_r2_NB1_recover_targeted_geometry_feedback",
+              "role_zh": "整份输出被截断后，定向读取blocked使具体反应中心可见，随后修改同一运行的reaction_center。"
+            },
+            {
+              "source": "output/cloudra_model_study_20261028/scientific_feedback_trajectory_cases.json",
+              "locator": "cases[1]",
+              "case": "SF02_brief_errors_r1_HA1_masked_IRC_endpoint_linkage",
+              "role_zh": "移除具体IRC起点关联诊断后，仅更换源极小值引用，重交仍保留同一缺口。"
+            },
+            {
+              "source": "output/cloudra_model_study_20261028/scientific_feedback_trajectory_cases.json",
+              "locator": "cases[2]",
+              "case": "SF03_guided_r2_NB1_zero_imaginary_retry_and_calculation_reference",
+              "role_zh": "零虚频反馈之后的新计算设置，须落实到真正执行的具名定义，展示科学意图与接口的连接。"
+            }
+          ]
+        },
+        {
+          "label_zh": "让审阅与结束决定对应当前证据",
+          "explanation_zh": "IA1中模型在明确缺口与认可意见之间作出结束决定，具体反馈后改为partial。全局DAG状态和Supervisor解释承担相互连接的职责。",
+          "innovations": [
+            "B4",
+            "B5"
+          ],
+          "evidence": [
+            {
+              "source": "paper/literature/cloudra_model_study_20261028/research_program.json",
+              "locator": "current_observations.historical_conflict; current_observations.authority_conflict_short_diagnostic",
+              "role_zh": "真实长过程中的完成冲突与短输入中正确读取状态并置，研究重点由是否读懂报告转向如何在研究目标、意见和证据之间作决定。"
+            }
+          ]
+        }
+      ],
+      "figure_plan": [
+        {
+          "kind": "proposed",
+          "figure_zh": "DAG支持链与真实反馈轨迹",
+          "use_zh": "主面板以一个步骤展示TS→Freq→IRC→端点的对象关系；次面板沿三例显示可见反馈→实际下一动作→即时返回状态。"
+        },
+        {
+          "kind": "proposed",
+          "figure_zh": "完成决定的证据与审阅时间线",
+          "use_zh": "用IA1展示DAG缺口、认可意见、complete和后续partial之间的关系；局部诊断用小面板补充。"
+        }
+      ],
+      "literature_context": [
+        {
+          "id": "L11",
+          "role_zh": "用实际下一动作来研究事实如何进入决定。"
+        },
+        {
+          "id": "L12",
+          "role_zh": "解释跨来源冲突与来源归属为何是持续研究的一部分。"
+        },
+        {
+          "id": "L16",
+          "role_zh": "以具体反馈后的动作讨论外部反馈在研究中的作用。"
+        }
+      ],
+      "transition_zh": "两条链共享对象保持与定向反馈；3.4再观察这些设计如何在完整自主研究中协同。"
+    },
+    {
+      "number": "3.4",
+      "title_en": "Autonomous Evaluation and Robustness",
+      "title_zh": "完整自主评估与稳健性",
+      "question_zh": "两条设计链的协同怎样改变完整研究中的探索、补证与交付，已有补充实验是否保留相同方向？",
+      "core_explanation_zh": "先用四arm结果展示系统层面的整体关系，再结合3.2与3.3的具体轨迹解释变化来自哪里，最后接已有小范围补充实验讨论这些关系在其实际变化因素下的稳定性。",
+      "subsections": [
+        {
+          "number": "3.4.1",
+          "title_zh": "四arm主实验",
+          "explanation_zh": "使用最终统一来源和口径的自主运行结果，围绕空间准备、科学补证、完成判断及交付证据组织比较，并将典型轨迹与两条机制解释对应。",
+          "evidence_status_zh": "本子任务已读的是48运行研究语料与局部分析；系统分数在统一表形成后进入此处。"
+        },
+        {
+          "number": "3.4.2",
+          "title_zh": "已有小范围补充实验",
+          "explanation_zh": "紧接四arm，按用户实际改变的因素说明主结论的稳健性；保留任务、模型、重复或参数等真实因素名称，以该批既有记录为准。",
+          "evidence_status_zh": "用户确认已开展；当前提供的研究资料尚未列出该批具体条件与结果，留作正文接入口。"
+        }
+      ],
+      "figure_plan": [
+        {
+          "kind": "proposed",
+          "figure_zh": "四arm结果与补充实验相邻面板",
+          "use_zh": "主面板呈现统一口径的四arm比较，补充面板显示已有小范围实验中的同一结论指标；图注分别写明各自任务与运行单位。"
+        }
+      ],
+      "ending_zh": "回到中心论点：研究能力来自模型判断、确定性操作和证据反馈之间持续有效的连接。"
+    }
+  ],
+  "innovation_integration": [
+    {
+      "id": "A1",
+      "innovation_zh": "化学身份、原子映射与反应中心",
+      "section": "3.2",
+      "narrative_role_zh": "跨结构、重编号和端点转换时，同一化学对象必须保持对应。",
+      "entry_zh": "从不同表示仍须指向同一研究对象引入。"
+    },
+    {
+      "id": "A2",
+      "innovation_zh": "键长、键角、二面角等关系测量",
+      "section": "3.2",
+      "narrative_role_zh": "把模型需要的空间关系从坐标文本中明确算出，并与具体原子绑定。",
+      "entry_zh": "从模型要判断具体空间关系引入。"
+    },
+    {
+      "id": "A3",
+      "innovation_zh": "按化学意图选择片段并执行局部几何操作",
+      "section": "3.2",
+      "narrative_role_zh": "模型选择科学目标；程序维持指定片段和坐标变换的确定性。",
+      "entry_zh": "从化学目标必须变成实际坐标变化引入。"
+    },
+    {
+      "id": "A4",
+      "innovation_zh": "反应物预组织、端点对齐和路径初猜",
+      "section": "3.2",
+      "narrative_role_zh": "把方向和接触关系落实到可计算的候选构型，减少手工配置。",
+      "entry_zh": "从局部操作如何提供后续路径计算候选引入。"
+    },
+    {
+      "id": "A5",
+      "innovation_zh": "测量—修改—重测反馈",
+      "section": "3.2",
+      "narrative_role_zh": "将工具执行结果转化为模型可以核对的几何目标，使后续调整有对象。",
+      "entry_zh": "以E1目标H7的主动补测和B选择收束几何线。"
+    },
+    {
+      "id": "B1",
+      "innovation_zh": "以物种和基元步骤为对象的证据DAG",
+      "section": "3.3",
+      "narrative_role_zh": "把研究义务保留在化学对象上，避免一次局部成功代表整个机理完成。",
+      "entry_zh": "从多份局部结果必须支持同一机理主张引入。"
+    },
+    {
+      "id": "B2",
+      "innovation_zh": "原生日志、几何、频率、路径与端点的证据关联",
+      "section": "3.3",
+      "narrative_role_zh": "各份结果单独正确，仍需证明它们来自同一个有效计算链并支持该主张。",
+      "entry_zh": "从频率、IRC和端点之间的来源与结构关系引入。"
+    },
+    {
+      "id": "B3",
+      "innovation_zh": "执行、数值收敛与科学支持分别记录",
+      "section": "3.3",
+      "narrative_role_zh": "进程结束、结构收敛、证据充分表达不同事实。",
+      "entry_zh": "从已执行、已收敛和已支持分别影响下一决定引入。"
+    },
+    {
+      "id": "B4",
+      "innovation_zh": "Supervisor审阅与独立交付状态",
+      "section": "3.3",
+      "narrative_role_zh": "审阅意见与计算支持分别留存，认可措辞不能悄悄变成新的计算事实或生效豁免。",
+      "entry_zh": "从IA1中审阅意见参与结束判断引入。"
+    },
+    {
+      "id": "B5",
+      "innovation_zh": "定向诊断、继续补证与如实部分交付",
+      "section": "3.3",
+      "narrative_role_zh": "反馈指向缺失对象或关联；不能完成时保留科学边界。",
+      "entry_zh": "以三个科学反馈→真实动作及partial交付收束证据线。"
+    }
+  ],
+  "cross_cutting_placement": [
+    {
+      "topic_zh": "工具输出与信息利用",
+      "placement_zh": "穿过3.2目标二面角和3.3科学缺口两个实例；以事实→可见返回→对象→下一动作的共同链解释，不独立写成功能章。"
+    },
+    {
+      "topic_zh": "多Agent与异步执行",
+      "placement_zh": "在两条真实轨迹中说明任务和结果如何交接，作为长过程研究的组织条件。"
+    },
+    {
+      "topic_zh": "局部激活干预",
+      "placement_zh": "紧随数值事实怎样影响选择的行为发现，用小面板或补充材料说明局部内部状态替换对选择倾向的影响；其结果回到工具事实使用问题。",
+      "sources": [
+        "output/cloudra_model_study_20261028/fact_token_patch_review.json",
+        "output/cloudra_model_study_20261028/geometry_activation_pilot/manifest.json"
+      ]
+    },
+    {
+      "topic_zh": "长历史回放",
+      "placement_zh": "3.3将已完成的短报告和12消息窗口作为状态利用实例；完整306消息的首次请求以3600秒等待上限单列操作成本。"
+    },
+    {
+      "topic_zh": "方法细节与复现",
+      "placement_zh": "评分公式、来源清单、版本和参数放Methods或SI，正文只保留理解研究发现所需信息。"
+    }
+  ],
+  "evidence_editorial_notes_zh": [
+    "真实E1轨迹的确定观察为主动测量H7并选择B，后续科学完成程度沿实际证据另述。",
+    "本机Qwen对照用于研究表示、推理预算和事实使用；正式历史轨迹用于解释Cloudra实际研究过程，图例分别标识。",
+    "72条原生诊断为选定局部问题的跟进，重复表示与选项变体按源对象配对。",
+    "200运行是现有引言中的实验表述；本章规模以实际完成记录填入。",
+    "四arm与已有补充实验的最终表格使用统一来源；本稿不引用未统一的48运行分数。"
+  ],
+  "research_status": "completed_exploratory_research_delivery",
+  "final_observations": {
+    "target_measurement_zh": "仅有H5代理量时，三个选项循环均请求目标H7测量；加入H7读数后，三个循环均转为采用候选B。",
+    "workflow_state_zh": "构造短报告与12条消息窗口中，报告未完成、没有正式short_irc豁免、应保留交付缺口的状态均在两种选项顺序中得到一致读取。",
+    "full_history_execution_zh": "首个完整历史请求在3600秒HTTP等待上限结束，未保存答案；其余5题未尝试。记录为操作等待成本，不记为模型答错。"
+  }
+}

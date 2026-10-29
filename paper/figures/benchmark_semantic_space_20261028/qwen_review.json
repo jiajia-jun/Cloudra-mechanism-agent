@@ -1,0 +1,69 @@
+{
+  "status": "Exploratory review; Qwen paraphrases are excluded from the primary figures.",
+  "examples": [
+    {
+      "task_id": "HA1",
+      "source_input": {
+        "name": "3-methylcyclobutene ring opening",
+        "reactants": [
+          "CC1CC=C1"
+        ],
+        "products": [
+          "C=CC=CC"
+        ],
+        "charge": 0,
+        "multiplicity": 1
+      },
+      "generated_description": "Describe the ring opening of 3-methylcyclobutene to form 1,3-butadiene. The reactant is a neutral, singlet-state cyclic alkene, and the target product is a neutral, singlet-state conjugated diene.",
+      "review_observation": "Qwen names the target as unsubstituted 1,3-butadiene; the source target SMILES retains five carbon atoms."
+    },
+    {
+      "task_id": "HA6",
+      "source_input": {
+        "name": "trans-3,4-dimethylcyclobutene ring opening",
+        "reactants": [
+          "C[C@H]1C=C[C@@H]1C"
+        ],
+        "products": [
+          "CC=CC=CC"
+        ],
+        "charge": 0,
+        "multiplicity": 1
+      },
+      "generated_description": "Describe the ring opening of trans-3,4-dimethylcyclobutene to form the specified hexatriene product, preserving the defined stereochemistry and electronic state.",
+      "review_observation": "Qwen calls the target hexatriene; the source target SMILES CC=CC=CC has two double bonds."
+    },
+    {
+      "task_id": "IC3",
+      "source_input": {
+        "name": "phenylnitrene open-shell singlet state",
+        "reactants": [
+          "[N]c1ccccc1"
+        ],
+        "products": [
+          "[N]c1ccccc1"
+        ],
+        "charge": 0,
+        "multiplicity": 3
+      },
+      "generated_description": "Describe the open-shell singlet state of phenylnitrene, represented by the SMILES [N]c1ccccc1, with a net charge of zero and a triplet multiplicity.",
+      "review_observation": "Qwen conflates the open-shell-singlet question in the name with the triplet input multiplicity, rather than distinguishing target and input states."
+    },
+    {
+      "task_id": "M8",
+      "source_input": {
+        "name": "cyclohexane chair flip",
+        "reactants": [
+          "C1CCCCC1"
+        ],
+        "products": [
+          "C1CCCCC1"
+        ],
+        "charge": 0,
+        "multiplicity": 1
+      },
+      "generated_description": "Describe the chair flip conformational change of cyclohexane, starting from the specified reactant structure and targeting the identical product structure. The system remains neutral with a singlet multiplicity throughout this particular named transformation.",
+      "review_observation": "Qwen calls the product structure identical because the endpoints have the same SMILES; identical topology does not establish identical conformations."
+    }
+  ]
+}

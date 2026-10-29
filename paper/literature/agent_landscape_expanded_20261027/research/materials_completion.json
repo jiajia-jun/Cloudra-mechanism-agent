@@ -1,0 +1,644 @@
+{
+  "records": [
+    {
+      "id": "dynamate_mendible_barreto",
+      "name": "DynaMate (Mendible-Barreto et al.)",
+      "first_public_date": "2025-05-22",
+      "physical_target": "cross_domain",
+      "demonstrated_target": "liquid water, alanine dipeptide in vacuum, and IRMOF-1/ethanol system construction",
+      "boundary_conditions": "water simulation cell; alanine dipeptide explicitly in vacuum; IRMOF-1 framework and ethanol preparation shown separately",
+      "demonstrated_tasks": [
+        "T",
+        "O",
+        "D"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://pubs.rsc.org/en/content/articlehtml/2025/me/d5me00062a",
+          "locator": "Worked examples Figs.5–9 and Figs.12–13; full original manuscript also read at the ResearchGate mirror",
+          "evidence_paraphrase": "LLM agents call Moltemplate/Packmol tools to construct IRMOF-1 plus ethanol, prepare water minimization/NPT/NVT input, and launch a stable five-nanosecond LAMMPS run. Alanine-dipeptide metadynamics produces sampled dihedrals and a reconstructed free-energy surface."
+        },
+        {
+          "url": "https://www.researchgate.net/publication/391996468_DynaMate_leveraging_AI-agents_for_customized_research_workflows",
+          "locator": "Original RSC full manuscript, especially Figs.7,9,12,13",
+          "evidence_paraphrase": "The complete primary manuscript is readable here despite publisher HTTP403. It identifies template-based tool selection and notes that some generated inputs still require human editing."
+        },
+        {
+          "url": "https://github.com/omendibleba/DynaMate",
+          "locator": "README; tutorials/1_system_prep; tutorials/2_sim_runner; tutorials/4_enhanced_sampler",
+          "evidence_paraphrase": "Author repository supplies the corresponding LAMMPS/Moltemplate tools, MOF/solvent preparation files and enhanced-sampling notebooks."
+        }
+      ],
+      "family": "DynaMate / Mendible-Barreto–Colón",
+      "aliases": [
+        "10.1039/D5ME00062A",
+        "DynaMate: leveraging AI-agents for customized research workflows"
+      ],
+      "limitations": "Distinct from Guilbert's protein–ligand DynaMate. Attribution to de Gillis in an earlier discovery lead was incorrect: this paper is by Mendible-Barreto, Díaz-Maldonado, Carmona Esteva, Torres, Córdova-Figueroa and Colón. Cross-domain reflects the actually illustrated framework/solvent construction plus molecular-liquid/dipeptide cases; it does not establish a completed MOF adsorption campaign. MD free-energy sampling is D, not F or R. Template-guided and human-assisted.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "chatmat",
+      "name": "ChatMat",
+      "first_public_date": "2026-02-02",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "ammonia tetramer and water-octamer energy/force comparison; additional water and perchloric-acid ensembles",
+      "boundary_conditions": "explicit worked DFT comparison is finite molecular clusters; PWDFT plane waves do not alone establish an extended-material target",
+      "demonstrated_tasks": [
+        "T",
+        "E"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://www.researchgate.net/publication/404118299_ChatMat_A_Multi-Agent_Chemist_for_Autonomous_Material_Prediction_and_Exploration",
+          "locator": "Original accepted manuscript §§2.2–2.4; Figs.4 and7; Fig.7 execution trace",
+          "evidence_paraphrase": "A Manager coordinates Computing Designer, DFT Operator, ML Performer and Property Depositor. In Fig.7 the agent obtains the ammonia-tetramer structure, checks for an applicable learned model, falls through to first-principles calculation, and returns its energy/forces for comparison with a retrieved water-octamer result."
+        },
+        {
+          "url": "https://doi.org/10.1039/D5DD00582E",
+          "locator": "Journal publication; accepted manuscript dated23April2026",
+          "evidence_paraphrase": "The paper explicitly extends the earlier MatAgent DFT-operator architecture into a separately evaluated multi-agent framework."
+        },
+        {
+          "url": "https://zenodo.org/records/18459314",
+          "locator": "Archived ChatMat v1.1; publication date2February2026",
+          "evidence_paraphrase": "The author release archives the code and evaluation data before the inspected journal date."
+        },
+        {
+          "url": "https://github.com/Xiaobu-USTC/ChatMat",
+          "locator": "README; evl_results/run1/experiment_results_T1.jsonl through T3.jsonl",
+          "evidence_paraphrase": "Official implementation and recorded evaluation responses were read. These support the system identity, but response text alone is not treated as an independent numerical validation."
+        }
+      ],
+      "family": "MatAgent / ChatMat (Lv–Hu)",
+      "aliases": [
+        "10.1039/D5DD00582E",
+        "ChatMat: a multi-agent chemist for autonomous material prediction and exploration"
+      ],
+      "limitations": "Counted separately from earlier MatAgent because the architecture and evaluation are separately described; retain shared family for sensitivity. The concrete cluster DFT trace determines target classification. Alloy structure acquisition and model-training claims do not establish a separately simulated periodic alloy here. General AIMD equations are not credited as a demonstrated D task. Date is the earliest inspected archived release, not a verified original project launch.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "catgo",
+      "name": "CatGo",
+      "first_public_date": "2026-05-11",
+      "physical_target": "cross_domain",
+      "demonstrated_target": "Pt(111) ORR adsorbates and references; multi-facet Ni catalysis including CO dissociation; ORCA molecular reaction and UV–Vis workflows",
+      "boundary_conditions": "periodic Pt/Ni slabs with vacuum; separate molecular ORCA workflows; interface trajectories are distinguished from isolated species",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "F": {
+          "source_index": 0
+        },
+        "R": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://www.researchgate.net/publication/410982627_CatGo_Bridging_CLI_coding_agents_with_interactive_structure_and_workflow_management_for_computational_chemistry",
+          "locator": "Full original RSC manuscript §§2.3,5–7; Fig.4; Table6; §7.6–7.7 references SI S3.6 andS6",
+          "evidence_paraphrase": "CLI agents assemble the same editable DAG used by the UI. The executed Pt ORR graph connects slab/adsorbate construction, VASP optimization, frequencies and free-energy analysis, with DOS/COHP outputs. A 26-node MACE Ni reproduction reports CO-dissociation barriers. The paper identifies executed molecular ORCA reaction/TDDFT counterparts in SI S6."
+        },
+        {
+          "url": "https://doi.org/10.1039/D6DD00273K",
+          "locator": "Published article identity",
+          "evidence_paraphrase": "Journal version of the same CatGo project; it is not counted separately from its ChemRxiv report."
+        },
+        {
+          "url": "https://zenodo.org/records/21552845",
+          "locator": "Archived release25July2026; SI_pt111_orr_workflow.json; mace_ni_smoke.workflow.json; Reaction_Workflow.json; UV-Vis.json",
+          "evidence_paraphrase": "Author archive supplies the executable graphs. The molecular graph has optimization, TS search, frequency and IRC nodes; a separate azo-molecule graph has optimization and TDDFT. Graph definitions support reproducibility but are not alone proof of convergence."
+        },
+        {
+          "url": "https://doi.org/10.26434/chemrxiv.15002984/v1",
+          "locator": "Preprint identity/date; direct full-text access unavailable",
+          "evidence_paraphrase": "Earliest located preprint corresponds to this same system, dated11May2026; the scientific coding uses the inspected published manuscript."
+        }
+      ],
+      "family": "CatGo",
+      "aliases": [
+        "10.1039/D6DD00273K",
+        "10.26434/chemrxiv.15002984/v1",
+        "catgo-LRG",
+        "CatBot"
+      ],
+      "limitations": "High architectural relevance to Cloudra: shared visual/agent DAG, explicit dependencies, backend execution and results. Scientific choices remain human controlled. R is supported by the reported Ni CO-dissociation reproduction; the ORR free-energy diagram alone would not support it. D is deliberately unmarked because demonstrated trajectory analysis and implemented MD support were not independently traced to agent-launched dynamics in the inspected examples. Molecular and surface execution is explicitly stated in the original paper; full SI numerical tables were not retrieved. Earliest date is a located preprint date, with direct DOI metadata access limited.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "el_agente_potente",
+      "name": "El Agente Potente",
+      "first_public_date": "2026-09-13",
+      "physical_target": "cross_domain",
+      "demonstrated_target": "bulk crystals and Li-ion conductors; tetraethylene glycol dibenzoate conformers; alanine-dipeptide metadynamics; HKUST-1 adsorption; Fe-surface reactions",
+      "boundary_conditions": "periodic bulk/slab/MOF calculations and explicitly isolated molecular conformers; molecular enhanced sampling separately identified",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O",
+        "F",
+        "R",
+        "D"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "F": {
+          "source_index": 0
+        },
+        "R": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2609.14840v1",
+          "locator": "§§2.1–2.3; Figs.2–5; supplementary Molecular/Adsorption/Catalytic Case Studies and agent traces",
+          "evidence_paraphrase": "Typed execution graphs and a complementary coding agent run actual MLIP workflows. Examples include crystal relaxation/phonons, generated Li-conductor MD, isolated-molecule conformer sampling with ten PySCF single points and frequencies, alanine metadynamics, adsorption, and seven-image Fe(110) NEB plus Sella refinement with two MACE potentials."
+        }
+      ],
+      "family": "El Agente",
+      "aliases": [
+        "arXiv:2609.14840",
+        "Potente"
+      ],
+      "limitations": "Distinct named architecture after the earlier six El Agente workflows; shared family must be used in a family-merged sensitivity analysis. Some molecular DFT steps are coordinated through El Agente Gráfico rather than a newly invented backend. MD transport and GCMC results are screening-level; substantial MLIP dependence remains. Task coverage is not a claim of correct mechanisms or autonomous scientific acceptance. GCMC is not recoded as MD; D is independently established by real MD/metadynamics cases.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "agent_e2md",
+      "name": "Agent-E2MD",
+      "first_public_date": "2026-09-22",
+      "physical_target": "extended_materials_surfaces",
+      "demonstrated_target": "Ar, Ag, Bi, Si, Ni and Al benchmarks; graphene with water, carbon dioxide and ammonia reactive adsorbates",
+      "boundary_conditions": "periodic bulk benchmarks; three-dimensionally periodic graphene/C–H–O–N test cell",
+      "demonstrated_tasks": [
+        "E",
+        "O",
+        "D"
+      ],
+      "task_evidence": {
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2609.26657v1",
+          "locator": "§§2.5–2.6; §§3–4; Methods7.5, especially zero-temperature and finite-temperature benchmark protocols",
+          "evidence_paraphrase": "LLM agents translate interaction equations into compiled LAMMPS pair styles, repair build/runtime failures, launch single-point, lattice/defect/elastic and MD validation, then compare numerical results with references. Seven potential/material pairs include finite-temperature metals/Si and a reactive graphene-plus-adsorbates trajectory."
+        }
+      ],
+      "family": "Agent-E2MD",
+      "aliases": [
+        "arXiv:2609.26657"
+      ],
+      "limitations": "Included as simulation-software development with actual atomistic execution and feedback, consistent with the baseline admitting algorithm-improvement workflows. It is not an autonomous catalyst-discovery agent. Structure setup is a fixed benchmark initializer, so no extra T mark; reactive dynamics and evolving bond order do not establish an explicit TS/path search R. Adsorbate molecules on graphene do not create a separate molecular-target category.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "gbclaw",
+      "name": "GBClaw",
+      "first_public_date": "2026-10-20",
+      "physical_target": "extended_materials_surfaces",
+      "demonstrated_target": "14 asymmetric tilt grain boundaries in nickel; reconstruction and shear-coupled migration",
+      "boundary_conditions": "Ni bicrystals with periodic boundary conditions within the grain-boundary plane and upper/lower free surfaces; compact supercells explicitly limit long-range defects",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O",
+        "R"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "R": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/pdf/2610.28629",
+          "locator": "Original51-page PDF; main pp.4–8, Fig.5 and pp.16–18; Methods pp.21–24; Supplementary Notes4–7",
+          "evidence_paraphrase": "A planning/structure/LAMMPS/analysis agent team constructs and relaxes Ni bicrystals, calculates grain-boundary energies and athermal shear response. Human-guided replanning triggers loading/unloading and a 144-replica NEB connecting the initial and reconstructed boundary states."
+        },
+        {
+          "url": "https://zhugroup.gatech.edu/gbclaw-demo",
+          "locator": "Official demonstration linked by the original manuscript",
+          "evidence_paraphrase": "Author demonstration is a reproducibility pointer; task marks here derive from the original paper rather than an uninspected video."
+        }
+      ],
+      "family": "GBClaw",
+      "aliases": [
+        "arXiv:2610.28629"
+      ],
+      "limitations": "R is a solid-state reconstruction minimum-energy path, not an organic reaction TS. The reported shear calculations are athermal displacement/minimization sequences; the paper places large-scale finite-temperature MD in future work, so D remains unmarked. Human-guided mechanistic interpretation and compact-cell limitations are explicit. Original PDF downloaded/read because arXiv HTML was unavailable and web PDF exceeded the size limit.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "mdagent2_runtime",
+      "name": "MDAgent2-RUNTIME",
+      "first_public_date": "2026-01-05",
+      "physical_target": "extended_materials_surfaces",
+      "demonstrated_target": "LAMMPS materials simulations; Cu–Ni nanoparticle melting worked trajectory",
+      "boundary_conditions": "finite Cu–Ni nanoparticle is the concrete worked target; box periodicity not independently reconstructed",
+      "demonstrated_tasks": [
+        "D"
+      ],
+      "task_evidence": {
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2601.02075v1",
+          "locator": "§2.4; Methods3.3 Runtime Multi-Agent Framework; Appendix8 Case Study",
+          "evidence_paraphrase": "A deployable generator/runner/evaluator loop writes LAMMPS input, checks potential availability, executes scripts, evaluates results and revises failures. The worked Cu–Ni melting trace repairs an unavailable EAM filename, runs LAMMPS and re-enters generation after a low evaluation score."
+        },
+        {
+          "url": "https://github.com/FredericVAN/PKU_MDAgent2",
+          "locator": "Official code URL identified in the original paper",
+          "evidence_paraphrase": "Project identity and implementation pointer for MDAgent2 rather than an unrelated biomolecular MDAgent."
+        }
+      ],
+      "family": "MDAgent / Shi et al.",
+      "aliases": [
+        "MDAgent2",
+        "MD-GRPO",
+        "arXiv:2601.02075"
+      ],
+      "limitations": "Separately described runtime/training architecture builds on the2025 MDAgent; count separately under the dataset's architecture-level rule and combine for family sensitivity. MD-GRPO and MD-EvalBench are components, not additional agents. The illustrative appendix omits code/output details and contains placeholders; task coverage also rests on the execution benchmark, and no scientific success rate or extra T/E/O tasks are inferred.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "pvmatagent",
+      "name": "PVmatAgent",
+      "first_public_date": "2026-09-19",
+      "physical_target": "extended_materials_surfaces",
+      "demonstrated_target": "Cs2AgBiBr6→Cs2AgBiCl6 substitution and inorganic/hybrid perovskite screening",
+      "boundary_conditions": "periodic crystallographic CIF models; organic cations in hybrid crystals do not imply isolated molecular targets",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://onlinelibrary.wiley.com/doi/10.1002/mgea.70102",
+          "locator": "Methods2.1–2.2; Results3.1 Case1, especially elemental substitution followed by CHGNet relaxation and formation-energy evaluation",
+          "evidence_paraphrase": "The LLM retrieves Cs2AgBiBr6, invokes a Br→Cl structure-editing tool and immediately calls CHGNet to relax the new crystal. The case reports formation-energy evaluation before the separate scalar bandgap/device models are used."
+        },
+        {
+          "url": "https://github.com/Albertdeng23/PVMatAgent",
+          "locator": "README; expert-tool matrix; typical scientific showcases",
+          "evidence_paraphrase": "Official repository identifies the LLM tool-dispatch architecture and CHGNet structure/energy tools. VASP scheduling support alone is not treated as an executed DFT case."
+        },
+        {
+          "url": "https://doi.org/10.26434/chemrxiv.15003915/v1",
+          "locator": "Earlier preprint identity, May2026 lead; precise primary posting date unresolved",
+          "evidence_paraphrase": "Same authors and system, with a slightly different title; retained as a version alias rather than a second system."
+        }
+      ],
+      "family": "PVmatAgent",
+      "aliases": [
+        "10.1002/mgea.70102",
+        "10.26434/chemrxiv.15003915/v1",
+        "Photovoltaic Materials Mixture of Experts Agent"
+      ],
+      "limitations": "Date uses the inspected journal first-publication date; an earlier May2026 ChemRxiv version and an April repository exist, so this is not a verified earliest appearance. Inclusion rests on actual force-field relaxation, not GNN bandgap prediction or device-level efficiency modeling. No completed VASP calculation was established. Source explicitly warns of representation/model errors in hybrid perovskites; coverage does not validate the quantitative physical claims. Publisher main text was readable through its indexed full original page while some direct opens returned403.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "matmcp",
+      "name": "matmcp",
+      "first_public_date": "2026-08-12",
+      "physical_target": "extended_materials_surfaces",
+      "demonstrated_target": "2H/1T MoS2 monolayers, Si, GaAs, rutile TiO2 and LiCoO2; MoS2 vacancy supercell",
+      "boundary_conditions": "periodic plane-wave crystals/slabs with explicit vacuum detection; no cross-domain claim from a preparatory H2 check",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://github.com/Crystalhihihi/matmcp",
+          "locator": "README: architecture, measured examples12August and9October2026; evidence/ directories",
+          "evidence_paraphrase": "Kimi/Claude-compatible MCP tools let an LLM construct/fetch a MoS2 model, relax it with GPAW and calculate bands/DOS. The official worked demonstrations link machine-readable convergence/results and a separate QE comparison."
+        },
+        {
+          "url": "https://raw.githubusercontent.com/Crystalhihihi/matmcp/main/docs/experiments.md",
+          "locator": "E0–E8; E1 agent-generated incorrect interpretation of an actually executed MoS2 workflow; later dated cases",
+          "evidence_paraphrase": "Developer's dated record describes a fresh agent session executing the complete calculation, diagnosing a wrong direct/indirect-gap interpretation and correcting the deterministic output extraction. It also records failed LiCoO2 and parameter trials rather than hiding them."
+        },
+        {
+          "url": "https://github.com/Crystalhihihi/matmcp/tree/main/evidence/20261009-225541_mos2_d84a",
+          "locator": "relaxed.cif; convergence.json; summary.json; workflow_result.json",
+          "evidence_paraphrase": "Official run artifacts separately expose the relaxed geometry, convergence tests and final electronic output. These provide concrete simulation evidence beyond an installed tool list."
+        }
+      ],
+      "family": "matmcp",
+      "aliases": [
+        "Crystalhihihi/matmcp"
+      ],
+      "limitations": "Developer project demonstration, without a located independent original research paper or benchmark. Include under the same official-demonstration sensitivity used for Protomia/Chelatron. First date is the dated developer case record and repository creation date, not a reviewed publication. Some early bulk relaxations are near-equilibrium validation rather than an extensive structural search. Numerical agreement against Materials Project PBE is implementation consistency, not experimental accuracy.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    },
+    {
+      "id": "dynamate2",
+      "name": "DynaMate2",
+      "first_public_date": "2026-05-20",
+      "physical_target": "soft_biomolecular",
+      "demonstrated_target": "aqueous NaCl:267water molecules and one Na+/Cl− pair",
+      "boundary_conditions": "explicit periodic20Å cubic solution box; molecular liquid remains soft matter",
+      "demonstrated_tasks": [
+        "T",
+        "D"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/pdf/2605.20819v2",
+          "locator": "Introduction pp.2–3; §4 Representative Example pp.10–14; Table2 and Fig.4",
+          "evidence_paraphrase": "A persistent LangGraph supervisor/specialist hierarchy coordinates registered expert tools. The actual single-instruction case downloads MACE-POLAR, converts molecular SMILES, packs267waters plus NaCl, runs250ps ASE NVT dynamics and plots trajectory energy/temperature. The authors explicitly contrast this architecture with the first DynaMate single-tool-per-prompt design."
+        },
+        {
+          "url": "https://arxiv.org/abs/2605.20819",
+          "locator": "Primary version history",
+          "evidence_paraphrase": "First submitted20May2026;9June2026revision is the same DynaMate2 system, not another count."
+        }
+      ],
+      "family": "DynaMate / Mendible-Barreto–Colón",
+      "aliases": [
+        "arXiv:2605.20819",
+        "DynaMate2: runtime registration of expert-defined tools for agentic scientific workflow automation"
+      ],
+      "limitations": "Separate from DynaMate under the baseline architecture/workflow unit: genuine supervisor coordination, persistent runtime tool registration and a new end-to-end MLIP demonstration. Combine with its predecessor for family sensitivity. The illustrated run tests orchestration, not NaCl thermodynamics or MLIP accuracy. No extra E for trajectory energies or O for unreported minimization. Currentv2 places a code-review critic in future work; do not describe it as implemented.",
+      "include_main": true,
+      "reviewed_on": "2026-10-27"
+    }
+  ],
+  "updates": [],
+  "screening": [
+    {
+      "name": "ISAAC / agentic XPS framework (Shen and Qian)",
+      "url": "https://doi.org/10.26434/chemrxiv.15006672/v1",
+      "status": "primary_full_case_audit_incomplete",
+      "locator": "Original abstract; author group page https://qiangrouppage.lbl.gov/research",
+      "reason": "The original abstract now explicitly identifies an end-to-end demonstration on eleven gas-phase reaction intermediates with C1s/O1s ΔSCF energies, including radicals and an iodine species. Thus VASP support must not cause automatic materials/cross-domain classification; demonstrated target appears finite molecules. Direct full report remained inaccessible and author code was not located, so the individual execution/relaxation traces remain unverified. Preserve as a highly probable eligible system pending full-text audit, not an absence-of-capability claim.",
+      "sources": [
+        {
+          "url": "https://www.researchgate.net/publication/410908223_An_Agentic_Artificial-Intelligence_Framework_for_Automated_First-Principles_X-ray_Photoelectron_Spectroscopy_Calculations_on_High-Performance_Computing",
+          "locator": "Original preprint abstract, no full file available",
+          "evidence_paraphrase": "Reports an LLM supervisor with human approvals and an actual eleven-species gas-phase XPS demonstration; no full calculation trace was available here."
+        }
+      ],
+      "reviewed_on": "2026-10-27",
+      "screened_by": "materials_completion"
+    },
+    {
+      "name": "MatBrain",
+      "url": "https://www.nature.com/articles/s42256-026-01298-6",
+      "status": "atomistic_execution_still_unresolved_after_original_trace",
+      "reason": "Read the official released Figure5 conversation transcript at https://raw.githubusercontent.com/MAIC-SIAT/matbrain/main/figure-data/figure5/matbrain_session_20260525_105145.md. It shows failed fractional-formula queries, then database lookup and CrystaLLM generation of a mixed-halide perovskite; no MatGL relaxation tool is called in this complete trace. Earlier SI-listed relaxation tools still do not establish execution. The main article is paywalled and arXiv:2604.11540 HTML unavailable; no negative claim about uninspected catalyst screening is made.",
+      "reviewed_on": "2026-10-27",
+      "screened_by": "materials_completion"
+    },
+    {
+      "name": "DFT AutoPilot",
+      "url": "https://github.com/The66user/dft-autopilot-mcp",
+      "status": "implemented_mcp_support_example_not_actual_run_verified",
+      "reason": "Official README was read. It supplies QE/VASP/Gaussian orchestration and a typical Si session with numerical results, but that dialogue is illustrative and no dated retained run artifacts were located in this pass. It is a useful tool lead, not another main entry solely from installed capability or example prompts.",
+      "reviewed_on": "2026-10-27",
+      "screened_by": "materials_completion"
+    },
+    {
+      "name": "Unnamed FHI atomistic-configuration-space multi-agent system",
+      "url": "https://plan.events.mpg.de/event/831/contributions/",
+      "status": "conference_primary_abstract_case_details_unresolved",
+      "reason": "Official7October2026 meeting contribution by Lombardi, Vuijk and Beinlich mentions a multi-agent system for autonomous exploration of atomistic configuration spaces. No specific executed target/result or independently identified project was obtained; retained as a fresh lead rather than forcing a generic conference abstract into the denominator.",
+      "reviewed_on": "2026-10-27",
+      "screened_by": "materials_completion"
+    },
+    {
+      "name": "AI coding agents with NVIDIA ALCHEMI",
+      "url": "https://developer.nvidia.com/blog/",
+      "status": "discovery_lead_original_case_not_located",
+      "reason": "October2026 secondary descriptions point to an official ALCHEMI coding-agent workflow article, but exact original article and executed case were not resolved. No generic toolkit counted as an agent.",
+      "reviewed_on": "2026-10-27",
+      "screened_by": "materials_completion"
+    },
+    {
+      "name": "Science Done on a Machine by a Machine:49-system closure",
+      "url": "https://arxiv.org/html/2608.18508v1",
+      "status": "citation_seed_membership_reconciled",
+      "locator": "Appendix Table1",
+      "reason": "All49 names were compared with the baseline70 and existing screening. The materials missing member CatGo is now added. The other unresolved survey members ArIA and Q-planner belong to the molecular researcher; ISAAC remains explicit pending full-text audit. Tensor-network dynamics and AutoSolvateWeb retain the baseline boundary exclusions. The survey's own rule counts implemented capabilities without worked examples, so its task marks are not imported.",
+      "reviewed_on": "2026-10-27",
+      "screened_by": "materials_completion"
+    },
+    {
+      "name": "Multi-AI agent framework reveals the oxide gatekeeper / MLP Copilot",
+      "url": "https://doi.org/10.1073/pnas.2537780123",
+      "status": "deduplicated_existing_mlp_copilot",
+      "reason": "October2026 PNAS report is already baseline mlp_copilot, including DOI and aliases. No new system or date update is needed.",
+      "reviewed_on": "2026-10-27",
+      "screened_by": "materials_completion"
+    }
+  ],
+  "search_log": [
+    {
+      "date": "2026-10-27",
+      "query": "CatGo d6dd00273k; DynaMate d5me00062a; ChatMat D5DD00582E; ISAAC XPS Shen Qian agent",
+      "purpose": "Resolve four named baseline access gaps from primary paper/project identities",
+      "result": "Publisher403; original full manuscripts recovered for CatGo/ChatMat/DynaMate via publisher/author-hosted ResearchGate full text. ISAAC only abstract and group identity resolved."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "materials agent atomistic simulations2026 September October",
+      "purpose": "Broad recent materials sweep",
+      "result": "El Agente Potente identified and its full original report read."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "catalysis LLM agent2026 simulation",
+      "purpose": "Broad catalyst execution sweep",
+      "result": "Existing MASTER/CatMaster/CatDT; CatGo original workflow closure prioritized."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "materials MCP agent DFT2026",
+      "purpose": "Broad general-tool/MCP sweep with actual case requirement",
+      "result": "matmcp actual dated cases and run artifacts; DFT AutoPilot kept outside pending real-run evidence."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "MatBrain relaxation",
+      "purpose": "Close relaxation-tool-versus-execution ambiguity",
+      "result": "Official code and figure transcript located; the complete visible trace demonstrates generation but no relaxation."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "An Agentic Artificial-Intelligence Framework X-ray Photoelectron Shen Qian",
+      "purpose": "Resolve XPS physical target and actual-case claim",
+      "result": "Original abstract explicitly shows eleven gas-phase molecules, contradicting any automatic extended-material label from VASP support."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "Agent-E2MD arxiv",
+      "purpose": "Close broad-sweep source-code-generation lead",
+      "result": "Original arXiv2609.26657 read, including full benchmark methods and reactive-system composition."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "atomistic agent2026-10",
+      "purpose": "Broad October discovery sweep",
+      "result": "GBClaw identified;51-page original PDF retrieved/read. Existing MLP Copilot deduplicated."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "atomistic agent2026 September",
+      "purpose": "Broad September discovery sweep",
+      "result": "Potente/Agent-E2MD and PVmatAgent leads; no extra count for review articles."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "materials simulation agent October2026 LLM",
+      "purpose": "Broad recent workflow sweep",
+      "result": "Official FHI conference lead retained; ALCHEMI secondary lead remains unverified."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "DFT agent September2026 new",
+      "purpose": "Broad electronic-structure sweep",
+      "result": "PVmatAgent original journal full text verified through indexed primary page, with explicit CHGNet case."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "MDAgent2 2026",
+      "purpose": "Close pair-style-paper citation chain and distinguish homonyms",
+      "result": "Original2601.02075 runtime/benchmark/case study read; separate architecture added, shared family retained."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "DynaMate de Gillis; DynaMate alanine MOF; PVmatAgent github; MatBrain relaxation case",
+      "purpose": "Targeted identity/case closure",
+      "result": "DynaMate de Gillis attribution corrected to Mendible-Barreto/Colón. PVmatAgent repo found. MatBrain original trace still insufficient for atomistic-execution inclusion."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "CatGo May11 2026;15002984 date; ISAAC Shen github XPS; MatBrain github MatGL",
+      "purpose": "Date/version/repository closure",
+      "result": "CatGo preprint date located with provenance caveat; author archives verify actual DAG templates. MatBrain official release/transcript located. No ISAAC full code or manuscript retrieved."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "Citation chaining from arXiv2608.18508 Appendix Table1",
+      "purpose": "Reconcile all49 survey members against baseline and screen gaps",
+      "result": "No remaining unassigned materials member beyond ISAAC after CatGo addition. Survey capability marks not copied."
+    },
+    {
+      "date": "2026-10-27",
+      "query": "Root-discovered DynaMate2 arXiv2605.20819; originalv2PDF closure",
+      "purpose": "Distinguish architecture successor from paper-version duplicate",
+      "result": "Full20-page original read. Introduction and Conclusion explicitly distinguish new supervisor/runtime-registration architecture from first DynaMate; concrete250ps aqueous-NaCl workflow supports separateT/D record with shared family."
+    }
+  ]
+}

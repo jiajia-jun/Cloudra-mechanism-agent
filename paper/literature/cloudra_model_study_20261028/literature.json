@@ -1,0 +1,1015 @@
+{
+  "purpose": "Cloudra 模型信息利用研究的第一批原始文献矩阵；用于形成可证伪的系统问题和对照，不是当前模型的实验结果。",
+  "review_date": "2026-10-28",
+  "language": "zh-CN",
+  "scope": "化学与分子表示、三维几何信息、图的文本编码、工具和外部证据、反馈与上下文、探针和激活替换的解释边界。",
+  "global_boundaries": [
+    "本文献矩阵没有运行任何 LLM，也没有测量 Cloudra 当前 Qwen 的行为或内部机制；不同论文的模型、训练、任务与提示不可直接外推。",
+    "文献中的行为差异只能支持设计对照。判断 Cloudra 的系统原因，应同时检查输入信息是否存在、表示是否充分、工具返回是否保留身份与证据关系，以及模型是否据此采取正确动作。",
+    "化学敏感性须同时检查两面：化学等价改写应保持结论；真正改变电荷、自旋、立体或连接关系时应正确改变结论。单纯稳定或单纯敏感都不是化学理解的充分证据。",
+    "几何数值计算交给确定性工具的架构选择，不能由这些论文单独证明优于其它系统；需要在相同研究任务、信息和计算预算下做对照。",
+    "图读取得分、研究动作、原生日志证据绑定和 TS/Freq/IRC 科学验收应分开报告；不从文字流畅、工具执行成功或内部可解码信息推断科学完成。",
+    "以下 controlled_comparisons 均为待实施设计，不改变 Cloudra 既有科学标准、方法选择或评分权重。"
+  ],
+  "papers": [
+    {
+      "id": "L01",
+      "title": "Inconsistency of LLMs in molecular representations",
+      "authors": [
+        "Bing Yan",
+        "Angelica Chen",
+        "Kyunghyun Cho"
+      ],
+      "year": 2025,
+      "venue": "Digital Discovery 4, 2876–2892",
+      "publication_status": "同行评议论文",
+      "url": "https://pubs.rsc.org/en/content/articlelanding/2025/dd/d5dd00176e",
+      "doi": "10.1039/D5DD00176E",
+      "themes": [
+        "分子表示",
+        "等价性",
+        "一致性与正确性"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://pubs.rsc.org/en/content/articlehtml/2025/dd/d5dd00176e",
+            "scope": "出版商检索可见的摘要与引言原文；PDF 检索可见的 4.2 节与结论片段"
+          },
+          {
+            "url": "https://github.com/bingyan4science/consistency",
+            "scope": "作者发布的 README：配对 SMILES/IUPAC 数据、前向反应预测评估与 GPT-2 Small 微调设置"
+          },
+          {
+            "url": "https://raw.githubusercontent.com/bingyan4science/consistency/main/calc_consistency.py",
+            "scope": "作者评估代码：分别统计正确预测、一致预测、两边都错但一致等情况"
+          }
+        ],
+        "limitation": "出版商全文/PDF 的直接打开返回 403，未逐节通读全文；不采用摘要中的极低一致率作为可外推数值。"
+      },
+      "findings_read": [
+        {
+          "finding": "作者以同一化学对象的 SMILES/IUPAC 配对，检查反应预测、逆合成和性质预测的一致性。在其 GPT-2 微调实验中，一致性正则改善了部分表面一致性，却没有同步提高正确性。",
+          "conditions": "结论依赖配对数据、指定任务、模型和输出比较方式；一致性与正确性在这些实验中可分离，并不构成二者在所有问题上统计独立的证明。",
+          "locator": "摘要、引言、4.2 节片段；作者 README 与 calc_consistency.py"
+        }
+      ],
+      "cloudra_questions": [
+        "研究意图对同一分子的改写是否稳定，还是名称熟悉度或字符串形式改变了反应假说？",
+        "系统若只奖励重复得到同一答案，是否会稳定地产生同一个错误机理？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "给同一研究问题换用经程序核对的等价 SMILES、IUPAC 和显式连接表；另设只改变一个真实化学属性的成对问题。",
+          "fixed": "分子身份与原子映射、问题、可用工具、证据和预算；采样重复用于区分随机波动。",
+          "observable": "分别记录结论正确性、等价改写一致性、真实变化敏感性及下一研究动作。",
+          "system_interpretation": "若解析任务先失败，优先修表示/身份接口；若结构读对而研究结论仍受名称驱动，再研究知识调用。"
+        }
+      ],
+      "cannot_claim": [
+        "不能据此说当前 Qwen 不懂化学，或 Cloudra 失败必然源于 SMILES。",
+        "不能把一致性提高当作科学正确或 TS/IRC 证据成立。"
+      ],
+      "mainline": "A",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "分子表示配对与微调正则的结果比较；不是隐藏状态探针或内部激活干预。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L02",
+      "title": "Rethinking Molecular Text Representations for LLMs: An Empirical Study",
+      "authors": [
+        "Arun Raja",
+        "Garrett M. Morris",
+        "Kian Ming A. Chai"
+      ],
+      "year": 2026,
+      "venue": "arXiv:2606.03057v1",
+      "publication_status": "预印本；本次未确认同行评议发表",
+      "url": "https://arxiv.org/html/2606.03057v1",
+      "doi": "10.48550/arXiv.2606.03057",
+      "themes": [
+        "分子表示",
+        "结构解析",
+        "探针与生成行为"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2606.03057v1",
+            "scope": "第 3–5 节的任务与比较、第 6 节机制分析、第 7 节和局限"
+          }
+        ],
+        "limitation": "阅读原文的研究设计和相关结果；未复现数据、统计或 LLM 评审。"
+      },
+      "findings_read": [
+        {
+          "finding": "跨分子文本格式的优势随任务而变：其结构任务常受益于显式原子/键表示，语义检索更受益于名称；没有一种格式在所有任务上最佳。原文还报告 Qwen3-4B 的线性性质探针与同一格式的生成预测表现不一致。",
+          "conditions": "任务来自 ChEBI-20/ZINC250K 等，涵盖原子计数、官能团、异构体、互变异构和质子化等；不是反应机理探索、TS 定位或 IRC 验收。论文中的 Qwen3 配置不自动等于 Cloudra 当前部署。",
+          "locator": "第 3 节、第 5.1–5.2 节、第 6.2 节、第 7 节与 Limitations"
+        }
+      ],
+      "cloudra_questions": [
+        "工具是否给了适合当前决定的信息形式，还是把便于存储的字符串直接当成模型最易用的输入？",
+        "探针若能读出结构信息，模型是否真的把它用于选工具和证据判断？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "比较紧凑分子字符串、显式原子/键表，以及前两者附相同的任务相关确定性摘要。",
+          "fixed": "同一分子、同一任务、相同事实；另做长度匹配控制，避免把额外信息或更长提示误认成格式效果。",
+          "observable": "先测结构读取，再测研究动作；内部探针与外部动作分开分析。",
+          "system_interpretation": "格式改善读取却不改善动作时，问题更可能落在任务绑定或决策使用；不能只换一种全局格式宣布解决。"
+        }
+      ],
+      "cannot_claim": [
+        "不能据此指定 Cloudra 必须改成 CML/MolJSON，或新增表示路由框架。",
+        "不能从注意力大小、线性可解码或某格式平均排名推断因果机制和科学可靠性。"
+      ],
+      "mainline": "A",
+      "evidence_layers": [
+        "input_sensitivity_behavior",
+        "representation_probe"
+      ],
+      "evidence_layer_boundary": "既有跨表示行为对照，也有 Qwen3-4B 线性探针和注意力观察；原文相关机制分析未构成内部激活因果干预。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L03",
+      "title": "3D-MoLM: Towards 3D Molecule-Text Interpretation in Language Models",
+      "authors": [
+        "Sihang Li",
+        "Zhiyuan Liu",
+        "Yanchen Luo",
+        "Xiang Wang",
+        "Xiangnan He",
+        "Kenji Kawaguchi",
+        "Tat-Seng Chua",
+        "Qi Tian"
+      ],
+      "year": 2024,
+      "venue": "ICLR 2024",
+      "publication_status": "同行评议论文",
+      "url": "https://arxiv.org/html/2401.13923",
+      "doi": "10.48550/arXiv.2401.13923",
+      "themes": [
+        "三维几何",
+        "信息可得性",
+        "多模态对齐"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2401.13923",
+            "scope": "第 2.1–2.2 节架构与数据、第 3.3 节性质 QA、附录 F 的同基座比较"
+          },
+          {
+            "url": "https://openreview.net/pdf?id=xI4yNlkaqh",
+            "scope": "ICLR 2024 正式论文与元数据"
+          }
+        ],
+        "limitation": "阅读的是专门训练的分子模型研究；未测试通用模型直接读取 XYZ。"
+      },
+      "findings_read": [
+        {
+          "finding": "该系统把 Uni-Mol 的三维编码经 Q-Former 对齐到 Llama2，再做指令训练；在其分子检索、描述和性质 QA 上优于所比较基线，三维相关性质获益更明显。编码器使用原子间距离构造对整体旋转和平移不变的表示。",
+          "conditions": "同时包含额外三维编码器、对齐训练和指令数据；PubChem 对齐构象由 RDKit/MMFF 获得，另用 PubChemQC 性质。其证据不涉及过渡态搜索和反应路径确证。",
+          "locator": "第 2.1 节、第 2.2.1–2.2.2 节、第 3.3 节、附录 F"
+        }
+      ],
+      "cloudra_questions": [
+        "LLM 被要求从坐标自行算空间关系时，困难究竟来自缺少几何事实、数值运算还是化学决策？",
+        "确定性几何工具的返回是否已经把研究所需的距离、二面角、片段关系和编号关联暴露清楚？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "同一构象分别提供 XYZ、程序算出的同一组任务相关几何量、二者合并；对 XYZ 做整体旋转/平移与保留映射的原子重排。",
+          "fixed": "真实几何和研究问题；真实不同构象另作变化对照，镜像不当成普遍等价变换。",
+          "observable": "几何事实读取和下一动作的准确性、坐标变换不变性。",
+          "system_interpretation": "几何摘要恢复表现可定位为表示/运算负担；摘要已正确仍失败才指向更高层研究判断。"
+        }
+      ],
+      "cannot_claim": [
+        "不能从专门训练模型的优势断言通用 Qwen 必须接三维编码器。",
+        "不能把三维性质预测能力当作 TS、频率或 IRC 证据生成与验收能力。"
+      ],
+      "mainline": "A",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "行为评估与三维编码/训练消融；架构消融不等于对已训练通用模型的内部激活替换，也未证明 XYZ 推理的具体内部失败原因。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L04",
+      "title": "Talk like a Graph: Encoding Graphs for Large Language Models",
+      "authors": [
+        "Bahare Fatemi",
+        "Jonathan Halcrow",
+        "Bryan Perozzi"
+      ],
+      "year": 2024,
+      "venue": "ICLR 2024",
+      "publication_status": "同行评议论文；本次细读 arXiv v1，正式发表信息由 Google Research 核对",
+      "url": "https://research.google/pubs/talk-like-a-graph-encoding-graphs-for-large-language-models/",
+      "doi": "10.48550/arXiv.2310.04560",
+      "themes": [
+        "图文本编码",
+        "任务与结构",
+        "DAG 理解"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/pdf/2310.04560",
+            "scope": "第 2–4 节：任务、图编码、提示、图结构；附录编码与模型结果表"
+          },
+          {
+            "url": "https://research.google/pubs/talk-like-a-graph-encoding-graphs-for-large-language-models/",
+            "scope": "作者机构发表页面与摘要"
+          }
+        ],
+        "limitation": "实验主要是基础图任务和生成图；不是带计算证据与交付契约的化学 DAG。"
+      },
+      "findings_read": [
+        {
+          "finding": "相同图任务的结果随边/节点文本编码、问题表述、模型和图生成结构变化；邻接式、逐节点邻居式和带现实语义的表述并不等效。编码优势也依赖具体任务。",
+          "conditions": "研究包含边存在、度数、节点/边计数、连通和环判断等基础任务，并比较 PaLM 系列等模型；其无向图用例不能直接代表 Cloudra 的有向证据图。",
+          "locator": "第 2 节、第 3.1–3.4 节、第 4 节；图编码附录"
+        }
+      ],
+      "cloudra_questions": [
+        "Agent 是否读懂当前图，还是只根据阶段名称写出通顺进度报告？",
+        "全图 JSON 是否把方向、依赖、证据缺口与当前可执行操作埋在无关字段中？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "同一真实 DAG 分别用现有输出、简洁有向边表、局部相关子图展示；再置换节点名和记录顺序。",
+          "fixed": "拓扑、边方向、证据绑定、当前契约和问题；局部子图须保留回答所需事实。",
+          "observable": "前驱/后继识别、哪条边缺什么证据、下一可执行动作，以及对无关分支的依赖。",
+          "system_interpretation": "先区分图解析失败与读图正确但契约/科学判断失败，避免统一归咎为不懂 DAG。"
+        }
+      ],
+      "cannot_claim": [
+        "不能把基础图分数直接当成 Cloudra 机理 DAG 能力。",
+        "不能据此要求 LLM 重算程序已能确定的依赖或验收状态。"
+      ],
+      "mainline": "B",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "文本图编码、任务与结构的行为比较；不直接提供图表示的内部机制证据。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L05",
+      "title": "DisentQA: Disentangling Parametric and Contextual Knowledge with Counterfactual Question Answering",
+      "authors": [
+        "Ella Neeman",
+        "Roee Aharoni",
+        "Or Honovich",
+        "Leshem Choshen",
+        "Idan Szpektor",
+        "Omri Abend"
+      ],
+      "year": 2023,
+      "venue": "ACL 2023, 10056–10070",
+      "publication_status": "同行评议论文",
+      "url": "https://aclanthology.org/2023.acl-long.559/",
+      "doi": "10.18653/v1/2023.acl-long.559",
+      "themes": [
+        "证据与先验冲突",
+        "反事实对照",
+        "缺失信息"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://aclanthology.org/2023.acl-long.559.pdf",
+            "scope": "第 2 节反事实/不可回答增广、第 3 节任务、第 4.1–4.4 节结果"
+          }
+        ],
+        "limitation": "这是 Natural Questions 上经训练的 QA 系统；不是仅靠一句提示完成来源分离。"
+      },
+      "findings_read": [
+        {
+          "finding": "原文用替换上下文答案的反事实样本区分上下文信息与参数记忆，并用空/随机上下文学习不可回答。在其训练设置下，反事实和不可回答增广改善了冲突鲁棒性；仅让模型输出两种答案并不自动带来该改善。",
+          "conditions": "被测目标是按给定段落回答，反事实段落可以不符合现实；这与科学系统应核对工具来源和原始证据的目标不同。",
+          "locator": "第 2.2–2.3 节、第 4.1–4.4 节"
+        }
+      ],
+      "cloudra_questions": [
+        "当原生日志事实违背常见化学预期时，Agent 是否沿用先验故事，或能指出本次计算具体说明了什么？",
+        "证据缺失时是否从熟悉的反应类型补出未发生的频率/IRC 结论？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "在隔离回放中对同一问题给一致证据、冲突证据、缺失证据和无关证据；反事实记录明确作为合成测试，不混入真实科学账本。",
+          "fixed": "问题、工具出处说明、可用复查路径与上下文长度。",
+          "observable": "是否识别冲突、保留未知、引用本次证据并选择复查动作。",
+          "system_interpretation": "先确认工具确实给出可用且有身份的事实，再区分来源绑定失败与先验压过证据。"
+        }
+      ],
+      "cannot_claim": [
+        "不能据此要求模型无条件服从任意工具文字。",
+        "不能把上下文服从率当作科学准确度，或把冲突回答当成内部知识的直接测量。"
+      ],
+      "mainline": "B",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "反事实上下文行为与训练增广比较；不是参数记忆在隐藏层中的直接读出或激活干预。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L06",
+      "title": "ReAct: Synergizing Reasoning and Acting in Language Models",
+      "authors": [
+        "Shunyu Yao",
+        "Jeffrey Zhao",
+        "Dian Yu",
+        "Nan Du",
+        "Izhak Shafran",
+        "Karthik Narasimhan",
+        "Yuan Cao"
+      ],
+      "year": 2023,
+      "venue": "ICLR 2023",
+      "publication_status": "同行评议论文",
+      "url": "https://arxiv.org/html/2210.03629",
+      "doi": "10.48550/arXiv.2210.03629",
+      "themes": [
+        "工具观察",
+        "研究动作",
+        "反馈利用"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2210.03629",
+            "scope": "第 2 节范式、第 3.1–3.3 节 API/提示/消融、第 4 节交互任务与复现声明"
+          }
+        ],
+        "limitation": "主要实验基于当时的 PaLM；工具与环境任务远比量化计算链短。"
+      },
+      "findings_read": [
+        {
+          "finding": "论文交替生成动作并读取外部观察；用移除思考或移除动作/观察的提示消融进行比较。在所测 QA、事实核验和交互任务中，外部观察可帮助更新计划并减少部分事实幻觉，但作者也记录检索失败和推理灵活性方面的限制。",
+          "conditions": "结果来自具体示例、有限动作空间和任务；不是所有步骤、所有模型都从更长的解释文字获益。",
+          "locator": "第 2 节、第 3.1–3.3 节、第 4 节；Reproducibility Statement"
+        }
+      ],
+      "cloudra_questions": [
+        "量化计算结束后的工具返回是否真正改变下一研究动作，还是只被复述到报告里？",
+        "关键观察被淹没或只返回成功标签时，系统是否迫使模型依赖原先计划？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "对同一回放分别保留完整观察、仅保留关键事实、遮去关键事实、给出无关但同长度观察。",
+          "fixed": "工具调用、研究目标、其余历史与事实正确性；被遮去的信息不从其它字段泄漏。",
+          "observable": "新观察引发的正确动作变化、错误计划修正和引用的具体证据。",
+          "system_interpretation": "若去掉关键观察仍完全不变，要进一步区分任务本来不需要它与模型未使用它；不凭复述判断工具利用。"
+        }
+      ],
+      "cannot_claim": [
+        "不能据此证明 Cloudra 需要更多自然语言思考或多 Agent。",
+        "不能把可读轨迹当作忠实内部推理，也不能用工具执行成功代替科学验收。"
+      ],
+      "mainline": "cross-cutting",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "提示轨迹、动作和观察的外部消融；不能将可读轨迹直接当作内部因果解释。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L07",
+      "title": "Lost in the Middle: How Language Models Use Long Contexts",
+      "authors": [
+        "Nelson F. Liu",
+        "Kevin Lin",
+        "John Hewitt",
+        "Ashwin Paranjape",
+        "Michele Bevilacqua",
+        "Fabio Petroni",
+        "Percy Liang"
+      ],
+      "year": 2024,
+      "venue": "Transactions of the Association for Computational Linguistics 12, 157–173",
+      "publication_status": "同行评议论文；预印本初稿为 2023 年",
+      "url": "https://aclanthology.org/2024.tacl-1.9/",
+      "doi": "10.1162/tacl_a_00638",
+      "themes": [
+        "上下文位置",
+        "信息检索",
+        "长轨迹"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://aclanthology.org/2024.tacl-1.9.pdf",
+            "scope": "第 2 节多文档 QA、第 3 节随机 UUID 的 JSON 键值检索、上下文长度和位置对照"
+          }
+        ],
+        "limitation": "所测的是当时的模型与两类任务；论文也存在某些模型在简单检索任务表现很好的情况。"
+      },
+      "findings_read": [
+        {
+          "finding": "只移动相关信息的位置就能改变多文档 QA 和键值检索表现；不少设置在开头/结尾更好，中间较差。更大的可接收上下文窗口不保证同一长度输入被更好利用。",
+          "conditions": "具体位置曲线依赖模型和任务，不能预设现代 Qwen 一定呈同样 U 形。论文键值任务用随机 UUID 减少语言语义混杂。",
+          "locator": "第 2.2–2.3 节、第 3.1–3.2 节"
+        }
+      ],
+      "cloudra_questions": [
+        "最新关键证据、科学提示和当前 DAG 缺口，在压缩与长期对话后是否仍能被定位和用于决策？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "将同一份关键工具记录置于等长历史的前/中/后；另比较原历史与保留相同关键事实的压缩历史。",
+          "fixed": "事实、字段、重复次数、问题与总长度；再单独改变总长度。",
+          "observable": "分开测定位证据、正确解释证据、根据证据行动；记录压缩前后是否已经丢事实。",
+          "system_interpretation": "事实在压缩时消失属于系统传递问题；事实仍在但位置效应明显属于信息利用问题。"
+        }
+      ],
+      "cannot_claim": [
+        "不能把某次失败直接叫作 lost-in-the-middle。",
+        "不能仅凭输入 token 上限或注意力热图断言所有历史已被有效使用。"
+      ],
+      "mainline": "cross-cutting",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "位置与长度的受控行为证据；不直接定位注意力或记忆的内部失效机制。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L08",
+      "title": "Large Language Models Cannot Self-Correct Reasoning Yet",
+      "authors": [
+        "Jie Huang",
+        "Xinyun Chen",
+        "Swaroop Mishra",
+        "Huaixiu Steven Zheng",
+        "Adams Wei Yu",
+        "Xinying Song",
+        "Denny Zhou"
+      ],
+      "year": 2024,
+      "venue": "ICLR 2024",
+      "publication_status": "同行评议论文；预印本初稿为 2023 年",
+      "url": "https://arxiv.org/html/2310.01798v2",
+      "doi": "10.48550/arXiv.2310.01798",
+      "themes": [
+        "反馈",
+        "科学提示",
+        "自我修正评估"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2310.01798v2",
+            "scope": "第 3.1–3.3 节设置与结果、第 5 节提示问题、第 6–7 节讨论与局限"
+          },
+          {
+            "url": "https://openreview.net/forum?id=IkmD3fKBPQ",
+            "scope": "正式发表元数据与论文范围的审稿讨论"
+          }
+        ],
+        "limitation": "题目、模型和自我修正策略有限；应依其操作定义理解标题，不作普遍能力定理。"
+      },
+      "findings_read": [
+        {
+          "finding": "论文区分没有外部信息的自我复查，与使用答案正确性标签决定何时停止的流程。在其数学、常识和 QA 设置中，前者没有可靠改善且可能把正确答案改错；后者的收益不能全算成自主纠错能力。",
+          "conditions": "外部反馈缺席、特定提示和轮数是关键条件；不代表可靠工具反馈无效，也不覆盖所有后续训练模型。",
+          "locator": "第 3.1–3.3 节、第 5 节、第 7 节"
+        }
+      ],
+      "cloudra_questions": [
+        "科学提示到底提供了模型缺少的判据/对象，还是只说再检查一次？",
+        "督导或工具反馈的收益是否来自真实新增证据，而非更多调用机会或答案泄漏？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "在同一错误状态给一般复查提示、指出具体缺失证据的反馈、原始事实及等长度无关提示。",
+          "fixed": "额外模型调用数、上下文预算、允许的复查工具和停止规则；不给 Gold 答案。",
+          "observable": "纠正错误与破坏原正确决定分别计数，检查实际补证动作。",
+          "system_interpretation": "只有具体反馈有效时，优先修反馈对象与事实传递，不继续堆一般性科学要求。"
+        }
+      ],
+      "cannot_claim": [
+        "不能由标题推断当前 Qwen 无法纠错。",
+        "不能把含正确答案或完美停止标签的评估写成自主研究能力提高。"
+      ],
+      "mainline": "B",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "反馈与停止条件的行为对照；没有以内部干预证明自我修正成败的机制。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L09",
+      "title": "Towards Best Practices of Activation Patching in Language Models: Metrics and Methods",
+      "authors": [
+        "Fred Zhang",
+        "Neel Nanda"
+      ],
+      "year": 2024,
+      "venue": "ICLR 2024",
+      "publication_status": "同行评议论文",
+      "url": "https://proceedings.iclr.cc/paper_files/paper/2024/hash/06a52a54c8ee03cd86771136bc91eb1f-Abstract-Conference.html",
+      "doi": "10.48550/arXiv.2309.16042",
+      "themes": [
+        "激活替换",
+        "因果干预",
+        "解释稳健性"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2309.16042",
+            "scope": "第 2–6 节：损坏方式、指标、滑窗替换与建议"
+          },
+          {
+            "url": "https://proceedings.iclr.cc/paper_files/paper/2024/file/06a52a54c8ee03cd86771136bc91eb1f-Paper-Conference.pdf",
+            "scope": "正式论文标题、作者和发表状态"
+          }
+        ],
+        "limitation": "事实回忆、IOI 等任务的机制定位案例，不提供化学专属脑区或 Qwen 电路结论。"
+      },
+      "findings_read": [
+        {
+          "finding": "激活替换得到的位置与效应会随损坏方法、测量指标和联合替换范围变化。高斯噪声可能诱发分布外行为；滑窗联合替换的强峰不等于单层强定位。作者建议尽可能使用合理反事实替换，并检查 logit difference 等对比指标。",
+          "conditions": "干预的因果解释只对所设的 clean/corrupt 分布、替换位置与输出指标成立；其推荐亦依任务而定。",
+          "locator": "第 3.2 节、第 4 节、第 5 节、第 6 节"
+        }
+      ],
+      "cloudra_questions": [
+        "若行为对照显示工具证据未被用到，能否定位相关信息在哪一环节影响候选研究动作，而不把损坏伪影误当机制？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "仅在行为效应稳定后，对真实/合理反事实证据对做激活替换；比较替换方向、单位置与联合位置，以及匹配的无关内容替换。",
+          "fixed": "模型检查点、问题、输出候选与 token 对齐；不同长度不能直接按原始 token 序号套齐。",
+          "observable": "候选动作的对数概率差和实际生成变化，并检查关键结论对指标/替换选择是否稳定。",
+          "system_interpretation": "可支持某表征在特定任务中对决定有因果影响；仍须回落到表示或反馈设计是否改善真实动作。"
+        }
+      ],
+      "cannot_claim": [
+        "不能把一张热图称作化学推理电路，也不能把高效应层称作存放全部化学知识的位置。",
+        "不能从没有测出效应断言信息不存在；也不能以激活替换替代端到端系统改进验证。"
+      ],
+      "mainline": "cross-cutting",
+      "evidence_layers": [
+        "causal_intervention"
+      ],
+      "evidence_layer_boundary": "直接研究内部激活替换的损坏方式、位置与指标；仍须配合稳定行为差异和合理反事实。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L10",
+      "title": "Designing and Interpreting Probes with Control Tasks",
+      "authors": [
+        "John Hewitt",
+        "Percy Liang"
+      ],
+      "year": 2019,
+      "venue": "EMNLP-IJCNLP 2019, 2733–2743",
+      "publication_status": "同行评议论文",
+      "url": "https://aclanthology.org/D19-1275/",
+      "doi": "10.18653/v1/D19-1275",
+      "themes": [
+        "线性探针",
+        "可解码与被使用",
+        "控制任务"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://aclanthology.org/D19-1275.pdf",
+            "scope": "第 1–3 节：控制标签、选择性、探针容量与正则化比较"
+          }
+        ],
+        "limitation": "原实验是 ELMo 的词性/依存任务；控制任务原则可借鉴，化学标签与切分须重新设计。"
+      },
+      "findings_read": [
+        {
+          "finding": "高探针准确率可能来自探针自身学习或记忆；作者用按词类型固定的随机控制标签，与真实任务准确率共同衡量选择性。探针容量和训练设置会改变对层间表示的解释。",
+          "conditions": "这是可读出信息的诊断，不检验原模型是否依赖该信息产生答案；低线性可解码也不排除非线性或生成过程利用。",
+          "locator": "第 1 节、第 2 节控制任务、第 3 节实验"
+        }
+      ],
+      "cloudra_questions": [
+        "能从隐藏状态预测电荷、原子关系或证据状态，是否只是识别了表面字段和重复分子，而非参与研究判断？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "对预先指定的少量属性做简单探针，同时设置随机标签、输入表面特征和随机表征基线。",
+          "fixed": "训练/评估按分子或反应家族隔离，控制探针容量；等价表示不跨集合泄漏同一对象。",
+          "observable": "真实任务与控制任务表现、跨表示泛化，并与行为/干预结果对照。",
+          "system_interpretation": "只能先回答信息是否容易读出；是否被用于工具或科学决定须另有行为和因果证据。"
+        }
+      ],
+      "cannot_claim": [
+        "不能把探针准确率直接命名为模型理解率。",
+        "不能把某层探针最好当作该层负责相应化学决定。"
+      ],
+      "mainline": "cross-cutting",
+      "evidence_layers": [
+        "representation_probe"
+      ],
+      "evidence_layer_boundary": "诊断探针与控制任务；不检验原模型是否利用该信息生成研究动作。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L11",
+      "title": "Language Models Don't Always Say What They Think: Unfaithful Explanations in Chain-of-Thought Prompting",
+      "authors": [
+        "Miles Turpin",
+        "Julian Michael",
+        "Ethan Perez",
+        "Samuel R. Bowman"
+      ],
+      "year": 2023,
+      "venue": "NeurIPS 2023",
+      "publication_status": "同行评议论文",
+      "url": "https://arxiv.org/html/2305.04388",
+      "doi": "10.48550/arXiv.2305.04388",
+      "themes": [
+        "科学解释",
+        "提示偏置",
+        "解释忠实性"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2305.04388",
+            "scope": "第 2 节反事实可模拟性、第 3–4 节偏置/弱证据实验、第 6 节讨论"
+          }
+        ],
+        "limitation": "测的是 GPT-3.5、Claude 1.0 等在选择题任务中的解释；不等于读取内部完整推理过程。"
+      },
+      "findings_read": [
+        {
+          "finding": "作者改变少样本答案位置或加入建议答案，可使被测模型结论改变，而解释通常不承认该影响，并可能为错误结论补出合理说辞。相反，解释声称依据的证据变化，也未必带来应有的结论变化。",
+          "conditions": "这是用可控输入扰动检验解释与行为的一致性；不能由某段文字倒推出完整因果过程，也不能将所有解释一概判假。",
+          "locator": "第 2 节、第 3.1–3.3 节、第 4 节、第 6 节"
+        }
+      ],
+      "cloudra_questions": [
+        "Agent 说自己检查了虚频、端点和目标键变化，是否真的因为这些证据而改变决定？",
+        "科学提示是否只改变报告措辞，还是实际改变调用与拒绝/补证行为？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "保留证据事实，改写反应名称、推荐路线和先验结论；另保留提示而只改一项决定性事实。",
+          "fixed": "化学对象、正确标签与工具能力；每种扰动只改变指定因素。",
+          "observable": "证据引用与真实动作是否随决定性事实正确改变，是否被无关建议牵引。",
+          "system_interpretation": "将措辞遵从、事实识别和决策遵从拆开，不能用报告里出现术语证明提示生效。"
+        }
+      ],
+      "cannot_claim": [
+        "不能把思考文字或自述注意事项当作机制证据。",
+        "不能从旧模型偏置实验直接断言当前 Qwen 隐瞒了什么。"
+      ],
+      "mainline": "B",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "通过输入反事实检验解释与决定的一致性；这是外部输入干预，不是内部激活干预。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L12",
+      "title": "WikiContradict: A Benchmark for Evaluating LLMs on Real-World Knowledge Conflicts from Wikipedia",
+      "authors": [
+        "Yufang Hou",
+        "Alessandra Pascale",
+        "Javier Carnerero-Cano",
+        "Tigran Tchrakian",
+        "Radu Marinescu",
+        "Elizabeth Daly",
+        "Inkit Padhi",
+        "Prasanna Sattigeri"
+      ],
+      "year": 2024,
+      "venue": "NeurIPS 2024 Datasets and Benchmarks Track",
+      "publication_status": "同行评议论文",
+      "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/c63819755591ea972f8570beffca6b1b-Abstract-Datasets_and_Benchmarks_Track.html",
+      "doi": "10.48550/arXiv.2406.13805",
+      "themes": [
+        "工具结果间冲突",
+        "隐含矛盾",
+        "来源保留"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2406.13805",
+            "scope": "第 3.1–3.4 节数据与评价、第 4 节人工评价、第 6–7 节范围"
+          },
+          {
+            "url": "https://proceedings.neurips.cc/paper_files/paper/2024/hash/c63819755591ea972f8570beffca6b1b-Abstract-Datasets_and_Benchmarks_Track.html",
+            "scope": "正式发表页面"
+          }
+        ],
+        "limitation": "百科两段信息的矛盾任务；原评价允许一些附加不准确信息，不能照搬为科学验收标准。"
+      },
+      "findings_read": [
+        {
+          "finding": "该基准从编辑标记的真实百科矛盾构造两段证据，区分显式与需推理才发现的隐含冲突。被测模型经常只采一方或未明确说明矛盾，隐含冲突尤其困难；仅回答一个看似正确的值不等于处理了冲突。",
+          "conditions": "评价目标是如实呈现上下文冲突，而非裁决科学真相；模型、来源可信度和矛盾类型均受该数据限定。",
+          "locator": "第 3.4 节、第 4 节与表 2、第 6 节"
+        }
+      ],
+      "cloudra_questions": [
+        "计算摘要、原生日志、DAG 绑定和历史报告不一致时，模型是否能指出具体矛盾及对应作业，而不是混成一份自洽叙事？"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "回放一致、直接冲突及跨记录才可发现冲突的工具结果；比较保留/遮去作业身份与证据链字段的表现。",
+          "fixed": "数值事实、来源权威规则、顺序与长度分别控制；真实不同作业/方法造成的差异不错误标成同一事实冲突。",
+          "observable": "矛盾定位、来源归属、保留未知与复查动作。",
+          "system_interpretation": "身份字段缺失导致混用是接口问题；身份齐全仍选择性忽略是信息利用问题。二者应分开处理。"
+        }
+      ],
+      "cannot_claim": [
+        "不能把百科基准的成功率直接用于预计科学工具错误率。",
+        "不能为了得到统一输出而掩盖未知、降低证据标准或擅自选一个科学结论。"
+      ],
+      "mainline": "B",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "证据组合、提示和冲突类型的行为评价；未直接测量内部知识来源。",
+      "historical_provider_boundary": "本文献只生成研究假说；后续 Qwen 探针不能直接解释桌面 48 沙箱包中实际 provider 的内部机制。"
+    },
+    {
+      "id": "L13",
+      "title": "Same molecule, Different Knowledge: Cross-Identifier Binding Failures in LLMs For chemistry",
+      "authors": [
+        "Khouloud Saadi",
+        "Di Wang"
+      ],
+      "year": 2026,
+      "venue": "arXiv:2610.30903v1",
+      "publication_status": "Preprint submitted 22 October 2026; not treated as peer-reviewed evidence.",
+      "url": "https://arxiv.org/html/2610.30903v1",
+      "doi": "10.48550/arXiv.2610.30903",
+      "themes": [
+        "chemical identifiers",
+        "knowledge access",
+        "binding",
+        "activation patching"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2610.30903v1",
+            "scope": "Abstract; sections 2.1, 3.1–3.2 and 4.1–4.2; Appendix D intervention, item selection and different-entity controls."
+          }
+        ],
+        "limitation": "Other sections, training implementation and released artifacts were not independently reproduced."
+      },
+      "findings_read": [
+        {
+          "finding": "Recognizing a molecule from SMILES can coexist with failure to retrieve facts available through its name. The authors distinguish structural recognition from identifier-dependent knowledge access.",
+          "conditions": "Drug-related entities and the reported models/tasks; not Cloudra geometry or evidence-chain decisions.",
+          "locator": "Sections 2.3–3.2"
+        },
+        {
+          "finding": "They replace the final-prompt state using a matched name prompt, compare a different-entity donor, and report behavior-gap-conditioned recovery.",
+          "conditions": "Whole-vector intervention and selected examples; localization does not identify a unique or necessary mechanism.",
+          "locator": "Section 4.1 and Appendix D"
+        }
+      ],
+      "cloudra_questions": [
+        "Does correct molecular recognition support the relevant research decision?",
+        "Do explicit identity links help tool facts reach the intended target?"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "Compare equivalent identifiers, then explicit identity bridges.",
+          "fixed": "Entity, queried fact, instructions and answer options.",
+          "observable": "Recognition, retrieval and decision outcomes separately.",
+          "system_interpretation": "Motivates binding controls; does not establish the same failure in Cloudra."
+        }
+      ],
+      "cannot_claim": [
+        "Qwen3.8 or historical DeepSeek shares the reported internal mechanism.",
+        "Name retrieval and DAG evidence lineage are the same binding task."
+      ],
+      "mainline": "A/B",
+      "evidence_layers": [
+        "input_sensitivity_behavior",
+        "representation_probe",
+        "causal_intervention"
+      ],
+      "evidence_layer_boundary": "Reported causal effects are task-specific and conditioned on the selected baseline gap.",
+      "historical_provider_boundary": "No inference about formal48 hidden states."
+    },
+    {
+      "id": "L14",
+      "title": "MolLangBench: A Comprehensive Benchmark for Language-Prompted Molecular Structure Recognition, Editing, and Generation",
+      "authors": [
+        "Feiyang Cai",
+        "Jiahui Bai",
+        "Tao Tang",
+        "Guijuan He",
+        "Joshua Luo",
+        "Tianyu Zhu",
+        "Srikanth Pilla",
+        "Gang Li",
+        "Ling Liu",
+        "Feng Luo"
+      ],
+      "year": 2026,
+      "venue": "ICLR 2026 camera-ready; arXiv:2505.15054v4",
+      "publication_status": "Version v4 revised 23 March 2026.",
+      "url": "https://arxiv.org/html/2505.15054v4",
+      "doi": "10.48550/arXiv.2505.15054",
+      "themes": [
+        "molecular recognition",
+        "localization",
+        "editing",
+        "atom indices"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2505.15054v4",
+            "scope": "Abstract; task formulation and recognition construction in sections 2–3.1; Appendix A.18 tokenization discussion and A.19 examples description."
+          }
+        ],
+        "limitation": "No independent reproduction of the benchmark; figures and remaining experimental appendices were not comprehensively audited."
+      },
+      "findings_read": [
+        {
+          "finding": "The benchmark separates recognition, editing and generation. Recognition can require both a structural answer and the atom indices that locate it.",
+          "conditions": "The reported molecular interfaces and benchmark; not a measure of three-dimensional reaction-path execution.",
+          "locator": "Sections 2–3.1"
+        },
+        {
+          "finding": "The authors propose tokenization as a possible contributor to indexing errors. This is a hypothesis supported by examples, not a causal tokenizer experiment.",
+          "conditions": "Do not treat atom enumeration errors as proof of a general geometry deficit.",
+          "locator": "Appendix A.18"
+        }
+      ],
+      "cloudra_questions": [
+        "Can the model identify the feature yet select the wrong atom indices?",
+        "Does a correct editing intention produce the requested structural change?"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "Separate feature recognition, atom selection, operation selection and execution.",
+          "fixed": "Molecule and requested modification.",
+          "observable": "Correctness at each stage.",
+          "system_interpretation": "Motivates explicit chemical identity and deterministic operators."
+        }
+      ],
+      "cannot_claim": [
+        "BPE causes the current Cloudra errors.",
+        "Recognition accuracy proves correct geometry or scientific acceptance."
+      ],
+      "mainline": "A",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "Benchmark behavior and explanatory hypotheses, not internal causal evidence.",
+      "historical_provider_boundary": "No direct explanation of formal48 hidden states."
+    },
+    {
+      "id": "L15",
+      "title": "PAL: Program-aided Language Models",
+      "authors": [
+        "Luyu Gao",
+        "Aman Madaan",
+        "Shuyan Zhou",
+        "Uri Alon",
+        "Pengfei Liu",
+        "Yiming Yang",
+        "Jamie Callan",
+        "Graham Neubig"
+      ],
+      "year": 2023,
+      "venue": "ICML 2023, PMLR 202",
+      "publication_status": "Peer-reviewed conference paper",
+      "url": "https://proceedings.mlr.press/v202/gao23f.html",
+      "themes": [
+        "program-aided computation",
+        "division of responsibility"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://proceedings.mlr.press/v202/gao23f.html",
+            "scope": "Official abstract and publication metadata."
+          }
+        ],
+        "limitation": "Full PDF experiments and implementation not audited here."
+      },
+      "findings_read": [
+        {
+          "finding": "The model constructs executable steps while an interpreter performs the calculation.",
+          "conditions": "Reported mathematical, symbolic and algorithmic tasks; not molecular geometry or scientific acceptance.",
+          "locator": "Official abstract"
+        }
+      ],
+      "cloudra_questions": [
+        "Does the model choose an appropriate calculation even when direct numerical execution is fragile?"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "Compare actual tool/program use rather than a forced mental-arithmetic baseline.",
+          "fixed": "Scientific intention and available information.",
+          "observable": "Selected object, executed transformation and measured outcome.",
+          "system_interpretation": "Tool outsourcing is an existing principle; Cloudra must substantiate its chemical-object and evidence interfaces."
+        }
+      ],
+      "cannot_claim": [
+        "Delegating arithmetic to programs is itself a new Cloudra contribution.",
+        "Generating code proves a correct geometry or reaction."
+      ],
+      "mainline": "A",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "Program execution is external computation, not an internal mechanistic explanation."
+    },
+    {
+      "id": "L16",
+      "title": "CRITIC: Large Language Models Can Self-Correct with Tool-Interactive Critiquing",
+      "authors": [
+        "Zhibin Gou",
+        "Zhihong Shao",
+        "Yeyun Gong",
+        "Yelong Shen",
+        "Yujiu Yang",
+        "Nan Duan",
+        "Weizhu Chen"
+      ],
+      "year": 2024,
+      "venue": "ICLR 2024; arXiv:2305.11738v3",
+      "publication_status": "Peer-reviewed conference paper",
+      "url": "https://arxiv.org/html/2305.11738v3",
+      "themes": [
+        "external feedback",
+        "verification",
+        "correction"
+      ],
+      "read_evidence": {
+        "sources": [
+          {
+            "url": "https://arxiv.org/html/2305.11738v3",
+            "scope": "Abstract, introduction, and sections 3.2–3.4 tool interaction and verify/correct procedure."
+          }
+        ],
+        "limitation": "Not all experimental ablations or appendices read; no independent reproduction."
+      },
+      "findings_read": [
+        {
+          "finding": "External tool results support verification and revision of an initial answer.",
+          "conditions": "Question answering, program synthesis and toxicity tasks in the reported setup; not chemistry.",
+          "locator": "Sections 3.2–3.4"
+        }
+      ],
+      "cloudra_questions": [
+        "Did scientific feedback reach the model, and did the following concrete action address it?"
+      ],
+      "controlled_comparisons": [
+        {
+          "change": "Vary actionable feedback while preserving its source facts and target identity.",
+          "fixed": "Task, prior attempt and available actions.",
+          "observable": "Displayed facts, next operation and subsequent evidence state separately.",
+          "system_interpretation": "A verification call or changed answer does not establish successful scientific repair."
+        }
+      ],
+      "cannot_claim": [
+        "External critique guarantees correction.",
+        "A new tool call proves the underlying scientific defect was repaired."
+      ],
+      "mainline": "A/B",
+      "evidence_layers": [
+        "input_sensitivity_behavior"
+      ],
+      "evidence_layer_boundary": "Behavior with external feedback, not hidden-state causality."
+    }
+  ],
+  "mainlines": {
+    "A": "化学意图 → 可靠空间操作：几何困难、内坐标、原子映射、测量反馈与确定性几何执行。",
+    "B": "局部计算结果 → 科学结论：误完成、DAG 理解、证据绑定、科学提示与工具结果利用。",
+    "cross-cutting": "服务两条主线的信息利用研究设计、上下文与机器可解释性方法。"
+  },
+  "evidence_layer_definitions": {
+    "input_sensitivity_behavior": "控制输入、提示、表示或观察后测外部行为；可说明哪些输入变化影响行为，不能单独定位内部表征或算法。",
+    "representation_probe": "从隐藏状态读出属性，或观察内部注意力等相关特征；可解码不等于原模型实际用于决定，失败也不证明信息不存在。",
+    "causal_intervention": "在明确 clean/corrupt 对照下干预内部激活等机制，测指定输出变化；结论限于该干预、任务与分布，不能泛称整个研究过程已被解释。"
+  },
+  "corpus_and_model_scope": {
+    "formal_corpus": "正式系统分析语料为用户指定的桌面 48 沙箱包；本子任务只做文献矩阵，未读取或修改该包。",
+    "historical_provider": "历史案例的实际 provider、版本、上下文、工具与执行事实须从该语料和运行记录确认。",
+    "qwen_role": "后续 Qwen 实验仅为当前可访问替代模型上的探针或干预研究；即使重放同一输入，也不能直接解释历史实际 provider 的隐藏机制。",
+    "translation_requirement": "每项机制发现必须回落为可在 Cloudra 中检查或对照的输入、映射、几何反馈、工具输出、DAG 或证据绑定问题，并由正式语料或系统行为验证。"
+  }
+}

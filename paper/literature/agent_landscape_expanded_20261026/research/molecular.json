@@ -1,0 +1,568 @@
+{
+  "records": [
+    {
+      "id": "buehler_molecular_dft_multiagent",
+      "name": "Buehler molecular-DFT multi-agent demonstration",
+      "first_public_date": "2023-10-30",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "finite organic molecules CCCCXCC, with X = C, O or N",
+      "boundary_conditions": "molecular-coordinate DFT calculations; boundary conditions not independently resolved",
+      "demonstrated_tasks": [
+        "T",
+        "E"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://pubs.acs.org/doi/abs/10.1021/acsengineeringau.3c00058",
+          "locator": "Section 2.3.1 Molecular Design; Table 8; Materials and Methods",
+          "evidence_paraphrase": "Planner, coordinate-retriever and execution-capable chatbot agents devise a plan, obtain molecular coordinates from SMILES, call a supplied DFT function for the three molecular variants, analyze computed energies and answer the user."
+        },
+        {
+          "url": "https://arxiv.org/abs/2310.19998",
+          "locator": "Submission record, 30 October 2023; abstract",
+          "evidence_paraphrase": "The preprint introduces multi-agent code generation and execution connected to DFT-derived physical data; its first submission predates the 2024 journal publication."
+        }
+      ],
+      "family": "Buehler MechGPT/ontologic-graph multi-agent studies",
+      "aliases": [
+        "Generative Retrieval-Augmented Ontologic Graph and Multiagent Strategies for Interpretive Large Language Model-Based Materials Design",
+        "arXiv:2310.19998",
+        "10.1021/acsengineeringau.3c00058"
+      ],
+      "limitations": "Unnamed, small worked demonstration rather than a separately branded general-purpose package. Counting demonstrates agent-run DFT, not scientific validity of ranking absolute energies of molecules with different compositions. The MechGPT/RAG question-answering demonstrations in the same paper are not separately counted.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "autosolvate_agent",
+      "name": "AutoSolvate-Agent",
+      "first_public_date": "2025-08-06",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "water IR; molecular orbital, bond-order and charge analyses; benzaldehyde in implicit solvent; coordination complexes",
+      "boundary_conditions": "finite molecular TeraChem calculations; PCM solvent in the benzaldehyde example",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "F": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://openreview.net/pdf?id=ATEtqdGn6W",
+          "locator": "Sections 4.1 Frequency Analysis and 4.2 Solvatochromism Prediction; Figures 2–3; Appendix A.2 Table 1",
+          "evidence_paraphrase": "For water IR, the agent retrieves a geometry, interprets TeraChem's large-gradient frequency failure, inserts and completes a geometry optimization, and reruns frequency analysis. For benzaldehyde it sets up and executes PCM quantum chemistry and directs Multiwfn orbital-population analysis."
+        },
+        {
+          "url": "https://openreview.net/pdf/395d4c9eda83111a078ba05d86adcf84ec77e4aa.pdf",
+          "locator": "Appendix A.2, Table 1",
+          "evidence_paraphrase": "Ten evaluated problems include water IR and optimization, methane orbital energies, coordination-bond analyses, liquid-phase water dipole and cis/trans-2-butene energy differences."
+        },
+        {
+          "url": "https://www.linkedin.com/in/fren5",
+          "locator": "Author Fangning Ren's Publications entry for AutoSolvate-Agent",
+          "evidence_paraphrase": "The author's publication entry dates the workshop contribution to 8 June 2025; the paper itself prints the KDD workshop date of 6 August 2025."
+        }
+      ],
+      "family": "AutoSolvate",
+      "aliases": [
+        "AutoSolvate-Agent: An Autonomous Agent for GPU-accelerated Solution-phase Quantum Chemistry"
+      ],
+      "limitations": "The dated field uses 6 August 2025 printed on the original workshop paper. An author publication list gives 8 June; exact OpenReview first-posting time remains unresolved. Original PDF text was inspected via its index while direct OpenReview opening encountered a browser challenge. This LLM workflow is distinct from intent-based AutoSolvateWeb. Solvatochromism is qualitatively inferred from orbitals, not an excited-state dynamics calculation.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26",
+      "date_basis": "dated original KDD workshop paper; exact first posting unresolved"
+    },
+    {
+      "id": "chemagents_azobenzene",
+      "name": "ChemAgents molecular simulation workflow",
+      "first_public_date": "2025-08-12",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "bridged azobenzenes and azobenzene ground-state conformers and IR/Raman spectra",
+      "boundary_conditions": "molecular AIMD/DFT examples; gas and solvent spectral data; explicit simulation boundaries not independently audited",
+      "demonstrated_tasks": [
+        "F",
+        "D"
+      ],
+      "task_evidence": {
+        "F": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://pubs.rsc.org/en/content/articlehtml/2026/sc/d5sc08794e",
+          "locator": "Abstract; Figure 1; Results and discussion / Computation–experimentation integration and automated workflow execution; Conclusions",
+          "evidence_paraphrase": "LLM agents formulate the study plan and coordinate automated computations. The Computation Performer runs ground-state AIMD conformer sampling and DFT IR/Raman calculations; the paper explicitly separates these from human-designed and trained neural-network analysis."
+        },
+        {
+          "url": "https://doi.org/10.26434/chemrxiv-2025-4kh1r",
+          "locator": "Version 1 record, 12 August 2025; abstract",
+          "evidence_paraphrase": "The original preprint describes the ChemAgents-orchestrated computational/experimental workflow and supplies its first-public date."
+        }
+      ],
+      "family": "ChemAgents / USTC robotic AI chemist",
+      "aliases": [
+        "Unlocking azobenzene isomerization mechanisms via an LLM agent-driven workflow integrating simulation, experiment, and machine learning",
+        "10.1039/d5sc08794e"
+      ],
+      "limitations": "The system's molecular-computation demonstration is counted once, rather than counting the accompanying robotic experiment or spectral prediction model as additional systems. Ground-state sampling and steady-state spectra do not demonstrate nonadiabatic photoisomerization dynamics or validated transition-state/IRC searches. Earlier ChemAgents platform work may establish an earlier family release, but this is the first verified atomistic demonstration located in this screening.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "el_agente_grafico",
+      "name": "El Agente Gráfico",
+      "first_public_date": "2026-02-19",
+      "physical_target": "cross_domain",
+      "demonstrated_target": "finite-molecule quantum chemistry and explicit microsolvation ensembles; metal-organic frameworks",
+      "boundary_conditions": "finite molecular gas/implicit-solvent/15-water-cluster examples; separate MOF crystal/CIF construction and MLIP relaxation",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "F": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2602.17902v1",
+          "locator": "Sections 2.1–2.3; Figure 3; Appendix C; Appendix D.1.7",
+          "evidence_paraphrase": "An LLM routing agent orchestrates typed single-point, optimization, frequency and TDDFT nodes. Molecular examples generate CREST conformers and a 15-water microsolvation cluster, optimize them, check imaginary modes and calculate ensemble spectra. A separate demonstrated MOF workflow constructs CIF structures, relaxes them with MACE and analyzes porosity."
+        },
+        {
+          "url": "https://arxiv.org/html/2602.17902v2",
+          "locator": "Version 2 front matter, abstract, Sections 2.1–2.3 and Appendix E",
+          "evidence_paraphrase": "The updated semantic-execution-runtime report retains typed operations and frequency-based intermediate checks, and additionally reports open-ended disulfide redox-mechanism studies. Its expanded claims are distinguished from the v1 task-coding basis."
+        }
+      ],
+      "family": "El Agente",
+      "aliases": [
+        "El Agente Gráfico: Structured Execution Graphs for Scientific Agents",
+        "arXiv:2602.17902"
+      ],
+      "limitations": "Same research family as Q/Quntur/Estructural but a separately described execution-graph system, so not deduplicated merely by family. Cross-domain classification reflects actual finite molecular and MOF demonstrations. Its molecular imaginary-frequency failure recovery is not evidence of TS/IRC execution. The present matrix retains the inspected v1 task basis. Version 2 (7 August) has a revised title/author list and reports disulfide redox-mechanism work; the blank R cell is not a claim that the current system has no mechanistic applications. The polishing manuscript cites v2.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "openclaw_compchem_skills",
+      "name": "OpenClaw computational-chemistry skills workflow",
+      "first_public_date": "2026-03-26",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "isolated methane/oxygen preparation and quantum-chemical optimization; reactive molecular methane/oxygen mixture",
+      "boundary_conditions": "isolated CH4/O2 QC followed by a packed 50-CH4/100-O2 molecular gas mixture; MD boundary conditions not independently resolved",
+      "demonstrated_tasks": [
+        "T",
+        "O",
+        "D"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "D": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2603.25522v1",
+          "locator": "Section 3 Case Study: Methane Oxidation Reactive MD Automation; Figure 3",
+          "evidence_paraphrase": "From a natural-language request, the LLM-controlled workflow builds isolated molecules, runs B3LYP geometry optimizations, packs a methane/oxygen system, performs 3000-K reactive Deep-Potential/LAMMPS MD and extracts reactions with ReacNetGenerator. Repeated end-to-end demonstrations use error feedback to repair stages."
+        }
+      ],
+      "family": "OpenClaw computational chemistry / Ding et al.",
+      "aliases": [
+        "Automating Computational Chemistry Workflows via OpenClaw and Domain-Specific Skills",
+        "arXiv:2603.25522",
+        "10.1021/acs.jctc.6c00622"
+      ],
+      "limitations": "This record counts the separately reported chemistry skills/workflow, not every use of the general OpenClaw host. Periodic-box use would not make the simulated molecular gas an extended solid. Reaction-network extraction from reactive MD is not coded as a saddle/IRC path-search demonstration. The Deep Potential is supplied pretrained, not developed by the agent.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "protomia",
+      "name": "Protomia",
+      "first_public_date": "2026-03-26",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "Diels–Alder reaction energy and molecular thermochemistry",
+      "boundary_conditions": "finite molecular reaction examples; platform's broader supported periodic scope is not inferred as demonstrated",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "F"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 1
+        },
+        "E": {
+          "source_index": 0
+        },
+        "F": {
+          "source_index": 1
+        }
+      },
+      "sources": [
+        {
+          "url": "https://aitomistic.com/protomia/docs/research-workflow",
+          "locator": "Usage Examples / Reaction Energy and Thermodynamics; worked-session screenshot",
+          "evidence_paraphrase": "The official worked example shows autonomous reaction calculations and an output spreadsheet of extracted species and reaction energies. The page distinguishes this from its list of generally supported calculation types."
+        },
+        {
+          "url": "https://arxiv.org/html/2608.18508v1",
+          "locator": "Section 4, Figure 4; reference to developer's Protomia release",
+          "evidence_paraphrase": "Protomia's developers reproduce a session that prepares molecular structures and executes calculations for ethylene/butadiene Diels–Alder energy, enthalpy and Gibbs energy, and date the release to 26 March 2026."
+        }
+      ],
+      "family": "Aitomia / Protomia",
+      "aliases": [
+        "Protomia Solution",
+        "Protomia Solution 2"
+      ],
+      "limitations": "Separately named successor to Aitomia with a distinct hosted agent implementation. Evidence is developer documentation and a developer-authored perspective demonstration; no independent paper evaluation was located. TS/IRC/MD appear in supported-feature lists but are left uncoded without a verified worked demonstration. First-release date is developer-reported.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26",
+      "date_basis": "developer-reported release date, independently unverified"
+    },
+    {
+      "id": "virtuallab_cc",
+      "name": "VirtualLab_CC",
+      "first_public_date": "2026-04-27",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "stabilized Criegee intermediates and biogenic terpenes; molecular conformers, thermochemistry and PES study",
+      "boundary_conditions": "finite molecular Gaussian/ORCA calculations with CREST/xTB conformer search",
+      "demonstrated_tasks": [
+        "T",
+        "E",
+        "O",
+        "F"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        },
+        "O": {
+          "source_index": 0
+        },
+        "F": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://www.sciencedirect.com/science/article/pii/S2949747726000230",
+          "locator": "Section 2.1 and Table 1; prototype Criegee case study; Section 5.3; Section 6 Limitations",
+          "evidence_paraphrase": "Claude coordinates method proposals, task decomposition and failure interpretation around executed CREST conformer, DFT optimization/frequency and coupled-cluster jobs. The molecular campaign includes real production outputs and automatic repair of cluster-invocation failures, with human approvals for scientific decisions."
+        },
+        {
+          "url": "https://github.com/CCBG-Lab/VirtualLab_CC",
+          "locator": "README / Architecture; HPC Integration; Method Protocols; release v1.1.0",
+          "evidence_paraphrase": "The official release documents its skill-driven LLM coordination, Gaussian/ORCA/CREST execution, result extraction and the Criegee–terpene case-study protocol."
+        },
+        {
+          "url": "https://doi.org/10.26434/chemrxiv.15002407/v1",
+          "locator": "Original preprint record, 27 April 2026",
+          "evidence_paraphrase": "Original preprint counterpart of the journal article; used to deduplicate the publication family and identify first appearance."
+        }
+      ],
+      "family": "VirtualLab_CC",
+      "aliases": [
+        "VirtualLab_CC: An LLM-Augmented Virtual Laboratory for Automated Computational Chemistry Research",
+        "10.1016/j.aichem.2026.100129",
+        "10.5281/zenodo.21396720"
+      ],
+      "limitations": "The paper explicitly says transition-state location remains semi-manual and no automated reaction-discovery engine is included. Path/TS task R is therefore conservatively left uncoded here. Human approval at critical scientific decisions does not exclude demonstrated LLM planning, invocation and repair. Journal text was inspected through the indexed publisher original; direct opening returned HTTP 403.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "ladeq",
+      "name": "LADeQ",
+      "first_public_date": "2026-06-17",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "alkanes C15H32/C20H42, coronene and porphyrin electronic correlation energies",
+      "boundary_conditions": "finite molecular PySCF CCSD/CISD; STO-3G and single-thread evaluation",
+      "demonstrated_tasks": [
+        "E"
+      ],
+      "task_evidence": {
+        "E": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://arxiv.org/html/2606.20729v1",
+          "locator": "Sections 2.1 and 3.3; Figure 5; Methods 5.1–5.5",
+          "evidence_paraphrase": "The LLM proposes approximations, edits PySCF CCSD/CISD implementations, and revises them using computed correlation-energy errors, timing and diagnostic logs. The paper reports executed molecular calculations for development and cross-molecule evaluation."
+        }
+      ],
+      "family": "LADeQ",
+      "aliases": [
+        "LLM-Guided Test-Time Discovery of Quantum-Chemical Approximation Algorithms",
+        "LLM-guided Automatic approximation Design for Quantum chemistry",
+        "arXiv:2606.20729"
+      ],
+      "limitations": "An algorithm-discovery workflow rather than a general researcher-facing QC assistant. Inclusion follows the explicit rule allowing LLM code modification and feedback decisions in executed molecular electronic-structure calculations. Demonstrated conclusions are limited to ground-state correlation energies, four molecules and a minimal basis; no geometry, path or dynamics capabilities are inferred.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26"
+    },
+    {
+      "id": "chelatron",
+      "name": "Chelatron",
+      "first_public_date": "2026-03-24",
+      "physical_target": "finite_molecules_complexes",
+      "demonstrated_target": "actinium–chelator coordination complexes",
+      "boundary_conditions": "finite Architector metal–ligand complexes evaluated by high-throughput quantum calculations",
+      "demonstrated_tasks": [
+        "T",
+        "E"
+      ],
+      "task_evidence": {
+        "T": {
+          "source_index": 0
+        },
+        "E": {
+          "source_index": 0
+        }
+      },
+      "sources": [
+        {
+          "url": "https://science.osti.gov/-/media/About/pdf/scac/meetings/2026/lab-contributions-to-GM-03-24-2026v2.pdf",
+          "locator": "LANL contribution, slide headed CHELATRON: AI-Driven Molecular Discovery for Cancer Treatment (printed slide 76)",
+          "evidence_paraphrase": "The LANL project report describes Nemotron-generated chemical hypotheses, GenMol candidate generation, Architector complex construction and high-throughput quantum binding-affinity evaluation, with those assessments returned to the LLM for iterative hypothesis refinement."
+        }
+      ],
+      "family": "Chelatron / LANL",
+      "aliases": [
+        "Chelatron: Charting Chemical Space with Agentic AI for Metal-Ligand Discovery",
+        "CHELATRON: AI-Driven Molecular Discovery for Cancer Treatment"
+      ],
+      "limitations": "Evidence is an official DOE/LANL project presentation rather than the original ChemRxiv paper, whose identifier was not resolved. The meeting document is dated 24 March 2026; the later perspective instead lists the preprint on 31 July 2026. This earlier public project appearance and the later paper should be deduplicated, not counted twice. xTB optimization details reported by secondary paper listings are not used to code O here.",
+      "include_main": true,
+      "reviewed_on": "2026-10-26",
+      "date_basis": "dated official DOE/LANL project presentation, not paper publication date"
+    }
+  ],
+  "screening": [
+    {
+      "name": "Tensor-network simulation agent (Li, Ren, Cheng and Gong)",
+      "url": "https://arxiv.org/html/2601.10194v1",
+      "status": "adjacent_reduced_model_quantum_dynamics",
+      "first_public_date": "2026-01-15",
+      "locator": "Sections II.1–II.3 and IV.3.3",
+      "positive_evidence": "Agents generate and run Renormalizer tensor-network code, validate convergence and revise calculations. A retinal photoisomerization example evolves a two-state 25-mode vibronic Hamiltonian.",
+      "reason": "The chemistry example is a reduced torsion/stretch/oscillator model with prescribed Hamiltonian and parameters, rather than molecular electronic-structure calculations or atomistic trajectories. Retain separately as quantum-dynamics sensitivity; do not silently broaden the main denominator."
+    },
+    {
+      "name": "AutoSolvateWeb",
+      "url": "https://pubs.rsc.org/en/content/articlehtml/2025/sc/d4sc08677e",
+      "status": "excluded_llm_not_in_computational_decision_loop",
+      "locator": "Section 2.1; Figure 1; Methods 5.2",
+      "positive_evidence": "The platform executes explicit-solvent molecular simulation workflows via an intent-based Dialogflow chatbot.",
+      "reason": "Original article explicitly assigns calculation setup to predefined dialog states/intents; the generative LLM fallback handles out-of-scope questions and redirects users. Actual simulations therefore do not establish LLM planning, invocation or feedback decisions under the present criterion. Do not conflate it with the later AutoSolvate-Agent."
+    },
+    {
+      "name": "LARA-HPC",
+      "url": "https://arxiv.org/html/2604.22571v1",
+      "status": "unresolved_production_computation_not_established",
+      "first_public_date": "2026-04-24",
+      "locator": "Section IV Dry-Run Driven Validation; Section V.1–V.3",
+      "positive_evidence": "LLM-generated BigDFT workflows are iteratively repaired using native diagnostics, including invalid spin inputs and a water centroid API error; an anatase/water case obtains resource estimates.",
+      "reason": "The inspected worked demonstrations emphasize code repair and native dry-runs, and Section IV explicitly says no full SCF cycle occurs in a dry-run. Completed production electronic-structure outputs were not established in this screening; an atomization-energy workflow description alone is insufficient to mark executed E."
+    },
+    {
+      "name": "Q-planner",
+      "url": "https://www.molsci.jp/2026/present_1.html",
+      "status": "identified_not_fully_screened",
+      "locator": "Conference program, talk 1C03; authors Ruiqi Zhang, Wenhao Gao and Yuki Kurashige",
+      "reason": "Primary conference program confirms the title and authors. The original ChemRxiv report and concrete computation demonstrations were not retrieved, so the perspective's broad capability list is not converted into main-sample task marks."
+    },
+    {
+      "name": "Universal Structure Generator (Pollice group)",
+      "url": "https://doi.org/10.26434/chemrxiv.15006869/v1",
+      "status": "identified_not_fully_screened",
+      "locator": "Author group preprints page, 2026 item 28",
+      "reason": "A distinct plugin agent for computational chemistry was identified by the authors' primary group page, but execution of quantum/atomistic relaxation beyond structural generation was not established."
+    },
+    {
+      "name": "El Agente Cuántico",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/42431214/",
+      "status": "identified_not_fully_screened",
+      "reason": "An executed quantum-simulation multi-agent framework was found, but a molecular electronic-structure or atomistic demonstration was not established. Model-Hamiltonian-only demonstrations would remain adjacent rather than join the main sample."
+    },
+    {
+      "name": "ArIA",
+      "url": "https://doi.org/10.26434/chemrxiv.15002344/v1",
+      "status": "identified_not_fully_screened",
+      "first_public_date": "2026-04-23",
+      "locator": "Original ChemRxiv abstract and version history; author group preprint 27",
+      "positive_evidence": "The original preprint describes a locally deployable open-source LLM agent that interprets user instructions, performs simulations with ORCA, and produces visualizations and reports for molecular DFT/TDDFT work.",
+      "reason": "Original abstract positively states that the local LLM agent performs ORCA simulations. Direct full-text access returned HTTP 403, and concrete worked molecular cases and individual task evidence were not established. Retained outside main pending primary full-text screening rather than treating implementation claims as verified demonstrations.",
+      "sources": [
+        {
+          "url": "https://doi.org/10.26434/chemrxiv.15002344/v1",
+          "locator": "Abstract; version history, 23 April 2026",
+          "evidence_paraphrase": "The original preprint describes a locally deployable open-source LLM agent that interprets user instructions, performs simulations with ORCA, and produces visualizations and reports for molecular DFT/TDDFT work."
+        },
+        {
+          "url": "https://pollicegroup.web.rug.nl/publications-preprints.html",
+          "locator": "2026 preprint 27",
+          "evidence_paraphrase": "The authors' group page identifies ArIA as a distinct molecular-simulation agent and links its revised ChemRxiv version, avoiding confusion with unrelated ARIA systems."
+        }
+      ],
+      "family": "ArIA / Pollice group",
+      "aliases": [
+        "Molecular Simulations Assisted by an Artificial Intelligence Agent (ArIA)",
+        "10.26434/chemrxiv.15002344/v2"
+      ]
+    }
+  ],
+  "search_log": [
+    {
+      "query": "LLM agent quantum chemistry molecular simulation autonomous computational chemistry 2025 2026; agent quantum chemistry large language",
+      "source_urls": [
+        "https://arxiv.org/abs/2505.02484",
+        "https://openreview.net/pdf?id=ATEtqdGn6W",
+        "https://arxiv.org/html/2608.18508v1"
+      ],
+      "notes": "Broad discovery; identified AutoSolvate-Agent and a perspective citation chain. Existing baseline systems were deduplicated."
+    },
+    {
+      "query": "LLM quantum chemistry agent; computational chemistry agent Gaussian; transition state LLM agent chemistry",
+      "source_urls": [
+        "https://www.nature.com/articles/s41524-026-02301-9",
+        "https://arxiv.org/abs/2609.08503",
+        "https://arxiv.org/html/2608.18508v1"
+      ],
+      "notes": "Transition-state discovery searches mainly returned baseline Evolving TS, ARCHE and benchmark-only TSBench; no duplicate record added."
+    },
+    {
+      "query": "Citation chaining from Science Done on a Machine by a Machine, Table 1 and references",
+      "source_urls": [
+        "https://arxiv.org/html/2608.18508v1",
+        "https://arxiv.org/html/2602.17902v1",
+        "https://arxiv.org/html/2606.20729v1",
+        "https://arxiv.org/html/2603.25522v1",
+        "https://arxiv.org/html/2601.10194v1"
+      ],
+      "notes": "Perspective served as discovery index, not sufficient task evidence. Original reports checked for Gráfico, LADeQ, OpenClaw and the reduced-model tensor-network agent."
+    },
+    {
+      "query": "AutoSolvate-Agent; AutoSolvate-Agent Table; AutoSolvate-Agent geometry optimization; AutoSolvate-Agent water",
+      "source_urls": [
+        "https://openreview.net/pdf?id=ATEtqdGn6W",
+        "https://openreview.net/pdf/395d4c9eda83111a078ba05d86adcf84ec77e4aa.pdf",
+        "https://www.linkedin.com/in/fren5"
+      ],
+      "notes": "Inspected original indexed paper Sections 4.1–4.2 and benchmark Table 1. Direct opening returned OpenReview browser challenge. Earlier date from author publication list is explicitly qualified."
+    },
+    {
+      "query": "Unlocking azobenzene isomerization mechanisms LLM agent ChemAgents",
+      "source_urls": [
+        "https://pubs.rsc.org/en/content/articlehtml/2026/sc/d5sc08794e",
+        "https://doi.org/10.26434/chemrxiv-2025-4kh1r",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC13034178/"
+      ],
+      "notes": "Original journal text confirms agent-directed ground-state AIMD and DFT spectra, and explicitly limits excited-state mechanistic interpretation. Preprint used for first date."
+    },
+    {
+      "query": "Q-planner quantum chemistry harness; Q-planner Ruiqi Zhang; Chelatron Summers Ward; VirtualLab_CC Kieninger ChemRxiv",
+      "source_urls": [
+        "https://www.molsci.jp/2026/present_1.html",
+        "https://science.osti.gov/-/media/About/pdf/scac/meetings/2026/lab-contributions-to-GM-03-24-2026v2.pdf",
+        "https://www.sciencedirect.com/science/article/pii/S2949747726000230",
+        "https://github.com/CCBG-Lab/VirtualLab_CC"
+      ],
+      "notes": "Resolved VirtualLab_CC journal/software identity and an official Chelatron project demonstration. Q-planner original paper remained unresolved."
+    },
+    {
+      "query": "Molecular Simulations Assisted by an Artificial Intelligence Agent ArIA; ArIA ORCA Chanmungkalakul; ArIA TDDFT water",
+      "source_urls": [
+        "https://doi.org/10.26434/chemrxiv.15002344/v1",
+        "https://pollicegroup.web.rug.nl/publications-preprints.html"
+      ],
+      "notes": "Original abstract and version history establish ArIA; individual task detail limited by direct full-text access. Different ARIA acronym systems excluded."
+    },
+    {
+      "query": "LARA autonomous quantum chemistry; LARA atomization research assistant HPC",
+      "source_urls": [
+        "https://arxiv.org/html/2604.22571v1",
+        "https://journals.aps.org/prxintelligence/accepted/10.1103/cp6v-t93q"
+      ],
+      "notes": "Primary v1 inspected. Native dry-runs and repair are demonstrated, but production SCF completion was not verified; retained unresolved."
+    },
+    {
+      "query": "Generative Retrieval-Augmented Ontologic Graph multi-agent DFT",
+      "source_urls": [
+        "https://pubs.acs.org/doi/abs/10.1021/acsengineeringau.3c00058",
+        "https://arxiv.org/abs/2310.19998"
+      ],
+      "notes": "Original publisher Section 2.3.1 Table 8 positively confirms finite-molecule DFT invocation, revealing a 2023 predecessor omitted by the baseline and the later 49-system perspective."
+    },
+    {
+      "query": "LLM NWChem agent chemistry; LLM-driven ORCA agent 2024; recent reaction-mechanism agent searches",
+      "source_urls": [
+        "https://www.nature.com/articles/s42004-025-01776-9",
+        "https://arxiv.org/abs/2602.04850",
+        "https://arxiv.org/abs/2609.08503"
+      ],
+      "notes": "Broader backend/timeframe searches mostly recurred to existing baseline and newly captured systems; commercial tool catalogs without a concrete executed demonstration were not counted."
+    },
+    {
+      "query": "Protomia official capabilities and usage examples; AutoSolvateWeb original implementation",
+      "source_urls": [
+        "https://aitomistic.com/protomia/docs/research-workflow",
+        "https://aitomistic.com/protomia/docs/capabilities",
+        "https://pubs.rsc.org/en/content/articlehtml/2025/sc/d4sc08677e"
+      ],
+      "notes": "Counted the Protomia reaction-energy demonstration conservatively. Original AutoSolvateWeb source restricts LLM use to fallback conversation and is excluded under the computational decision-loop criterion."
+    }
+  ]
+}

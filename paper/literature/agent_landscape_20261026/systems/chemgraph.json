@@ -1,0 +1,43 @@
+{
+  "id": "chemgraph",
+  "name": "ChemGraph",
+  "first_public_date": "2025-06-03",
+  "physical_target": "finite_molecules_complexes",
+  "demonstrated_target": "PubChem small molecules and reaction thermochemistry",
+  "boundary_conditions": "finite molecular benchmarks; ASE supports PBC but support is not counted as a demonstration",
+  "demonstrated_tasks": [
+    "T",
+    "E",
+    "O",
+    "F"
+  ],
+  "task_evidence": {
+    "T": {
+      "source_index": 0
+    },
+    "E": {
+      "source_index": 0
+    },
+    "O": {
+      "source_index": 0
+    },
+    "F": {
+      "source_index": 0
+    }
+  },
+  "sources": [
+    {
+      "url": "https://www.nature.com/articles/s42004-025-01776-9",
+      "locator": "Results; Methods/Benchmarking; Table 2",
+      "evidence_paraphrase": "Thirteen molecular tasks include DFT optimization, vibrations and reaction enthalpy/Gibbs calculations; no periodic benchmark is inferred from ASE support."
+    }
+  ],
+  "family": "ChemGraph",
+  "aliases": [
+    "arXiv:2506.06363",
+    "Communications Chemistry 9, 33 (2026)"
+  ],
+  "limitations": "",
+  "include_main": true,
+  "reviewed_on": "2026-10-26"
+}

@@ -1,0 +1,2049 @@
+{
+  "figure": "chemical_identity_stability",
+  "dimensions_mm": [
+    180,
+    143
+  ],
+  "sources": {
+    "frozen_probes": {
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/frozen_probes.jsonl",
+      "sha256": "e6a803417427d2ccc9b4d46f90bd88c17ad35a47714d6bc9d36ff7292a6a72f8"
+    },
+    "results": {
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/results.json",
+      "sha256": "356b5810c8460dde54187c04eb23d88036db37527c8900a1672a63616c09c49e"
+    },
+    "pair_provenance": {
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/chemical_identity_controls/chemical_identity_provenance.json",
+      "sha256": "ce4daf53d5a7f378ff3b471fe5c22ee4a7be150fdd89bcc45ac0654519bc9f34"
+    },
+    "deployment": {
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/deployment.json",
+      "sha256": "ba71b7d916409cd0c4e8fce7343989343d0ee00787da719fa6c4e6e080f79b3e"
+    },
+    "script": {
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/scripts/model_semantics/plot_identity_stability.py",
+      "sha256": "c9150874fa5988812dca80b85672b388a948fdb76526c88bc3612d487c2d9b2b"
+    }
+  },
+  "model": {
+    "name": "qwen3.8:27b",
+    "model": "qwen3.8:27b",
+    "modified_at": "2026-08-26T01:28:05.467950246+08:00",
+    "size": 17741872154,
+    "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "details": {
+      "parent_model": "qwen3.8:27b-q4_K_M",
+      "format": "gguf",
+      "family": "qwen35",
+      "families": [
+        "qwen35"
+      ],
+      "parameter_size": "27.3B",
+      "quantization_level": "Q4_K_M",
+      "context_length": 262144,
+      "embedding_length": 5120
+    },
+    "capabilities": [
+      "completion",
+      "tools",
+      "thinking",
+      "vision"
+    ]
+  },
+  "unit": "16 identity pairs derived from four task systems; four paired conditions per pair",
+  "conditions": [
+    {
+      "representation": "literal",
+      "option_order": "forward"
+    },
+    {
+      "representation": "literal",
+      "option_order": "swapped"
+    },
+    {
+      "representation": "equivalent_rewrite",
+      "option_order": "forward"
+    },
+    {
+      "representation": "equivalent_rewrite",
+      "option_order": "swapped"
+    }
+  ],
+  "option_meanings": {
+    "forward": {
+      "A": "same_identity",
+      "B": "different_identity"
+    },
+    "swapped": {
+      "A": "different_identity",
+      "B": "same_identity"
+    }
+  },
+  "encoding": {
+    "correct": {
+      "shape": "circle",
+      "color": "#3D6947"
+    },
+    "wrong": {
+      "shape": "diamond",
+      "color": "#A56A42"
+    },
+    "cell_text": "actual saved A/B response",
+    "pale_region": "same-identity source-string pairs are identical-string baselines"
+  },
+  "display_order": [
+    "chemical_identity_01",
+    "chemical_identity_02",
+    "chemical_identity_03",
+    "chemical_identity_04",
+    "chemical_identity_05",
+    "chemical_identity_06",
+    "chemical_identity_07",
+    "chemical_identity_08",
+    "chemical_identity_10",
+    "chemical_identity_11",
+    "chemical_identity_13",
+    "chemical_identity_14",
+    "chemical_identity_15",
+    "chemical_identity_09",
+    "chemical_identity_12",
+    "chemical_identity_16"
+  ],
+  "pair_provenance": [
+    {
+      "left": {
+        "task": "E1",
+        "field": "reactant",
+        "smiles": "[F-].CCCl",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "E1",
+        "field": "reactant",
+        "smiles": "[F-].CCCl",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_01",
+      "same_identity": true,
+      "canonical_identities": [
+        "CCCl.[F-]",
+        "CCCl.[F-]"
+      ],
+      "molecular_formulas": [
+        "C2H5ClF-",
+        "C2H5ClF-"
+      ],
+      "formal_charges": [
+        -1,
+        -1
+      ],
+      "right_equivalent_rewrite": "CCCl.[F-]",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "E1",
+        "field": "product",
+        "smiles": "C=C.F.[Cl-]",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "E1",
+        "field": "product",
+        "smiles": "C=C.F.[Cl-]",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_02",
+      "same_identity": true,
+      "canonical_identities": [
+        "C=C.F.[Cl-]",
+        "C=C.F.[Cl-]"
+      ],
+      "molecular_formulas": [
+        "C2H5ClF-",
+        "C2H5ClF-"
+      ],
+      "formal_charges": [
+        -1,
+        -1
+      ],
+      "right_equivalent_rewrite": "[Cl-].F.C=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_03",
+      "same_identity": true,
+      "canonical_identities": [
+        "O=C(O)CC(=O)O",
+        "O=C(O)CC(=O)O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H4O4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "O=C(O)CC(O)=O",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "product",
+        "smiles": "CC(=O)O.O=C=O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": "product",
+        "smiles": "CC(=O)O.O=C=O",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_04",
+      "same_identity": true,
+      "canonical_identities": [
+        "CC(=O)O.O=C=O",
+        "CC(=O)O.O=C=O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H4O4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "O=C=O.O=C(O)C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "reactant",
+        "smiles": "CC1CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "reactant",
+        "smiles": "CC1CC=C1",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_05",
+      "same_identity": true,
+      "canonical_identities": [
+        "CC1C=CC1",
+        "CC1C=CC1"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C1C=CC1C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "E",
+        "smiles": "C/C=C/C=C",
+        "origin": "formal_model_declaration"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "E",
+        "smiles": "C/C=C/C=C",
+        "origin": "formal_model_declaration"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_06",
+      "same_identity": true,
+      "canonical_identities": [
+        "C=C/C=C/C",
+        "C=C/C=C/C"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(/C=C)=C\\C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "Z",
+        "smiles": "C/C=C\\C=C",
+        "origin": "formal_model_declaration"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "Z",
+        "smiles": "C/C=C\\C=C",
+        "origin": "formal_model_declaration"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_07",
+      "same_identity": true,
+      "canonical_identities": [
+        "C=C/C=C\\C",
+        "C=C/C=C\\C"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(/C=C)=C/C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "IA1",
+        "field": "reactant",
+        "smiles": "C1=CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "IA1",
+        "field": "reactant",
+        "smiles": "C1=CC=C1",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_08",
+      "same_identity": true,
+      "canonical_identities": [
+        "C1=CC=C1",
+        "C1=CC=C1"
+      ],
+      "molecular_formulas": [
+        "C4H4",
+        "C4H4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C1C=CC=1",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": "product",
+        "smiles": "CC(=O)O.O=C=O",
+        "origin": "formal_task"
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_10",
+      "same_identity": false,
+      "canonical_identities": [
+        "O=C(O)CC(=O)O",
+        "CC(=O)O.O=C=O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H4O4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "O=C=O.O=C(O)C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "reactant",
+        "smiles": "CC1CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "product",
+        "smiles": "C=CC=CC",
+        "origin": "formal_task"
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_11",
+      "same_identity": false,
+      "canonical_identities": [
+        "CC1C=CC1",
+        "C=CC=CC"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(=CC)C=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": null,
+        "smiles": "COC(=O)C(=O)O",
+        "origin": "synthetic_control",
+        "parent_field": "reactant",
+        "operation": "Replace malonic-acid connectivity by monomethyl-oxalate connectivity; retain formula."
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_13",
+      "same_identity": false,
+      "canonical_identities": [
+        "O=C(O)CC(=O)O",
+        "COC(=O)C(=O)O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H4O4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "COC(=O)C(O)=O",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "reactant",
+        "smiles": "CC1CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "HA1",
+        "field": null,
+        "smiles": "C=C1CCC1",
+        "origin": "synthetic_control",
+        "parent_field": "reactant",
+        "operation": "Replace methylcyclobutene by methylenecyclobutane connectivity; retain formula."
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_14",
+      "same_identity": false,
+      "canonical_identities": [
+        "CC1C=CC1",
+        "C=C1CCC1"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C1CCC1=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "IA1",
+        "field": "reactant",
+        "smiles": "C1=CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "IA1",
+        "field": null,
+        "smiles": "C#CC=C",
+        "origin": "synthetic_control",
+        "parent_field": "reactant",
+        "operation": "Replace the four-membered ring by an acyclic enyne; retain formula."
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_15",
+      "same_identity": false,
+      "canonical_identities": [
+        "C1=CC=C1",
+        "C#CC=C"
+      ],
+      "molecular_formulas": [
+        "C4H4",
+        "C4H4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(C#C)=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "E1",
+        "field": "reactant",
+        "smiles": "[F-].CCCl",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "E1",
+        "field": "product",
+        "smiles": "C=C.F.[Cl-]",
+        "origin": "formal_task"
+      },
+      "change_type": "same_formula_connectivity_and_charge_relocation",
+      "base_case_id": "chemical_identity_09",
+      "same_identity": false,
+      "canonical_identities": [
+        "CCCl.[F-]",
+        "C=C.F.[Cl-]"
+      ],
+      "molecular_formulas": [
+        "C2H5ClF-",
+        "C2H5ClF-"
+      ],
+      "formal_charges": [
+        -1,
+        -1
+      ],
+      "right_equivalent_rewrite": "[Cl-].F.C=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "E",
+        "smiles": "C/C=C/C=C",
+        "origin": "formal_model_declaration"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "Z",
+        "smiles": "C/C=C\\C=C",
+        "origin": "formal_model_declaration"
+      },
+      "change_type": "specified_double_bond_stereochemistry",
+      "base_case_id": "chemical_identity_12",
+      "same_identity": false,
+      "canonical_identities": [
+        "C=C/C=C/C",
+        "C=C/C=C\\C"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(/C=C)=C/C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": null,
+        "smiles": "O=C([O-])CC(=O)O",
+        "origin": "synthetic_control",
+        "parent_field": "reactant",
+        "operation": "Remove one acidic hydrogen and set its oxygen formal charge to -1."
+      },
+      "change_type": "protonation_and_formal_charge",
+      "base_case_id": "chemical_identity_16",
+      "same_identity": false,
+      "canonical_identities": [
+        "O=C(O)CC(=O)O",
+        "O=C([O-])CC(=O)O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H3O4-"
+      ],
+      "formal_charges": [
+        0,
+        -1
+      ],
+      "right_equivalent_rewrite": "O=C([O-])CC(O)=O",
+      "rewrite_seed": 42
+    }
+  ],
+  "records": [
+    {
+      "id": "chemical_identity_01/literal/forward",
+      "base_case_id": "chemical_identity_01",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/7e9e7eafda311af3f7288fb2a7ae0dc27b93e68e8aea12075fe6facd06b99cba.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "[F-].CCCl",
+        "[F-].CCCl"
+      ]
+    },
+    {
+      "id": "chemical_identity_01/literal/swapped",
+      "base_case_id": "chemical_identity_01",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/652c5c2ac56fa56f58e42c8bfee47e71c31121a5ca6562dd5e926c5aa1cc4fdd.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "[F-].CCCl",
+        "[F-].CCCl"
+      ]
+    },
+    {
+      "id": "chemical_identity_01/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_01",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/8fbfa5d3ab3b61ba78320ab3ba4e85d02304ab4fd040a9de72c5519b7ab1268f.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "[F-].CCCl",
+        "CCCl.[F-]"
+      ]
+    },
+    {
+      "id": "chemical_identity_01/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_01",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/458729f036ad7409ce7097b8ae15aaf7c71800cc3c91adeea493644f323833cc.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "[F-].CCCl",
+        "CCCl.[F-]"
+      ]
+    },
+    {
+      "id": "chemical_identity_02/literal/forward",
+      "base_case_id": "chemical_identity_02",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/45ef9c92ae6a2e6e3d0fbb3b54a746e3d85a063fdd9fb55f03c242c76d8eb031.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C=C.F.[Cl-]",
+        "C=C.F.[Cl-]"
+      ]
+    },
+    {
+      "id": "chemical_identity_02/literal/swapped",
+      "base_case_id": "chemical_identity_02",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/fb7f88aaf0711c5fe3d13b7d06fd8d9f3e4dc05caf7a81e1e01dfcc0ec6e8fae.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C=C.F.[Cl-]",
+        "C=C.F.[Cl-]"
+      ]
+    },
+    {
+      "id": "chemical_identity_02/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_02",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/8d475e31a7e8edbf35a1d6cfcc9b6d4a757e3229b6dbc311e4fd0313af1c018f.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C=C.F.[Cl-]",
+        "[Cl-].F.C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_02/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_02",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/52eee889bd53c2896c3664910dede0e67bfb0921d3024ce376138af02537654c.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C=C.F.[Cl-]",
+        "[Cl-].F.C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_03/literal/forward",
+      "base_case_id": "chemical_identity_03",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/31aba7b1ec7be65bce153edfab15e743c92d39a60420179f7f1db8b233591e59.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C(O)CC(=O)O"
+      ]
+    },
+    {
+      "id": "chemical_identity_03/literal/swapped",
+      "base_case_id": "chemical_identity_03",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/dea60804a30478323a9dad63518850494fcc26cb881533636d289eaa7b580a7d.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C(O)CC(=O)O"
+      ]
+    },
+    {
+      "id": "chemical_identity_03/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_03",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/fc173ce45f5eff3abe3848b1a6c548c060ad5efa261ab6aca26b03902ea0d9d6.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C(O)CC(O)=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_03/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_03",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/e0af5f2d6e93a00c6b74b644169b6c33fc2939cba0703c8e19a500a37384d3b7.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C(O)CC(O)=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_04/literal/forward",
+      "base_case_id": "chemical_identity_04",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/d953e2feabdaea1dfac1ded82a2c7cbb2ab55789ddb6e99949ef2182da45df93.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC(=O)O.O=C=O",
+        "CC(=O)O.O=C=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_04/literal/swapped",
+      "base_case_id": "chemical_identity_04",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/ec4c2e5330af099f76ce3f079bb10f96a2d1b4e4bbe6deb6db304dae6ba8bb12.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "CC(=O)O.O=C=O",
+        "CC(=O)O.O=C=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_04/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_04",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/4dd350fa9ceb8f835b7256ce9156bde3e7f8ab5ea7443a6f619a3aae986c6503.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC(=O)O.O=C=O",
+        "O=C=O.O=C(O)C"
+      ]
+    },
+    {
+      "id": "chemical_identity_04/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_04",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/82df0248500aae6e6b4d325d84d30f13ccac6b3ec36adbffcd9d68cca8ce3b87.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "CC(=O)O.O=C=O",
+        "O=C=O.O=C(O)C"
+      ]
+    },
+    {
+      "id": "chemical_identity_05/literal/forward",
+      "base_case_id": "chemical_identity_05",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/9d2aa1d619e0fcd2d12bc11aa0d4ca674c3e825b8bdf8c45d46082fb586eec09.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "CC1CC=C1"
+      ]
+    },
+    {
+      "id": "chemical_identity_05/literal/swapped",
+      "base_case_id": "chemical_identity_05",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/2a23969fad9d147cc4cf61276fb78d32acf1da95cfd938bfd4e66faba5f6e209.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "CC1CC=C1",
+        "CC1CC=C1"
+      ]
+    },
+    {
+      "id": "chemical_identity_05/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_05",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/97777fb64aca8d95215b5d96ca947dad7ebcd82cbee9b2275c9c76ff7ef6283a.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C1C=CC1C"
+      ]
+    },
+    {
+      "id": "chemical_identity_05/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_05",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/f7c313d86d3275c6ef9ccbf4904d1c4832816f80037211d4e964ad5ee5888edd.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C1C=CC1C"
+      ]
+    },
+    {
+      "id": "chemical_identity_06/literal/forward",
+      "base_case_id": "chemical_identity_06",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/9e311eddb7119a5255c6cacfca2cfa5fd7d76320513dea2dc288c34eb504a5e5.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C/C=C",
+        "C/C=C/C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_06/literal/swapped",
+      "base_case_id": "chemical_identity_06",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/0426f81729df98ee2245edd10796b214828d4a93d27f4819252b56a51620b28b.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C/C=C/C=C",
+        "C/C=C/C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_06/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_06",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/f9d064b3e16f770cb387d7b9e06b7e849cf029bdf3b1d28eb2de4129db55a51b.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C/C=C",
+        "C(/C=C)=C\\C"
+      ]
+    },
+    {
+      "id": "chemical_identity_06/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_06",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": false,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/105f93fb1b95e8ae13ba817b87fc797613a44449a0b2c7f4fcda322d6993915e.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C/C=C",
+        "C(/C=C)=C\\C"
+      ]
+    },
+    {
+      "id": "chemical_identity_07/literal/forward",
+      "base_case_id": "chemical_identity_07",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/9d6cc954441342e288c060e3276955690d723b2b9bd47c425da289c7498b2b49.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C\\C=C",
+        "C/C=C\\C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_07/literal/swapped",
+      "base_case_id": "chemical_identity_07",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/b53b15e56679602bc06496de5ebf119e87da12c375c35ee8bea2c3d7d7109c35.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C/C=C\\C=C",
+        "C/C=C\\C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_07/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_07",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/58465d6f8af1009fc9aa0e6e4648572ba94cab19368adb9bea0983b40d14afa0.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C\\C=C",
+        "C(/C=C)=C/C"
+      ]
+    },
+    {
+      "id": "chemical_identity_07/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_07",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": false,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/73582658a18ce560a947ec24ce8dca8d9dc40c1520ca41a3fdee58e641fd3c1a.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C\\C=C",
+        "C(/C=C)=C/C"
+      ]
+    },
+    {
+      "id": "chemical_identity_08/literal/forward",
+      "base_case_id": "chemical_identity_08",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/5aae8fb122068e375676f027748f3aa6116e766e956e53bc7808861e84c1f009.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C1=CC=C1",
+        "C1=CC=C1"
+      ]
+    },
+    {
+      "id": "chemical_identity_08/literal/swapped",
+      "base_case_id": "chemical_identity_08",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/69ab06cbf7030de3e660fcd569c86bbb4e6003c56e812ed37d516e935e46ee38.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C1=CC=C1",
+        "C1=CC=C1"
+      ]
+    },
+    {
+      "id": "chemical_identity_08/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_08",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/460ea4bdacf2f38256dfaeecd258a5abdb1ba977c06c266f3c19823ce1150fd6.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C1=CC=C1",
+        "C1C=CC=1"
+      ]
+    },
+    {
+      "id": "chemical_identity_08/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_08",
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_identity",
+      "order": "swapped",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "same_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/b87cad493cb8db456bbd4a48819578533a43d93ddfbca3bc9c8f2430c2ebc559.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C1=CC=C1",
+        "C1C=CC=1"
+      ]
+    },
+    {
+      "id": "chemical_identity_09/literal/forward",
+      "base_case_id": "chemical_identity_09",
+      "mainline": "chemical_identity/same_formula_connectivity_and_charge_relocation",
+      "condition": "literal/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity_and_charge_relocation",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/c3ef949327cf39326f34f8919692351b890413e70eb775a6e725cdabe061f990.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "[F-].CCCl",
+        "C=C.F.[Cl-]"
+      ]
+    },
+    {
+      "id": "chemical_identity_09/literal/swapped",
+      "base_case_id": "chemical_identity_09",
+      "mainline": "chemical_identity/same_formula_connectivity_and_charge_relocation",
+      "condition": "literal/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity_and_charge_relocation",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/8ac9930e75428004eee624f8465a3b3d76100af9149523574554872e5cbffb7f.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "[F-].CCCl",
+        "C=C.F.[Cl-]"
+      ]
+    },
+    {
+      "id": "chemical_identity_09/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_09",
+      "mainline": "chemical_identity/same_formula_connectivity_and_charge_relocation",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity_and_charge_relocation",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/0a418e6328cd849632fe51194f80931eb965a07a0f8e7701b2a366f21b18ef3f.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "[F-].CCCl",
+        "[Cl-].F.C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_09/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_09",
+      "mainline": "chemical_identity/same_formula_connectivity_and_charge_relocation",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity_and_charge_relocation",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/736a1884fc68fc002b561eee1fe217456ff014b189847ff356d3c89e69b431e3.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "[F-].CCCl",
+        "[Cl-].F.C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_10/literal/forward",
+      "base_case_id": "chemical_identity_10",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/4f535337f23ecb1e38c73cf94ca9f90477bcb0753dfcaabc6fb560c72da0358f.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "CC(=O)O.O=C=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_10/literal/swapped",
+      "base_case_id": "chemical_identity_10",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/4bb8c45655e959fe237800c1fc3e67bbc5ffb04517e61821074dffc42b60c22f.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "CC(=O)O.O=C=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_10/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_10",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/a6857af07ea13c943eedf20e3efe2f86338335be754e5882e752ba6ec29e8c6a.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C=O.O=C(O)C"
+      ]
+    },
+    {
+      "id": "chemical_identity_10/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_10",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/b01f1b948936ca8c07b3d1a3ca7e1a6d2d1fbfa2398a5e28634ee0e51bb15305.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C=O.O=C(O)C"
+      ]
+    },
+    {
+      "id": "chemical_identity_11/literal/forward",
+      "base_case_id": "chemical_identity_11",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/707c221223594ca0b9049c5c45e62bf2ac5b6d105e3f42b17e9299fd8662fd33.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C=CC=CC"
+      ]
+    },
+    {
+      "id": "chemical_identity_11/literal/swapped",
+      "base_case_id": "chemical_identity_11",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/d9a6c47ad6219ec5927cd8c3d1f72c389381a538ec2c280aeac08ff14ba880f1.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C=CC=CC"
+      ]
+    },
+    {
+      "id": "chemical_identity_11/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_11",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": false,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/9cc004996185226123ba40d58999441b740b5fb5f6b469c788c320274d24cf3c.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C(=CC)C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_11/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_11",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/ce456ba93799fb409c56183b7a327227fdc65b6da6768184b97368bfcc880c02.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C(=CC)C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_12/literal/forward",
+      "base_case_id": "chemical_identity_12",
+      "mainline": "chemical_identity/specified_double_bond_stereochemistry",
+      "condition": "literal/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "specified_double_bond_stereochemistry",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/28af6a9c3be3102d1cf9e9b94b398a7b275b279be29752d6edd77f7d7ef9bf82.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C/C=C/C=C",
+        "C/C=C\\C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_12/literal/swapped",
+      "base_case_id": "chemical_identity_12",
+      "mainline": "chemical_identity/specified_double_bond_stereochemistry",
+      "condition": "literal/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "specified_double_bond_stereochemistry",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/2e4de2858efcbb704c4b2250afca637f34fe938ba8c69141325b43cee0374a27.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C/C=C",
+        "C/C=C\\C=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_12/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_12",
+      "mainline": "chemical_identity/specified_double_bond_stereochemistry",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "specified_double_bond_stereochemistry",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": false,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/c2ababb9233edd5fbb11fb888cf87f3834dfad241685be6eaba2792060b26d24.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C/C=C",
+        "C(/C=C)=C/C"
+      ]
+    },
+    {
+      "id": "chemical_identity_12/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_12",
+      "mainline": "chemical_identity/specified_double_bond_stereochemistry",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "specified_double_bond_stereochemistry",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/775a6d7f43249b31fd809f7871662f21cc6a4b2c26b32f0f15d011ad8842805e.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C/C=C/C=C",
+        "C(/C=C)=C/C"
+      ]
+    },
+    {
+      "id": "chemical_identity_13/literal/forward",
+      "base_case_id": "chemical_identity_13",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/987e7c5053ce06d734ac1d004455eb61a401890a9b00ccb948888095caab2bf3.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "COC(=O)C(=O)O"
+      ]
+    },
+    {
+      "id": "chemical_identity_13/literal/swapped",
+      "base_case_id": "chemical_identity_13",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/869e431a27cd2ddb3b765fef899c80c5af7fb7c440ca01853fc3f728e5e9948d.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "COC(=O)C(=O)O"
+      ]
+    },
+    {
+      "id": "chemical_identity_13/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_13",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/0526d83ed6d48c82dbbf00eb20b267e8621b09cc2c34d082bb90c80a00483417.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "COC(=O)C(O)=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_13/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_13",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/7ceec88420ba217772298d6d7d1e5073dbe4ca91db51ee969e787dda3781d7b8.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "COC(=O)C(O)=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_14/literal/forward",
+      "base_case_id": "chemical_identity_14",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": false,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/da84a4e359a5fa3aec18a1324faa2ad43f0526e599096c98e5b7971796d6f2a2.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C=C1CCC1"
+      ]
+    },
+    {
+      "id": "chemical_identity_14/literal/swapped",
+      "base_case_id": "chemical_identity_14",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/60c8a2614bc2e27ca1c178e70dfd0b8e08aeabdee16d877a595cc055dc6fbfb6.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C=C1CCC1"
+      ]
+    },
+    {
+      "id": "chemical_identity_14/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_14",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": false,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "same_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/d79e5cf0a8692736498dfe11a322ca3d094032e6d9e481bb50cb856cb1b0e280.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C1CCC1=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_14/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_14",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/e2ec3467888fcf3a838d68b9ac424f7bf2ad5e178cec3fd7ca47a60f16b4400d.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "CC1CC=C1",
+        "C1CCC1=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_15/literal/forward",
+      "base_case_id": "chemical_identity_15",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/fedd5baf6e8671c6309e81c832bcffe3b4033c34e43a2663a9a604d63bc5dd0a.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C1=CC=C1",
+        "C#CC=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_15/literal/swapped",
+      "base_case_id": "chemical_identity_15",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/5c5d719c01f122df33194325129274fa97761628424e6920605ed14afb11da2d.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C1=CC=C1",
+        "C#CC=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_15/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_15",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/f3672366d08c37e368aa7191c84ce9673fa4ac76e4e4e9700003b2a9beb23f0e.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "C1=CC=C1",
+        "C(C#C)=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_15/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_15",
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "same_formula_connectivity",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/3b0aa624bb966472020f847a8062b85d5e0ca6d16b640ce320b3ee9789d1ccaf.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "C1=CC=C1",
+        "C(C#C)=C"
+      ]
+    },
+    {
+      "id": "chemical_identity_16/literal/forward",
+      "base_case_id": "chemical_identity_16",
+      "mainline": "chemical_identity/protonation_and_formal_charge",
+      "condition": "literal/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "protonation_and_formal_charge",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/fd894cfe3228246c370ddd4a6a197176fce1bd4565f0459cab65beb89052529c.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C([O-])CC(=O)O"
+      ]
+    },
+    {
+      "id": "chemical_identity_16/literal/swapped",
+      "base_case_id": "chemical_identity_16",
+      "mainline": "chemical_identity/protonation_and_formal_charge",
+      "condition": "literal/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "literal",
+      "change_type": "protonation_and_formal_charge",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/c187e080275220e2927c16b9f12017a77304140df9013fee55d4f6a5f6858ab7.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C([O-])CC(=O)O"
+      ]
+    },
+    {
+      "id": "chemical_identity_16/equivalent_rewrite/forward",
+      "base_case_id": "chemical_identity_16",
+      "mainline": "chemical_identity/protonation_and_formal_charge",
+      "condition": "equivalent_rewrite/forward",
+      "expected": "B",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "protonation_and_formal_charge",
+      "order": "forward",
+      "prediction": "B",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/319d8b278cad95ae9ac57ec42c0e360667be8f5a841a4fcf55053a32dacbfa2f.json",
+      "raw_response": "B",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C([O-])CC(O)=O"
+      ]
+    },
+    {
+      "id": "chemical_identity_16/equivalent_rewrite/swapped",
+      "base_case_id": "chemical_identity_16",
+      "mainline": "chemical_identity/protonation_and_formal_charge",
+      "condition": "equivalent_rewrite/swapped",
+      "expected": "A",
+      "family": "chemical_identity",
+      "representation": "equivalent_rewrite",
+      "change_type": "protonation_and_formal_charge",
+      "order": "swapped",
+      "prediction": "A",
+      "format_valid": true,
+      "correct": true,
+      "expected_meaning": "different_identity",
+      "selected_meaning": "different_identity",
+      "response_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/responses/2b5be1c69188a47bd7626a94c26b9babc9ba823e0b7a3ec3110c18ce28ca802f.json",
+      "raw_response": "A",
+      "display_smiles": [
+        "O=C(O)CC(=O)O",
+        "O=C([O-])CC(O)=O"
+      ]
+    }
+  ],
+  "selected_pair": {
+    "base_case_id": "chemical_identity_14",
+    "structures": [
+      {
+        "smiles": "CC1CC=C1",
+        "canonical_smiles": "CC1C=CC1",
+        "formula": "C5H8",
+        "drawing": "RDKit Compute2DCoords; vector bond drawing; implicit carbon/hydrogen"
+      },
+      {
+        "smiles": "C=C1CCC1",
+        "canonical_smiles": "C=C1CCC1",
+        "formula": "C5H8",
+        "drawing": "RDKit Compute2DCoords; vector bond drawing; implicit carbon/hydrogen"
+      }
+    ],
+    "origin": "formal HA1 reactant paired with a documented synthetic connectivity control",
+    "observation": "The saved response is A in all four conditions; semantic correctness changes with option order"
+  },
+  "design_connection": "Persistent chemical identity and atom references connect model intent to the intended structure; atom mapping itself is not tested here"
+}
