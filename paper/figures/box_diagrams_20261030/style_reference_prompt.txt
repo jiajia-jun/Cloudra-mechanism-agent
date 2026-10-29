@@ -1,0 +1,41 @@
+Use case: style-transfer / scientific-educational.
+Asset type: a visual design reference for an academic paper diagram; a later vector redraw will supply exact publication text.
+Input image: the provided completion_sequence.png is the edit target and the factual source. Preserve its five stages, left-to-right order, all facts, all state values, and all arrow directions. Improve visual design only.
+
+Primary request: redesign this flat five-card flow into a restrained, elegant scientific figure with clear visual hierarchy and more sophisticated, varied container types. Use a pure white background, deep forest green typography, pale sage fills, subtle yellow-green accents, and very sparing warm brown to indicate the unsuccessful completion request and missing-evidence response. The overall effect must remain scholarly and calm.
+
+Composition: a wide horizontal landscape diagram with five similarly sized stages in one straight line; generous white margins; clear thin green connecting arrows; one understated title above. Every label must stay entirely inside its card, with ample padding on all sides. Use a clean readable sans-serif typeface and crisp vector-like linework. Keep stage titles visually distinct from body text. Never squeeze long code strings into a single line; intentionally wrap at field/value boundaries.
+
+Container language: Stage 1 is a slightly offset stack of three document/evidence cards, with only the foremost card carrying text. Stage 2 is a rounded action/request card with a very subtle warm brown top accent. Stage 3 is a decision/response card with restrained beveled corners or a small clipped corner, distinguished by geometry rather than a large decorative icon. Stage 4 is an evidence-gap/advisory card with two faint offset backing sheets and a thin muted warm accent. Stage 5 is a rounded revised-request card with a subtle sage highlight. Layering must be shallow, precise and nearly flat: thin offset sheet edges, no dramatic shadows or 3D perspective. Ensure the foremost cards are aligned and all text fits comfortably. Use natural line breaks rather than overflowing card borders.
+
+Text (verbatim; preserve case, underscores, punctuation, quotes, states, and wording):
+Title: Completion request and DAG response
+
+Stage 1 title: Structured report
+Stage 1 body:
+complete: false
+unresolved evidence
+waived: []
+
+Stage 2 title: Completion request
+Stage 2 body:
+stop
+disposition: "complete"
+
+Stage 3 title: DAG response
+Stage 3 body:
+action: "continue_work"
+IRC proof still missing
+
+Stage 4 title: Model receives gap
+Stage 4 body:
+missing short_irc
+bind supporting evidence
+or declare partial
+
+Stage 5 title: Revised request
+Stage 5 body:
+stop
+disposition: "partial"
+
+Constraints: exactly five stages; exactly the given title and stage text; no invented research values, no completion success claim, no new branches, no extra legend, no logos, no watermark, no photorealistic texture, no decorative illustration. Use text wrapping and generous card widths to keep every character inside its own foreground card. This output is a style reference, not the final scientific figure.

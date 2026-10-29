@@ -31,11 +31,11 @@
       "number": 4,
       "file": "figures/fig04.pdf",
       "caption": "Cloudra multi-agent system architecture: coupling mechanistic hypothesis generation (Coordinator), deterministic geometric manipulation (Operators), asynchronous computational execution (ComputeDB), and physical evidence validation gates.",
-      "source": "docs/assets/figure1_architecture_prototype.svg",
-      "width_pt": 1350.73700787402,
-      "height_pt": 990.737007874016,
-      "raster_images": 10,
-      "conversion": "LibreOffice Draw PDF export of original SVG; vector text and paths, embedded images for logo gradients."
+      "source": "paper/figures/box_diagrams_20261030/architecture.pdf",
+      "width_pt": 1125.751220703125,
+      "height_pt": 1013.2440795898438,
+      "raster_images": 5,
+      "design": "2026-10-30: layered evidence cards, distinct semantic frames, measured text bounds"
     },
     {
       "number": 5,
@@ -104,10 +104,11 @@
       "number": 12,
       "file": "figures/fig12.pdf",
       "caption": "Intervention on a single reported distance. A one-digit edit changes the C2–C4 distance from 2.029 to 1.029 Å while O3–H8 remains 1.248 Å. The original-input residual state at token position 53 is inserted into the changed-input run at a specified layer. Token positions are zero-based.",
-      "source": "paper/figures/model_semantics_20261028/evidence_panels/split/fact_intervention.pdf",
-      "width_pt": 488.0,
-      "height_pt": 78.0,
-      "raster_images": 0
+      "source": "paper/figures/box_diagrams_20261030/fact_intervention.pdf",
+      "width_pt": 439.3700866699219,
+      "height_pt": 79.37007904052734,
+      "raster_images": 0,
+      "design": "2026-10-30: layered evidence cards, distinct semantic frames, measured text bounds"
     },
     {
       "number": 13,
@@ -131,10 +132,11 @@
       "number": 15,
       "file": "figures/fig15.pdf",
       "caption": "Evidence–geometry association in the E1 source chain. The controlled input changes the frequency geometry reference from g_63 to g_42 while retaining local termination, convergence, energy, and frequency values. The diagram preserves the links from TS optimization through bidirectional IRC to endpoint optimization and frequency calculations.",
-      "source": "paper/figures/model_semantics_20261028/evidence_panels/split/evidence_links.pdf",
-      "width_pt": 236.0,
-      "height_pt": 177.0,
-      "raster_images": 0
+      "source": "paper/figures/box_diagrams_20261030/evidence_links.pdf",
+      "width_pt": 240.94488525390625,
+      "height_pt": 189.9212646484375,
+      "raster_images": 0,
+      "design": "2026-10-30: layered evidence cards, distinct semantic frames, measured text bounds"
     },
     {
       "number": 16,
@@ -149,10 +151,11 @@
       "number": 17,
       "file": "figures/fig17.pdf",
       "caption": "Completion requests and DAG feedback in the original IA1 trajectory. A report with unresolved evidence is followed by a completion request, a response identifying missing short_irc proof, feedback to the model, and a revised partial-completion request.",
-      "source": "paper/figures/model_semantics_20261028/evidence_panels/split/completion_sequence.pdf",
-      "width_pt": 478.0,
-      "height_pt": 124.0,
-      "raster_images": 0
+      "source": "paper/figures/box_diagrams_20261030/completion_sequence.pdf",
+      "width_pt": 481.8897705078125,
+      "height_pt": 121.88976287841797,
+      "raster_images": 0,
+      "design": "2026-10-30: layered evidence cards, distinct semantic frames, measured text bounds"
     }
   ],
   "zh": [
@@ -187,11 +190,11 @@
       "number": 4,
       "file": "figures/fig04.pdf",
       "caption": "Cloudra 多智能体系统架构：机理假设推演（协调智能体）、确定性空间几何算子、异步计算调度账本（ComputeDB）以及物理证据校验门禁的协同闭环。",
-      "source": "docs/assets/figure1_architecture_prototype.svg",
-      "width_pt": 1350.73700787402,
-      "height_pt": 990.737007874016,
-      "raster_images": 10,
-      "conversion": "LibreOffice Draw PDF export of original SVG; vector text and paths, embedded images for logo gradients."
+      "source": "paper/figures/box_diagrams_20261030/architecture.pdf",
+      "width_pt": 1125.751220703125,
+      "height_pt": 1013.2440795898438,
+      "raster_images": 5,
+      "design": "2026-10-30: layered evidence cards, distinct semantic frames, measured text bounds"
     },
     {
       "number": 5,
@@ -260,10 +263,11 @@
       "number": 12,
       "file": "figures/fig12.pdf",
       "caption": "对单个报告距离的干预。一次数字修改将 C2–C4 距离从 2.029 改为 1.029 Å，O3–H8 保持 1.248 Å。在指定层，将原始输入中 token 位置 53 的残差状态替换到修改后输入的运行中。token 位置从零计数。",
-      "source": "paper/figures/model_semantics_20261028/evidence_panels/split/fact_intervention.pdf",
-      "width_pt": 488.0,
-      "height_pt": 78.0,
-      "raster_images": 0
+      "source": "paper/figures/box_diagrams_20261030/fact_intervention.pdf",
+      "width_pt": 439.3700866699219,
+      "height_pt": 79.37007904052734,
+      "raster_images": 0,
+      "design": "2026-10-30: layered evidence cards, distinct semantic frames, measured text bounds"
     },
     {
       "number": 13,
@@ -287,10 +291,11 @@
       "number": 15,
       "file": "figures/fig15.pdf",
       "caption": "E1 源链中的证据与几何关联。受控输入将频率计算的几何引用从 g_63 改为 g_42，同时保持局部终止、收敛、能量和频率数值。图中保留从过渡态优化、双向 IRC 到端点优化与频率计算的关联。",
-      "source": "paper/figures/model_semantics_20261028/evidence_panels/split/evidence_links.pdf",
-      "width_pt": 236.0,
-      "height_pt": 177.0,
-      "raster_images": 0
+      "source": "paper/figures/box_diagrams_20261030/evidence_links.pdf",
+      "width_pt": 240.94488525390625,
+      "height_pt": 189.9212646484375,
+      "raster_images": 0,
+      "design": "2026-10-30: layered evidence cards, distinct semantic frames, measured text bounds"
     },
     {
       "number": 16,
@@ -305,10 +310,11 @@
       "number": 17,
       "file": "figures/fig17.pdf",
       "caption": "原始 IA1 轨迹中的完成请求与 DAG 反馈。报告仍有未解决的证据后，模型请求完成；系统指出缺少 short_irc 证明并向模型反馈，随后模型改为请求部分完成。",
-      "source": "paper/figures/model_semantics_20261028/evidence_panels/split/completion_sequence.pdf",
-      "width_pt": 478.0,
-      "height_pt": 124.0,
-      "raster_images": 0
+      "source": "paper/figures/box_diagrams_20261030/completion_sequence.pdf",
+      "width_pt": 481.8897705078125,
+      "height_pt": 121.88976287841797,
+      "raster_images": 0,
+      "design": "2026-10-30: layered evidence cards, distinct semantic frames, measured text bounds"
     }
   ]
 }

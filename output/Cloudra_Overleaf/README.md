@@ -16,3 +16,5 @@
 后续直接编辑 `sections/` 中的正文，文献在 `references.bib` 中维护，图件放在 `figures/`。方法 2.6 已包含 Benchmark 设计；结果 3.1 按 48 组重复实验、200 个消融沙箱排列，并保留讨论写作空间。
 
 仓库内可编辑主稿及维护说明见 [paper/overleaf](../../paper/overleaf/README.md)。
+
+图4、12、15、17已于2026年10月30日更新为分层卡片与矢量框体图，文字边界及论文中的实际显示已检查。源图见 [框体图目录](../../paper/figures/box_diagrams_20261030/README.md)。

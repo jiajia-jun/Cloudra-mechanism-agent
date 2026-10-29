@@ -1,0 +1,29 @@
+[
+  {
+    "name": "fact_intervention",
+    "width_mm": 155,
+    "height_mm": 28,
+    "min_font_pt": 7.5,
+    "checked_text_blocks": 13,
+    "minimum_card_padding_mm": 1.6,
+    "minimum_extra_clearance_mm": 0.302
+  },
+  {
+    "name": "evidence_links",
+    "width_mm": 85,
+    "height_mm": 67,
+    "min_font_pt": 7.5,
+    "checked_text_blocks": 17,
+    "minimum_card_padding_mm": 1.4,
+    "minimum_extra_clearance_mm": 0.125
+  },
+  {
+    "name": "completion_sequence",
+    "width_mm": 170,
+    "height_mm": 43,
+    "min_font_pt": 7.5,
+    "checked_text_blocks": 23,
+    "minimum_card_padding_mm": 1.4,
+    "minimum_extra_clearance_mm": 0.6
+  }
+]

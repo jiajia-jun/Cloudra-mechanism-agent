@@ -1,0 +1,1 @@
+Visual style reference only. Generated once with the built-in image_gen tool from completion_sequence.png. Do not insert this bitmap into the manuscript. Final publication figures are rebuilt as editable vectors with exact source text. Prompt: style_reference_prompt.txt.

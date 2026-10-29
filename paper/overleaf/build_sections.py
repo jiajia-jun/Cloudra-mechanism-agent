@@ -220,7 +220,7 @@ def convert(source, language, chapter, captions):
             number, title = title.split(" ", 1)
             if number == "2.1.1":
                 add_figure(4)
-            if number == "2.6":
+            if number == ("2.5" if language == "en" else "2.6"):
                 add_figure(5)
             if number == "3.3.2":
                 add_figure(15)

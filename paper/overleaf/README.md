@@ -16,3 +16,5 @@
 可直接导入的项目包及 PDF 预览见 [Overleaf 交付目录](../../output/Cloudra_Overleaf/README.md)。
 
 在线项目：[英文](https://www.overleaf.com/project/6ae36f82f45648027f73ed76) · [中文](https://www.overleaf.com/project/6ae37adfaf331ac2323b4c3f)。
+
+图4、12、15、17已于2026年10月30日更新为分层卡片与矢量框体图，文字边界及论文中的实际显示已检查。源图见 [框体图目录](../figures/box_diagrams_20261030/README.md)。

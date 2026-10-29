@@ -1,0 +1,1764 @@
+{
+  "canvas": [
+    1500,
+    1350
+  ],
+  "publication_width_mm": 179,
+  "minimum_font_pt": 7.611023622047246,
+  "labels": [
+    {
+      "id": "label-001",
+      "text": "a",
+      "font_px": 24,
+      "font_pt_at_179mm": 8.118425196850394,
+      "svg_box": [
+        61.375,
+        73.25,
+        74.625,
+        86.25
+      ],
+      "allowed_box": [
+        53,
+        63,
+        83,
+        93
+      ]
+    },
+    {
+      "id": "label-002",
+      "text": "Scientific input & delivery DAG",
+      "font_px": 29,
+      "font_pt_at_179mm": 9.809763779527561,
+      "svg_box": [
+        100.0,
+        67.0,
+        527.75,
+        94.0
+      ],
+      "allowed_box": [
+        58,
+        58,
+        654,
+        108
+      ]
+    },
+    {
+      "id": "label-003",
+      "text": "b",
+      "font_px": 24,
+      "font_pt_at_179mm": 8.118425196850394,
+      "svg_box": [
+        848.625,
+        68.75,
+        863.375,
+        86.25
+      ],
+      "allowed_box": [
+        841,
+        63,
+        871,
+        93
+      ]
+    },
+    {
+      "id": "label-004",
+      "text": "Geometry & PES",
+      "font_px": 29,
+      "font_pt_at_179mm": 9.809763779527561,
+      "svg_box": [
+        888.0,
+        67.0,
+        1118.5,
+        94.0
+      ],
+      "allowed_box": [
+        846,
+        58,
+        1442,
+        108
+      ]
+    },
+    {
+      "id": "label-005",
+      "text": "c",
+      "font_px": 24,
+      "font_pt_at_179mm": 8.118425196850394,
+      "svg_box": [
+        1418.375,
+        773.25,
+        1431.625,
+        786.25
+      ],
+      "allowed_box": [
+        1410,
+        763,
+        1440,
+        793
+      ]
+    },
+    {
+      "id": "label-006",
+      "text": "Computational infrastructure",
+      "font_px": 29,
+      "font_pt_at_179mm": 9.809763779527561,
+      "svg_box": [
+        900.0,
+        767.0,
+        1300.75,
+        793.75
+      ],
+      "allowed_box": [
+        846,
+        758,
+        1442,
+        808
+      ]
+    },
+    {
+      "id": "label-007",
+      "text": "d",
+      "font_px": 24,
+      "font_pt_at_179mm": 8.118425196850394,
+      "svg_box": [
+        60.625,
+        768.75,
+        75.375,
+        786.25
+      ],
+      "allowed_box": [
+        53,
+        763,
+        83,
+        793
+      ]
+    },
+    {
+      "id": "label-008",
+      "text": "Mechanistic validation & refinement",
+      "font_px": 29,
+      "font_pt_at_179mm": 9.809763779527561,
+      "svg_box": [
+        100.0,
+        767.0,
+        596.25,
+        788.25
+      ],
+      "allowed_box": [
+        58,
+        758,
+        654,
+        808
+      ]
+    },
+    {
+      "id": "label-009",
+      "text": "Research intent",
+      "font_px": 27,
+      "font_pt_at_179mm": 9.133228346456695,
+      "svg_box": [
+        137.0,
+        136.5,
+        339.5,
+        156.25
+      ],
+      "allowed_box": [
+        130,
+        125,
+        625,
+        166
+      ]
+    },
+    {
+      "id": "label-010",
+      "text": "Molecules · reaction conditions",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        88.0,
+        177.5,
+        403.5,
+        194.25
+      ],
+      "allowed_box": [
+        82,
+        172,
+        630,
+        274
+      ]
+    },
+    {
+      "id": "label-011",
+      "text": "Competing pathways & methods",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        88.0,
+        209.25,
+        419.0,
+        230.75
+      ],
+      "allowed_box": [
+        82,
+        172,
+        630,
+        274
+      ]
+    },
+    {
+      "id": "label-012",
+      "text": "Natural-language hypothesis formation",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        88.0,
+        241.25,
+        482.75,
+        262.75
+      ],
+      "allowed_box": [
+        82,
+        172,
+        630,
+        274
+      ]
+    },
+    {
+      "id": "label-013",
+      "text": "Delivery DAG",
+      "font_px": 27,
+      "font_pt_at_179mm": 9.133228346456695,
+      "svg_box": [
+        96.0,
+        349.25,
+        268.5,
+        374.5
+      ],
+      "allowed_box": [
+        94,
+        342,
+        614,
+        380
+      ]
+    },
+    {
+      "id": "label-014",
+      "text": "R",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        128.75,
+        417.5,
+        145.25,
+        434.0
+      ],
+      "allowed_box": [
+        117,
+        407,
+        157,
+        447
+      ]
+    },
+    {
+      "id": "label-015",
+      "text": "P",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        567.375,
+        417.5,
+        582.625,
+        434.0
+      ],
+      "allowed_box": [
+        555,
+        407,
+        595,
+        447
+      ]
+    },
+    {
+      "id": "label-016",
+      "text": "TS",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        341.375,
+        404.25,
+        370.625,
+        421.25
+      ],
+      "allowed_box": [
+        322,
+        400,
+        390,
+        429
+      ]
+    },
+    {
+      "id": "label-017",
+      "text": "Species nodes · reaction-step edges",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        173.5,
+        467.5,
+        538.5,
+        488.75
+      ],
+      "allowed_box": [
+        92,
+        463,
+        620,
+        497
+      ]
+    },
+    {
+      "id": "label-018",
+      "text": "Default: ts_opt · frequency · short_irc",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        171.0,
+        520.5,
+        541.0,
+        541.75
+      ],
+      "allowed_box": [
+        102,
+        516,
+        610,
+        544
+      ]
+    },
+    {
+      "id": "label-019",
+      "text": "Atom mapping",
+      "font_px": 26,
+      "font_pt_at_179mm": 8.794960629921261,
+      "svg_box": [
+        948.0,
+        125.25,
+        1130.5,
+        149.5
+      ],
+      "allowed_box": [
+        944,
+        118,
+        1438,
+        158
+      ]
+    },
+    {
+      "id": "label-020",
+      "text": "Atom-conserving candidates",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        947.75,
+        160.5,
+        1238.0,
+        181.75
+      ],
+      "allowed_box": [
+        944,
+        155,
+        1438,
+        190
+      ]
+    },
+    {
+      "id": "label-021",
+      "text": "Reaction-center atom pairs",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        948.0,
+        191.5,
+        1224.25,
+        212.5
+      ],
+      "allowed_box": [
+        944,
+        187,
+        1438,
+        222
+      ]
+    },
+    {
+      "id": "label-022",
+      "text": "Steric traversal",
+      "font_px": 26,
+      "font_pt_at_179mm": 8.794960629921261,
+      "svg_box": [
+        948.0,
+        238.0,
+        1136.0,
+        257.25
+      ],
+      "allowed_box": [
+        944,
+        231,
+        1438,
+        271
+      ]
+    },
+    {
+      "id": "label-023",
+      "text": "Distance-weighted local bulk",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        948.0,
+        273.5,
+        1238.75,
+        294.75
+      ],
+      "allowed_box": [
+        944,
+        268,
+        1438,
+        303
+      ]
+    },
+    {
+      "id": "label-024",
+      "text": "Substituent contributions, ρᵈ",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        948.0,
+        304.25,
+        1234.5,
+        325.5
+      ],
+      "allowed_box": [
+        944,
+        300,
+        1438,
+        335
+      ]
+    },
+    {
+      "id": "label-025",
+      "text": "Rigid alignment",
+      "font_px": 26,
+      "font_pt_at_179mm": 8.794960629921261,
+      "svg_box": [
+        948.0,
+        351.25,
+        1143.75,
+        375.5
+      ],
+      "allowed_box": [
+        944,
+        344,
+        1438,
+        384
+      ]
+    },
+    {
+      "id": "label-026",
+      "text": "Kabsch endpoint alignment",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        948.0,
+        386.5,
+        1225.0,
+        407.75
+      ],
+      "allowed_box": [
+        944,
+        381,
+        1438,
+        416
+      ]
+    },
+    {
+      "id": "label-027",
+      "text": "Consistent endpoint frames",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        948.0,
+        417.25,
+        1228.0,
+        438.5
+      ],
+      "allowed_box": [
+        944,
+        413,
+        1438,
+        448
+      ]
+    },
+    {
+      "id": "label-028",
+      "text": "Path preparation",
+      "font_px": 26,
+      "font_pt_at_179mm": 8.794960629921261,
+      "svg_box": [
+        948.0,
+        464.25,
+        1155.25,
+        488.25
+      ],
+      "allowed_box": [
+        944,
+        457,
+        1438,
+        497
+      ]
+    },
+    {
+      "id": "label-029",
+      "text": "NEB–IDPP · light IDPP",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        948.0,
+        499.5,
+        1184.0,
+        520.75
+      ],
+      "allowed_box": [
+        944,
+        494,
+        1438,
+        529
+      ]
+    },
+    {
+      "id": "label-030",
+      "text": "Candidate paths & TS seeds",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        948.0,
+        530.25,
+        1240.5,
+        551.5
+      ],
+      "allowed_box": [
+        944,
+        526,
+        1438,
+        561
+      ]
+    },
+    {
+      "id": "label-031",
+      "text": "Scheduler",
+      "font_px": 27,
+      "font_pt_at_179mm": 9.133228346456695,
+      "svg_box": [
+        960.0,
+        840.25,
+        1091.0,
+        860.25
+      ],
+      "allowed_box": [
+        956,
+        835,
+        1418,
+        875
+      ]
+    },
+    {
+      "id": "label-032",
+      "text": "Per-node quotas · Pinned hosts",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        960.0,
+        882.5,
+        1283.5,
+        903.5
+      ],
+      "allowed_box": [
+        956,
+        877,
+        1418,
+        912
+      ]
+    },
+    {
+      "id": "label-033",
+      "text": "Independent of the web API",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        960.0,
+        914.25,
+        1244.0,
+        935.5
+      ],
+      "allowed_box": [
+        956,
+        909,
+        1418,
+        943
+      ]
+    },
+    {
+      "id": "label-034",
+      "text": "ComputeDB ledger",
+      "font_px": 27,
+      "font_pt_at_179mm": 9.133228346456695,
+      "svg_box": [
+        960.0,
+        999.25,
+        1205.0,
+        1024.5
+      ],
+      "allowed_box": [
+        956,
+        993,
+        1418,
+        1034
+      ]
+    },
+    {
+      "id": "label-035",
+      "text": "Input hashes · Deduplication",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        960.0,
+        1039.5,
+        1251.25,
+        1060.5
+      ],
+      "allowed_box": [
+        956,
+        1034,
+        1418,
+        1069
+      ]
+    },
+    {
+      "id": "label-036",
+      "text": "Durable records · recovery",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        960.0,
+        1071.5,
+        1232.5,
+        1092.75
+      ],
+      "allowed_box": [
+        956,
+        1066,
+        1418,
+        1103
+      ]
+    },
+    {
+      "id": "label-037",
+      "text": "Engine execution",
+      "font_px": 26,
+      "font_pt_at_179mm": 8.794960629921261,
+      "svg_box": [
+        960.0,
+        1151.25,
+        1176.25,
+        1175.5
+      ],
+      "allowed_box": [
+        956,
+        1144,
+        1384,
+        1184
+      ]
+    },
+    {
+      "id": "label-038",
+      "text": "ORCA · Gaussian · xTB",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        960.0,
+        1190.5,
+        1200.0,
+        1207.25
+      ],
+      "allowed_box": [
+        956,
+        1185,
+        1420,
+        1280
+      ]
+    },
+    {
+      "id": "label-039",
+      "text": "Native logs · file locks",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        960.0,
+        1221.5,
+        1177.5,
+        1242.75
+      ],
+      "allowed_box": [
+        956,
+        1185,
+        1420,
+        1280
+      ]
+    },
+    {
+      "id": "label-040",
+      "text": "Geometries · energies · frequencies",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        960.0,
+        1252.5,
+        1318.75,
+        1273.75
+      ],
+      "allowed_box": [
+        956,
+        1185,
+        1420,
+        1280
+      ]
+    },
+    {
+      "id": "label-041",
+      "text": "Identity-resolved pathways",
+      "font_px": 26,
+      "font_pt_at_179mm": 8.794960629921261,
+      "svg_box": [
+        190.0,
+        841.25,
+        525.25,
+        865.5
+      ],
+      "allowed_box": [
+        186,
+        834,
+        630,
+        875
+      ]
+    },
+    {
+      "id": "label-042",
+      "text": "TS",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        106.625,
+        883.5,
+        135.375,
+        900.25
+      ],
+      "allowed_box": [
+        103.0,
+        876.0,
+        139.0,
+        909.0
+      ]
+    },
+    {
+      "id": "label-043",
+      "text": "R",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        81.875,
+        940.75,
+        98.125,
+        957.0
+      ],
+      "allowed_box": [
+        72.0,
+        933.0,
+        108.0,
+        966.0
+      ]
+    },
+    {
+      "id": "label-044",
+      "text": "P",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        144.5,
+        940.75,
+        159.5,
+        957.0
+      ],
+      "allowed_box": [
+        134.0,
+        933.0,
+        170.0,
+        966.0
+      ]
+    },
+    {
+      "id": "label-045",
+      "text": "Same TS → ±IRC → Opt/Freq",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        190.0,
+        880.5,
+        493.5,
+        901.5
+      ],
+      "allowed_box": [
+        186,
+        875,
+        632,
+        973
+      ]
+    },
+    {
+      "id": "label-046",
+      "text": "Atom mapping · species identity",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        189.75,
+        914.75,
+        508.75,
+        935.75
+      ],
+      "allowed_box": [
+        186,
+        875,
+        632,
+        973
+      ]
+    },
+    {
+      "id": "label-047",
+      "text": "n_imag(TS) = 1 · n_imag(R/P) = 0",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        190.0,
+        945.5,
+        530.25,
+        966.75
+      ],
+      "allowed_box": [
+        186,
+        875,
+        632,
+        973
+      ]
+    },
+    {
+      "id": "label-048",
+      "text": "Reaction-centered modes",
+      "font_px": 26,
+      "font_pt_at_179mm": 8.794960629921261,
+      "svg_box": [
+        183.0,
+        1008.25,
+        502.0,
+        1027.25
+      ],
+      "allowed_box": [
+        179,
+        1001,
+        630,
+        1041
+      ]
+    },
+    {
+      "id": "label-049",
+      "text": "Pair projections · atomic motion",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        183.0,
+        1046.75,
+        498.0,
+        1067.75
+      ],
+      "allowed_box": [
+        179,
+        1041,
+        630,
+        1076
+      ]
+    },
+    {
+      "id": "label-050",
+      "text": "Reaction-center contributions",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        183.0,
+        1078.75,
+        475.5,
+        1095.25
+      ],
+      "allowed_box": [
+        179,
+        1073,
+        630,
+        1110
+      ]
+    },
+    {
+      "id": "label-051",
+      "text": "Evidence-guided revision",
+      "font_px": 26,
+      "font_pt_at_179mm": 8.794960629921261,
+      "svg_box": [
+        183.0,
+        1152.25,
+        499.25,
+        1176.5
+      ],
+      "allowed_box": [
+        179,
+        1145,
+        630,
+        1187
+      ]
+    },
+    {
+      "id": "label-052",
+      "text": "Locate conflicting evidence",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        183.0,
+        1195.25,
+        458.75,
+        1216.75
+      ],
+      "allowed_box": [
+        179,
+        1189,
+        630,
+        1226
+      ]
+    },
+    {
+      "id": "label-053",
+      "text": "Revise affected calculations",
+      "font_px": 23,
+      "font_pt_at_179mm": 7.780157480314962,
+      "svg_box": [
+        183.0,
+        1232.25,
+        467.75,
+        1249.25
+      ],
+      "allowed_box": [
+        179,
+        1227,
+        630,
+        1267
+      ]
+    },
+    {
+      "id": "label-054",
+      "text": "Step query",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        691.875,
+        285.5,
+        808.125,
+        306.75
+      ],
+      "allowed_box": [
+        688,
+        279,
+        812,
+        309
+      ]
+    },
+    {
+      "id": "label-055",
+      "text": "Job dispatch",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        1074.625,
+        663.75,
+        1213.375,
+        684.5
+      ],
+      "allowed_box": [
+        1058,
+        657,
+        1230,
+        687
+      ]
+    },
+    {
+      "id": "label-056",
+      "text": "Native",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        716.25,
+        1009.75,
+        783.75,
+        1026.25
+      ],
+      "allowed_box": [
+        700,
+        1007,
+        800,
+        1060
+      ]
+    },
+    {
+      "id": "label-057",
+      "text": "outputs",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        708.75,
+        1036.25,
+        791.25,
+        1056.5
+      ],
+      "allowed_box": [
+        700,
+        1007,
+        800,
+        1060
+      ]
+    },
+    {
+      "id": "label-058",
+      "text": "Evidence binding",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        188.875,
+        655.75,
+        375.125,
+        676.75
+      ],
+      "allowed_box": [
+        178,
+        649,
+        386,
+        679
+      ]
+    },
+    {
+      "id": "label-059",
+      "text": "Guided",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        446.25,
+        695.5,
+        523.75,
+        712.25
+      ],
+      "allowed_box": [
+        404,
+        693,
+        566,
+        746
+      ]
+    },
+    {
+      "id": "label-060",
+      "text": "diagnostics",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        422.5,
+        721.75,
+        547.5,
+        742.75
+      ],
+      "allowed_box": [
+        404,
+        693,
+        566,
+        746
+      ]
+    },
+    {
+      "id": "label-061",
+      "text": "Cloudra Agent System",
+      "font_px": 22.5,
+      "font_pt_at_179mm": 7.611023622047246,
+      "svg_box": [
+        629.380859375,
+        770.5,
+        870.630859375,
+        791.75
+      ],
+      "allowed_box": [
+        629,
+        765,
+        871,
+        794
+      ]
+    }
+  ],
+  "pdf_checks": {
+    "matched_text_labels": 58,
+    "outlined_node_labels": [
+      "label-042",
+      "label-043",
+      "label-044"
+    ],
+    "text_box_failures": [],
+    "minimum_publication_font_pt": 7.618601884922,
+    "labels": [
+      {
+        "id": "label-001",
+        "text": "a",
+        "actual_pdf_box": [
+          46.499000549316406,
+          48.959014892578125,
+          56.50654220581055,
+          69.0458984375
+        ],
+        "publication_font_pt": 8.11259593263264
+      },
+      {
+        "id": "label-002",
+        "text": "Scientific input & delivery DAG",
+        "actual_pdf_box": [
+          75.74800109863281,
+          47.06526184082031,
+          395.6571960449219,
+          71.33714294433594
+        ],
+        "publication_font_pt": 9.802814471538932
+      },
+      {
+        "id": "label-003",
+        "text": "b",
+        "actual_pdf_box": [
+          636.7349853515625,
+          48.959014892578125,
+          647.7144775390625,
+          69.0458984375
+        ],
+        "publication_font_pt": 8.11259593263264
+      },
+      {
+        "id": "label-004",
+        "text": "Geometry & PES",
+        "actual_pdf_box": [
+          666.7340087890625,
+          47.06526184082031,
+          839.4228515625,
+          71.33714294433594
+        ],
+        "publication_font_pt": 9.802814471538932
+      },
+      {
+        "id": "label-005",
+        "text": "c",
+        "actual_pdf_box": [
+          1064.2239990234375,
+          573.1909790039062,
+          1074.2315673828125,
+          593.2778930664062
+        ],
+        "publication_font_pt": 8.11259593263264
+      },
+      {
+        "id": "label-006",
+        "text": "Computational infrastructure",
+        "actual_pdf_box": [
+          675.7340087890625,
+          572.0472412109375,
+          975.1557006835938,
+          596.3191528320312
+        ],
+        "publication_font_pt": 9.802814471538932
+      },
+      {
+        "id": "label-007",
+        "text": "d",
+        "actual_pdf_box": [
+          45.749000549316406,
+          573.1909790039062,
+          56.72849655151367,
+          593.2778930664062
+        ],
+        "publication_font_pt": 8.11259593263264
+      },
+      {
+        "id": "label-008",
+        "text": "Mechanistic validation & refinement",
+        "actual_pdf_box": [
+          75.74800109863281,
+          572.0472412109375,
+          446.441650390625,
+          596.3191528320312
+        ],
+        "publication_font_pt": 9.802814471538932
+      },
+      {
+        "id": "label-009",
+        "text": "Research intent",
+        "actual_pdf_box": [
+          103.49800109863281,
+          99.42074584960938,
+          255.30624389648438,
+          122.01863098144531
+        ],
+        "publication_font_pt": 9.126727055976415
+      },
+      {
+        "id": "label-010",
+        "text": "Molecules · reaction conditions",
+        "actual_pdf_box": [
+          66.74800109863281,
+          130.63470458984375,
+          303.44110107421875,
+          149.8845977783203
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-011",
+        "text": "Competing pathways & methods",
+        "actual_pdf_box": [
+          66.74800109863281,
+          154.63372802734375,
+          314.9290771484375,
+          173.8836212158203
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-012",
+        "text": "Natural-language hypothesis formation",
+        "actual_pdf_box": [
+          66.74800109863281,
+          178.63275146484375,
+          362.8818054199219,
+          197.8826446533203
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-013",
+        "text": "Delivery DAG",
+        "actual_pdf_box": [
+          72.74800109863281,
+          259.1657409667969,
+          202.07962036132812,
+          281.7636413574219
+        ],
+        "publication_font_pt": 9.126727055976415
+      },
+      {
+        "id": "label-014",
+        "text": "R",
+        "actual_pdf_box": [
+          96.74800109863281,
+          309.87872314453125,
+          109.20189666748047,
+          329.12860107421875
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-015",
+        "text": "P",
+        "actual_pdf_box": [
+          425.989990234375,
+          309.87872314453125,
+          437.4779357910156,
+          329.12860107421875
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-016",
+        "text": "TS",
+        "actual_pdf_box": [
+          256.4939880371094,
+          300.12872314453125,
+          278.5039367675781,
+          319.37860107421875
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-017",
+        "text": "Species nodes · reaction-step edges",
+        "actual_pdf_box": [
+          130.40199279785156,
+          348.0558776855469,
+          404.6221008300781,
+          366.91961669921875
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-018",
+        "text": "Default: ts_opt · frequency · short_irc",
+        "actual_pdf_box": [
+          128.5590057373047,
+          387.8178405761719,
+          406.4301452636719,
+          406.68157958984375
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-019",
+        "text": "Atom mapping",
+        "actual_pdf_box": [
+          711.7329711914062,
+          91.09950256347656,
+          848.0908813476562,
+          112.86038208007812
+        ],
+        "publication_font_pt": 8.788683348195155
+      },
+      {
+        "id": "label-020",
+        "text": "Atom-conserving candidates",
+        "actual_pdf_box": [
+          711.7329711914062,
+          117.88471221923828,
+          929.2791748046875,
+          137.1345977783203
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-021",
+        "text": "Reaction-center atom pairs",
+        "actual_pdf_box": [
+          711.7329711914062,
+          141.13470458984375,
+          918.7054443359375,
+          160.3845977783203
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-022",
+        "text": "Steric traversal",
+        "actual_pdf_box": [
+          711.7329711914062,
+          175.8465118408203,
+          852.55615234375,
+          197.60739135742188
+        ],
+        "publication_font_pt": 8.788683348195155
+      },
+      {
+        "id": "label-023",
+        "text": "Distance-weighted local bulk",
+        "actual_pdf_box": [
+          711.7329711914062,
+          202.63275146484375,
+          930.22802734375,
+          221.8826446533203
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-024",
+        "text": "Substituent contributions, ρᵈ",
+        "actual_pdf_box": [
+          711.7329711914062,
+          225.1317138671875,
+          926.346923828125,
+          244.38160705566406
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-025",
+        "text": "Rigid alignment",
+        "actual_pdf_box": [
+          711.7329711914062,
+          259.844482421875,
+          857.8013916015625,
+          281.6053771972656
+        ],
+        "publication_font_pt": 8.788683348195155
+      },
+      {
+        "id": "label-026",
+        "text": "Kabsch endpoint alignment",
+        "actual_pdf_box": [
+          711.7329711914062,
+          286.62969970703125,
+          919.7059326171875,
+          305.87957763671875
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-027",
+        "text": "Consistent endpoint frames",
+        "actual_pdf_box": [
+          711.7329711914062,
+          309.87872314453125,
+          921.5860595703125,
+          329.12860107421875
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-028",
+        "text": "Path preparation",
+        "actual_pdf_box": [
+          711.7329711914062,
+          344.59149169921875,
+          866.5176391601562,
+          366.3523864746094
+        ],
+        "publication_font_pt": 8.788683348195155
+      },
+      {
+        "id": "label-029",
+        "text": "NEB–IDPP · light IDPP",
+        "actual_pdf_box": [
+          711.7329711914062,
+          372.126708984375,
+          888.5714111328125,
+          391.3765869140625
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-030",
+        "text": "Candidate paths & TS seeds",
+        "actual_pdf_box": [
+          711.7329711914062,
+          395.375732421875,
+          930.848876953125,
+          414.6256103515625
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-031",
+        "text": "Scheduler",
+        "actual_pdf_box": [
+          720.7329711914062,
+          627.4027709960938,
+          818.5364990234375,
+          650.0006103515625
+        ],
+        "publication_font_pt": 9.126727055976415
+      },
+      {
+        "id": "label-032",
+        "text": "Per-node quotas · Pinned hosts",
+        "actual_pdf_box": [
+          720.7329711914062,
+          658.61669921875,
+          963.169677734375,
+          677.8665771484375
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-033",
+        "text": "Independent of the web API",
+        "actual_pdf_box": [
+          720.7329711914062,
+          683.36572265625,
+          932.5006713867188,
+          702.6156005859375
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-034",
+        "text": "ComputeDB ledger",
+        "actual_pdf_box": [
+          720.7329711914062,
+          746.6487426757812,
+          903.9678344726562,
+          769.24658203125
+        ],
+        "publication_font_pt": 9.126727055976415
+      },
+      {
+        "id": "label-035",
+        "text": "Input hashes · Deduplication",
+        "actual_pdf_box": [
+          720.7329711914062,
+          777.1127319335938,
+          939.2279052734375,
+          796.3626098632812
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-036",
+        "text": "Durable records · recovery",
+        "actual_pdf_box": [
+          720.7329711914062,
+          801.1116943359375,
+          924.842041015625,
+          820.361572265625
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-037",
+        "text": "Engine execution",
+        "actual_pdf_box": [
+          720.7329711914062,
+          860.573486328125,
+          881.9913330078125,
+          882.3344116210938
+        ],
+        "publication_font_pt": 8.788683348195155
+      },
+      {
+        "id": "label-038",
+        "text": "ORCA · Gaussian · xTB",
+        "actual_pdf_box": [
+          720.3610229492188,
+          890.3068237304688,
+          899.6358642578125,
+          909.1705932617188
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-039",
+        "text": "Native logs · file locks",
+        "actual_pdf_box": [
+          720.3610229492188,
+          913.5338134765625,
+          883.6962890625,
+          932.3975830078125
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-040",
+        "text": "Geometries · energies · frequencies",
+        "actual_pdf_box": [
+          720.3610229492188,
+          936.7898559570312,
+          989.8477172851562,
+          955.6536254882812
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-041",
+        "text": "Identity-resolved pathways",
+        "actual_pdf_box": [
+          143.2469940185547,
+          628.0814819335938,
+          393.3435974121094,
+          649.8424072265625
+        ],
+        "publication_font_pt": 8.788683348195155
+      },
+      {
+        "id": "label-045",
+        "text": "Same TS → ±IRC → Opt/Freq",
+        "actual_pdf_box": [
+          142.88099670410156,
+          657.807861328125,
+          370.49908447265625,
+          676.671630859375
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-046",
+        "text": "Atom mapping · species identity",
+        "actual_pdf_box": [
+          142.88099670410156,
+          683.3038330078125,
+          382.2974548339844,
+          702.1676025390625
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-047",
+        "text": "n_imag(TS) = 1 · n_imag(R/P) = 0",
+        "actual_pdf_box": [
+          142.88099670410156,
+          706.559814453125,
+          398.18646240234375,
+          725.423583984375
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-048",
+        "text": "Reaction-centered modes",
+        "actual_pdf_box": [
+          137.9969940185547,
+          753.3274536132812,
+          376.21856689453125,
+          775.08837890625
+        ],
+        "publication_font_pt": 8.788683348195155
+      },
+      {
+        "id": "label-049",
+        "text": "Pair projections · atomic motion",
+        "actual_pdf_box": [
+          137.63400268554688,
+          782.309814453125,
+          374.21075439453125,
+          801.173583984375
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-050",
+        "text": "Reaction-center contributions",
+        "actual_pdf_box": [
+          137.63400268554688,
+          806.3028564453125,
+          357.37518310546875,
+          825.1666259765625
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-051",
+        "text": "Evidence-guided revision",
+        "actual_pdf_box": [
+          137.9969940185547,
+          861.323486328125,
+          373.9566650390625,
+          883.0844116210938
+        ],
+        "publication_font_pt": 8.788683348195155
+      },
+      {
+        "id": "label-052",
+        "text": "Locate conflicting evidence",
+        "actual_pdf_box": [
+          137.9969940185547,
+          894.1087036132812,
+          345.0042724609375,
+          913.3585815429688
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-053",
+        "text": "Revise affected calculations",
+        "actual_pdf_box": [
+          137.9969940185547,
+          921.8577270507812,
+          351.386474609375,
+          941.1076049804688
+        ],
+        "publication_font_pt": 7.774553084536612
+      },
+      {
+        "id": "label-054",
+        "text": "Step query",
+        "actual_pdf_box": [
+          519.2550048828125,
+          211.55789184570312,
+          606.52587890625,
+          230.421630859375
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-055",
+        "text": "Job dispatch",
+        "actual_pdf_box": [
+          806.322021484375,
+          495.0478820800781,
+          910.4622192382812,
+          513.91162109375
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-056",
+        "text": "Native",
+        "actual_pdf_box": [
+          537.5479736328125,
+          754.5458374023438,
+          588.2573852539062,
+          773.4096069335938
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-057",
+        "text": "outputs",
+        "actual_pdf_box": [
+          531.9329833984375,
+          774.057861328125,
+          593.8322143554688,
+          792.921630859375
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-058",
+        "text": "Evidence binding",
+        "actual_pdf_box": [
+          142.02999877929688,
+          489.0638732910156,
+          281.785400390625,
+          507.9276123046875
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-059",
+        "text": "Guided",
+        "actual_pdf_box": [
+          335.0530090332031,
+          519.06884765625,
+          393.199951171875,
+          537.9326171875
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-060",
+        "text": "diagnostics",
+        "actual_pdf_box": [
+          317.24200439453125,
+          538.5528564453125,
+          411.0715637207031,
+          557.4166259765625
+        ],
+        "publication_font_pt": 7.618601884922
+      },
+      {
+        "id": "label-061",
+        "text": "Cloudra Agent System",
+        "actual_pdf_box": [
+          472.68701171875,
+          575.307861328125,
+          653.1957397460938,
+          594.171630859375
+        ],
+        "publication_font_pt": 7.618601884922
+      }
+    ]
+  },
+  "icon_checks": {
+    "checked_icon_lanes": 11,
+    "text_icon_intersections": [],
+    "minimum_identity_text_clearance_px": 17,
+    "connector_lanes": "Dedicated exterior gaps; opaque label plates mask lines. DAG edge stops at node borders; TS pill masks its underlying edge."
+  }
+}
