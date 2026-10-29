@@ -91,7 +91,79 @@ class SelfConsistencyReport:
     checks: list[ElementCheck] = field(default_factory=list)
     passed: bool = False
     score: float = 0.0
+    # D3 变体（只报告，不改变当前 rubric 的 score/最终分）：把评分边集合
+    # 限制在「交付图里覆盖 gold 参考边」的子图上——任务 prompt 明确说超出
+    # 参考的额外交付边永不惩罚，当前实现却把额外边的自洽不合格平均进去。
+    gold_subgraph_score: Optional[float] = None
     notes: list[str] = field(default_factory=list)
+
+
+def gold_subgraph_selfconsistency(
+    report: "SelfConsistencyReport",
+    delivered_graph: Optional[GoldMechanismGraph],
+    gold_graph: Optional[GoldMechanismGraph],
+    *,
+    ged_config: Optional[GedConfig] = None,
+    match_threshold: float = 0.2,
+) -> Optional[float]:
+    """D3 variant: average graded self-consistency over gold-subgraph edges only.
+
+    交付边到 gold 边做一对一匹配（同向、端点物种替换代价 <= match_threshold，
+    按端点代价 + 键变化对称差排序），只平均被匹配交付边的自洽得分；超出
+    gold 参考的额外交付边不参与平均（prompt: extras are never penalised）。
+    - gold 图没有边 → 空洞地记 1.0（gold 子图没有可检查元素）；
+    - gold 有边但没有一条被交付边覆盖 → 记 0.0（交付图没有覆盖参考步骤）。
+    与 accuracy 层按端点物种匹配的口径一致，不用黄金边 id 做匹配。
+    """
+    if delivered_graph is None or report is None:
+        return None
+    gold_edges = list(gold_graph.edges) if gold_graph is not None else []
+    if not gold_edges:
+        return 1.0
+    edge_scores = {check.element_id: check.score
+                   for check in report.checks if check.kind == "edge"}
+    if not edge_scores:
+        return 0.0
+    import networkx as nx
+
+    from cloudra.benchmark.graph_similarity import species_substitution_cost
+
+    cfg = ged_config or GedConfig()
+    gold_nodes = {node.id: node for node in gold_graph.nodes}
+    delivered_nodes = {node.id: node for node in delivered_graph.nodes}
+    matching_graph = nx.Graph()
+    for gold_edge in gold_edges:
+        gold_from = gold_nodes.get(gold_edge.from_node)
+        gold_to = gold_nodes.get(gold_edge.to_node)
+        if gold_from is None or gold_to is None:
+            continue
+        gold_pairs = gold_edge.bond_changes.pairs()
+        for delivered_edge in delivered_graph.edges:
+            if delivered_edge.id not in edge_scores:
+                continue
+            delivered_from = delivered_nodes.get(delivered_edge.from_node)
+            delivered_to = delivered_nodes.get(delivered_edge.to_node)
+            if delivered_from is None or delivered_to is None:
+                continue
+            cost_from = species_substitution_cost(gold_from.smiles, delivered_from.smiles, cfg)
+            cost_to = species_substitution_cost(gold_to.smiles, delivered_to.smiles, cfg)
+            if cost_from > match_threshold or cost_to > match_threshold:
+                continue
+            delivered_pairs = delivered_edge.bond_changes.pairs()
+            union = gold_pairs | delivered_pairs
+            symdiff = len(gold_pairs ^ delivered_pairs) / len(union) if union else 0.0
+            matching_graph.add_edge(("g", gold_edge.id), ("d", delivered_edge.id),
+                                    weight=1.0 / (1e-6 + cost_from + cost_to + symdiff))
+    if matching_graph.number_of_edges() == 0:
+        return 0.0
+    covered_delivered = set()
+    for left, right in nx.max_weight_matching(matching_graph, maxcardinality=True):
+        delivered_key = left if left[0] == "d" else right
+        covered_delivered.add(delivered_key[1])
+    scores = [edge_scores[edge_id] for edge_id in covered_delivered if edge_id in edge_scores]
+    if not scores:
+        return 0.0
+    return sum(scores) / len(scores)
 
 
 class _LogProbe:
@@ -297,6 +369,7 @@ def audit_self_consistency(
     *,
     integrity_rubric: Optional[IntegrityRubric] = None,
     ged_config: Optional[GedConfig] = None,
+    gold_graph: Optional[GoldMechanismGraph] = None,
 ) -> SelfConsistencyReport:
     rubric = rubric or SelfConsistencyRubric()
     integrity_rubric = integrity_rubric or IntegrityRubric()
@@ -533,4 +606,11 @@ def audit_self_consistency(
         if not c.covered:
             for n in c.notes:
                 report.notes.append(f"{c.kind} {c.element_id}: {n}")
+    if gold_graph is not None:
+        # D3：报告 gold 子图口径，不改变当前 rubric 的 score/最终分。
+        report.gold_subgraph_score = gold_subgraph_selfconsistency(
+            report, graph, gold_graph,
+            ged_config=ged_config,
+            match_threshold=integrity_rubric.match_threshold,
+        )
     return report

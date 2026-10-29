@@ -168,6 +168,8 @@ class RunResult:
     graph_score: float = 0.0
     selfconsistency_passed: bool = False
     selfconsistency_score: float = 0.0
+    # D3 变体（只记录，当前 composite 仍用 selfconsistency_score）。
+    selfconsistency_gold_score: float = 0.0
     undelivered: bool = False
     accuracy_score: float = 0.0
     final_score: float = 0.0
@@ -439,10 +441,20 @@ class BenchmarkRunner:
             charge=task.system.charge,
             integrity_rubric=task.rubric.integrity,
             ged_config=ged_config,
+            gold_graph=task.gold.mechanism_graph,
         )
         res.selfconsistency_passed = sc.passed
         res.selfconsistency_score = sc.score
+        res.selfconsistency_gold_score = (
+            sc.gold_subgraph_score if sc.gold_subgraph_score is not None else 0.0
+        )
         res.notes.extend(sc.notes)
+        if (sc.gold_subgraph_score is not None
+                and abs(sc.gold_subgraph_score - sc.score) > 1e-9):
+            res.notes.append(
+                "self-consistency (gold-subgraph variant, extras not graded): "
+                f"{sc.gold_subgraph_score:.4f}; current rubric unchanged"
+            )
 
         scoring_graph = derived_barrier_graph(integ.delivered_graph)
         barriers: BarrierEvidence = collect_barrier_evidence(sandbox)

@@ -195,11 +195,98 @@ def validate_frequency_geometry(opt_snap, freq_snap):
                          'submit the frequency calculation for the delivered optimized structure.')
 
 
+# D2（2026-10-29 公平性修复）：RDKit 的 DetermineBonds 无法从几何给开壳层
+# 自由基、非 Kekulé 多环芳烃和没有价表条目的金属（Cr 等）分配键级，会抛
+# ValueError；对非 Kekulé 体系也可能给出一个键级错误的闭壳层 Kekulé 结构。
+# 旧实现把它当成"没有匹配证据"，导致正常终止、带 smiles 标注的日志被忽略、
+# 整题按零证据倒扣 -1。修复：在键级感知失败（抛错）或感知结果与声明不符时，
+# 回退到「元素组成 + 显式氢连通性同构」判定——忽略键级与形式电荷（这两者
+# 恰恰无法从这类几何可靠反推），仍要求原子集合、元素计数、重原子骨架和氢
+# 连接方式完全一致，因此仍可证伪错误物种；正常闭壳层路径不受影响。
+_BOND_ORDER_PERCEPTION_MARKERS = (
+    "Unable to determine valence",
+    "no valences defined",
+    "Final molecular charge",
+    "could not find valid bond ordering",
+    "DetermineBonds",
+)
+
+
+def _is_bond_order_perception_failure(exc: ValueError) -> bool:
+    message = str(exc)
+    return any(marker in message for marker in _BOND_ORDER_PERCEPTION_MARKERS)
+
+
+def _element_connectivity_isomorphic(expected, actual) -> bool:
+    """元素标记图同构（忽略键级/电荷；显式氢是普通节点，氢连接方式也要一致）。
+
+    用 networkx（评分器硬依赖）直接对比原子索引图，不经过 RDKit 的芳香性/
+    价态语义，因此对开壳层、非 Kekulé、金属体系都稳定。"""
+    import networkx as nx
+
+    def build(mol):
+        graph = nx.Graph()
+        for atom in mol.GetAtoms():
+            graph.add_node(atom.GetIdx(), element=atom.GetSymbol())
+        for bond in mol.GetBonds():
+            graph.add_edge(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+        return graph
+
+    return nx.is_isomorphic(build(expected), build(actual),
+                            node_match=lambda a, b: a["element"] == b["element"])
+
+
+def _geometry_connectivity_match(expected, symbols, positions, *, smiles="",
+                                 diagnostics: list[str] | None = None) -> bool:
+    """Key-order-agnostic species identity: element + explicit-H connectivity.
+
+    Only reached after the normal bond-order path failed (exception for
+    open-shell/metal species, or a perceived Kekulé structure for a non-Kekulé
+    system).  Bond orders and formal charges are ignored because they are not
+    recoverable from these geometries; composition, atom counts, bond counts and
+    the element-labelled graph (including hydrogen attachment) are still
+    required to match exactly.
+    """
+    from rdkit import Chem
+    from rdkit.Chem import rdDetermineBonds
+
+    from cloudra.tools.core.irc_path import xyz_block
+
+    actual = Chem.MolFromXYZBlock(xyz_block(symbols, positions))
+    if actual is None:
+        raise ValueError('Cannot read final geometry for connectivity identity check.')
+    try:
+        rdDetermineBonds.DetermineConnectivity(actual)
+    except Exception:
+        return False
+    if (actual.GetNumAtoms() != expected.GetNumAtoms()
+            or actual.GetNumBonds() != expected.GetNumBonds()):
+        if diagnostics is not None:
+            diagnostics.append(
+                f'Connectivity fallback mismatch for declared {smiles}: observed '
+                f'{actual.GetNumAtoms()} atoms/{actual.GetNumBonds()} bonds vs expected '
+                f'{expected.GetNumAtoms()} atoms/{expected.GetNumBonds()} bonds.')
+        return False
+    matched = _element_connectivity_isomorphic(expected, actual)
+    if diagnostics is not None:
+        if matched:
+            diagnostics.append(
+                f'Species identity accepted by element/connectivity fallback: '
+                f'declared {smiles}; bond orders are not recoverable from this geometry.')
+        else:
+            diagnostics.append(
+                f'Connectivity fallback mismatch for declared {smiles}: element/'
+                'connectivity graph is not isomorphic.')
+    return matched
+
+
 def _geometry_species(path: str, smiles: str | list[str], *, diagnostics: list[str] | None = None) -> bool:
     """Match the actual final structure using the existing RDKit bond perception.
 
     A SMILES annotation alone is not molecular evidence. Failure to perceive
-    bonds remains missing identity evidence, never an inferred match.
+    bonds remains missing identity evidence, never an inferred match — except
+    that D2 recovers open-shell / non-Kekule / metal species through the
+    element+connectivity fallback below (bond orders are not recoverable there).
     """
     from collections import Counter
 
@@ -233,7 +320,17 @@ def _geometry_species(path: str, smiles: str | list[str], *, diagnostics: list[s
     actual = Chem.MolFromXYZBlock(xyz_block(symbols, positions))
     if actual is None:
         raise ValueError(f"Cannot read final geometry in {path}")
-    rdDetermineBonds.DetermineBonds(actual, charge=Chem.GetFormalCharge(expected))
+    try:
+        rdDetermineBonds.DetermineBonds(actual, charge=Chem.GetFormalCharge(expected))
+    except ValueError as exc:
+        if not _is_bond_order_perception_failure(exc):
+            raise
+        if diagnostics is not None:
+            diagnostics.append(
+                f'Bond-order perception failed for declared {smiles} '
+                f'({type(exc).__name__}: {exc}); using element/connectivity identity.')
+        return _geometry_connectivity_match(
+            expected, symbols, positions, smiles=smiles, diagnostics=diagnostics)
     # Compare both full explicit-H graphs. RemoveHs preserves neighbours of
     # non-tetrahedral stereocentres, so comparing it with an implicit-H query
     # incorrectly rejects e.g. a correctly perceived five-coordinate P ring.
@@ -242,12 +339,18 @@ def _geometry_species(path: str, smiles: str | list[str], *, diagnostics: list[s
     matches = (actual.GetNumAtoms() == expected.GetNumAtoms()
                and actual.GetNumBonds() == expected.GetNumBonds()
                and actual.HasSubstructMatch(expected, useChirality=True))
-    if not matches and diagnostics is not None:
+    if matches:
+        return True
+    if diagnostics is not None:
         diagnostics.append(f'Geometry identity mismatch: declared {smiles}; '
                            f'perceived {Chem.MolToSmiles(actual)}. '
                            'Check the optimized connectivity, charge and bond orders; '
                            'a mismatch is not proof of a perception failure.')
-    return matches
+    # D2: a non-Kekule system can be perceived as a (wrong-bond-order) closed
+    # shell Kekule structure.  Accept it only if composition + explicit-H
+    # connectivity are exactly the declared species.
+    return _geometry_connectivity_match(
+        expected, symbols, positions, smiles=smiles, diagnostics=diagnostics)
 
 
 def _species_minimum_check(smiles, logs, problems, *, parsed=None):
