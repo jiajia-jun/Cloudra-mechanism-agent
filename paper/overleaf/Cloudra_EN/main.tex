@@ -10,7 +10,7 @@
 \usepackage{caption}
 \captionsetup{font=small,labelfont=bf,labelsep=period,skip=5pt}
 \usepackage{dblfloatfix}\usepackage{flushend}
-\usepackage[section]{placeins}
+\usepackage{placeins}
 \usepackage{titlesec}
 \titleformat{\section}{\large\bfseries\raggedright}{\thesection}{0.5em}{}
 \titleformat{\subsection}{\normalsize\bfseries\raggedright}{\thesubsection}{0.5em}{}
@@ -57,9 +57,10 @@
 \maketitle
 \nocite{ref01,ref02,ref03,ref04,ref05,ref06,ref07,ref08,ref09,ref10,ref11,ref12,ref13,ref14,ref15,ref16,ref17,ref18}
 \input{sections/01_introduction}
-\input{sections/02_methods}
-\input{sections/03_results}
 \FloatBarrier
+\input{sections/02_methods}
+\FloatBarrier
+\input{sections/03_results}
 \bibliographystyle{unsrtnat}
 \bibliography{references}
 \end{document}
