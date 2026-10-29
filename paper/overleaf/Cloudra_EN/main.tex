@@ -1,0 +1,65 @@
+% !TeX program = xelatex
+\documentclass[10pt,twocolumn,a4paper]{article}
+\usepackage[margin=18mm,top=17mm,bottom=19mm,columnsep=7mm]{geometry}
+\usepackage{fontspec}
+\setmainfont{texgyretermes-regular.otf}[BoldFont=texgyretermes-bold.otf,ItalicFont=texgyretermes-italic.otf,BoldItalicFont=texgyretermes-bolditalic.otf]
+\setsansfont{texgyreheros-regular.otf}[BoldFont=texgyreheros-bold.otf,ItalicFont=texgyreheros-italic.otf,BoldItalicFont=texgyreheros-bolditalic.otf]
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx,booktabs,array}
+\usepackage{microtype}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,labelsep=period,skip=5pt}
+\usepackage{dblfloatfix}\usepackage{flushend}
+\usepackage[section]{placeins}
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\raggedright}{\thesection}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries\raggedright}{\thesubsection}{0.5em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\raggedright}{\thesubsubsection}{0.5em}{}
+\titlespacing*{\section}{0pt}{2ex plus .5ex minus .3ex}{.8ex}
+\titlespacing*{\subsection}{0pt}{1.6ex plus .4ex minus .3ex}{.7ex}
+\titlespacing*{\subsubsection}{0pt}{1.4ex plus .4ex minus .3ex}{.6ex}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{xurl}
+\usepackage[hidelinks,unicode]{hyperref}
+\setcounter{secnumdepth}{3}
+\numberwithin{equation}{section}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{0pt}
+\setlength{\emergencystretch}{1.5em}
+\setlength{\textfloatsep}{10pt plus 3pt minus 2pt}
+\setlength{\dbltextfloatsep}{10pt plus 3pt minus 2pt}
+\setlength{\floatsep}{9pt plus 2pt minus 2pt}
+\setlength{\dblfloatsep}{9pt plus 2pt minus 2pt}
+\renewcommand{\topfraction}{.9}
+\renewcommand{\bottomfraction}{.8}
+\renewcommand{\textfraction}{.08}
+\renewcommand{\floatpagefraction}{.7}
+\renewcommand{\dbltopfraction}{.9}
+\renewcommand{\dblfloatpagefraction}{.7}
+\setcounter{topnumber}{3}
+\setcounter{bottomnumber}{2}
+\setcounter{totalnumber}{5}
+\raggedbottom
+\newcommand{\discussionSpace}{\par\vspace{2\baselineskip}}
+\title{Cloudra: Geometric Reasoning and Scientific Evidence in Autonomous Mechanism Exploration}
+\author{}
+\date{\small Working Draft --- 29 October 2026}
+\makeatletter
+\renewcommand{\maketitle}{%
+  \twocolumn[{\centering
+    {\LARGE\bfseries\@title\par}\vspace{0.6em}
+    {\small\@date\par}\vspace{1.2em}}]%
+}
+\makeatother
+\renewcommand{\bibfont}{\footnotesize}
+\setlength{\bibsep}{3pt plus 1pt}
+\begin{document}
+\maketitle
+\nocite{ref01,ref02,ref03,ref04,ref05,ref06,ref07,ref08,ref09,ref10,ref11,ref12,ref13,ref14,ref15,ref16,ref17,ref18}
+\input{sections/01_introduction}
+\input{sections/02_methods}
+\input{sections/03_results}
+\FloatBarrier
+\bibliographystyle{unsrtnat}
+\bibliography{references}
+\end{document}
