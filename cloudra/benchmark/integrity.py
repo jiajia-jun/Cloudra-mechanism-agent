@@ -42,6 +42,9 @@ from cloudra.tools.core.irc_evidence import normal_log
 
 # 交付侧识别的常规图论 type 别名 → 系统 NodeRole。未知 type 不做猜测映射：
 # 留原样让校验 fail-loud（无法识别的声明不该被静默吞成另一个角色）。
+# D1（2026-10-29 公平性修复）：节点/边的 accessible 声明允许写在
+# properties 里（agent 交付形状不统一）；加载时提升到顶层字段，并在
+# accessible_source 上记录来源，供 integrity 报告说明用的是哪种形状。
 _NODE_TYPE_ALIASES = {
     "reactant": NodeRole.REACTANT.value,
     "product": NodeRole.PRODUCT.value,
@@ -67,6 +70,18 @@ class _DeliveredNode(MechanismNode):
         if not isinstance(data, dict):
             return data
         data = dict(data)
+        # D1：节点级 accessible 声明可能写在 properties 里（agent 交付形状
+        # 不统一）。顶层缺省时从 properties 提升；两处都没有 = default。
+        if "accessible" not in data:
+            props = data.get("properties")
+            nested = _coerce_accessible(props.get("accessible")) if isinstance(props, dict) else None
+            if nested is not None:
+                data["accessible"] = nested
+                data["accessible_source"] = "properties"
+            else:
+                data["accessible_source"] = "default"
+        else:
+            data["accessible_source"] = "top_level"
         # role 缺失，或 role 是自由文本（不是合法 NodeRole 枚举值）而 type 能映射
         # 时，以 type 的映射值为 role；自由文本并进 label，不丢信息。role 本身
         # 是合法枚举值时不动；type 也映射不了则留原样，让校验 fail-loud。
@@ -102,11 +117,40 @@ class _DeliveredEdge(MechanismEdge):
         if not isinstance(data, dict):
             return data
         data = dict(data)
+        # D1：边级 accessible 声明同样允许写在 properties 里。
+        if "accessible" not in data:
+            props = data.get("properties")
+            nested = _coerce_accessible(props.get("accessible")) if isinstance(props, dict) else None
+            if nested is not None:
+                data["accessible"] = nested
+                data["accessible_source"] = "properties"
+            else:
+                data["accessible_source"] = "default"
+        else:
+            data["accessible_source"] = "top_level"
         if "from" not in data and "source" in data:
             data["from"] = data["source"]
         if "to" not in data and "target" in data:
             data["to"] = data["target"]
         return data
+
+
+def _coerce_accessible(value: object) -> bool | None:
+    """把交付 JSON 里常见的 bool/字符串/整数字面量归一成 bool；其他 → None。
+
+    只接受语义明确的写法；无法识别的值保持原样（让 pydantic 报字段错误），
+    而不是静默猜成 accessible=true。"""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and not isinstance(value, bool):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in ("true", "yes", "1", "accessible"):
+            return True
+        if lowered in ("false", "no", "0", "inaccessible"):
+            return False
+    return None
 
 # file extensions we treat as computational evidence worth parsing for SMILES
 _EVIDENCE_SUFFIXES = {".gjf", ".com", ".inp", ".xyz", ".log", ".out", ".sdf", ".mol", ".json"}
@@ -147,6 +191,8 @@ class IntegrityReport:
     node_bindings: list[NodeBinding] = field(default_factory=list)
     # 平均绑定质量（含 partial credit；分母只含参与绑定的节点）
     binding_quality: float = 1.0
+    # D1 诊断：哪些元素的可达性声明来自 properties（非规范顶层字段）。
+    accessible_sources: dict = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
 
 
@@ -582,6 +628,23 @@ def audit_integrity(
         return report
     report.graph_parseable = True
     report.delivered_graph = graph
+
+    # D1 诊断：报告可达性声明的来源（顶层 / properties / 缺省）。
+    nested_nodes = {n.id: n.accessible for n in graph.nodes
+                    if n.accessible_source == "properties"}
+    nested_edges = {e.id: e.accessible for e in graph.edges
+                    if e.accessible_source == "properties"}
+    defaulted_nodes = [n.id for n in graph.nodes if n.accessible_source == "default"]
+    report.accessible_sources = {
+        "nodes": nested_nodes,
+        "edges": nested_edges,
+        "defaulted_nodes": defaulted_nodes,
+    }
+    if nested_nodes or nested_edges:
+        report.notes.append(
+            "accessible flag read from nested properties (D1 hoist): "
+            f"nodes {sorted(nested_nodes)}, edges {sorted(nested_edges)}"
+        )
 
     # 兜底发现的交付图文件自身排除出证据扫描：其内嵌 SMILES 不构成计算证据
     report.evidence_files = scan_evidence_files(sandbox, exclude=graph_path)
