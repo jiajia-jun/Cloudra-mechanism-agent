@@ -521,13 +521,19 @@ def bind_graph_to_evidence(
                 try:
                     path = (sandbox / raw).resolve()
                     relative = str(path.relative_to(sandbox.resolve()))
+                    # D4: 显式引用也接受原生 xTB 输出 / .xyz（不可能任务的常见
+                    # 交付形态）；物种身份仍由几何 -> 物种检查确认，不放松标准。
                     evidence = next((item for item in available if item.path == relative
-                                     and item.kind in {'gaussian', 'orca'}), None)
-                    if evidence and node.smiles and normal_log(path):
-                        identities = next(item.smiles_found for item in files if item.path == relative)
-                        identities = list(identities)
-                        identities.extend(identity for identity in node.smiles if _geometry_species(str(path), identity))
-                        candidate = replace(evidence, smiles_found=list(dict.fromkeys(identities)))
+                                     and item.kind in {'gaussian', 'orca', 'xyz', 'log'}), None)
+                    if evidence is None or not node.smiles:
+                        continue
+                    native = evidence.kind in {'xyz', 'log'}
+                    identities = list(evidence.smiles_found)
+                    identities.extend(identity for identity in node.smiles if _geometry_species(str(path), identity))
+                    identities = list(dict.fromkeys(identities))
+                    usable = bool(identities) and (native or normal_log(path))
+                    if usable:
+                        candidate = replace(evidence, smiles_found=list(identities))
                         qualities = [_species_file_qualities(identity, [candidate], cfg, match_threshold, partial_quality)[0]
                                      for identity in node.smiles]
                         if all(quality > 0 for quality in qualities):
@@ -567,11 +573,15 @@ def bind_graph_to_evidence(
         if 'evidence_log' in node.properties:
             # 绑定列表里所有可用的原生日志（TS opt 与 frequency 常分开提交），
             # accuracy 才能在频率日志里找到鞍点；缺失路径不等同于伪造证据。
+            # D4: TS 的显式引用同样接受原生 xTB 输出 / .xyz 血缘。
             for raw in _evidence_paths(node.properties['evidence_log']):
                 try:
                     path = (sandbox / raw).resolve()
                     relative = str(path.relative_to(sandbox.resolve()))
-                    if any(f.path == relative and f.kind in {'gaussian', 'orca'} for f in available) and normal_log(path):
+                    ref = next((f for f in available if f.path == relative
+                                and f.kind in {'gaussian', 'orca', 'xyz', 'log'}), None)
+                    ref_usable = ref is not None and (ref.kind in {'xyz', 'log'} or normal_log(path))
+                    if ref_usable:
                         endpoint_quality = max((min(by_id[e.from_node].quality, by_id[e.to_node].quality)
                                                 for e in graph.edges if e.via == ts_id and e.from_node in by_id and e.to_node in by_id), default=0.0)
                         nb.bound_files.append(relative)
