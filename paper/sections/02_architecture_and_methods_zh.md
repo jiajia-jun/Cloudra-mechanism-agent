@@ -171,7 +171,7 @@ CloudraBench 包含 50 题：Easy 20 题检验基元转化、构象变化与基�
 
 ![CloudraBench task distribution](../figures/cloudrabench_design_20261029/task_distribution_zh.png)
 
-图 5. CloudraBench 的任务组成与研究主题。a，四档任务的数量及评估重点。b，50 道原始任务名称的 BAAI/bge-m3 嵌入经主成分分析得到的二维投影，E1、NB1、HA1 和 IA1 为重复实验采用的四题。颜色和点形表示预先规定的任务类别。该投影展示题库内部的主题关系，任务层级依据研究要求定义，不能由语义距离直接推断计算难度。
+图 5. CloudraBench 的任务组成与研究主题。a，四档任务的数量及评估重点。b，50 道原始任务名称的 BAAI/bge-m3 嵌入经主成分分析得到的二维投影，E1、NB1、HA1 和 IA1 为重复实验采用的四题。颜色和点形表示预先规定的任务类别。
 
 #### 2.6.2 参考答案与评价口径
 

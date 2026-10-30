@@ -40,10 +40,10 @@
     {
       "number": 5,
       "file": "figures/fig05.pdf",
-      "caption": "CloudraBench task composition and research themes. (a) Counts and evaluation focus of the four task tiers. (b) Two-dimensional PCA of BAAI/bge-m3 embeddings of all 50 original task names. E1, NB1, HA1, and IA1 are the four tasks used in the repeated-run experiment. Colors and marker shapes encode the predefined task tiers. The projection illustrates thematic relationships within the task bank; tiers are defined by research requirements, and semantic distance does not establish computational difficulty.",
+      "caption": "CloudraBench task composition and research themes. (a) Counts and evaluation focus of the four task tiers. (b) Two-dimensional PCA of BAAI/bge-m3 embeddings of all 50 original task names. E1, NB1, HA1, and IA1 are the four tasks used in the repeated-run experiment. Colors and marker shapes encode the predefined task tiers.",
       "source": "paper/figures/cloudrabench_design_20261029/task_distribution_en.pdf",
       "width_pt": 510.2362,
-      "height_pt": 325.9843,
+      "height_pt": 311.811,
       "raster_images": 0
     },
     {
@@ -199,10 +199,10 @@
     {
       "number": 5,
       "file": "figures/fig05.pdf",
-      "caption": "CloudraBench 的任务组成与研究主题。a，四档任务的数量及评估重点。b，50 道原始任务名称的 BAAI/bge-m3 嵌入经主成分分析得到的二维投影，E1、NB1、HA1 和 IA1 为重复实验采用的四题。颜色和点形表示预先规定的任务类别。该投影展示题库内部的主题关系，任务层级依据研究要求定义，不能由语义距离直接推断计算难度。",
+      "caption": "CloudraBench 的任务组成与研究主题。a，四档任务的数量及评估重点。b，50 道原始任务名称的 BAAI/bge-m3 嵌入经主成分分析得到的二维投影，E1、NB1、HA1 和 IA1 为重复实验采用的四题。颜色和点形表示预先规定的任务类别。",
       "source": "paper/figures/cloudrabench_design_20261029/task_distribution_zh.pdf",
       "width_pt": 510.2362,
-      "height_pt": 325.9843,
+      "height_pt": 311.811,
       "raster_images": 0
     },
     {

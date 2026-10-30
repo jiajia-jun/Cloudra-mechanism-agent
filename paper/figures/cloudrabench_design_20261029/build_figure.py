@@ -17,7 +17,7 @@ from reportlab.pdfgen.canvas import Canvas
 ROOT = Path(__file__).resolve().parents[3]
 OUT = Path(__file__).resolve().parent
 SOURCE = ROOT / "paper/figures/benchmark_semantic_space_20261028"
-W, H = 180 / 25.4 * 72, 115 / 25.4 * 72
+W, H = 180 / 25.4 * 72, 110 / 25.4 * 72
 NS = "http://www.w3.org/2000/svg"
 ET.register_namespace("", NS)
 FONT_FILES = {
@@ -40,8 +40,6 @@ LABELS = {
         "total": "50 source tasks",
         "xlabel": "PC1 (11.0%)",
         "ylabel": "PC2 (7.2%)",
-        "note_a": "Tiers are predefined evaluation categories.",
-        "note_b": "Topic proximity does not imply equal difficulty.",
         "focus": [
             "Elementary steps and conformational change",
             "Multi-step networks and evidence continuity",
@@ -55,8 +53,6 @@ LABELS = {
         "total": "50 道原始任务",
         "xlabel": "PC1（11.0%）",
         "ylabel": "PC2（7.2%）",
-        "note_a": "分层为题库预先规定的评估类别。",
-        "note_b": "主题接近不代表难度相同。",
         "focus": ["基元反应与构象变化", "多步网络与证据连续性", "竞争立体化学路径", "规定方法与电子态的适用边界"],
     },
 }
@@ -71,7 +67,7 @@ class Figure:
 
     def __init__(self, stem, language):
         self.stem, self.language = stem, language
-        self.svg = ET.Element(f"{{{NS}}}svg", {"width": "180mm", "height": "115mm", "viewBox": f"0 0 {W} {H}"})
+        self.svg = ET.Element(f"{{{NS}}}svg", {"width": "180mm", "height": "110mm", "viewBox": f"0 0 {W} {H}"})
         ET.SubElement(self.svg, f"{{{NS}}}title").text = LABELS[language]["a"] + "; " + LABELS[language]["b"]
         self.pdf = Canvas(str(OUT / f"{stem}.pdf"), pagesize=(W, H))
         self.pdf.setTitle("CloudraBench task design")
@@ -223,7 +219,6 @@ def main():
             fig.rect(82, y, 112 * counts[tier] / 20, 11, COLORS[tier])
             fig.text(200, y + 8.5, f"{counts[tier]} ({counts[tier] * 2}%)", 7.5)
             fig.text(12, y + 31, text["focus"][i], 7.5, fill=MUTED)
-        fig.text(12, 285, text["note_a"], 7.5, fill=MUTED)
         # The same unmodified PCA coordinates are used in both languages.
         px, py, pw, ph = 289, 47, 210, 193
         xlim, ylim = (-0.51, 0.59), (-0.63, 0.40)
@@ -264,7 +259,6 @@ def main():
         for tier, x, y in [("easy", 293, 285), ("normal", 383, 285), ("hard", 293, 301), ("impossible", 383, 301)]:
             fig.mark(x, y - 2.5, tier, 2.7)
             fig.text(x + 8, y, tier.capitalize(), 7.5)
-        fig.text(256, 320, text["note_b"], 7.5, fill=MUTED)
         dimensions = fig.save()
         records.append(
             {
@@ -273,13 +267,13 @@ def main():
                 "pdf": str(OUT / f"task_distribution_{lang}.pdf"),
                 "png": str(OUT / f"task_distribution_{lang}.png"),
                 "width_mm": 180,
-                "height_mm": 115,
+                "height_mm": 110,
                 "png_dpi": 600,
                 "png_size_px": dimensions,
             }
         )
-    en = "Figure 5. CloudraBench task-bank design. (a) The 50 source tasks are assigned to Easy (20), Normal (10), Hard (10), and Impossible (10). The annotations summarize the intended evaluation focus: elementary transformations and conformational changes, multi-step evidence continuity, competing stereochemical pathways, and the boundaries of prescribed methods and electronic-state treatments. These are predefined task-bank categories, not categories derived from the projection. (b) PCA of saved BAAI/bge-m3 embeddings of the original task names (PC1, 11.0%; PC2, 7.2% of variance). All 50 tasks are plotted; E1, NB1, HA1, and IA1 are labeled as the four tasks used for repeated evaluation. Color and marker shape encode the existing tier labels. This two-dimensional semantic projection illustrates topic coverage within this task bank; it neither establishes numerical difficulty nor measures chemical-space coverage. No Qwen-rewritten task descriptions are used."
-    zh = "图 5. CloudraBench 题库设计。a，50 道原始任务按预先规定的类别分为 Easy（20 道）、Normal（10 道）、Hard（10 道）和 Impossible（10 道）。图内说明概括相应评估重点：基元反应与构象变化、多步过程的证据连续性、竞争立体化学路径，以及规定方法和电子态处理的适用边界。类别由题库预先规定，并非由投影结果推导。b，已保存的原始任务名称 BAAI/bge-m3 嵌入的主成分投影（PC1、PC2 分别解释 11.0% 和 7.2% 的方差）。图中保留全部 50 道任务，并标注用于重复评估的 E1、NB1、HA1 和 IA1。颜色和点形对应原有类别。该二维语义投影用于说明本题库内部的主题覆盖，不用于确定数值难度，也不代表化学空间覆盖率；未使用 Qwen 改写的任务描述。"
+    en = "Figure 5. CloudraBench task composition and research themes. (a) Counts and evaluation focus of the four task tiers. (b) Two-dimensional PCA of BAAI/bge-m3 embeddings of all 50 original task names. E1, NB1, HA1, and IA1 are the four tasks used in the repeated-run experiment. Colors and marker shapes encode the predefined task tiers."
+    zh = "图 5. CloudraBench 的任务组成与研究主题。a，四档任务的数量及评估重点。b，50 道原始任务名称的 BAAI/bge-m3 嵌入经主成分分析得到的二维投影，E1、NB1、HA1 和 IA1 为重复实验采用的四题。颜色和点形表示预先规定的任务类别。"
     provenance = {
         "task_count": 50,
         "tier_counts": dict(counts),
