@@ -10,3 +10,5 @@
 最终图为可编辑SVG、矢量PDF和高清PNG。图标、文字与框体间距已检查，科学标签和数值保持。三张流程图可用build_box_diagrams.py重建。
 
 completion_sequence_style_reference.png仅为内置ImageGen一次生成的风格参考，不插入论文；生成提示词见style_reference_prompt.txt。实际出版图逐字重绘为矢量。
+
+架构图四个主框的顶部色条已内缩至圆角边界内（左右24px、顶部4px），文字、连接及账本叠层保持。
