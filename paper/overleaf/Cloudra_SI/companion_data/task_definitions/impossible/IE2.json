@@ -1,0 +1,113 @@
+{
+  "task_id": "IE2",
+  "tier": "impossible",
+  "family": "E",
+  "name": "nitrogen triple-bond dissociation curve",
+  "prompt": {
+    "query": "Compute the ground-state dissociation curve of N2 and its bond dissociation energy. Species SMILES: N#N; target SMILES: [N].[N]; total charge 0, multiplicity 1; conditions: gas phase. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [N:1]#[N:2]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). Model the process you investigate as a graph and maintain `mechanism_graph.json` in the sandbox root: nodes for every species or electronic state you characterize (with SMILES) and edges for the state changes or transformations between them (with `via` pointing to the TS node id when a transition state was located). Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). Extra nodes or edges beyond the reference are never penalized, so record every state you actually characterized. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Declare the N2 bond dissociation energy in kcal/mol, together with the computed dissociation curve (energy vs bond length) as a structured `properties` object on the reactant species node in mechanism_graph.json, using these unit-carrying keys: `bond_dissociation_energy_kcal_mol`. String values are allowed for descriptive entries. If a particular species or transition state cannot be computed to a trustworthy accuracy with the allowed methods, mark the corresponding node or edge \"accessible\": false in mechanism_graph.json and deliver the rest of the graph as usual; the graph still starts at the reactant complex. The scorer reads that structured flag, not prose; do not declare a number you cannot stand behind. Exploratory calculations followed by a correct negative conclusion are allowed. Do not attach `barrier_kcal_mol` to an edge declared inaccessible or claim trustworthy properties for an inaccessible target; keep exploratory numbers in the raw evidence or explanation. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and pm7; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "N#N"
+    ],
+    "products": [
+      "[N]",
+      "[N]"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase",
+    "elements": [
+      "N"
+    ],
+    "max_heavy_atoms": 2,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "calculation_contracts": {},
+    "allowed_methods": [
+      "xtb",
+      "pm7"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "IE2_R",
+          "role": "reactant",
+          "smiles": [
+            "N#N"
+          ],
+          "accessible": true,
+          "label": "reference state",
+          "properties": {}
+        },
+        {
+          "id": "IE2_P",
+          "role": "product",
+          "smiles": [
+            "[N].[N]"
+          ],
+          "accessible": false,
+          "label": "target state",
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "IE2_E1",
+          "from": "IE2_R",
+          "to": "IE2_P",
+          "via": null,
+          "step_type": "bond stretching to the separated-atom dissociation limit",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ]
+            ],
+            "form": []
+          },
+          "accessible": false,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": null,
+          "favored": null
+        }
+      ]
+    },
+    "reference_properties": {},
+    "selectivity": null
+  },
+  "rubric": {
+    "integrity": {
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true
+    },
+    "graph_similarity": {
+      "stereo_tier_rule": "easy_normal_stereo_free"
+    },
+    "accuracy": {
+      "enabled": true,
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
+    }
+  }
+}

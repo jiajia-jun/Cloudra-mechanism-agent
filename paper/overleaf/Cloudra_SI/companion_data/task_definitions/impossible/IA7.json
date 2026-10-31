@@ -1,0 +1,141 @@
+{
+  "task_id": "IA7",
+  "tier": "impossible",
+  "family": "A",
+  "name": "Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",
+  "prompt": {
+    "query": "Determine the mechanism and activation barrier of the Bergman cyclization of (Z)-hex-3-ene-1,5-diyne to p-benzyne (1,4-didehydrobenzene). Reactant SMILES: C#C/C=C\\C#C; product SMILES: [c]1cc[c]cc1; total charge 0, multiplicity 1; conditions: gas phase, thermal. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH:1]#[C:2]/[CH:3]=[CH:4]\\[C:5]#[CH:6]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections. For a bond-changing step, use the lowest-energy verified minimum of the corresponding reactant or intermediate state found in your evidence, including its connected conformers; this reference need not be the conformer directly reached by IRC. Preserve the actual IRC connection in the mechanism graph. A conformational-transition barrier uses its own initial conformer. Keep separate stereochemical substrates and disconnected channel-specific reactant complexes as separate references; do not replace a complex by separated-monomer energies. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Report the cyclization barrier in kcal/mol (transition state relative to the enediyne minimum) on the rate-determining step's edge. Additionally declare `reaction_energy_kcal_mol` in a `properties` object on the product node. If a particular species or transition state cannot be computed to a trustworthy accuracy with the allowed methods, mark the corresponding node or edge \"accessible\": false in mechanism_graph.json and deliver the rest of the graph as usual; the graph still starts at the reactant complex. The scorer reads that structured flag, not prose; do not declare a number you cannot stand behind. Exploratory calculations followed by a correct negative conclusion are allowed. Do not attach `barrier_kcal_mol` to an edge declared inaccessible or claim trustworthy properties for an inaccessible target; keep exploratory numbers in the raw evidence or explanation. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and pm7; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "C#C/C=C\\C#C"
+    ],
+    "products": [
+      "[c]1cc[c]cc1"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase, thermal",
+    "elements": [
+      "C"
+    ],
+    "max_heavy_atoms": 6,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "calculation_contracts": {},
+    "allowed_methods": [
+      "xtb",
+      "pm7"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "IA7_R",
+          "role": "reactant",
+          "smiles": [
+            "C#C/C=C\\C#C"
+          ],
+          "accessible": true,
+          "label": "reactant",
+          "properties": {}
+        },
+        {
+          "id": "IA7_TS1",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": false,
+          "label": "TS1",
+          "properties": {}
+        },
+        {
+          "id": "IA7_P",
+          "role": "product",
+          "smiles": [
+            "[c]1cc[c]cc1"
+          ],
+          "accessible": false,
+          "label": "product",
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "IA7_E1",
+          "from": "IA7_R",
+          "to": "IA7_P",
+          "via": "IA7_TS1",
+          "step_type": "Bergman cyclization: C1-C6 bond formation to the p-benzyne diradical",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "form": [
+              [
+                1,
+                6
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ]
+            ]
+          },
+          "accessible": false,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": null,
+          "favored": null
+        }
+      ]
+    },
+    "reference_properties": {},
+    "selectivity": null
+  },
+  "rubric": {
+    "integrity": {
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true
+    },
+    "graph_similarity": {
+      "stereo_tier_rule": "easy_normal_stereo_free"
+    },
+    "accuracy": {
+      "enabled": true,
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
+    }
+  }
+}

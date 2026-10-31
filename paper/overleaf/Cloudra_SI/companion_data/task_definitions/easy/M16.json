@@ -1,0 +1,137 @@
+{
+  "task_id": "M16",
+  "tier": "easy",
+  "family": "M",
+  "name": "formic acid dehydrogenation HCOOH -> CO2 + H2",
+  "prompt": {
+    "query": "Determine the mechanism of the following process: formic acid dehydrogenation HCOOH -> CO2 + H2. Reactant SMILES: OC=O; product SMILES: C(=O)=O.[H][H]; total charge 0, multiplicity 1; conditions: gas phase. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [O:1]([H:4])[C:2]([H:5])=[O:3]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections. For a bond-changing step, use the lowest-energy verified minimum of the corresponding reactant or intermediate state found in your evidence, including its connected conformers; this reference need not be the conformer directly reached by IRC. Preserve the actual IRC connection in the mechanism graph. A conformational-transition barrier uses its own initial conformer. Keep separate stereochemical substrates and disconnected channel-specific reactant complexes as separate references; do not replace a complex by separated-monomer energies. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Every species node and transition-state node must declare `properties.energy_hartree` (the electronic energy of the geometry you delivered for that node, in Hartree, exactly as it appears in that node's evidence log) and `properties.evidence_log` (the sandbox-relative path of that log). The scorer uses the declared energy to identify which evidence file you delivered for each node; a node missing either field violates the delivery contract. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted.",
+    "role": "coordinator",
+    "orchestration_mode": "dag_guided"
+  },
+  "system": {
+    "reactants": [
+      "OC=O"
+    ],
+    "products": [
+      "C(=O)=O",
+      "[H][H]"
+    ],
+    "charge": 0,
+    "multiplicity": 1,
+    "conditions": "gas phase",
+    "elements": [
+      "C",
+      "H",
+      "O"
+    ],
+    "max_heavy_atoms": 3,
+    "closed_shell": true,
+    "single_step": true
+  },
+  "method_policy": {
+    "calculation_contracts": {},
+    "allowed_methods": [
+      "xtb",
+      "pm7",
+      "b3lyp/def2svp"
+    ],
+    "intercept_layers": [
+      "bash",
+      "submit_compute_job",
+      "qm_input_writer"
+    ]
+  },
+  "gold": {
+    "mechanism_graph": {
+      "nodes": [
+        {
+          "id": "M16_R",
+          "role": "reactant",
+          "smiles": [
+            "OC=O"
+          ],
+          "accessible": true,
+          "label": "reactant",
+          "properties": {}
+        },
+        {
+          "id": "M16_TS",
+          "role": "transition_state",
+          "smiles": [],
+          "accessible": true,
+          "label": "TS",
+          "properties": {}
+        },
+        {
+          "id": "M16_P",
+          "role": "product",
+          "smiles": [
+            "C(=O)=O.[H][H]"
+          ],
+          "accessible": true,
+          "label": "product",
+          "properties": {}
+        }
+      ],
+      "edges": [
+        {
+          "id": "M16_E1",
+          "from": "M16_R",
+          "to": "M16_P",
+          "via": "M16_TS",
+          "step_type": "dehydrogenation: concerted H2 elimination to CO2 (competes with dehydration to CO+H2O)",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                5
+              ]
+            ],
+            "form": [
+              [
+                1,
+                2
+              ],
+              [
+                4,
+                5
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 70.97,
+          "weight": 1.0,
+          "channel": null,
+          "favored": null
+        }
+      ]
+    },
+    "reference_properties": {},
+    "selectivity": null
+  },
+  "rubric": {
+    "integrity": {
+      "match_threshold": 0.2,
+      "protonation_partial_quality": 0.7,
+      "no_evidence_penalty": 1.0
+    },
+    "self_consistency": {
+      "ts_first_order_saddle": true,
+      "irc_connects_endpoints": true
+    },
+    "graph_similarity": {
+      "stereo_tier_rule": "easy_normal_stereo_free"
+    },
+    "accuracy": {
+      "enabled": true,
+      "sigma_kcal_mol": 3.0,
+      "max_penalty_fraction": 0.3,
+      "small_barrier_threshold_kcal": 10.0,
+      "small_barrier_sigma_kcal": 5.0
+    }
+  }
+}

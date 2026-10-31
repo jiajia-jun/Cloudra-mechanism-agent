@@ -938,11 +938,27 @@ def _archived_irc_endpoints(log_path: str) -> dict | None:
             raise ValueError("Archived IRC log hash mismatch")
         if set(manifest.endpoints) != {"forward", "backward"}:
             raise ValueError("Archived IRC requires both direction records")
+        gaussian = detect_qm_engine(log_path) == 'gaussian'
+        native_geometries = {}
+        if gaussian:
+            from cloudra.tools.core.gaussian_frames import extract_irc
+            from cloudra.tools.core.irc_endpoint_artifacts import read_irc_endpoint_artifacts
+
+            # Gaussian stores coordinates in the native log, not manifest
+            # sidecars. Resolve only existing exports verified against that log.
+            artifacts = read_irc_endpoint_artifacts(log_path)
+            if artifacts:
+                frames, _ = extract_irc(log_path)
+                for frame in frames:
+                    if frame.path_number in (1, 2) and frame.reaction_coordinate and frame.xyz.strip():
+                        direction = 'forward' if frame.path_number == 1 else 'backward'
+                        side = 'a' if frame.reaction_coordinate < 0 else 'b'
+                        native_geometries[direction] = artifacts[f'irc_end_{side}_path']
         result = {}
         for direction, endpoint in manifest.endpoints.items():
-            geometry = None
+            geometry = native_geometries.get(direction)
             if endpoint.filename is not None:
-                if detect_qm_engine(log_path) == 'gaussian':
+                if gaussian:
                     raise ValueError('Archived Gaussian IRC geometries must come from the native log')
                 if Path(endpoint.filename).name != endpoint.filename:
                     raise ValueError("Archived IRC endpoint must be a local filename")
@@ -958,12 +974,12 @@ def _archived_irc_endpoints(log_path: str) -> dict | None:
 
 
 def extract_irc_endpoints(log_path: str) -> dict:
-    """定位 ORCA IRC forward/backward 端点几何（不命名 reactant/product）。
+    """定位归档 Gaussian 或 ORCA IRC forward/backward 端点（不命名 reactant/product）。
 
     返回 {"forward": {...}, "backward": {...}}，每方向含：
-    - geometry_ref：端点几何来源路径（final endpoint 文件或 F/B trajectory），
+    - geometry_ref：端点几何来源路径（原生日志的核验导出、final endpoint 或 F/B trajectory），
       无来源时 None；
-    - origin：final_endpoint_file / trajectory_last_frame / None；
+    - origin：native_log / final_endpoint_file / trajectory_last_frame / None；
     - availability：available / unavailable；
     - converged：主输出 IRC 块的收敛标记（无 IRC 段时 None）。仅作记录、
       不是闸门——未收敛方向的轨迹末帧同样是合法的部分端点，方向是否成立

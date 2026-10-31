@@ -1,0 +1,11 @@
+\subsection{Complete per-task and per-configuration scores}
+\label{sec:full-scores}
+
+Tables~\ref{tab:full-scores-easy}--\ref{tab:full-scores-impossible} report all 200 runs and all four reported quantities, comprising 200 composite scores and 600 component values. Standard is the primary comparison using the same model backbone; Record and Brief are workflow ablations. Every task has one result for each configuration.
+
+Composite scores are displayed to four decimal places and component scores to six decimal places. The accompanying \texttt{cloudrabench\_200\_run\_scores.csv} retains the original full-precision numeric strings. Accordingly, recomputing the weighted composite from the displayed component values can differ from the separately rounded composite in the last shown digit. The printed scientific self-consistency score is the graded component, distinct from the separate all-or-none scientific acceptance decision.
+
+\input{tables/full_scores_easy}
+\input{tables/full_scores_normal}
+\input{tables/full_scores_hard}
+\input{tables/full_scores_impossible}

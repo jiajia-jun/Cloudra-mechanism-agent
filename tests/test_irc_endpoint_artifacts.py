@@ -1,13 +1,14 @@
 """Canonical direct-job handoff from captured native IRC evidence, without QM calls."""
 
 import hashlib
+import json
 import shutil
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from cloudra.tools.core import irc_evidence
+from cloudra.tools.core import irc_evidence, orca_frames
 from cloudra.tools.core.irc_path import parse_xyz, same_geometry
 
 FIXTURES = Path(__file__).parent / 'fixtures'
@@ -50,6 +51,91 @@ def test_native_irc_exports_both_actual_outer_frames_and_read_is_pure(tmp_path, 
     assert write_irc_endpoint_artifacts(log) == exported
     assert before_read == {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in tmp_path.iterdir()}
     assert all(path.read_bytes() == contents for path, contents in original.items())
+
+
+@pytest.mark.parametrize('engine', ['gaussian', 'orca'])
+def test_archived_irc_resolves_native_endpoints_without_mutating_evidence(tmp_path, engine, monkeypatch):
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+
+    log = _native_irc(tmp_path / 'native', engine)
+    expected = irc_evidence.irc_endpoint_geometries(log)
+    frozen = {'process_id': 'fixture', 'atom_map': [1, 2, 3]}
+    monkeypatch.setattr('cloudra.services.ts_pipeline_store.atom_binding_for_log', lambda *_: frozen)
+    snapshot = snapshot_evidence_file(log, tmp_path)
+    archive = Path(snapshot.snapshot_path).parent
+    shutil.rmtree(log.parent)
+    before = {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in archive.iterdir()}
+
+    endpoints = orca_frames.extract_irc_endpoints(snapshot.snapshot_path)
+
+    # Gaussian canonical A/B use negative/positive reaction coordinates; the
+    # captured HCN log labels these native paths backward/forward respectively.
+    directions = ('backward', 'forward') if engine == 'gaussian' else ('forward', 'backward')
+    for direction, geometry in zip(directions, expected, strict=True):
+        endpoint = endpoints[direction]
+        assert endpoint['availability'] == 'available'
+        assert Path(endpoint['geometry_ref']).parent == archive
+        assert endpoint['atom_binding'] == frozen
+        assert same_geometry(parse_xyz(orca_frames.read_endpoint_geometry(endpoint)), geometry)
+    if engine == 'gaussian':
+        assert all(endpoint['origin'] == 'native_log' for endpoint in endpoints.values())
+        assert all(endpoint['filename'] is None for endpoint in
+                   json.loads((archive / 'irc_endpoints.json').read_text())['endpoints'].values())
+    assert before == {path: (path.read_bytes(), path.stat().st_mtime_ns) for path in archive.iterdir()}
+
+
+@pytest.mark.parametrize('negative_forward', [False, True])
+def test_gaussian_archive_uses_native_path_numbers_for_forward_backward(tmp_path, negative_forward):
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+
+    log = _native_irc(tmp_path, 'gaussian')
+    if negative_forward:
+        # Synthetic parser variant: make Path 1 match the negative summary
+        # coordinates. The captured paths have equal lengths, so distinguish
+        # them by doubling Path 1 and the negative summary distances together.
+        lines = []
+        path_number = None
+        summary = False
+        for line in log.read_text().splitlines(keepends=True):
+            if 'Point Number:' in line and 'Path Number:' in line:
+                path_number = int(line.split()[-1])
+            if 'NET REACTION COORDINATE UP TO THIS POINT =' in line and path_number == 1:
+                prefix, _, value = line.partition('=')
+                line = f'{prefix}= {2 * float(value):.5f}\n'
+            if 'Summary of reaction path following' in line:
+                summary = True
+            parts = line.split()
+            if summary and len(parts) == 3 and parts[0].isdigit() and float(parts[-1]) < 0:
+                line = f'{parts[0]} {parts[1]} {2 * float(parts[-1]):.5f}\n'
+            lines.append(line)
+        log.write_text(''.join(lines))
+    snapshot = snapshot_evidence_file(log, tmp_path)
+
+    endpoints = orca_frames.extract_irc_endpoints(snapshot.snapshot_path)
+
+    forward_key, backward_key = (('irc_end_a_path', 'irc_end_b_path') if negative_forward
+                                 else ('irc_end_b_path', 'irc_end_a_path'))
+    assert endpoints['forward']['geometry_ref'] == snapshot.metadata[forward_key]
+    assert endpoints['backward']['geometry_ref'] == snapshot.metadata[backward_key]
+
+
+@pytest.mark.parametrize('tamper', ['endpoint', 'missing_endpoint'])
+def test_gaussian_archive_does_not_repair_untrusted_derived_endpoints(tmp_path, tamper):
+    from cloudra.dag.evidence_ingest import snapshot_evidence_file
+
+    snapshot = snapshot_evidence_file(_native_irc(tmp_path, 'gaussian'), tmp_path)
+    endpoint = Path(snapshot.metadata['irc_end_a_path'])
+    if tamper == 'missing_endpoint':
+        endpoint.unlink()
+    else:
+        endpoint.write_text('1\nforeign geometry\nH 0 0 0\n')
+    before = {path: path.read_bytes() for path in endpoint.parent.iterdir()}
+
+    endpoints = orca_frames.extract_irc_endpoints(snapshot.snapshot_path)
+
+    assert all(item['geometry_ref'] is None and item['availability'] == 'unavailable'
+               for item in endpoints.values())
+    assert before == {path: path.read_bytes() for path in endpoint.parent.iterdir()}
 
 
 @pytest.mark.parametrize('engine', ['gaussian', 'orca'])

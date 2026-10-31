@@ -1,0 +1,180 @@
+\section{Behavioral diagnostics and archived research trajectories}
+\label{sec:si-behavioral}
+
+\subsection{Study materials and local inference settings}
+
+The behavioral studies combine archived Cloudra research trajectories with controlled local judgments about the chemical objects, measured quantities, and evidence associations appearing in those trajectories. Historical research events retain their original statements, inputs, returned artifacts, and subsequent actions. Local probes supply frozen questions derived from those events and record the model's answer under specified information and answer-order conditions. The supplementary data retain each question, expected semantic answer, actual answer, request configuration, and source identifier.
+
+The local deployment was archived as \texttt{qwen3.8:27b}, using a GGUF Q4\_K\_M quantization with a reported parameter size of 27.3B. The deployment digest is
+\begin{quote}\small\ttfamily
+22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643.
+\end{quote}
+The local API metadata reports a maximum model context of 262,144 tokens. The short diagnostic requests use an 8,192-token context. Temperature is 0, seed 42, top-$k$ 0, top-$p$ 1, minimum-$p$ 0, repeat penalty 1, presence penalty 0, and draft prediction count 0. The initial identity and evidence-binding probes use the archived explicit ChatML prompt rendering, an empty thinking block, thinking disabled, and a maximum of eight generated tokens; top-20 token log probabilities are retained. The native-chat controls use separate system and user messages, the deployment's native rendering, and a maximum of 1,024 generated tokens, with the thinking setting specified per request. In every choice task, the saved final answer is evaluated as an exact permitted uppercase choice letter. Semantic answer identity is recorded separately from the displayed letter.
+
+\begin{table}[!tbp]
+\centering\small
+\caption{Experimental units and crossed conditions of the local diagnostic studies.}
+\label{tab:si-diagnostic-design}
+\begin{tabular}{p{0.24\linewidth}p{0.57\linewidth}r}
+\toprule
+Study & Frozen inputs and experimental factors & Calls\\
+\midrule
+Chemical identity & 16 pairs $\times$ 2 representations $\times$ 2 answer orders & 64\\
+Distance judgment & 4 geometries $\times$ 2 information conditions $\times$ 2 answer orders $\times$ 2 thinking settings & 32\\
+Target-angle feedback & 2 information conditions; 3 cyclic next-action permutations and 2 sufficiency permutations per condition & 10\\
+Evidence associations & 4 chains $\times$ 2 association conditions $\times$ 2 presentations $\times$ 2 answer orders & 32\\
+Native diagnostic follow-up & 20 identity inputs and 16 association inputs, each under 2 thinking settings & 72\\
+Outstanding requirements & 3 state questions $\times$ 2 context conditions $\times$ 2 answer orders & 12\\
+\bottomrule
+\end{tabular}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize
+Call counts retain the actual experimental units. Equivalent representations, answer-order variants, and information conditions are paired versions of the same source object. The single expanded-budget distance follow-up is additional to the 32-call distance study. The activation replacement experiment is described separately below.
+\end{minipage}
+\end{table}
+
+\subsection{Chemical identity under equivalent representations and answer reversal}
+
+Sixteen molecular-identity pairs were derived from four task systems. They cover identical identities, same-formula connectivity changes, connectivity and formal-charge relocation, double-bond stereochemistry, and protonation changes. For each pair, the original notation and an equivalent rewriting were crossed with two answer orders. In the forward order, A means the same represented chemical identity and B means different represented chemical identities; in the swapped order these meanings exchange. The questions instruct the model to preserve connectivity, bond orders, formal charges, and specified stereochemistry while treating traversal order, ring digits, and disconnected-component order as notation.
+
+Across the resulting 64 judgments, 58 answers were correct. At fixed identity pair and answer order, equivalent rewriting changed the semantic answer in four of 32 comparisons. At fixed pair and representation, reversing answer order changed the semantic answer in six of 32 comparisons. All six order-sensitive cases selected A in both displayed orders. The same-formula example \texttt{CC1CC=C1} versus \texttt{C=C1CCC1} places the double bond within and outside the ring, respectively. The saved model answer is A in all four representation/order conditions, although the chemical meaning of A changes with the answer order. This design isolates persistent chemical identity from a particular string traversal or preferred answer position.
+
+The identical-string positive conditions provide a baseline for matching a representation to itself. Equivalent rewritings test whether that judgment survives a notation change. Different-identity controls ask whether molecular formula agreement can coexist with an actual change of connectivity or stereochemistry. The complete frozen strings and semantic labels are retained with the diagnostic data, allowing these contrasts to be reconstructed for every pair.
+
+\subsection{XYZ coordinates and explicitly measured distances}
+
+Four NB1 geometries were selected from the archived research trajectories. The local question asks which of two specified atom pairs has the shorter Euclidean distance. The original-XYZ condition supplies the complete geometry in its saved atom order. The measured-distance condition supplies program-calculated values for the same atom pairs. Each condition appears in both answer orders and in direct-answer and thinking modes, yielding 32 native chat calls. Table~\ref{tab:si-distance-stimuli} gives the measured values used to construct the paired conditions; all atom indices are one-based.
+
+\begin{table}[!tbp]
+\centering\small
+\caption{Distance comparisons derived from the four archived NB1 geometries.}
+\label{tab:si-distance-stimuli}
+\begin{tabular}{llrlr}
+\toprule
+Source workflow & Pair 1 & $d_1$ (\AA) & Pair 2 & $d_2$ (\AA)\\
+\midrule
+Guided & C2--C4 & 2.029 & O3--H8 & 1.248\\
+Brief & C4--H11 & 2.197 & O7--H11 & 0.981\\
+Brief & C4--H11 & 1.388 & O7--H11 & 1.362\\
+Brief & C4--H11 & 2.386 & O7--H11 & 0.968\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!tbp]
+\centering\small
+\caption{Complete outcomes of the native distance-judgment controls.}
+\label{tab:si-distance-outcomes}
+\begin{tabular}{llrrrr}
+\toprule
+Thinking & Information & Calls & Correct & Valid wrong & Budget-truncated\\
+\midrule
+Off & XYZ coordinates & 8 & 4 & 4 & 0\\
+Off & Measured distances & 8 & 8 & 0 & 0\\
+On & XYZ coordinates & 8 & 7 & 0 & 1\\
+On & Measured distances & 8 & 8 & 0 & 0\\
+\bottomrule
+\end{tabular}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize
+A budget-truncated generation reached the 1,024-token ceiling with no final choice. It remains in the eight-input denominator. A separate 2,048-token follow-up of that one input produced the correct choice after 1,353 generated tokens.
+\end{minipage}
+\end{table}
+
+All eight direct-answer XYZ responses selected A, giving four correct answers and no semantic agreement across the four answer-reversed source pairs. Providing the measured distances gave eight correct answers in each thinking setting and preserved the semantic answer under reversal. With thinking enabled, median generated-token counts over the eight matched inputs were 807.5 for XYZ and 86 for measured distances. The archived generated-token count includes thinking tokens where enabled. Supplying the measurements makes the relevant physical relation explicit and removes its repeated numerical reconstruction from the subsequent choice. This allocation complements the use of program-executed numerical operations in program-aided language models.\citep{ref15}
+
+\subsection{Target-specific geometric feedback in an E1 operation chain}
+
+The E1 source trajectory specifies the transferring hydrogen H7 in the H7--C2--C3--Cl4 dihedral and seeks an anti-periplanar arrangement near $180^\circ$. Rotation of the C3-side fragment about C2--C3 by $+120^\circ$ and $-120^\circ$ produces candidates A and B, while the C3--Cl4 distance is set to 2.35 \AA. The default structural report describes a dihedral involving H5. The subsequent explicit H7 measurement identifies the quantity required by the current research objective.
+
+\begin{table}[!tbp]
+\centering\small
+\caption{Dihedral measurements and circular residuals for the saved E1 candidates.}
+\label{tab:si-target-dihedrals}
+\begin{tabular}{llrr}
+\toprule
+Candidate & Atom quadruplet & Signed angle ($^\circ$) & Distance to $180^\circ$\\
+\midrule
+A & H5--C2--C3--Cl4 & $-55.7831$ & 124.2169\\
+A & H7--C2--C3--Cl4 & 59.3752 & 120.6248\\
+B & H5--C2--C3--Cl4 & 64.2169 & 115.7831\\
+B & H7--C2--C3--Cl4 & 179.3752 & 0.6248\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The Newman projections in the manuscript are drawn from the saved candidate coordinates by projection normal to C2$\to$C3, with projected bond directions normalized for display. Table~\ref{tab:si-target-dihedrals} retains the measured signed angles and circular distances to the target. Candidate B is subsequently supplied as the transition-state guess in the actual trajectory. Its submission identifies the H7-based anti-periplanar arrangement and the stretched C3--Cl4 bond as the geometric rationale.
+
+Ten local probes then separate the available measurement from the action question. In the H5-only condition, the H7 values and XYZ geometry are withheld. In the H5-plus-H7 condition, the measured target values are supplied. For next-action questions, all three cyclic option permutations switch from requesting the H7 measurement to selecting candidate B when the target values are added. Two paired information-sufficiency tests likewise switch from requesting additional target information to declaring the comparison sufficient. The facts used by these probes are measurements from the saved geometries. The controlled intervention is which measured quantities are supplied to the decision.
+
+\subsection{Single-token transfer of a reported numerical fact}
+
+The activation experiment uses the same archived local quantized deployment and a short reported-distance comparison.\citep{ref16} One displayed number is changed from 2.029 to 1.029 \AA, while the second remains 1.248 \AA. This reverses the correct comparison. The clean and edited prompts each contain 124 tokens; their token IDs differ only at global position 53, corresponding to the initial digit of the changed measurement. The original-fact answer is B in the forward option order and A in the reversed order.
+
+For each option order, the residual-stream state at position 53 is captured from the original prompt and transferred into the edited prompt at zero-based layers 7, 15, 31, and 47. The four layers are fixed in the experiment manifest. The readout is the full-vocabulary softmax probability mass assigned to the original-fact answer, summing its bare-letter and leading-space spellings. Table~\ref{tab:si-fact-patch} preserves the clean, edited, and transferred-state values.
+
+\begin{table}[!tbp]
+\centering\small
+\caption{Probability of the original-fact answer under single-position activation replacement.}
+\label{tab:si-fact-patch}
+\begin{tabular}{lrr}
+\toprule
+Input / intervention & Forward: original answer B & Reversed: original answer A\\
+\midrule
+Original input & 0.954032 & 0.996932\\
+Edited input & 0.008694 & 0.073626\\
+Transfer at layer 7 & 0.029099 & 0.955908\\
+Transfer at layer 15 & 0.015033 & 0.717660\\
+Transfer at layer 31 & 0.007961 & 0.072117\\
+Transfer at layer 47 & 0.008763 & 0.069810\\
+\bottomrule
+\end{tabular}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize
+The readout uses the full vocabulary, with bare and leading-space answer tokens combined. It is distinct from an A/B-renormalized probability or a proportion of correct task runs.
+\end{minipage}
+\end{table}
+
+Two controls are executed in both option orders. Self-replacement transfers the edited prompt's own state at the changed fact token; the prefix control transfers at unchanged token position 0. Both produce exactly equal full-vocabulary logits to the edited baseline, with a maximum absolute logit difference of 0. In the reversed order, layer-7 and layer-15 transfers restore substantial probability to the original-fact answer. In the forward order, the corresponding changes are smaller and the edited answer remains preferred. The result connects a localized representation of a supplied measurement to the subsequent choice while retaining the answer-order asymmetry in the numerical record.
+
+\subsection{Evidence associations under fixed local calculation facts}
+
+Four source evidence chains from three tasks are used to construct paired coherent and altered-association records. The two NB1 chains share one source run. Each record appears in a flat list and an explicitly linked representation, with both answer orders. This yields $4\times2\times2\times2=32$ inputs. Each altered record changes a single association: the geometry used by the saddle-frequency calculation, the IRC starting geometry, the optimization input for a terminal IRC frame, or the identity of the target species. Local normal-termination flags, convergence flags, energies, and imaginary-frequency values remain fixed.
+
+The question asks whether the supplied associations meet the specified support requirements for the indicated reaction step. Linked presentations give the optimized saddle, frequency geometry, IRC start, terminal frames, endpoint optimization/frequency chain, and declared species as explicit references. The model answers all 16 linked inputs correctly and 14 of 16 flat inputs correctly. Both flat-presentation errors occur in altered records with reversed answer options, in E1 and the second NB1 step. The paired records show how the scientific role of a calculation changes when its association changes, even though its local numerical values are unchanged. Explicit relational encoding gives the model direct access to this organization.\citep{ref17}
+
+A subsequent native-chat follow-up uses the two source chains implicated by these errors and retains every coherent/altered, flat/linked, and option-order variant, giving 16 association questions per thinking mode. The same follow-up also retains all four variants of five identity pairs implicated by the first-stage identity results, giving 20 identity questions per mode. Table~\ref{tab:si-native-followup} records every outcome category in this 72-call follow-up. Under native chat with thinking disabled, the selected identity and association counts remain 14/20 and 14/16 correct. With thinking enabled, association judgments reach 16/16; the identity family has eight correct final choices and 12 budget-truncated generations at the common 1,024-token maximum.
+
+\begin{table}[!tbp]
+\centering\small
+\caption{Complete outcomes for the selected native diagnostic follow-up.}
+\label{tab:si-native-followup}
+\begin{tabular}{llrrrr}
+\toprule
+Rendering / mode & Family & Calls & Correct & Valid wrong & Budget-truncated\\
+\midrule
+First-stage raw & Identity & 20 & 14 & 6 & 0\\
+First-stage raw & Association & 16 & 14 & 2 & 0\\
+Native, thinking off & Identity & 20 & 14 & 6 & 0\\
+Native, thinking off & Association & 16 & 14 & 2 & 0\\
+Native, thinking on & Identity & 20 & 8 & 0 & 12\\
+Native, thinking on & Association & 16 & 16 & 0 & 0\\
+\bottomrule
+\end{tabular}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize
+The first-stage rows are the selected records from the existing 96-input identity/association study. The four native rows contain 72 additional calls. All selected base cases retain their complete frozen variants; budget-truncated inputs remain in the denominators.
+\end{minipage}
+\end{table}
+
+\subsection{From a detected gap to the next research action}
+
+The historical HA1 and NB1 examples provide the corresponding research-level sequence. In a Brief HA1 trajectory, compact diagnostics were followed by changes to the source-minimum reference while the IRC endpoint association remained unresolved. In a Guided NB1 trajectory, a frequency result with zero imaginary modes was reported as a normal-mode defect. The Coordinator then requested changes to the transition-state guess and optimization constraints, and the subsequent calculation used the revised parameters. Each source sequence retains the diagnostic, the next scientific instruction, and the resulting computational request. This follows the relation between feedback and a concrete revision rather than using a tool-success flag as the outcome.\citep{ref18}
+
+The IA1 completion sequence addresses another decision. Its delivery report has \texttt{complete=false}, an unresolved bidirectional short-IRC requirement, and no formal waiver. The Coordinator nevertheless requests a complete stop after earlier affirmative comments about intermediate optimization. The completion check returns the remaining IRC requirement to the active research context. The next stop request explicitly changes its disposition to partial. The sequence records the actual claim change and the outstanding path requirement.
+
+The local state-reading study extracts three questions from this IA1 source: whether the latest report declares completion, whether a formal short-IRC waiver exists, and whether the evidence gap should remain outstanding. Each is asked in a report-only context and a quoted 12-message context, with both answer orders. All 12 judgments agree with the frozen state labels. All six option-reversed pairs retain the same semantic answer. The expected answer is derived from the explicit report fields and waiver list, providing a persistent reference for subsequent completion decisions.
+
+\subsection{Discussion of the diagnostic scope}
+
+These experiments resolve distinct operations in the research process: maintaining identity across representations, obtaining a spatial relation, matching feedback to the atoms named in an objective, transmitting a reported fact, connecting calculation artifacts, and reading outstanding scientific requirements. The local measurements identify where explicit representations change the model's decisions. Their interpretation is specific to the archived local deployment, frozen sources, and experimental contrasts. The native follow-up selects sources after inspection of first-stage errors, while retaining complete variants; its counts describe that selected set. Native thinking also changes conditioning and consumed generation, so a common maximum output budget does not imply matched computation.
+
+The activation replacement establishes a local effect on a reported numerical comparison in the quantized Qwen deployment. Its readout does not identify an internal mechanism of the original DeepSeek research runs or a direct measurement of chemical validity. The E1 historical transition to candidate B is observational, with an intervening Supervisor/workspace input before the next model action. The separate local feedback probes isolate supplied target measurements under the curated comparisons.
+
+The completed IA1 state-reading result covers the report-only and 12-message conditions. An additional full 306-message history request contained 242,803 counted input tokens in a 262,144-token context and reached the 3,600-s HTTP waiting limit without a saved answer. Only the first of six planned full-history inputs was attempted; the other five were not attempted. This execution status is retained separately from the 12 completed short-context judgments. Across the diagnostics, generated-answer accuracy, execution status, evidence-association agreement, and scientific acceptance remain distinct observations.

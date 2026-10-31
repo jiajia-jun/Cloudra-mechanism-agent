@@ -1,0 +1,13 @@
+\section{CloudraBench task catalogue}
+\label{sec:task-catalogue}
+
+CloudraBench comprises 20 Easy, 10 Normal, 10 Hard, and 10 Impossible tasks. Tables~\ref{tab:catalogue-easy}--\ref{tab:catalogue-impossible} list the chemical task, charge and multiplicity, stated conditions, and task-specific research target. The task names and molecular inputs are retained in the accompanying machine-readable catalogue; the original task definitions additionally specify atom mappings, complete prompts, reference graphs, and scoring settings.
+
+Method set A comprises xTB, PM7, and B3LYP-D3(BJ)/def2-SVP and applies to Easy, Normal, and Hard tasks. Method set B comprises xTB and PM7 and applies to Impossible tasks. The research target is evaluated within its assigned method set. Reaction-mechanism tasks request a graph of the investigated species and elementary steps, electronic activation barriers for the steps actually computed, and bound stationary-point and pathway evidence. Stereochemical tasks additionally require identities established from the computed geometries. The rows below state the distinguishing target for each task rather than restating this shared delivery protocol.
+
+For Impossible tasks, the listed quantity or process remains the question posed to the agent. The task evaluates the final conclusion under the allowed methods: an appropriately supported negative conclusion is a valid deliverable, and exploratory calculations need not be presented as trustworthy target properties. Species-property questions do not acquire invented process edges or transition states.
+
+\input{tables/catalogue_easy}
+\input{tables/catalogue_normal}
+\input{tables/catalogue_hard}
+\input{tables/catalogue_impossible}

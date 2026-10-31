@@ -1,0 +1,15 @@
+\section{Literature sample and source-linked capability register}
+\label{sec:si-literature}
+\subsection{Selection and coding procedure}
+The literature sample retained 85 separately described chemical AI agent systems, architectures, or workflows in the 27 October 2026 source snapshot. Inclusion required an LLM to participate in planning, tool use, input/code modification, or feedback-driven decisions in an executed molecular, atomistic, or molecular coarse-grained physical calculation. The unit was a described system or workflow: journal/preprint versions and aliases were reconciled to the same record. The register retains the original sources, evidence locations, and descriptions used for coding.
+
+Records were assigned according to the physical objects demonstrated in their worked examples: materials, crystals, and surfaces (39); finite molecules and complexes (23); liquids, soft matter, and biomolecules (12); or demonstrations spanning multiple object classes (11). Periodicity alone did not determine the class: a protein, liquid, or polymer simulation box remained associated with its actual physical object. Cloudra itself is shown separately in the manuscript figures and is not added to the 85-record denominator.
+
+Task codes denote demonstrated activities: T, structure construction/editing; E, separately demonstrated static energy, electronic structure, or material-property calculations; O, geometry optimization/relaxation; F, vibrations/frequencies and associated thermochemistry; R, explicit reaction paths or transition-state searches, including solid-state NEB; D, molecular or quantum dynamics. A record can carry multiple task codes. The respective code counts are 61, 61, 53, 22, 11, and 37. Empty codes are unencoded activities in this source sample. Coarse-grained normal modes and MD-derived free-energy profiles retain their specific physical meaning in the evidence register.
+
+\subsection{Source register and counting variants}
+Table~\ref{tab:si-literature} links every system to its primary article or official project record and to additional evidence sources where applicable. The machine-readable files \path{companion_data/literature/systems.json} and \path{companion_data/literature/source_index.csv} preserve the exact source locations and supporting descriptions for each assigned code. They also retain the demonstrated targets, boundary conditions, aliases, family assignments, and access/source qualifications. A crosswalk to the 49-system review used during source discovery is supplied with the screening and search records.
+
+The main manuscript uses separately described systems/workflows. Grouping the specified El Agente, MDAgent, MatAgent/ChatMat, and DynaMate/DynaMate2 families gives 75 records (37 materials/surfaces, 17 molecules/complexes, 11 soft/biomolecular, and 10 multiple-class records). Excluding the three official-demonstration-only systems gives 82 records (38, 21, 12, 11); additionally excluding MLP Copilot gives 81 (37, 21, 12, 11). These counting variants are retained with their definitions in the source data.
+
+\input{tables/literature_register}
