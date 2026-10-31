@@ -1,0 +1,150 @@
+{
+  "n": 200,
+  "recovered_rows": [
+    {
+      "arm": "brief-errors",
+      "task": "NU5",
+      "source": "runs/raw_scores_p2.csv",
+      "source_line": 377,
+      "values": {
+        "graph": 0.6625462141591716,
+        "selfc_all": 0.44,
+        "accuracy": 0.0
+      }
+    },
+    {
+      "arm": "brief-errors",
+      "task": "P2",
+      "source": "runs/raw_scores_p2.csv",
+      "source_line": 365,
+      "values": {
+        "graph": 1.0,
+        "selfc_all": 0.9166666666666666,
+        "accuracy": 0.9999470370641868
+      }
+    },
+    {
+      "arm": "guided",
+      "task": "HA8",
+      "source": "runs/raw_scores_p2.csv",
+      "source_line": 233,
+      "values": {
+        "graph": 1.0,
+        "selfc_all": 0.875,
+        "accuracy": 0.9999610124858388
+      }
+    },
+    {
+      "arm": "guided",
+      "task": "M16",
+      "source": "runs/raw_scores_p2.csv",
+      "source_line": 216,
+      "values": {
+        "graph": 1.0,
+        "selfc_all": 0.9166666666666666,
+        "accuracy": 0.9996909278514492
+      }
+    },
+    {
+      "arm": "guided",
+      "task": "NY3",
+      "source": "runs/raw_scores_p2.csv",
+      "source_line": 231,
+      "values": {
+        "graph": 1.0,
+        "selfc_all": 1.0,
+        "accuracy": 0.9999983789411312
+      }
+    },
+    {
+      "arm": "standard",
+      "task": "F1",
+      "source": "reconstructions/standard/F1/provenance.md",
+      "source_line": 52,
+      "values": {
+        "graph": 0.33333333333333337,
+        "selfc_all": 0.0,
+        "accuracy": 0.0
+      }
+    },
+    {
+      "arm": "standard",
+      "task": "HA1",
+      "source": "reconstructions/standard/HA1/provenance.md",
+      "source_line": 56,
+      "values": {
+        "graph": 1.0,
+        "selfc_all": 0.0,
+        "accuracy": 0.0
+      }
+    },
+    {
+      "arm": "standard",
+      "task": "HF1",
+      "source": "reconstructions/standard/HF1/provenance.md",
+      "source_line": 64,
+      "values": {
+        "graph": 0.799505475368673,
+        "selfc_all": 0.875,
+        "accuracy": 0.0
+      }
+    },
+    {
+      "arm": "standard",
+      "task": "IA9",
+      "source": "reconstructions/standard/IA9/provenance.md",
+      "source_line": 56,
+      "values": {
+        "graph": 0.33333333333333337,
+        "selfc_all": 0.75,
+        "accuracy": 0.0
+      }
+    },
+    {
+      "arm": "standard",
+      "task": "M17",
+      "source": "reconstructions/standard/M17/provenance.md",
+      "source_line": 53,
+      "values": {
+        "graph": 0.7777777777777778,
+        "selfc_all": 0.0,
+        "accuracy": 0.0
+      }
+    },
+    {
+      "arm": "standard",
+      "task": "NR1",
+      "source": "reconstructions/standard/NR1/provenance.md",
+      "source_line": 60,
+      "values": {
+        "graph": 0.5925925925925926,
+        "selfc_all": 0.3499999999999999,
+        "accuracy": 1.5980508470958554e-06
+      }
+    },
+    {
+      "arm": "standard",
+      "task": "P2",
+      "source": "runs/raw_scores_p2.csv",
+      "source_line": 318,
+      "values": {
+        "graph": 0.8333333333333334,
+        "selfc_all": 1.0,
+        "accuracy": 0.9999470327587684
+      }
+    },
+    {
+      "arm": "standard",
+      "task": "P3",
+      "source": "reconstructions/standard/P3/provenance.md",
+      "source_line": 53,
+      "values": {
+        "graph": 1.0,
+        "selfc_all": 0.0,
+        "accuracy": 0.0
+      }
+    }
+  ],
+  "max_rounding_difference": 4.971078517046479e-05,
+  "rule": "Final organized totals aligned with their own recorded component scores; no score or chemical conclusion changed."
+}

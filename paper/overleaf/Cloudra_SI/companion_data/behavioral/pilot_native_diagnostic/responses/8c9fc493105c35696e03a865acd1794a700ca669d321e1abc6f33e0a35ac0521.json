@@ -1,0 +1,45 @@
+{
+  "request": {
+    "model": "qwen3.8:27b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter, A or B. Do not add explanations."
+      },
+      {
+        "role": "user",
+        "content": "Compare the chemical identities represented by these two SMILES. Atom traversal order, ring digits and disconnected-component order are notation. Preserve connectivity, bond orders, formal charges and specified stereochemistry. No inference about reaction feasibility, energy, geometry or spin state is requested.\nSMILES 1: CC1CC=C1\nSMILES 2: C=CC=CC\nA: Same represented chemical identity\nB: Different represented chemical identities\nReply with A or B only."
+      }
+    ],
+    "stream": false,
+    "think": false,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "num_predict": 1024,
+      "num_ctx": 8192,
+      "top_k": 0,
+      "top_p": 1,
+      "min_p": 0,
+      "repeat_penalty": 1,
+      "presence_penalty": 0,
+      "draft_num_predict": 0
+    }
+  },
+  "response": {
+    "model": "qwen3.8:27b",
+    "created_at": "2026-10-28T10:07:21.398755Z",
+    "message": {
+      "role": "assistant",
+      "content": "B"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 809933417,
+    "load_duration": 485500,
+    "prompt_eval_count": 140,
+    "prompt_eval_duration": 740094000,
+    "eval_count": 2,
+    "eval_duration": 68181000
+  }
+}

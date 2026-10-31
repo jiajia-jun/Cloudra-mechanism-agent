@@ -1,0 +1,212 @@
+{
+  "request_key": "c95cd43bdbdb149ace59c5a2cb8925f7c8e50291b61e8ef5d4269bdda7f54920",
+  "request": {
+    "model": "qwen3.8:27b",
+    "prompt": "<|im_start|>system\nYou assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter, A or B. Do not add explanations.<|im_end|>\n<|im_start|>user\n局部几何任务：比较两候选的 H7-C2-C3-Cl4 二面角到180°的圆周距离。A/B是候选标签。以下是当前可用的测量：\n\n候选A：|τ(H5-C2-C3-Cl4)|=55.8°。\n候选B：|τ(H5-C2-C3-Cl4)|=64.2°。\n\n这些信息是否足以判断哪个候选的目标H7二面角更接近180°？\nA. 信息不足，需要补测两候选的 H7-C2-C3-Cl4。\nB. 信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。\n只输出一个选项字母。<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "raw": true,
+    "think": false,
+    "stream": false,
+    "logprobs": true,
+    "top_logprobs": 20,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "num_predict": 8,
+      "num_ctx": 8192,
+      "top_k": 0,
+      "top_p": 1,
+      "min_p": 0,
+      "repeat_penalty": 1,
+      "presence_penalty": 0,
+      "draft_num_predict": 0
+    }
+  },
+  "response": {
+    "model": "qwen3.8:27b",
+    "created_at": "2026-10-28T11:54:09.548998Z",
+    "response": "A",
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 840456000,
+    "load_duration": 899208,
+    "prompt_eval_count": 209,
+    "prompt_eval_duration": 769969000,
+    "eval_count": 2,
+    "eval_duration": 68097000,
+    "logprobs": [
+      {
+        "token": "A",
+        "logprob": -0.05994595214724541,
+        "bytes": [
+          65
+        ],
+        "top_logprobs": [
+          {
+            "token": "A",
+            "logprob": -0.05994595214724541,
+            "bytes": [
+              65
+            ]
+          },
+          {
+            "token": "B",
+            "logprob": -2.850135564804077,
+            "bytes": [
+              66
+            ]
+          },
+          {
+            "token": "C",
+            "logprob": -9.221046447753906,
+            "bytes": [
+              67
+            ]
+          },
+          {
+            "token": "",
+            "logprob": -9.405195236206055
+          },
+          {
+            "token": " A",
+            "logprob": -10.818196296691895,
+            "bytes": [
+              32,
+              65
+            ]
+          },
+          {
+            "token": "D",
+            "logprob": -10.842906951904297,
+            "bytes": [
+              68
+            ]
+          },
+          {
+            "token": "E",
+            "logprob": -11.146748542785645,
+            "bytes": [
+              69
+            ]
+          },
+          {
+            "token": "(A",
+            "logprob": -11.567453384399414,
+            "bytes": [
+              40,
+              65
+            ]
+          },
+          {
+            "token": "信息",
+            "logprob": -12.144775390625,
+            "bytes": [
+              228,
+              191,
+              161,
+              230,
+              129,
+              175
+            ]
+          },
+          {
+            "token": "I",
+            "logprob": -12.161226272583008,
+            "bytes": [
+              73
+            ]
+          },
+          {
+            "token": "T",
+            "logprob": -12.428422927856445,
+            "bytes": [
+              84
+            ]
+          },
+          {
+            "token": "待",
+            "logprob": -12.5125150680542,
+            "bytes": [
+              229,
+              190,
+              133
+            ]
+          },
+          {
+            "token": "<tool_call>",
+            "logprob": -12.630826950073242,
+            "bytes": [
+              60,
+              116,
+              111,
+              111,
+              108,
+              95,
+              99,
+              97,
+              108,
+              108,
+              62
+            ]
+          },
+          {
+            "token": "[A",
+            "logprob": -12.688878059387207,
+            "bytes": [
+              91,
+              65
+            ]
+          },
+          {
+            "token": "?",
+            "logprob": -12.778377532958984,
+            "bytes": [
+              63
+            ]
+          },
+          {
+            "token": " B",
+            "logprob": -12.858373641967773,
+            "bytes": [
+              32,
+              66
+            ]
+          },
+          {
+            "token": "The",
+            "logprob": -12.861148834228516,
+            "bytes": [
+              84,
+              104,
+              101
+            ]
+          },
+          {
+            "token": "Wait",
+            "logprob": -12.88145637512207,
+            "bytes": [
+              87,
+              97,
+              105,
+              116
+            ]
+          },
+          {
+            "token": "**",
+            "logprob": -12.976947784423828,
+            "bytes": [
+              42,
+              42
+            ]
+          },
+          {
+            "token": "S",
+            "logprob": -13.070995330810547,
+            "bytes": [
+              83
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

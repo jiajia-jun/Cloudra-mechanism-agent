@@ -1,0 +1,693 @@
+{
+  "scope": "Exploratory local identity-reading controls, not formal-run outcomes or a chemistry-success benchmark.",
+  "no_model_executed": true,
+  "rdkit_version": "2026.03.5",
+  "label_generator": "MolFromSmiles -> clear atom-map numbers -> MolToSmiles(canonical=True,isomericSmiles=True)",
+  "randomization": "MolToRandomSmilesVect(...,64,randomSeed=42,isomericSmiles=True), then reverse dot-component order; first nonidentical string; canonical equality checked.",
+  "representation_control": "Only SMILES 2 changes spelling; SMILES 1, instructions, option order and expected identity remain fixed.",
+  "option_control": "Each literal and rewritten pair occurs with forward and swapped option meanings; labels stay outside prompt context.",
+  "selection": "Eight same-identity pairs and eight changed-identity pairs. Four changed pairs are formal declarations; four are explicitly synthetic. Seven of eight changed pairs retain molecular formula, including HA1 E/Z. E1 combines connectivity changes with negative-charge relocation from F to Cl and is a separate mixed-change stratum, not a connectivity-only control.",
+  "semantic_limits": [
+    "Identity is equality under this RDKit representation convention, not reaction understanding or physical feasibility.",
+    "Atom-map correspondence, conformation, geometry, energy, TS character and spin multiplicity are outside the label.",
+    "IA1 automerized geometries can share this identity; a correct identity answer cannot resolve their geometry or scientific validity.",
+    "Specified stereochemistry, formal charge and isotope labels are retained; tautomers/protonation states are not normalized together.",
+    "Formal model declarations supply SMILES only; their names, mechanism reasoning and claims of scientific success are not labels.",
+    "Random rewrites are reproducible for the recorded RDKit version; cross-version text identity is not promised."
+  ],
+  "base_pair_count": 16,
+  "probe_count": 64,
+  "change_type_counts": {
+    "same_identity": 8,
+    "same_formula_connectivity_and_charge_relocation": 1,
+    "same_formula_connectivity": 5,
+    "specified_double_bond_stereochemistry": 1,
+    "protonation_and_formal_charge": 1
+  },
+  "expected_counts": {
+    "A": 32,
+    "B": 32
+  },
+  "index": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal_cases.jsonl",
+  "index_sha256": "cdb5f980cb090634205cea850d8b9f60b1defbc688081914fad4244430c69205",
+  "builder_sha256": "25944ae6c3ed59e09757ed6c5c35a6f10462de6e412b0473bb92d83f752589db",
+  "task_sources": {
+    "E1": {
+      "reactant": "[F-].CCCl",
+      "product": "C=C.F.[Cl-]",
+      "task_event": {
+        "database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/runtime-v2.db",
+        "sqlite_open_mode": "ro&immutable=1",
+        "event_id": "evt_24909dad3a444b35",
+        "project_id": "prj_4fe9281624b14292",
+        "type": "agent.message_injected",
+        "created_at": "2026-10-23T19:42:35.376039+00:00",
+        "data_sha256": "0361e82ef851c0256ac06ddfcdaf36ab1acdf825d78390316a3d6aba2c7674ac",
+        "data": {
+          "message_id": "msg_3b37b0dabb2e40cb",
+          "sender": "user",
+          "content": "Determine the mechanism of the following reaction: F- + CH3CH2Cl elimination -> ethylene + HF + Cl-. Reactant SMILES: [F-].CCCl; product SMILES: C=C.F.[Cl-]; total charge -1, multiplicity 1; conditions: gas phase. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [F-:1].[CH2:2]([H:4])[CH2:3][Cl:5]. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections. For a bond-changing step, use the lowest-energy verified minimum of the corresponding reactant or intermediate state found in your evidence, including its connected conformers; this reference need not be the conformer directly reached by IRC. Preserve the actual IRC connection in the mechanism graph. A conformational-transition barrier uses its own initial conformer. Keep separate stereochemical substrates and disconnected channel-specific reactant complexes as separate references; do not replace a complex by separated-monomer energies. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Every species node and transition-state node must declare `properties.energy_hartree` (the electronic energy of the geometry you delivered for that node, in Hartree, exactly as it appears in that node's evidence log) and `properties.evidence_log` (the sandbox-relative path of that log). The scorer uses the declared energy to identify which evidence file you delivered for each node; a node missing either field violates the delivery contract. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted."
+        }
+      }
+    },
+    "HA1": {
+      "reactant": "CC1CC=C1",
+      "product": "C=CC=CC",
+      "task_event": {
+        "database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/runtime-v2.db",
+        "sqlite_open_mode": "ro&immutable=1",
+        "event_id": "evt_dda26a9f36e74139",
+        "project_id": "prj_ea4484fdf12946e2",
+        "type": "agent.message_injected",
+        "created_at": "2026-10-23T22:16:35.298032+00:00",
+        "data_sha256": "f6809b6893bf4ab18e882bbd8587988e8e8c9af013e4372b23f028f499ecae57",
+        "data": {
+          "message_id": "msg_15530585795040d7",
+          "sender": "user",
+          "content": "Determine the mechanism of the following reaction: 3-methylcyclobutene ring opening: determine the stereochemical outcome. Reactant SMILES: CC1CC=C1; product SMILES: C=CC=CC; total charge 0, multiplicity 1; conditions: gas phase or inert solvent, ~150-200 degC, thermal. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Report electronic barriers only; do not add thermal corrections for the stated temperature. Atom-mapped reactant SMILES: [CH3:1][CH:2]1[CH2:3][CH:4]=[CH:5]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). The product SMILES above state connectivity only: resolving the stereochemical outcome is part of the deliverable. Investigate the competing stereochemical channels (not only the major one), and make sure the stereochemistry of every product and intermediate node is stated in its SMILES. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections. For a bond-changing step, use the lowest-energy verified minimum of the corresponding reactant or intermediate state found in your evidence, including its connected conformers; this reference need not be the conformer directly reached by IRC. Preserve the actual IRC connection in the mechanism graph. A conformational-transition barrier uses its own initial conformer. Keep separate stereochemical substrates and disconnected channel-specific reactant complexes as separate references; do not replace a complex by separated-monomer energies. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. For each competing stereochemical channel, declare on that channel's edge a `channel` field (a short label identifying the channel) and `favored: true` on exactly the one channel your computed barriers favor (`favored: false` on the other channels); the favored-channel assignment is scored qualitatively (right or wrong). Also record the barrier difference (minor-channel TS minus major-channel TS) in kcal/mol in your report; the numeric difference is recorded but not scored numerically. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted."
+        }
+      },
+      "E": "C/C=C/C=C",
+      "Z": "C/C=C\\C=C",
+      "stereo_declaration_event": {
+        "database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/runtime-v2.db",
+        "sqlite_open_mode": "ro&immutable=1",
+        "event_id": "evt_9234fd5ce64f4b5f",
+        "project_id": "prj_ea4484fdf12946e2",
+        "type": "tool.requested",
+        "created_at": "2026-10-23T22:20:53.372899+00:00",
+        "data_sha256": "61f95b83052d024eadc6005fb49734aeaa7d218be80cca64e946bb02bb8e5344",
+        "data": {
+          "tool_call_id": "tc_7609dc7407bc4853",
+          "tool_name": "dag_propose_mechanism",
+          "arguments_summary": {
+            "rationale": "Revised draft per Supervisor feedback. Unimolecular, concerted Woodward-Hoffmann 4pi electrocyclic ring opening of 3-methylcyclobutene (map [CH3:1][CH:2]1[CH2:3][CH:4]=[CH:5]1); no intermediate. Bond changes for every channel: break [[2,3] (C2-C3 ring sigma), [4,5] (C4=C5 -> single)], form [[2,5] (C5=C2), [3,4] (C3=C4)]. RC is the bare 3-methylcyclobutene minimum (single-molecule reactant complex; unimolecular, so no multi-molecule complex). Products: (E)-1,3-pentadiene C/C=C/C=C and (Z)-1,3-pentadiene C/C=C\\C=C; the only stereogenic element is C2=C5 (CH3/H at C2, diene chain/H at C5); C3=C4 is a terminal CH2=CH- and carries no E/Z. Rotation at C3 (a CH2 with two identical H) is stereochemically invisible, so E vs Z is set by the rotation sense at C2 alone and each product is reachable by both a conrotatory and a disrotatory combination. Therefore the four channels are declared explicitly, with channel labels naming rotation sense and diastereomer: (1) conrotatory-outward-E, (2) conrotatory-inward-Z, (3) disrotatory-outward-E, (4) disrotatory-inward-Z. Woodward-Hoffmann fixes only the allowed family (conrotatory); E vs Z is torquoselectivity. Working expectation to be tested numerically, not assumed: methyl is a weak sigma donor so outward rotation should be favoured, making conrotatory-outward-E the major channel and (Z) minor; the disrotatory pair is retained as the symmetry-forbidden control at the same B3LYP-D3(BJ)/def2-SVP level. Barriers will be electronic dE-double-dagger from the lowest verified RC minimum (including its conformers), each TS node bound to its native Gaussian log.",
+            "species": [
+              {
+                "name": "RC",
+                "smiles": "CC1CC=C1"
+              },
+              {
+                "name": "TS1 conrotatory outward E",
+                "smiles": null
+              },
+              {
+                "name": "TS2 conrotatory inward Z",
+                "smiles": null
+              },
+              {
+                "name": "TS3 disrotatory outward E",
+                "smiles": null
+              },
+              {
+                "name": "TS4 disrotatory inward Z",
+                "smiles": null
+              },
+              {
+                "name": "P_E",
+                "smiles": "C/C=C/C=C"
+              },
+              {
+                "name": "P_Z",
+                "smiles": "C/C=C\\C=C"
+              }
+            ],
+            "steps": [
+              {
+                "name": "ch1 conrotatory outward to E",
+                "from": "RC",
+                "to": "P_E"
+              },
+              {
+                "name": "ch2 conrotatory inward to Z",
+                "from": "RC",
+                "to": "P_Z"
+              },
+              {
+                "name": "ch3 disrotatory outward to E",
+                "from": "RC",
+                "to": "P_E"
+              },
+              {
+                "name": "ch4 disrotatory inward to Z",
+                "from": "RC",
+                "to": "P_Z"
+              }
+            ],
+            "delivery_targets": [
+              "ch1 conrotatory outward to E",
+              "ch2 conrotatory inward to Z",
+              "ch3 disrotatory outward to E",
+              "ch4 disrotatory inward to Z"
+            ]
+          },
+          "execution_id": "exec_139098f274714b6a"
+        }
+      }
+    },
+    "IA1": {
+      "reactant": "C1=CC=C1",
+      "product": "C1=CC=C1",
+      "task_event": {
+        "database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/runtime-v2.db",
+        "sqlite_open_mode": "ro&immutable=1",
+        "event_id": "evt_30fa236753554649",
+        "project_id": "prj_795414aede404275",
+        "type": "agent.message_injected",
+        "created_at": "2026-10-23T23:21:14.683820+00:00",
+        "data_sha256": "c28af46be19bcc436f1d38e70a1007e2dcc319ce077394a0550a7918f5578ae5",
+        "data": {
+          "message_id": "msg_dd049e2647c6476f",
+          "sender": "user",
+          "content": "Determine the mechanism and activation barrier of the thermal automerization of cyclobutadiene (rectangular ground state interconverting through the square transition structure). Reactant SMILES: C1=CC=C1; product SMILES: C1=CC=C1; total charge 0, multiplicity 1; conditions: gas phase, low temperature (matrix isolation regime). Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [CH:1]1=[CH:2][CH:3]=[CH:4]1. The 1-based map numbers in it are the indexing convention for `bond_changes` (keep using the plain SMILES above for graph nodes and evidence annotations). You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or state-change step carries two empty lists. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections. For a bond-changing step, use the lowest-energy verified minimum of the corresponding reactant or intermediate state found in your evidence, including its connected conformers; this reference need not be the conformer directly reached by IRC. Preserve the actual IRC connection in the mechanism graph. A conformational-transition barrier uses its own initial conformer. Keep separate stereochemical substrates and disconnected channel-specific reactant complexes as separate references; do not replace a complex by separated-monomer energies. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Report the automerization barrier in kcal/mol (transition state relative to the rectangular ground-state minimum) on the rate-determining step's edge. If a particular species or transition state cannot be computed to a trustworthy accuracy with the allowed methods, mark the corresponding node or edge \"accessible\": false in mechanism_graph.json and deliver the rest of the graph as usual; the graph still starts at the reactant complex. The scorer reads that structured flag, not prose; do not declare a number you cannot stand behind. Exploratory calculations followed by a correct negative conclusion are allowed. Do not attach `barrier_kcal_mol` to an edge declared inaccessible or claim trustworthy properties for an inaccessible target; keep exploratory numbers in the raw evidence or explanation. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB and pm7; calls beyond the whitelist are intercepted."
+        }
+      }
+    },
+    "NB1": {
+      "reactant": "O=C(O)CC(=O)O",
+      "product": "CC(=O)O.O=C=O",
+      "task_event": {
+        "database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/runtime-v2.db",
+        "sqlite_open_mode": "ro&immutable=1",
+        "event_id": "evt_daa32814908e4104",
+        "project_id": "prj_eb59e660789c480d",
+        "type": "agent.message_injected",
+        "created_at": "2026-10-23T19:42:35.375330+00:00",
+        "data_sha256": "a2343571c708736a59fadedb43a2c1eac680f782e67b580f9e60637674c0fcd0",
+        "data": {
+          "message_id": "msg_6f6c6fd100a1426a",
+          "sender": "user",
+          "content": "Determine the mechanism of the following reaction: malonic acid thermal decarboxylation: malonic acid -> acetic acid + CO2. Reactant SMILES: O=C(O)CC(=O)O; product SMILES: CC(=O)O.O=C=O; total charge 0, multiplicity 1; conditions: gas-phase thermolysis. Within the allowed methods, model the system so that it approximates the real conditions stated above as closely as the level of theory permits. Atom-mapped reactant SMILES: [O:1]=[C:2]([O:3][H:8])[CH2:4][C:5](=[O:6])[O:7][H:11]. The 1-based map numbers in it are the indexing convention for `bond_changes`. Graph nodes and `smiles:` evidence annotations must use the unmapped SMILES of the complete system actually computed, including any explicitly modeled solvent, catalysts and counterions. The reaction may proceed through a multi-step network: represent each intermediate you identify as a node and each elementary step as an edge; competing pathways you investigate deserve their own edges. You must maintain `mechanism_graph.json` in the sandbox root recording the mechanism graph: nodes (reactant/intermediate/product/transition_state, with SMILES) and elementary-step edges (with `via` pointing to the TS node id). Start the graph at the reactant complex (the pre-reaction complex), not at the separated reactants. Use exactly this JSON shape (key names matter: nodes carry `id`, `role` (one of reactant/intermediate/product/transition_state) and `smiles` (a list of SMILES strings), and may optionally carry a `properties` object for declared quantities; edges carry `id`, `from`, `to`, `via`, `bond_changes` and optionally `barrier_kcal_mol`, `channel` and `favored`): {\"nodes\": [{\"id\": \"RC\", \"role\": \"reactant\", \"smiles\": [\"C=O.CN\"]}, {\"id\": \"TS1\", \"role\": \"transition_state\", \"smiles\": []}, {\"id\": \"P\", \"role\": \"product\", \"smiles\": [\"...\"]}], \"edges\": [{\"id\": \"e1\", \"from\": \"RC\", \"to\": \"P\", \"via\": \"TS1\", \"bond_changes\": {\"break\": [[1, 2]], \"form\": [[1, 5]]}, \"barrier_kcal_mol\": 21.3}]}. A species made of several molecules (a pre-reaction or ion-dipole complex) is ONE node whose `smiles` holds a single dot-joined complex SMILES (like the RC node above), never a list of separate component SMILES. Bind the unchanged native evidence logs through DAG and explicit `properties.evidence_log` paths; never rewrite a computed log to add SMILES. If such a complex is not a clean minimum at the allowed level of theory, still keep the single complex node in the graph, but you may then annotate its evidence files per component species instead (each component with its own `smiles:` annotation placed in the input before computation). The scorer checks that your graph covers the reference mechanism as a subgraph: extra nodes or edges beyond the reference are never penalized, so record every step you actually investigated. Every elementary-step edge must carry `bond_changes`: `break`/`form` lists of [i, j] atom-map index pairs, where [i, j] belongs to `break` if the bond order between atoms i and j decreases over the step (including full cleavage) and to `form` if it increases (including newly formed bonds); a purely conformational or inversion step carries two empty lists. The scorer reads this file forensically; a missing or unparseable file severely impacts the score. Every computational evidence file you produce for a species or step (QM input or log) must carry a `smiles: <SMILES>` comment line identifying the species, so the scorer can bind each graph element to concrete evidence. Declare every barrier you actually compute in kcal/mol on that elementary step's edge as `barrier_kcal_mol` in mechanism_graph.json. Barriers are electronic energy differences (ΔE‡) in kcal/mol, without ZPE or thermal corrections. For a bond-changing step, use the lowest-energy verified minimum of the corresponding reactant or intermediate state found in your evidence, including its connected conformers; this reference need not be the conformer directly reached by IRC. Preserve the actual IRC connection in the mechanism graph. A conformational-transition barrier uses its own initial conformer. Keep separate stereochemical substrates and disconnected channel-specific reactant complexes as separate references; do not replace a complex by separated-monomer energies. The scorer derives every declared step barrier from your log files and takes the highest as the rate-determining step; a barrier that is undeclared, has no bound ORCA/Gaussian log, or disagrees with those logs is not scorable. Every species node and transition-state node must declare `properties.energy_hartree` (the electronic energy of the geometry you delivered for that node, in Hartree, exactly as it appears in that node's evidence log) and `properties.evidence_log` (the sandbox-relative path of that log). The scorer uses the declared energy to identify which evidence file you delivered for each node; a node missing either field violates the delivery contract. Bind each transition-state node to its original native evidence file with `properties.evidence_log` and attach that evidence to the declared DAG step. Do not append annotations to a completed or frozen log; any input annotation must be written before computation and expresses intent rather than proven identity. Run the computations with ORCA or Gaussian: the scorer parses only these two programs' log formats, so output from any other program cannot count as evidence. Allowed computational methods are limited to xTB, pm7, and B3LYP-D3(BJ)/def2-SVP; calls beyond the whitelist are intercepted."
+        }
+      }
+    }
+  },
+  "pairs": [
+    {
+      "left": {
+        "task": "E1",
+        "field": "reactant",
+        "smiles": "[F-].CCCl",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "E1",
+        "field": "reactant",
+        "smiles": "[F-].CCCl",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_01",
+      "same_identity": true,
+      "canonical_identities": [
+        "CCCl.[F-]",
+        "CCCl.[F-]"
+      ],
+      "molecular_formulas": [
+        "C2H5ClF-",
+        "C2H5ClF-"
+      ],
+      "formal_charges": [
+        -1,
+        -1
+      ],
+      "right_equivalent_rewrite": "CCCl.[F-]",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "E1",
+        "field": "product",
+        "smiles": "C=C.F.[Cl-]",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "E1",
+        "field": "product",
+        "smiles": "C=C.F.[Cl-]",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_02",
+      "same_identity": true,
+      "canonical_identities": [
+        "C=C.F.[Cl-]",
+        "C=C.F.[Cl-]"
+      ],
+      "molecular_formulas": [
+        "C2H5ClF-",
+        "C2H5ClF-"
+      ],
+      "formal_charges": [
+        -1,
+        -1
+      ],
+      "right_equivalent_rewrite": "[Cl-].F.C=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_03",
+      "same_identity": true,
+      "canonical_identities": [
+        "O=C(O)CC(=O)O",
+        "O=C(O)CC(=O)O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H4O4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "O=C(O)CC(O)=O",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "product",
+        "smiles": "CC(=O)O.O=C=O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": "product",
+        "smiles": "CC(=O)O.O=C=O",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_04",
+      "same_identity": true,
+      "canonical_identities": [
+        "CC(=O)O.O=C=O",
+        "CC(=O)O.O=C=O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H4O4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "O=C=O.O=C(O)C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "reactant",
+        "smiles": "CC1CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "reactant",
+        "smiles": "CC1CC=C1",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_05",
+      "same_identity": true,
+      "canonical_identities": [
+        "CC1C=CC1",
+        "CC1C=CC1"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C1C=CC1C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "E",
+        "smiles": "C/C=C/C=C",
+        "origin": "formal_model_declaration"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "E",
+        "smiles": "C/C=C/C=C",
+        "origin": "formal_model_declaration"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_06",
+      "same_identity": true,
+      "canonical_identities": [
+        "C=C/C=C/C",
+        "C=C/C=C/C"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(/C=C)=C\\C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "Z",
+        "smiles": "C/C=C\\C=C",
+        "origin": "formal_model_declaration"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "Z",
+        "smiles": "C/C=C\\C=C",
+        "origin": "formal_model_declaration"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_07",
+      "same_identity": true,
+      "canonical_identities": [
+        "C=C/C=C\\C",
+        "C=C/C=C\\C"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(/C=C)=C/C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "IA1",
+        "field": "reactant",
+        "smiles": "C1=CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "IA1",
+        "field": "reactant",
+        "smiles": "C1=CC=C1",
+        "origin": "formal_task"
+      },
+      "change_type": "same_identity",
+      "base_case_id": "chemical_identity_08",
+      "same_identity": true,
+      "canonical_identities": [
+        "C1=CC=C1",
+        "C1=CC=C1"
+      ],
+      "molecular_formulas": [
+        "C4H4",
+        "C4H4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C1C=CC=1",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "E1",
+        "field": "reactant",
+        "smiles": "[F-].CCCl",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "E1",
+        "field": "product",
+        "smiles": "C=C.F.[Cl-]",
+        "origin": "formal_task"
+      },
+      "change_type": "same_formula_connectivity_and_charge_relocation",
+      "base_case_id": "chemical_identity_09",
+      "same_identity": false,
+      "canonical_identities": [
+        "CCCl.[F-]",
+        "C=C.F.[Cl-]"
+      ],
+      "molecular_formulas": [
+        "C2H5ClF-",
+        "C2H5ClF-"
+      ],
+      "formal_charges": [
+        -1,
+        -1
+      ],
+      "right_equivalent_rewrite": "[Cl-].F.C=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": "product",
+        "smiles": "CC(=O)O.O=C=O",
+        "origin": "formal_task"
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_10",
+      "same_identity": false,
+      "canonical_identities": [
+        "O=C(O)CC(=O)O",
+        "CC(=O)O.O=C=O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H4O4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "O=C=O.O=C(O)C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "reactant",
+        "smiles": "CC1CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "product",
+        "smiles": "C=CC=CC",
+        "origin": "formal_task"
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_11",
+      "same_identity": false,
+      "canonical_identities": [
+        "CC1C=CC1",
+        "C=CC=CC"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(=CC)C=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "E",
+        "smiles": "C/C=C/C=C",
+        "origin": "formal_model_declaration"
+      },
+      "right": {
+        "task": "HA1",
+        "field": "Z",
+        "smiles": "C/C=C\\C=C",
+        "origin": "formal_model_declaration"
+      },
+      "change_type": "specified_double_bond_stereochemistry",
+      "base_case_id": "chemical_identity_12",
+      "same_identity": false,
+      "canonical_identities": [
+        "C=C/C=C/C",
+        "C=C/C=C\\C"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(/C=C)=C/C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": null,
+        "smiles": "COC(=O)C(=O)O",
+        "origin": "synthetic_control",
+        "parent_field": "reactant",
+        "operation": "Replace malonic-acid connectivity by monomethyl-oxalate connectivity; retain formula."
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_13",
+      "same_identity": false,
+      "canonical_identities": [
+        "O=C(O)CC(=O)O",
+        "COC(=O)C(=O)O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H4O4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "COC(=O)C(O)=O",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "HA1",
+        "field": "reactant",
+        "smiles": "CC1CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "HA1",
+        "field": null,
+        "smiles": "C=C1CCC1",
+        "origin": "synthetic_control",
+        "parent_field": "reactant",
+        "operation": "Replace methylcyclobutene by methylenecyclobutane connectivity; retain formula."
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_14",
+      "same_identity": false,
+      "canonical_identities": [
+        "CC1C=CC1",
+        "C=C1CCC1"
+      ],
+      "molecular_formulas": [
+        "C5H8",
+        "C5H8"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C1CCC1=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "IA1",
+        "field": "reactant",
+        "smiles": "C1=CC=C1",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "IA1",
+        "field": null,
+        "smiles": "C#CC=C",
+        "origin": "synthetic_control",
+        "parent_field": "reactant",
+        "operation": "Replace the four-membered ring by an acyclic enyne; retain formula."
+      },
+      "change_type": "same_formula_connectivity",
+      "base_case_id": "chemical_identity_15",
+      "same_identity": false,
+      "canonical_identities": [
+        "C1=CC=C1",
+        "C#CC=C"
+      ],
+      "molecular_formulas": [
+        "C4H4",
+        "C4H4"
+      ],
+      "formal_charges": [
+        0,
+        0
+      ],
+      "right_equivalent_rewrite": "C(C#C)=C",
+      "rewrite_seed": 42
+    },
+    {
+      "left": {
+        "task": "NB1",
+        "field": "reactant",
+        "smiles": "O=C(O)CC(=O)O",
+        "origin": "formal_task"
+      },
+      "right": {
+        "task": "NB1",
+        "field": null,
+        "smiles": "O=C([O-])CC(=O)O",
+        "origin": "synthetic_control",
+        "parent_field": "reactant",
+        "operation": "Remove one acidic hydrogen and set its oxygen formal charge to -1."
+      },
+      "change_type": "protonation_and_formal_charge",
+      "base_case_id": "chemical_identity_16",
+      "same_identity": false,
+      "canonical_identities": [
+        "O=C(O)CC(=O)O",
+        "O=C([O-])CC(=O)O"
+      ],
+      "molecular_formulas": [
+        "C3H4O4",
+        "C3H3O4-"
+      ],
+      "formal_charges": [
+        0,
+        -1
+      ],
+      "right_equivalent_rewrite": "O=C([O-])CC(O)=O",
+      "rewrite_seed": 42
+    }
+  ],
+  "output": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/chemical_identity_controls/chemical_identity_probes.jsonl",
+  "output_sha256": "bad87088c9d29b92ff0afaf3b01bb920837e627c7908dc6ccf1339d658b9fc89"
+}

@@ -1,0 +1,45 @@
+{
+  "request": {
+    "model": "qwen3.8:27b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter, A or B. Do not add explanations."
+      },
+      {
+        "role": "user",
+        "content": "工具测得以下距离（Å）：\nr(C2-C4) = 2.029\nr(O3-H8) = 1.248\n哪一对原子的欧氏距离更短？\nA. 原子 3 与原子 8\nB. 原子 2 与原子 4\n只回答 A 或 B。"
+      }
+    ],
+    "stream": false,
+    "think": false,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "num_predict": 1024,
+      "num_ctx": 8192,
+      "top_k": 0,
+      "top_p": 1,
+      "min_p": 0,
+      "repeat_penalty": 1,
+      "presence_penalty": 0,
+      "draft_num_predict": 0
+    }
+  },
+  "response": {
+    "model": "qwen3.8:27b",
+    "created_at": "2026-10-28T09:41:01.15438Z",
+    "message": {
+      "role": "assistant",
+      "content": "A"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 532380125,
+    "load_duration": 583500,
+    "prompt_eval_count": 124,
+    "prompt_eval_duration": 462949000,
+    "eval_count": 2,
+    "eval_duration": 67701000
+  }
+}

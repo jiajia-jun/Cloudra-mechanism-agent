@@ -1,0 +1,13 @@
+[
+  "/private/tmp/cloudra-model-interpretability/activation_runner",
+  "--model",
+  "/Users/cloudrayyy/.ollama/models/blobs/sha256-f5f1dd8920d417aac2718b0bda3403da274301efdd6760b4f0f4b864ff2ad57d",
+  "--prompt",
+  "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/swapped/clean.prompt.txt",
+  "--out",
+  "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/swapped/clean",
+  "--token-position",
+  "53",
+  "--capture",
+  "7,15,31,47"
+]

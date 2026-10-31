@@ -1,0 +1,32 @@
+{
+  "forward": {
+    "changed_token_positions": [
+      53
+    ],
+    "clean_expected": "B",
+    "counterfactual_expected": "A",
+    "self_patch": {
+      "all_vocab_exactly_equal": true,
+      "max_absolute_logit_difference": 0.0
+    },
+    "prefix_control": {
+      "all_vocab_exactly_equal": true,
+      "max_absolute_logit_difference": 0.0
+    }
+  },
+  "swapped": {
+    "changed_token_positions": [
+      53
+    ],
+    "clean_expected": "A",
+    "counterfactual_expected": "B",
+    "self_patch": {
+      "all_vocab_exactly_equal": true,
+      "max_absolute_logit_difference": 0.0
+    },
+    "prefix_control": {
+      "all_vocab_exactly_equal": true,
+      "max_absolute_logit_difference": 0.0
+    }
+  }
+}

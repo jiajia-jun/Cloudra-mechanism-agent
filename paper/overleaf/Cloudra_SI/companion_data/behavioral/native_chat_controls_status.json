@@ -1,0 +1,15 @@
+{
+  "status": "completed",
+  "reason": "All 32 native-chat controls completed. A separate 2048-token follow-up answered the sole 1024-token truncation correctly.",
+  "attempts": 3,
+  "process_created": true,
+  "model_observations": 32,
+  "effect_on_claims": "Direct XYZ answers show letter bias; thinking produced seven correct answers and one budget truncation at 1024. The separately budget-expanded item also answered correctly. Tool-measured distances were correct in both modes. These modes differ in native conditioning and consumed computation.",
+  "previous_attempts": {
+    "count": 2,
+    "outcome": "Automatic permission approval review did not finish before its deadline on initial request and one retry.",
+    "process_created": false
+  },
+  "active_exec_session": null,
+  "budget_followup_observations": 1
+}

@@ -1,0 +1,222 @@
+{
+  "request_key": "736a1884fc68fc002b561eee1fe217456ff014b189847ff356d3c89e69b431e3",
+  "request": {
+    "model": "qwen3.8:27b",
+    "prompt": "<|im_start|>system\nYou assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter, A or B. Do not add explanations.<|im_end|>\n<|im_start|>user\nCompare the chemical identities represented by these two SMILES. Atom traversal order, ring digits and disconnected-component order are notation. Preserve connectivity, bond orders, formal charges and specified stereochemistry. No inference about reaction feasibility, energy, geometry or spin state is requested.\nSMILES 1: [F-].CCCl\nSMILES 2: [Cl-].F.C=C\nA: Different represented chemical identities\nB: Same represented chemical identity\nReply with A or B only.<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "raw": true,
+    "think": false,
+    "stream": false,
+    "logprobs": true,
+    "top_logprobs": 20,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "num_predict": 8,
+      "num_ctx": 8192,
+      "top_k": 0,
+      "top_p": 1,
+      "min_p": 0,
+      "repeat_penalty": 1,
+      "presence_penalty": 0,
+      "draft_num_predict": 0
+    }
+  },
+  "response": {
+    "model": "qwen3.8:27b",
+    "created_at": "2026-10-28T09:57:16.23002Z",
+    "response": "A",
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 846229667,
+    "load_duration": 566292,
+    "prompt_eval_count": 143,
+    "prompt_eval_duration": 770761000,
+    "eval_count": 2,
+    "eval_duration": 73196000,
+    "logprobs": [
+      {
+        "token": "A",
+        "logprob": -0.0909423828125,
+        "bytes": [
+          65
+        ],
+        "top_logprobs": [
+          {
+            "token": "A",
+            "logprob": -0.0909423828125,
+            "bytes": [
+              65
+            ]
+          },
+          {
+            "token": "B",
+            "logprob": -2.4502487182617188,
+            "bytes": [
+              66
+            ]
+          },
+          {
+            "token": "D",
+            "logprob": -8.286540985107422,
+            "bytes": [
+              68
+            ]
+          },
+          {
+            "token": "C",
+            "logprob": -8.594268798828125,
+            "bytes": [
+              67
+            ]
+          },
+          {
+            "token": "",
+            "logprob": -9.986140251159668
+          },
+          {
+            "token": "Different",
+            "logprob": -10.222151756286621,
+            "bytes": [
+              68,
+              105,
+              102,
+              102,
+              101,
+              114,
+              101,
+              110,
+              116
+            ]
+          },
+          {
+            "token": " A",
+            "logprob": -10.49673080444336,
+            "bytes": [
+              32,
+              65
+            ]
+          },
+          {
+            "token": "[A",
+            "logprob": -10.780559539794922,
+            "bytes": [
+              91,
+              65
+            ]
+          },
+          {
+            "token": "[",
+            "logprob": -11.097150802612305,
+            "bytes": [
+              91
+            ]
+          },
+          {
+            "token": "{",
+            "logprob": -11.689348220825195,
+            "bytes": [
+              123
+            ]
+          },
+          {
+            "token": "The",
+            "logprob": -11.975936889648438,
+            "bytes": [
+              84,
+              104,
+              101
+            ]
+          },
+          {
+            "token": "[B",
+            "logprob": -12.129268646240234,
+            "bytes": [
+              91,
+              66
+            ]
+          },
+          {
+            "token": " B",
+            "logprob": -12.180130004882812,
+            "bytes": [
+              32,
+              66
+            ]
+          },
+          {
+            "token": "Same",
+            "logprob": -12.25697135925293,
+            "bytes": [
+              83,
+              97,
+              109,
+              101
+            ]
+          },
+          {
+            "token": "<tool_call>",
+            "logprob": -12.420772552490234,
+            "bytes": [
+              60,
+              116,
+              111,
+              111,
+              108,
+              95,
+              99,
+              97,
+              108,
+              108,
+              62
+            ]
+          },
+          {
+            "token": "**",
+            "logprob": -12.626562118530273,
+            "bytes": [
+              42,
+              42
+            ]
+          },
+          {
+            "token": "Thinking",
+            "logprob": -12.666340827941895,
+            "bytes": [
+              84,
+              104,
+              105,
+              110,
+              107,
+              105,
+              110,
+              103
+            ]
+          },
+          {
+            "token": "F",
+            "logprob": -12.94395637512207,
+            "bytes": [
+              70
+            ]
+          },
+          {
+            "token": "T",
+            "logprob": -13.107186317443848,
+            "bytes": [
+              84
+            ]
+          },
+          {
+            "token": "Let",
+            "logprob": -13.204736709594727,
+            "bytes": [
+              76,
+              101,
+              116
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

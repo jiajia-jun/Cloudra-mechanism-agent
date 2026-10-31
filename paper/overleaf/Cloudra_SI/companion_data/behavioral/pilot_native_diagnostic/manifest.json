@@ -1,0 +1,101 @@
+{
+  "selection": "exploratory/error-conditioned follow-up",
+  "selection_reason": "Fixed sources selected after inspecting stage-one errors; all complete variants retained.",
+  "preregistered": false,
+  "identity_base_case_ids": [
+    "chemical_identity_06",
+    "chemical_identity_07",
+    "chemical_identity_11",
+    "chemical_identity_12",
+    "chemical_identity_14"
+  ],
+  "binding_base_case_ids": [
+    "brief-errors/r1/evt_8ed26719359e47e0",
+    "brief-errors/r1/evt_f7ad8d7092784698"
+  ],
+  "n_identity_inputs": 20,
+  "n_binding_inputs": 16,
+  "n_source_probes": 36,
+  "thinking_modes": [
+    false,
+    true
+  ],
+  "n_planned_native_requests": 72,
+  "maximum_output_tokens": 1024,
+  "source_probes": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/frozen_probes.jsonl",
+  "source_probes_sha256": "e6a803417427d2ccc9b4d46f90bd88c17ad35a47714d6bc9d36ff7292a6a72f8",
+  "source_results": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_identity_binding/results.json",
+  "source_results_sha256": "356b5810c8460dde54187c04eb23d88036db37527c8900a1672a63616c09c49e",
+  "n_stage_one_inputs": 96,
+  "stage_one_errors_in_selected_sources": [
+    {
+      "id": "chemical_identity_06/equivalent_rewrite/swapped",
+      "expected": "B",
+      "prediction": "A"
+    },
+    {
+      "id": "chemical_identity_07/equivalent_rewrite/swapped",
+      "expected": "B",
+      "prediction": "A"
+    },
+    {
+      "id": "chemical_identity_11/equivalent_rewrite/forward",
+      "expected": "B",
+      "prediction": "A"
+    },
+    {
+      "id": "chemical_identity_12/equivalent_rewrite/forward",
+      "expected": "B",
+      "prediction": "A"
+    },
+    {
+      "id": "chemical_identity_14/literal/forward",
+      "expected": "B",
+      "prediction": "A"
+    },
+    {
+      "id": "chemical_identity_14/equivalent_rewrite/forward",
+      "expected": "B",
+      "prediction": "A"
+    },
+    {
+      "id": "evidence_binding/brief-errors/r1/evt_8ed26719359e47e0/altered/flat/swapped",
+      "expected": "A",
+      "prediction": "B"
+    },
+    {
+      "id": "evidence_binding/brief-errors/r1/evt_f7ad8d7092784698/altered/flat/swapped",
+      "expected": "A",
+      "prediction": "B"
+    }
+  ],
+  "model": {
+    "name": "qwen3.8:27b",
+    "model": "qwen3.8:27b",
+    "modified_at": "2026-08-26T01:28:05.467950246+08:00",
+    "size": 17741872154,
+    "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "details": {
+      "parent_model": "qwen3.8:27b-q4_K_M",
+      "format": "gguf",
+      "family": "qwen35",
+      "families": [
+        "qwen35"
+      ],
+      "parameter_size": "27.3B",
+      "quantization_level": "Q4_K_M",
+      "context_length": 262144,
+      "embedding_length": 5120
+    },
+    "capabilities": [
+      "completion",
+      "tools",
+      "thinking",
+      "vision"
+    ]
+  },
+  "rendering": "Native /api/chat; no manually inserted model delimiters.",
+  "labels": "Existing frozen labels copied unchanged; no new scientific judgments.",
+  "scope": "Exploratory/error-conditioned local Qwen diagnostics; cannot estimate overall accuracy, original DeepSeek behavior or scientific acceptance.",
+  "compute_limit": "Same maximum output budget, potentially different consumed computation; think changes native conditioning and generation together."
+}

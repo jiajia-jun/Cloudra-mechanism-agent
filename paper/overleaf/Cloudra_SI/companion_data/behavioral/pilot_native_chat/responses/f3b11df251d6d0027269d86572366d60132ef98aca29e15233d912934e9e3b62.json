@@ -1,0 +1,45 @@
+{
+  "request": {
+    "model": "qwen3.8:27b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter, A or B. Do not add explanations."
+      },
+      {
+        "role": "user",
+        "content": "下面是 XYZ 坐标，坐标单位 Å，原子编号从 1 开始，按行计数：\n11\nopt step=41\nO      -1.49859300      1.31131600      0.41091900\nC      -1.48857000      0.18873700      0.10077700\nO      -2.04950600     -0.92929200      0.14027300\nC       0.11577800     -0.37766300     -1.00472600\nC       1.26758500      0.01487900     -0.14920700\nO       1.80896400      1.09128300     -0.15001100\nO       1.61823100     -0.98248900      0.69924100\nH      -0.99106600     -1.12659100     -0.49068900\nH      -0.01703500      0.29757500     -1.85634400\nH       0.25971200     -1.41477700     -1.38099600\nH       2.34685900     -0.63847500      1.24359300\n\n哪一对原子的欧氏距离更短？\nA. 原子 2 与原子 4\nB. 原子 3 与原子 8\n只回答 A 或 B。"
+      }
+    ],
+    "stream": false,
+    "think": false,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "num_predict": 1024,
+      "num_ctx": 8192,
+      "top_k": 0,
+      "top_p": 1,
+      "min_p": 0,
+      "repeat_penalty": 1,
+      "presence_penalty": 0,
+      "draft_num_predict": 0
+    }
+  },
+  "response": {
+    "model": "qwen3.8:27b",
+    "created_at": "2026-10-28T09:40:58.172609Z",
+    "message": {
+      "role": "assistant",
+      "content": "A"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 2496060542,
+    "load_duration": 2582250,
+    "prompt_eval_count": 535,
+    "prompt_eval_duration": 1804889000,
+    "eval_count": 2,
+    "eval_duration": 72638000
+  }
+}

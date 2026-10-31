@@ -1,0 +1,1857 @@
+{
+  "status": "completed22_responses_and_full_history_request_timeout",
+  "findings": {
+    "explicit_workflow_state": "构造短报告与12条消息窗口中，报告未完成、没有正式short_irc豁免、应保留交付缺口的状态均在两种选项顺序中得到一致读取。",
+    "target_measurement_to_action": "仅有H5代理量时，三个选项循环均请求目标H7测量；加入H7读数后，三个循环均转为采用候选B。",
+    "full_history_operation_cost": "首个完整历史请求在3600秒HTTP等待上限结束，未保存答案；其余5题未尝试。记录为操作等待成本，不记为模型答错。",
+    "workflow_state_retained_in_all_history_pairs": true,
+    "history_reported_token_counts_all_match_raw": true,
+    "target_information_switches_request_to_candidate_B_in_all_rotations": true,
+    "design_connection": {
+      "DAG": "DAG把完成、正式豁免和缺口留成可读取的程序状态；本组已完成诊断检查短报告和12条窗口中的状态读取。",
+      "geometry": "几何反馈应标明研究意图指定的目标量；本组把是否提供H7读数与信息充分性和下一动作对应起来。"
+    }
+  },
+  "history": {
+    "report_alone": {
+      "latest_report_complete": {
+        "n": 2,
+        "n_matching_frozen_labels": 2,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "不是；complete 为 false。",
+          "不是；complete 为 false。"
+        ],
+        "selected_letters": [
+          "A",
+          "B"
+        ],
+        "records": [
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/report_alone/forward",
+            "condition": "report_alone",
+            "task": "latest_report_complete",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "forward",
+            "option_rotation": null,
+            "choices": {
+              "A": "不是；complete 为 false。",
+              "B": "是；complete 为 true。"
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "不是；complete 为 false。",
+            "actual_choice_text": "不是；complete 为 false。",
+            "expected_letter": "A",
+            "expected_semantic_action": "不是；complete 为 false。",
+            "expected_choice_text": "不是；complete 为 false。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": 591,
+            "reported_prompt_eval_count": 591,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 1874747000,
+            "native_prefill_seconds": 1.874747,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "event_id": "evt_3c9998d9f50b4954",
+              "project_id": "prj_5d1b825b54cd4750",
+              "session_id": "as_1a427bf65def4bbc",
+              "run_id": "run_bea89c175f094587",
+              "seq": 2836,
+              "session_seq": 1732,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T06:30:13.174446+00:00",
+              "source_rowid": 28922
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/8e219c2fc8aa403a58faa884baaa31a45e6c78895b5cc3a38e685b4d3652c346.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          },
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/report_alone/swapped",
+            "condition": "report_alone",
+            "task": "latest_report_complete",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "swapped",
+            "option_rotation": null,
+            "choices": {
+              "A": "是；complete 为 true。",
+              "B": "不是；complete 为 false。"
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "不是；complete 为 false。",
+            "actual_choice_text": "不是；complete 为 false。",
+            "expected_letter": "B",
+            "expected_semantic_action": "不是；complete 为 false。",
+            "expected_choice_text": "不是；complete 为 false。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": 591,
+            "reported_prompt_eval_count": 591,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 1848860000,
+            "native_prefill_seconds": 1.84886,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "event_id": "evt_3c9998d9f50b4954",
+              "project_id": "prj_5d1b825b54cd4750",
+              "session_id": "as_1a427bf65def4bbc",
+              "run_id": "run_bea89c175f094587",
+              "seq": 2836,
+              "session_seq": 1732,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T06:30:13.174446+00:00",
+              "source_rowid": 28922
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/e96ac291fa3f6cffa473458ea0ec64fc7d2bb6af781fbf65c40d38f17a2f6394.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          }
+        ],
+        "two_orders_consistent": true
+      },
+      "formal_short_irc_waiver": {
+        "n": 2,
+        "n_matching_frozen_labels": 2,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "没有；记录中没有正式 short_irc 豁免。",
+          "没有；记录中没有正式 short_irc 豁免。"
+        ],
+        "selected_letters": [
+          "A",
+          "B"
+        ],
+        "records": [
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/report_alone/forward",
+            "condition": "report_alone",
+            "task": "formal_short_irc_waiver",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "forward",
+            "option_rotation": null,
+            "choices": {
+              "A": "没有；记录中没有正式 short_irc 豁免。",
+              "B": "已有正式 short_irc 豁免。"
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "没有；记录中没有正式 short_irc 豁免。",
+            "actual_choice_text": "没有；记录中没有正式 short_irc 豁免。",
+            "expected_letter": "A",
+            "expected_semantic_action": "没有；记录中没有正式 short_irc 豁免。",
+            "expected_choice_text": "没有；记录中没有正式 short_irc 豁免。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": 601,
+            "reported_prompt_eval_count": 601,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 1870801000,
+            "native_prefill_seconds": 1.870801,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "event_id": "evt_3c9998d9f50b4954",
+              "project_id": "prj_5d1b825b54cd4750",
+              "session_id": "as_1a427bf65def4bbc",
+              "run_id": "run_bea89c175f094587",
+              "seq": 2836,
+              "session_seq": 1732,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T06:30:13.174446+00:00",
+              "source_rowid": 28922
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/d3334e9e4a04666c5e80b5742649605e3460243a98b7e3f9fb86e39664e1dee1.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          },
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/report_alone/swapped",
+            "condition": "report_alone",
+            "task": "formal_short_irc_waiver",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "swapped",
+            "option_rotation": null,
+            "choices": {
+              "A": "已有正式 short_irc 豁免。",
+              "B": "没有；记录中没有正式 short_irc 豁免。"
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "没有；记录中没有正式 short_irc 豁免。",
+            "actual_choice_text": "没有；记录中没有正式 short_irc 豁免。",
+            "expected_letter": "B",
+            "expected_semantic_action": "没有；记录中没有正式 short_irc 豁免。",
+            "expected_choice_text": "没有；记录中没有正式 short_irc 豁免。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": 601,
+            "reported_prompt_eval_count": 601,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 1849238000,
+            "native_prefill_seconds": 1.849238,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "event_id": "evt_3c9998d9f50b4954",
+              "project_id": "prj_5d1b825b54cd4750",
+              "session_id": "as_1a427bf65def4bbc",
+              "run_id": "run_bea89c175f094587",
+              "seq": 2836,
+              "session_seq": 1732,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T06:30:13.174446+00:00",
+              "source_rowid": 28922
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/3ec6b00425b468b25ecaf1d9960d8265149e627fb9ba0c8cd7eeeaecc5741e52.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          }
+        ],
+        "two_orders_consistent": true
+      },
+      "next_workflow_action": {
+        "n": 2,
+        "n_matching_frozen_labels": 2,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+          "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。"
+        ],
+        "selected_letters": [
+          "A",
+          "B"
+        ],
+        "records": [
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/report_alone/forward",
+            "condition": "report_alone",
+            "task": "next_workflow_action",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "forward",
+            "option_rotation": null,
+            "choices": {
+              "A": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+              "B": "可以直接声明完整交付（complete）。"
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "actual_choice_text": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "expected_letter": "A",
+            "expected_semantic_action": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "expected_choice_text": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": 602,
+            "reported_prompt_eval_count": 602,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 1871584000,
+            "native_prefill_seconds": 1.871584,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "event_id": "evt_3c9998d9f50b4954",
+              "project_id": "prj_5d1b825b54cd4750",
+              "session_id": "as_1a427bf65def4bbc",
+              "run_id": "run_bea89c175f094587",
+              "seq": 2836,
+              "session_seq": 1732,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T06:30:13.174446+00:00",
+              "source_rowid": 28922
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/eaf69e596a6ec976e8bbc0d1d60a1254f3da3cb9aa6fdeec4b4c59b54bbf4cd2.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          },
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/report_alone/swapped",
+            "condition": "report_alone",
+            "task": "next_workflow_action",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "swapped",
+            "option_rotation": null,
+            "choices": {
+              "A": "可以直接声明完整交付（complete）。",
+              "B": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。"
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "actual_choice_text": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "expected_letter": "B",
+            "expected_semantic_action": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "expected_choice_text": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": 602,
+            "reported_prompt_eval_count": 602,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 1881595000,
+            "native_prefill_seconds": 1.881595,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "event_id": "evt_3c9998d9f50b4954",
+              "project_id": "prj_5d1b825b54cd4750",
+              "session_id": "as_1a427bf65def4bbc",
+              "run_id": "run_bea89c175f094587",
+              "seq": 2836,
+              "session_seq": 1732,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T06:30:13.174446+00:00",
+              "source_rowid": 28922
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/5435bfc513ab905ad4cd85fb0ee3bd497ef31c77c5558cf9bd416e73c9366456.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          }
+        ],
+        "two_orders_consistent": true
+      }
+    },
+    "window_12": {
+      "latest_report_complete": {
+        "n": 2,
+        "n_matching_frozen_labels": 2,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "不是；complete 为 false。",
+          "不是；complete 为 false。"
+        ],
+        "selected_letters": [
+          "A",
+          "B"
+        ],
+        "records": [
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/window_12/forward",
+            "condition": "window_12",
+            "task": "latest_report_complete",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "forward",
+            "option_rotation": null,
+            "choices": {
+              "A": "不是；complete 为 false。",
+              "B": "是；complete 为 true。"
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "不是；complete 为 false。",
+            "actual_choice_text": "不是；complete 为 false。",
+            "expected_letter": "A",
+            "expected_semantic_action": "不是；complete 为 false。",
+            "expected_choice_text": "不是；complete 为 false。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": 12627,
+            "reported_prompt_eval_count": 12627,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 44726022000,
+            "native_prefill_seconds": 44.726022,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 16384,
+            "source_label": {
+              "original_message_index": 304,
+              "content_line": 4,
+              "report": {
+                "complete": false,
+                "satisfied": [
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_773a12c3",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_7ac90c74",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: frequency, ts_opt",
+                    "waiver": null
+                  }
+                ],
+                "unresolved": [
+                  {
+                    "code": "missing_stage_evidence",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  },
+                  {
+                    "code": "scientific_check_incomplete",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  }
+                ],
+                "inconclusive": [],
+                "waived": [],
+                "output_artifact": null
+              },
+              "displayed_report_sha256": "37e79aa1e979c747f441080de30d1f43796df65b162a6d8e46b040dcda9bbafa"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/ed474d00418ec61677a6506de91c70a51ba062030f4283c602de48b3d7bf01d4.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          },
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/window_12/swapped",
+            "condition": "window_12",
+            "task": "latest_report_complete",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "swapped",
+            "option_rotation": null,
+            "choices": {
+              "A": "是；complete 为 true。",
+              "B": "不是；complete 为 false。"
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "不是；complete 为 false。",
+            "actual_choice_text": "不是；complete 为 false。",
+            "expected_letter": "B",
+            "expected_semantic_action": "不是；complete 为 false。",
+            "expected_choice_text": "不是；complete 为 false。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": 12627,
+            "reported_prompt_eval_count": 12627,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 4492366000,
+            "native_prefill_seconds": 4.492366,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 16384,
+            "source_label": {
+              "original_message_index": 304,
+              "content_line": 4,
+              "report": {
+                "complete": false,
+                "satisfied": [
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_773a12c3",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_7ac90c74",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: frequency, ts_opt",
+                    "waiver": null
+                  }
+                ],
+                "unresolved": [
+                  {
+                    "code": "missing_stage_evidence",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  },
+                  {
+                    "code": "scientific_check_incomplete",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  }
+                ],
+                "inconclusive": [],
+                "waived": [],
+                "output_artifact": null
+              },
+              "displayed_report_sha256": "37e79aa1e979c747f441080de30d1f43796df65b162a6d8e46b040dcda9bbafa"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/a5eb489c4c3ea21fca5a3bf7be1819267a33c55ced9e006cc9d1a3d61d3793ad.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          }
+        ],
+        "two_orders_consistent": true
+      },
+      "formal_short_irc_waiver": {
+        "n": 2,
+        "n_matching_frozen_labels": 2,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "没有；记录中没有正式 short_irc 豁免。",
+          "没有；记录中没有正式 short_irc 豁免。"
+        ],
+        "selected_letters": [
+          "A",
+          "B"
+        ],
+        "records": [
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/window_12/forward",
+            "condition": "window_12",
+            "task": "formal_short_irc_waiver",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "forward",
+            "option_rotation": null,
+            "choices": {
+              "A": "没有；记录中没有正式 short_irc 豁免。",
+              "B": "已有正式 short_irc 豁免。"
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "没有；记录中没有正式 short_irc 豁免。",
+            "actual_choice_text": "没有；记录中没有正式 short_irc 豁免。",
+            "expected_letter": "A",
+            "expected_semantic_action": "没有；记录中没有正式 short_irc 豁免。",
+            "expected_choice_text": "没有；记录中没有正式 short_irc 豁免。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": 12637,
+            "reported_prompt_eval_count": 12637,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 4798108000,
+            "native_prefill_seconds": 4.798108,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 16384,
+            "source_label": {
+              "original_message_index": 304,
+              "content_line": 4,
+              "report": {
+                "complete": false,
+                "satisfied": [
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_773a12c3",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_7ac90c74",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: frequency, ts_opt",
+                    "waiver": null
+                  }
+                ],
+                "unresolved": [
+                  {
+                    "code": "missing_stage_evidence",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  },
+                  {
+                    "code": "scientific_check_incomplete",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  }
+                ],
+                "inconclusive": [],
+                "waived": [],
+                "output_artifact": null
+              },
+              "displayed_report_sha256": "37e79aa1e979c747f441080de30d1f43796df65b162a6d8e46b040dcda9bbafa"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/61f1d41718cf5dc00a59407f8aab89a06cf461d94d91006086b22e6d130d7f75.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          },
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/window_12/swapped",
+            "condition": "window_12",
+            "task": "formal_short_irc_waiver",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "swapped",
+            "option_rotation": null,
+            "choices": {
+              "A": "已有正式 short_irc 豁免。",
+              "B": "没有；记录中没有正式 short_irc 豁免。"
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "没有；记录中没有正式 short_irc 豁免。",
+            "actual_choice_text": "没有；记录中没有正式 short_irc 豁免。",
+            "expected_letter": "B",
+            "expected_semantic_action": "没有；记录中没有正式 short_irc 豁免。",
+            "expected_choice_text": "没有；记录中没有正式 short_irc 豁免。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": 12637,
+            "reported_prompt_eval_count": 12637,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 4486314000,
+            "native_prefill_seconds": 4.486314,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 16384,
+            "source_label": {
+              "original_message_index": 304,
+              "content_line": 4,
+              "report": {
+                "complete": false,
+                "satisfied": [
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_773a12c3",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_7ac90c74",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: frequency, ts_opt",
+                    "waiver": null
+                  }
+                ],
+                "unresolved": [
+                  {
+                    "code": "missing_stage_evidence",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  },
+                  {
+                    "code": "scientific_check_incomplete",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  }
+                ],
+                "inconclusive": [],
+                "waived": [],
+                "output_artifact": null
+              },
+              "displayed_report_sha256": "37e79aa1e979c747f441080de30d1f43796df65b162a6d8e46b040dcda9bbafa"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/82fea0b0f42eb6964fee4fbc397e46dfe2723214aeed4dd76a0b317f39656a5f.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          }
+        ],
+        "two_orders_consistent": true
+      },
+      "next_workflow_action": {
+        "n": 2,
+        "n_matching_frozen_labels": 2,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+          "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。"
+        ],
+        "selected_letters": [
+          "A",
+          "B"
+        ],
+        "records": [
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/window_12/forward",
+            "condition": "window_12",
+            "task": "next_workflow_action",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "forward",
+            "option_rotation": null,
+            "choices": {
+              "A": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+              "B": "可以直接声明完整交付（complete）。"
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "actual_choice_text": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "expected_letter": "A",
+            "expected_semantic_action": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "expected_choice_text": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": 12638,
+            "reported_prompt_eval_count": 12638,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 4555531000,
+            "native_prefill_seconds": 4.555531,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 16384,
+            "source_label": {
+              "original_message_index": 304,
+              "content_line": 4,
+              "report": {
+                "complete": false,
+                "satisfied": [
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_773a12c3",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_7ac90c74",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: frequency, ts_opt",
+                    "waiver": null
+                  }
+                ],
+                "unresolved": [
+                  {
+                    "code": "missing_stage_evidence",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  },
+                  {
+                    "code": "scientific_check_incomplete",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  }
+                ],
+                "inconclusive": [],
+                "waived": [],
+                "output_artifact": null
+              },
+              "displayed_report_sha256": "37e79aa1e979c747f441080de30d1f43796df65b162a6d8e46b040dcda9bbafa"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/ed67cf0ef5e861cff571a2ff099ef0a6ba2fcc8748c812e335ce74c089d222d2.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          },
+          {
+            "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/window_12/swapped",
+            "condition": "window_12",
+            "task": "next_workflow_action",
+            "information_condition": null,
+            "question_type": null,
+            "option_order": "swapped",
+            "option_rotation": null,
+            "choices": {
+              "A": "可以直接声明完整交付（complete）。",
+              "B": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。"
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "actual_choice_text": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "expected_letter": "B",
+            "expected_semantic_action": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "expected_choice_text": "保留报告缺口；继续补证或如实部分交付，不能据此宣称完整交付。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": 12638,
+            "reported_prompt_eval_count": 12638,
+            "reported_count_matches_raw": true,
+            "native_prefill_duration_ns": 4483603000,
+            "native_prefill_seconds": 4.483603,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 16384,
+            "source_label": {
+              "original_message_index": 304,
+              "content_line": 4,
+              "report": {
+                "complete": false,
+                "satisfied": [
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_773a12c3",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "node",
+                    "target_id": "sp_7ac90c74",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: geometry",
+                    "waiver": null
+                  },
+                  {
+                    "code": "supervisor_evidence_accepted",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Supervisor accepted immutable per-file evidence for stages: frequency, ts_opt",
+                    "waiver": null
+                  }
+                ],
+                "unresolved": [
+                  {
+                    "code": "missing_stage_evidence",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  },
+                  {
+                    "code": "scientific_check_incomplete",
+                    "target_type": "edge",
+                    "target_id": "step_3656707a",
+                    "detail": "Diagnostic details omitted.",
+                    "waiver": null
+                  }
+                ],
+                "inconclusive": [],
+                "waived": [],
+                "output_artifact": null
+              },
+              "displayed_report_sha256": "37e79aa1e979c747f441080de30d1f43796df65b162a6d8e46b040dcda9bbafa"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/1956c7289ad51e6945b9c2d95ad5ee0f8c743c0f30d48720cb6960cb3e7fd6e0.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window"
+          }
+        ],
+        "two_orders_consistent": true
+      }
+    }
+  },
+  "full_history_execution": {
+    "status": "request_timeout",
+    "n_planned": 6,
+    "n_attempted": 1,
+    "n_completed": 0,
+    "n_not_attempted": 5,
+    "attempted_id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/full_306/forward",
+    "counted_raw_prompt_tokens": 242803,
+    "configured_num_ctx": 262144,
+    "http_wait_limit_seconds": 3600,
+    "exception": "TimeoutError: timed out",
+    "exit_code": 1,
+    "observed_at_utc": "2026-10-28T11:54:56.828873+00:00",
+    "interpretation": "首个完整历史请求在3600秒HTTP等待上限结束，未保存答案；其余5题未尝试。记录为操作等待成本，不记为模型答错。",
+    "native_prefill_duration": null,
+    "native_reported_prompt_eval_count": null,
+    "included_in_correctness_or_option_consistency": false,
+    "planned_inputs": [
+      {
+        "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/full_306/forward",
+        "task": "latest_report_complete",
+        "option_order": "forward",
+        "raw_prompt_token_count": 242803,
+        "raw_prompt_sha256": "cd61599c3a94d5e54d357a7e9f1eef2f26246a77a866f655b6f31884028568b6",
+        "execution_status": "request_timeout"
+      },
+      {
+        "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/full_306/swapped",
+        "task": "latest_report_complete",
+        "option_order": "swapped",
+        "raw_prompt_token_count": 242803,
+        "raw_prompt_sha256": "99153743b4e3ae7ee9795abb5e24ccf0d4860e77d1b78fa67acdf4649517100a",
+        "execution_status": "not_attempted"
+      },
+      {
+        "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/full_306/forward",
+        "task": "formal_short_irc_waiver",
+        "option_order": "forward",
+        "raw_prompt_token_count": 242813,
+        "raw_prompt_sha256": "016e909887fd5a9bbfdfcfa034d06afeef0ab0b11be2585e926f955c5247c846",
+        "execution_status": "not_attempted"
+      },
+      {
+        "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/full_306/swapped",
+        "task": "formal_short_irc_waiver",
+        "option_order": "swapped",
+        "raw_prompt_token_count": 242813,
+        "raw_prompt_sha256": "1f40df967210469eb8e6c14421e7a9075106eb2bf42fcb4c8210e9e2e6610841",
+        "execution_status": "not_attempted"
+      },
+      {
+        "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/full_306/forward",
+        "task": "next_workflow_action",
+        "option_order": "forward",
+        "raw_prompt_token_count": 242814,
+        "raw_prompt_sha256": "337dc8241ada42669e9ac39d44c3723686b7f866be70e17c9762869430295f8f",
+        "execution_status": "not_attempted"
+      },
+      {
+        "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/full_306/swapped",
+        "task": "next_workflow_action",
+        "option_order": "swapped",
+        "raw_prompt_token_count": 242814,
+        "raw_prompt_sha256": "28af0f1dbebd7170a2844c3b09efdbb85756756b9951b0e7524bc71f5db6d1a2",
+        "execution_status": "not_attempted"
+      }
+    ],
+    "source_files": {
+      "frozen_probes.jsonl": {
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_full/frozen_probes.jsonl",
+        "sha256": "f2a01789d6513a83c6878d240383b6623c66b35573f11a7f5c82d765002cfad9"
+      },
+      "terminal_status.json": {
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_full/terminal_status.json",
+        "sha256": "c0076c031a6f9d9851f4481d77a4a12341873506352ec2044aa8789fd9e65b68"
+      },
+      "terminal_exec_result.json": {
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_full/terminal_exec_result.json",
+        "sha256": "ea15cd737c39f8b00863d7fd579e9c89ecedf46c6c6e09ac6597d4761ec7782f"
+      },
+      "failed_request.json": {
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_full/failed_request.json",
+        "sha256": "caf254352cb9c8314e8ee5c4f7ab2de19bcb2443be4935aaa5fc32b0d05b0bd8"
+      },
+      "source_request": {
+        "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/history_data_diagnostic/requests/full_306__latest_report_complete__forward.json",
+        "sha256": "ba4f1f6c0a267ca60bd80d7bf1b6f40aa2b053543b17b048a0c20cd48fe49b75"
+      }
+    }
+  },
+  "operation": {
+    "proxy_only": {
+      "sufficiency": {
+        "n": 2,
+        "n_matching_frozen_labels": 2,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "need_target_measurement",
+          "need_target_measurement"
+        ],
+        "selected_letters": [
+          "B",
+          "A"
+        ],
+        "records": [
+          {
+            "id": "A/operation_feedback/proxy_only/sufficiency/0",
+            "condition": "proxy_only/sufficiency",
+            "task": null,
+            "information_condition": "proxy_only",
+            "question_type": "sufficiency",
+            "option_order": null,
+            "option_rotation": 0,
+            "choices": {
+              "A": {
+                "action": "sufficient",
+                "text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。"
+              },
+              "B": {
+                "action": "need_target_measurement",
+                "text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。"
+              }
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "need_target_measurement",
+            "actual_choice_text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。",
+            "expected_letter": "B",
+            "expected_semantic_action": "need_target_measurement",
+            "expected_choice_text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 209,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 792748000,
+            "native_prefill_seconds": 0.792748,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/ea2b407b5717e4c8003a18d87456b9803ed3f890f8a3c5aed9b14f101c5a36a7.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          },
+          {
+            "id": "A/operation_feedback/proxy_only/sufficiency/1",
+            "condition": "proxy_only/sufficiency",
+            "task": null,
+            "information_condition": "proxy_only",
+            "question_type": "sufficiency",
+            "option_order": null,
+            "option_rotation": 1,
+            "choices": {
+              "A": {
+                "action": "need_target_measurement",
+                "text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。"
+              },
+              "B": {
+                "action": "sufficient",
+                "text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。"
+              }
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "need_target_measurement",
+            "actual_choice_text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。",
+            "expected_letter": "A",
+            "expected_semantic_action": "need_target_measurement",
+            "expected_choice_text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 209,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 769969000,
+            "native_prefill_seconds": 0.769969,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/c95cd43bdbdb149ace59c5a2cb8925f7c8e50291b61e8ef5d4269bdda7f54920.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          }
+        ]
+      },
+      "next_action": {
+        "n": 3,
+        "n_matching_frozen_labels": 3,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "request_target_measurement",
+          "request_target_measurement",
+          "request_target_measurement"
+        ],
+        "selected_letters": [
+          "C",
+          "B",
+          "A"
+        ],
+        "records": [
+          {
+            "id": "A/operation_feedback/proxy_only/next_action/0",
+            "condition": "proxy_only/next_action",
+            "task": null,
+            "information_condition": "proxy_only",
+            "question_type": "next_action",
+            "option_order": null,
+            "option_rotation": 0,
+            "choices": {
+              "A": {
+                "action": "select_A",
+                "text": "采用候选A，作为更接近指定角度的下一阶段候选。"
+              },
+              "B": {
+                "action": "select_B",
+                "text": "采用候选B，作为更接近指定角度的下一阶段候选。"
+              },
+              "C": {
+                "action": "request_target_measurement",
+                "text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。"
+              }
+            },
+            "actual_letter": "C",
+            "actual_semantic_action": "request_target_measurement",
+            "actual_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+            "expected_letter": "C",
+            "expected_semantic_action": "request_target_measurement",
+            "expected_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "C",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 210,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 770401000,
+            "native_prefill_seconds": 0.770401,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/f8975c6a2c7c1397eb52c8c8d32587a54d0bd1bc0e82b240d3b009239dccfb9f.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          },
+          {
+            "id": "A/operation_feedback/proxy_only/next_action/1",
+            "condition": "proxy_only/next_action",
+            "task": null,
+            "information_condition": "proxy_only",
+            "question_type": "next_action",
+            "option_order": null,
+            "option_rotation": 1,
+            "choices": {
+              "A": {
+                "action": "select_B",
+                "text": "采用候选B，作为更接近指定角度的下一阶段候选。"
+              },
+              "B": {
+                "action": "request_target_measurement",
+                "text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。"
+              },
+              "C": {
+                "action": "select_A",
+                "text": "采用候选A，作为更接近指定角度的下一阶段候选。"
+              }
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "request_target_measurement",
+            "actual_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+            "expected_letter": "B",
+            "expected_semantic_action": "request_target_measurement",
+            "expected_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 210,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 771178000,
+            "native_prefill_seconds": 0.771178,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/81e27c944ea5218cd8cdcf523b8f8b79b67b90613475e9a943909384726bcb32.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          },
+          {
+            "id": "A/operation_feedback/proxy_only/next_action/2",
+            "condition": "proxy_only/next_action",
+            "task": null,
+            "information_condition": "proxy_only",
+            "question_type": "next_action",
+            "option_order": null,
+            "option_rotation": 2,
+            "choices": {
+              "A": {
+                "action": "request_target_measurement",
+                "text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。"
+              },
+              "B": {
+                "action": "select_A",
+                "text": "采用候选A，作为更接近指定角度的下一阶段候选。"
+              },
+              "C": {
+                "action": "select_B",
+                "text": "采用候选B，作为更接近指定角度的下一阶段候选。"
+              }
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "request_target_measurement",
+            "actual_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+            "expected_letter": "A",
+            "expected_semantic_action": "request_target_measurement",
+            "expected_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 210,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 770406000,
+            "native_prefill_seconds": 0.770406,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/4368e1b2adb0837570274e11481a630077e79e7ea4d5401e7fd921be42c95006.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          }
+        ]
+      }
+    },
+    "proxy_plus_target": {
+      "sufficiency": {
+        "n": 2,
+        "n_matching_frozen_labels": 2,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "sufficient",
+          "sufficient"
+        ],
+        "selected_letters": [
+          "A",
+          "B"
+        ],
+        "records": [
+          {
+            "id": "A/operation_feedback/proxy_plus_target/sufficiency/0",
+            "condition": "proxy_plus_target/sufficiency",
+            "task": null,
+            "information_condition": "proxy_plus_target",
+            "question_type": "sufficiency",
+            "option_order": null,
+            "option_rotation": 0,
+            "choices": {
+              "A": {
+                "action": "sufficient",
+                "text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。"
+              },
+              "B": {
+                "action": "need_target_measurement",
+                "text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。"
+              }
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "sufficient",
+            "actual_choice_text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。",
+            "expected_letter": "A",
+            "expected_semantic_action": "sufficient",
+            "expected_choice_text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 256,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 801521000,
+            "native_prefill_seconds": 0.801521,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/42deeb0d72e5190c53db9b76cffaff82554d734a73a4e92891e23f8eac19ce24.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          },
+          {
+            "id": "A/operation_feedback/proxy_plus_target/sufficiency/1",
+            "condition": "proxy_plus_target/sufficiency",
+            "task": null,
+            "information_condition": "proxy_plus_target",
+            "question_type": "sufficiency",
+            "option_order": null,
+            "option_rotation": 1,
+            "choices": {
+              "A": {
+                "action": "need_target_measurement",
+                "text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。"
+              },
+              "B": {
+                "action": "sufficient",
+                "text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。"
+              }
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "sufficient",
+            "actual_choice_text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。",
+            "expected_letter": "B",
+            "expected_semantic_action": "sufficient",
+            "expected_choice_text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 256,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 800462000,
+            "native_prefill_seconds": 0.800462,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/c0f0843cdb4975afa078fc25ed2da3dfab95930e66f37d554bd9cc84f5fa1907.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          }
+        ]
+      },
+      "next_action": {
+        "n": 3,
+        "n_matching_frozen_labels": 3,
+        "all_orders_same_semantic_action": true,
+        "selected_semantic_actions": [
+          "select_B",
+          "select_B",
+          "select_B"
+        ],
+        "selected_letters": [
+          "B",
+          "A",
+          "C"
+        ],
+        "records": [
+          {
+            "id": "A/operation_feedback/proxy_plus_target/next_action/0",
+            "condition": "proxy_plus_target/next_action",
+            "task": null,
+            "information_condition": "proxy_plus_target",
+            "question_type": "next_action",
+            "option_order": null,
+            "option_rotation": 0,
+            "choices": {
+              "A": {
+                "action": "select_A",
+                "text": "采用候选A，作为更接近指定角度的下一阶段候选。"
+              },
+              "B": {
+                "action": "select_B",
+                "text": "采用候选B，作为更接近指定角度的下一阶段候选。"
+              },
+              "C": {
+                "action": "request_target_measurement",
+                "text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。"
+              }
+            },
+            "actual_letter": "B",
+            "actual_semantic_action": "select_B",
+            "actual_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+            "expected_letter": "B",
+            "expected_semantic_action": "select_B",
+            "expected_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "B",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 257,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 800797000,
+            "native_prefill_seconds": 0.800797,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/9dbf16665ab5f6829bbe0c4df6237510467d16e00ed10167b89ba59015f5856b.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          },
+          {
+            "id": "A/operation_feedback/proxy_plus_target/next_action/1",
+            "condition": "proxy_plus_target/next_action",
+            "task": null,
+            "information_condition": "proxy_plus_target",
+            "question_type": "next_action",
+            "option_order": null,
+            "option_rotation": 1,
+            "choices": {
+              "A": {
+                "action": "select_B",
+                "text": "采用候选B，作为更接近指定角度的下一阶段候选。"
+              },
+              "B": {
+                "action": "request_target_measurement",
+                "text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。"
+              },
+              "C": {
+                "action": "select_A",
+                "text": "采用候选A，作为更接近指定角度的下一阶段候选。"
+              }
+            },
+            "actual_letter": "A",
+            "actual_semantic_action": "select_B",
+            "actual_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+            "expected_letter": "A",
+            "expected_semantic_action": "select_B",
+            "expected_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "A",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 257,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 800904000,
+            "native_prefill_seconds": 0.800904,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/61eff8edcb3c92a0589f70e5672a2c0231725e0f3f670d38415e3c74cff348d7.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          },
+          {
+            "id": "A/operation_feedback/proxy_plus_target/next_action/2",
+            "condition": "proxy_plus_target/next_action",
+            "task": null,
+            "information_condition": "proxy_plus_target",
+            "question_type": "next_action",
+            "option_order": null,
+            "option_rotation": 2,
+            "choices": {
+              "A": {
+                "action": "request_target_measurement",
+                "text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。"
+              },
+              "B": {
+                "action": "select_A",
+                "text": "采用候选A，作为更接近指定角度的下一阶段候选。"
+              },
+              "C": {
+                "action": "select_B",
+                "text": "采用候选B，作为更接近指定角度的下一阶段候选。"
+              }
+            },
+            "actual_letter": "C",
+            "actual_semantic_action": "select_B",
+            "actual_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+            "expected_letter": "C",
+            "expected_semantic_action": "select_B",
+            "expected_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+            "matches_frozen_label": true,
+            "format_valid": true,
+            "raw_response": "C",
+            "raw_prompt_token_count": null,
+            "reported_prompt_eval_count": 257,
+            "reported_count_matches_raw": null,
+            "native_prefill_duration_ns": 800908000,
+            "native_prefill_seconds": 0.800908,
+            "done_reason": "stop",
+            "eval_count": 2,
+            "configured_num_ctx": 8192,
+            "source_label": {
+              "case_file": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/operation_feedback_case.json",
+              "source_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/guided/r2/runtime/runtime-v2.db",
+              "source_database_relative": "guided/r2/runtime/runtime-v2.db",
+              "program_output_event": {
+                "event_id": "evt_6b554f3c7a1c4ef2",
+                "source_rowid": 1185,
+                "project_id": "prj_cef935901bb8417c",
+                "session_id": "as_dff8bff45c8f4abb",
+                "run_id": "run_e1448c7c429d44e4",
+                "seq": 732,
+                "session_seq": 382,
+                "type": "program.output",
+                "created_at": "2026-10-24T00:00:03.800256+00:00"
+              },
+              "display_field": "data.value",
+              "native_raw_result_event_id": "evt_9c2770c662754bed",
+              "original_goal_event_id": "evt_3303b940e55a4806"
+            },
+            "source_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/4f82221755150eae4e442efd4a9abf7ffa29e3984b01d647a5671624bdd7e1f3.json",
+            "source_run": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback"
+          }
+        ]
+      }
+    }
+  },
+  "operation_transitions": {
+    "sufficiency": [
+      {
+        "option_rotation": 0,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "B",
+        "after_H7_letter": "A",
+        "before_H7_action": "need_target_measurement",
+        "after_H7_action": "sufficient",
+        "before_H7_choice_text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。",
+        "after_H7_choice_text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/ea2b407b5717e4c8003a18d87456b9803ed3f890f8a3c5aed9b14f101c5a36a7.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/42deeb0d72e5190c53db9b76cffaff82554d734a73a4e92891e23f8eac19ce24.json"
+      },
+      {
+        "option_rotation": 1,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "A",
+        "after_H7_letter": "B",
+        "before_H7_action": "need_target_measurement",
+        "after_H7_action": "sufficient",
+        "before_H7_choice_text": "信息不足，需要补测两候选的 H7-C2-C3-Cl4。",
+        "after_H7_choice_text": "信息充分，可以判断哪一候选的 H7-C2-C3-Cl4 更接近180°。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/c95cd43bdbdb149ace59c5a2cb8925f7c8e50291b61e8ef5d4269bdda7f54920.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/c0f0843cdb4975afa078fc25ed2da3dfab95930e66f37d554bd9cc84f5fa1907.json"
+      }
+    ],
+    "next_action": [
+      {
+        "option_rotation": 0,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "C",
+        "after_H7_letter": "B",
+        "before_H7_action": "request_target_measurement",
+        "after_H7_action": "select_B",
+        "before_H7_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+        "after_H7_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/f8975c6a2c7c1397eb52c8c8d32587a54d0bd1bc0e82b240d3b009239dccfb9f.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/9dbf16665ab5f6829bbe0c4df6237510467d16e00ed10167b89ba59015f5856b.json"
+      },
+      {
+        "option_rotation": 1,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "B",
+        "after_H7_letter": "A",
+        "before_H7_action": "request_target_measurement",
+        "after_H7_action": "select_B",
+        "before_H7_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+        "after_H7_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/81e27c944ea5218cd8cdcf523b8f8b79b67b90613475e9a943909384726bcb32.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/61eff8edcb3c92a0589f70e5672a2c0231725e0f3f670d38415e3c74cff348d7.json"
+      },
+      {
+        "option_rotation": 2,
+        "option_mapping_unchanged": true,
+        "before_H7_letter": "A",
+        "after_H7_letter": "C",
+        "before_H7_action": "request_target_measurement",
+        "after_H7_action": "select_B",
+        "before_H7_choice_text": "先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。",
+        "after_H7_choice_text": "采用候选B，作为更接近指定角度的下一阶段候选。",
+        "action_changed": true,
+        "before_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/4368e1b2adb0837570274e11481a630077e79e7ea4d5401e7fd921be42c95006.json",
+        "after_response": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/4f82221755150eae4e442efd4a9abf7ffa29e3984b01d647a5671624bdd7e1f3.json"
+      }
+    ]
+  },
+  "metadata": {
+    "sources": {
+      "pilot_history_window": {
+        "frozen_probes.jsonl": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/frozen_probes.jsonl",
+          "sha256": "b4ec618c31803c52eff406bc49c32203a9bcf89f7e064073a805c29de74a8a39"
+        },
+        "results.json": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/results.json",
+          "sha256": "d5eea32e261cced99192a907e3b514583cd3adf87563d91e6d6c1b7973f803f9"
+        },
+        "summary.json": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/summary.json",
+          "sha256": "e33d41a855bd6908fd4be277c91554dcca15d74f455428da1c165772745acd59"
+        },
+        "responses": [
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/8e219c2fc8aa403a58faa884baaa31a45e6c78895b5cc3a38e685b4d3652c346.json",
+            "sha256": "c17ebde301746ccd92e889c7c797b1e169c3d0c3c5cb515657c309028a8877ff"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/e96ac291fa3f6cffa473458ea0ec64fc7d2bb6af781fbf65c40d38f17a2f6394.json",
+            "sha256": "5a93046045a8d5952645cbabfc2964a94b8fe851a8b0528c30348a1332926afe"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/d3334e9e4a04666c5e80b5742649605e3460243a98b7e3f9fb86e39664e1dee1.json",
+            "sha256": "9ea80577d6b590894a59dc5ab6393098bdf641d5d780016af6a3788c3fc64dc4"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/3ec6b00425b468b25ecaf1d9960d8265149e627fb9ba0c8cd7eeeaecc5741e52.json",
+            "sha256": "d3204e60dc35e9cd3d5230ac999474875cb2a71cdd834f40204a0de6ed2bc2a4"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/eaf69e596a6ec976e8bbc0d1d60a1254f3da3cb9aa6fdeec4b4c59b54bbf4cd2.json",
+            "sha256": "bdde36ebaf9cf8440665c00c38f0002a0b1f31d4484df03779222133f6100f08"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/5435bfc513ab905ad4cd85fb0ee3bd497ef31c77c5558cf9bd416e73c9366456.json",
+            "sha256": "df755f6d819804f4c59ab88000f0e3a743a211f21b9eb9b74f58d42c321fc2c5"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/ed474d00418ec61677a6506de91c70a51ba062030f4283c602de48b3d7bf01d4.json",
+            "sha256": "a89502b9c7c791d83dd499da7d9e86f53917c60320310a72084cdca1c50a1b81"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/a5eb489c4c3ea21fca5a3bf7be1819267a33c55ced9e006cc9d1a3d61d3793ad.json",
+            "sha256": "6352646a893a0d63140f1c00bc7c8f5e610f28c5a347c636ad1039acc023fe96"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/61f1d41718cf5dc00a59407f8aab89a06cf461d94d91006086b22e6d130d7f75.json",
+            "sha256": "22f892ef8f38c857f8d39010195eaf56cd0f5afa67ddea9f9aa2f974e39e2bfb"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/82fea0b0f42eb6964fee4fbc397e46dfe2723214aeed4dd76a0b317f39656a5f.json",
+            "sha256": "854d2704b4805c147e9997d7c347c330ee0062d6a8ee9209284ed4cea6fea33d"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/ed67cf0ef5e861cff571a2ff099ef0a6ba2fcc8748c812e335ce74c089d222d2.json",
+            "sha256": "40519d9fbdeb6487c090b5fe45ad791a78df9ea4a9b1ab1cb69ea1c8130da377"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_window/responses/1956c7289ad51e6945b9c2d95ad5ee0f8c743c0f30d48720cb6960cb3e7fd6e0.json",
+            "sha256": "3789f713c6e2a3df4be63620ef8ad2aa1698c673c144aad4e3b7d12aa2ba1c0f"
+          }
+        ]
+      },
+      "pilot_operation_feedback": {
+        "frozen_probes.jsonl": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/frozen_probes.jsonl",
+          "sha256": "dea084766034acdc2d0919388e8668d67831bc8d8f270fa5458c2218b74c63ea"
+        },
+        "results.json": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/results.json",
+          "sha256": "4c7d1c1fcde3e2d92e7b432eed4169d982de4e9ebaccda58763891d3d4c867f1"
+        },
+        "summary.json": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/summary.json",
+          "sha256": "dac454af349a608e7f64a8d61bea20e7ebe84fb49858d9ae30838296ef526589"
+        },
+        "responses": [
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/ea2b407b5717e4c8003a18d87456b9803ed3f890f8a3c5aed9b14f101c5a36a7.json",
+            "sha256": "def7dde37bf6803c36961255a596c9311b7383f0253b2c7d41cac8b1265015c9"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/c95cd43bdbdb149ace59c5a2cb8925f7c8e50291b61e8ef5d4269bdda7f54920.json",
+            "sha256": "ff054f05e42046d4464da5cf5af0a74d3fccd07ce0cfd5841522d0d06a5ea9fb"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/f8975c6a2c7c1397eb52c8c8d32587a54d0bd1bc0e82b240d3b009239dccfb9f.json",
+            "sha256": "cbf17f2ad5ad53c033412f1c7037024504abcfe6a1586167c967568a79ce8365"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/81e27c944ea5218cd8cdcf523b8f8b79b67b90613475e9a943909384726bcb32.json",
+            "sha256": "6e7cef7f13658f108fce8047fbc8488df9ceb1d4a0136e715a861ff8ca0e44e5"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/4368e1b2adb0837570274e11481a630077e79e7ea4d5401e7fd921be42c95006.json",
+            "sha256": "103f5716e45dce85f71cefc9cec19637b516799ddb373f1137ab647a1ebfbd1e"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/42deeb0d72e5190c53db9b76cffaff82554d734a73a4e92891e23f8eac19ce24.json",
+            "sha256": "6fce6196517621d34da83e81b94a18bcf7b337367d9d0af6231f9d026b82922d"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/c0f0843cdb4975afa078fc25ed2da3dfab95930e66f37d554bd9cc84f5fa1907.json",
+            "sha256": "373540add1f04d12d60fd20a0cdb56d763b819c8d953b86dd1b8680b76f8c000"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/9dbf16665ab5f6829bbe0c4df6237510467d16e00ed10167b89ba59015f5856b.json",
+            "sha256": "d68a8d600ee9a43c2d3698c8629f3c80a5036ec8aa814fa23f13414d7b26dfc4"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/61eff8edcb3c92a0589f70e5672a2c0231725e0f3f670d38415e3c74cff348d7.json",
+            "sha256": "c409d0237909cd62843090198e2c687afc7e908eea448d495ef8bdd72dd778ff"
+          },
+          {
+            "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_operation_feedback/responses/4f82221755150eae4e442efd4a9abf7ffa29e3984b01d647a5671624bdd7e1f3.json",
+            "sha256": "835f916537e554e6feaf3e3888d54db1c16b2285129b966608ab8b82fbf9e0c4"
+          }
+        ]
+      },
+      "pilot_history_full": {
+        "frozen_probes.jsonl": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_full/frozen_probes.jsonl",
+          "sha256": "f2a01789d6513a83c6878d240383b6623c66b35573f11a7f5c82d765002cfad9"
+        },
+        "terminal_status.json": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_full/terminal_status.json",
+          "sha256": "c0076c031a6f9d9851f4481d77a4a12341873506352ec2044aa8789fd9e65b68"
+        },
+        "terminal_exec_result.json": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_full/terminal_exec_result.json",
+          "sha256": "ea15cd737c39f8b00863d7fd579e9c89ecedf46c6c6e09ac6597d4761ec7782f"
+        },
+        "failed_request.json": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/pilot_history_full/failed_request.json",
+          "sha256": "caf254352cb9c8314e8ee5c4f7ab2de19bcb2443be4935aaa5fc32b0d05b0bd8"
+        },
+        "source_request": {
+          "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/history_data_diagnostic/requests/full_306__latest_report_complete__forward.json",
+          "sha256": "ba4f1f6c0a267ca60bd80d7bf1b6f40aa2b053543b17b048a0c20cd48fe49b75"
+        }
+      }
+    },
+    "n_completed_responses": 22,
+    "n_history_completed_inputs": 12,
+    "n_operation_inputs": 10,
+    "n_full_history_planned": 6,
+    "n_full_history_completed": 0,
+    "history_state_pair_n": 6,
+    "operation_next_action_rotation_n_per_condition": 3,
+    "reported_count_match_observations": {
+      "True": 12
+    },
+    "done_reason_counts": {
+      "stop": 22
+    },
+    "history_protocol": "Quoted JSON data in raw ChatML with fixed closed think; not native chat or reconstructed original provider wire.",
+    "operation_protocol": "Curated native H5-only display versus the same H5 display plus native H7 values; A/B sufficiency and cyclic A/B/C next actions.",
+    "scope": "One IA1 workflow conflict and one E1 geometry operation source; option rotations are repeated presentations.",
+    "prefill_duration": "Original native prompt_eval_duration is retained per response in ns and seconds for inspection.",
+    "token_count_observation": "Raw tokenizer counts and native reported counts remain separate; matching counts are recorded rather than assumed.",
+    "label_source": "Frozen labels and choices are read from each pilot's own frozen_probes.jsonl; actual choices are parsed again from the saved native responses."
+  }
+}

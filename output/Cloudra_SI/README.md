@@ -1,0 +1,16 @@
+# Cloudra SI 初稿
+
+日期：2026年10月31日。英文 SI 共27页，已在 Overleaf 使用 XeLaTeX、TeX Live 2026 编译。
+
+- [SI初稿PDF](Cloudra_SI_EN_Draft.pdf)
+- [Overleaf可编辑项目包](Cloudra_SI_Overleaf.zip)
+- [配套数据与复现材料](Cloudra_SI_Data.zip)，约16.8MB，解压得到 companion_data/。
+- [在线Overleaf项目](https://www.overleaf.com/project/6ae5e126e8645869834e129f)
+
+SI包含7节、50题完整定义、200次运行的800个总分与评分分项、速度/交付/科学归属分析、行为实验与激活干预、85个化学Agent系统的原始来源、复现入口。正式数据离线整理按论文方法说明，未运行新实验。
+
+数据包保留50个原任务JSON、完整精度分数CSV、原始请求与响应、目标几何与证据案例、完整激活读出、文献来源与文件级哈希。模型权重不包含在内。排版项目与数据包分开，便于编辑正文。
+
+作者顺序：杨程驿（Chengyi Yang）；Qianxin Zhou；李洋（Yang Li）。Qianxin Zhou与李洋标为共同第二作者，其中Zhou排列在前。杨程驿和李洋的单位为长沙理工大学化学与医药工程学院；Zhou为图片所示福州大学单位。
+
+可编辑源稿见 paper/overleaf/Cloudra_SI/。首页署名已同步至中英文正文。

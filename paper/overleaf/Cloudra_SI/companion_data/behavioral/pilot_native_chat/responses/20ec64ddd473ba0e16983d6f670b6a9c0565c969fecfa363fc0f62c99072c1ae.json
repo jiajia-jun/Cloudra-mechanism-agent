@@ -1,0 +1,45 @@
+{
+  "request": {
+    "model": "qwen3.8:27b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter, A or B. Do not add explanations."
+      },
+      {
+        "role": "user",
+        "content": "下面是 XYZ 坐标，坐标单位 Å，原子编号从 1 开始，按行计数：\n11\n energy: -24.642694376063 gnorm: 0.000634776988 xtb: 6.5.0 (746241f)\nO            1.41356785806941       -1.10149830988854       -0.55082115670169\nC            1.11637719829801       -0.02226372040081       -0.10327660488436\nO            1.63615283396557        1.12329533969232       -0.57160193124801\nC            0.12761659328337        0.21190679790211        0.97993477100420\nC           -1.39980573563533        0.61853406746160       -0.26011222546411\nO           -1.10398046295681        1.51895216186743       -0.91175252141966\nO           -2.17584642615756       -0.22966037821671        0.08005812921232\nH            2.24276254481925        0.94962477927505       -1.30690892640454\nH            0.09982897022110        1.24296669020990        1.31986148809680\nH            0.43262297256456       -0.41080946147794        1.83127303495510\nH           -1.07049634647133       -0.47344796642413        0.83764594285383\n\n哪一对原子的欧氏距离更短？\nA. 原子 7 与原子 11\nB. 原子 4 与原子 11\n只回答 A 或 B。"
+      }
+    ],
+    "stream": false,
+    "think": false,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "num_predict": 1024,
+      "num_ctx": 8192,
+      "top_k": 0,
+      "top_p": 1,
+      "min_p": 0,
+      "repeat_penalty": 1,
+      "presence_penalty": 0,
+      "draft_num_predict": 0
+    }
+  },
+  "response": {
+    "model": "qwen3.8:27b",
+    "created_at": "2026-10-28T09:45:22.179852Z",
+    "message": {
+      "role": "assistant",
+      "content": "A"
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 3229889083,
+    "load_duration": 584167,
+    "prompt_eval_count": 784,
+    "prompt_eval_duration": 3144472000,
+    "eval_count": 2,
+    "eval_duration": 83369000
+  }
+}

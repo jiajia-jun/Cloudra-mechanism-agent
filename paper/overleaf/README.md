@@ -23,3 +23,5 @@
 在线项目：[英文](https://www.overleaf.com/project/6ae36f82f45648027f73ed76) · [中文](https://www.overleaf.com/project/6ae37adfaf331ac2323b4c3f)。
 
 图4、12、15、17已于2026年10月30日更新为分层卡片与矢量框体图，文字边界及论文中的实际显示已检查。源图见 [框体图目录](../figures/box_diagrams_20261030/README.md)。
+
+英文SI独立项目为 [Cloudra_SI](Cloudra_SI/README.md)，含完整长表与证据分析；编译PDF、源项目和数据包见 [SI交付目录](../../output/Cloudra_SI/README.md)。两版正文与SI已同步作者顺序及共同第二作者标记。

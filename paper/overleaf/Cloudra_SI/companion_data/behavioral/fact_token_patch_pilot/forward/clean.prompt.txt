@@ -1,0 +1,15 @@
+<|im_start|>system
+You assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter, A or B. Do not add explanations.<|im_end|>
+<|im_start|>user
+工具测得以下距离（Å）：
+r(C2-C4) = 2.029
+r(O3-H8) = 1.248
+哪一对原子的欧氏距离更短？
+A. 原子 2 与原子 4
+B. 原子 3 与原子 8
+只回答 A 或 B。<|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

@@ -1,0 +1,218 @@
+{
+  "request_key": "f8975c6a2c7c1397eb52c8c8d32587a54d0bd1bc0e82b240d3b009239dccfb9f",
+  "request": {
+    "model": "qwen3.8:27b",
+    "prompt": "<|im_start|>system\nYou assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter from A, B, C. Do not add explanations.<|im_end|>\n<|im_start|>user\n局部几何任务：比较两候选的 H7-C2-C3-Cl4 二面角到180°的圆周距离。A/B是候选标签。以下是当前可用的测量：\n\n候选A：|τ(H5-C2-C3-Cl4)|=55.8°。\n候选B：|τ(H5-C2-C3-Cl4)|=64.2°。\n\n下一步最符合这个指定局部几何目标的动作是什么？\nA. 采用候选A，作为更接近指定角度的下一阶段候选。\nB. 采用候选B，作为更接近指定角度的下一阶段候选。\nC. 先请求两候选的 H7-C2-C3-Cl4 测量，暂不选候选。\n只输出一个选项字母。<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n",
+    "raw": true,
+    "think": false,
+    "stream": false,
+    "logprobs": true,
+    "top_logprobs": 20,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "num_predict": 8,
+      "num_ctx": 8192,
+      "top_k": 0,
+      "top_p": 1,
+      "min_p": 0,
+      "repeat_penalty": 1,
+      "presence_penalty": 0,
+      "draft_num_predict": 0
+    }
+  },
+  "response": {
+    "model": "qwen3.8:27b",
+    "created_at": "2026-10-28T11:54:10.432197Z",
+    "response": "C",
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 880849000,
+    "load_duration": 584875,
+    "prompt_eval_count": 210,
+    "prompt_eval_duration": 770401000,
+    "eval_count": 2,
+    "eval_duration": 68105000,
+    "logprobs": [
+      {
+        "token": "C",
+        "logprob": -0.002984622260555625,
+        "bytes": [
+          67
+        ],
+        "top_logprobs": [
+          {
+            "token": "C",
+            "logprob": -0.002984622260555625,
+            "bytes": [
+              67
+            ]
+          },
+          {
+            "token": "A",
+            "logprob": -6.132384777069092,
+            "bytes": [
+              65
+            ]
+          },
+          {
+            "token": "B",
+            "logprob": -7.228942394256592,
+            "bytes": [
+              66
+            ]
+          },
+          {
+            "token": "c",
+            "logprob": -11.33448600769043,
+            "bytes": [
+              99
+            ]
+          },
+          {
+            "token": "The",
+            "logprob": -11.759653091430664,
+            "bytes": [
+              84,
+              104,
+              101
+            ]
+          },
+          {
+            "token": "H",
+            "logprob": -12.21194839477539,
+            "bytes": [
+              72
+            ]
+          },
+          {
+            "token": "D",
+            "logprob": -12.310733795166016,
+            "bytes": [
+              68
+            ]
+          },
+          {
+            "token": "T",
+            "logprob": -12.454638481140137,
+            "bytes": [
+              84
+            ]
+          },
+          {
+            "token": "Wait",
+            "logprob": -12.628305435180664,
+            "bytes": [
+              87,
+              97,
+              105,
+              116
+            ]
+          },
+          {
+            "token": "需要",
+            "logprob": -12.773078918457031,
+            "bytes": [
+              233,
+              156,
+              128,
+              232,
+              166,
+              129
+            ]
+          },
+          {
+            "token": "(C",
+            "logprob": -12.894708633422852,
+            "bytes": [
+              40,
+              67
+            ]
+          },
+          {
+            "token": "To",
+            "logprob": -12.903756141662598,
+            "bytes": [
+              84,
+              111
+            ]
+          },
+          {
+            "token": "思考",
+            "logprob": -13.107976913452148,
+            "bytes": [
+              230,
+              128,
+              157,
+              232,
+              128,
+              131
+            ]
+          },
+          {
+            "token": " C",
+            "logprob": -13.158370971679688,
+            "bytes": [
+              32,
+              67
+            ]
+          },
+          {
+            "token": "Need",
+            "logprob": -13.207228660583496,
+            "bytes": [
+              78,
+              101,
+              101,
+              100
+            ]
+          },
+          {
+            "token": "This",
+            "logprob": -13.384750366210938,
+            "bytes": [
+              84,
+              104,
+              105,
+              115
+            ]
+          },
+          {
+            "token": "?",
+            "logprob": -13.472007751464844,
+            "bytes": [
+              63
+            ]
+          },
+          {
+            "token": "",
+            "logprob": -13.506904602050781
+          },
+          {
+            "token": "Thinking",
+            "logprob": -13.665999412536621,
+            "bytes": [
+              84,
+              104,
+              105,
+              110,
+              107,
+              105,
+              110,
+              103
+            ]
+          },
+          {
+            "token": "待",
+            "logprob": -13.74532413482666,
+            "bytes": [
+              229,
+              190,
+              133
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "records": [
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/report_alone/forward",
+      "counted_input_tokens": 591,
+      "configured_num_ctx": 8192,
+      "reported_prompt_eval_count": 591,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/report_alone/swapped",
+      "counted_input_tokens": 591,
+      "configured_num_ctx": 8192,
+      "reported_prompt_eval_count": 591,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/report_alone/forward",
+      "counted_input_tokens": 601,
+      "configured_num_ctx": 8192,
+      "reported_prompt_eval_count": 601,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/report_alone/swapped",
+      "counted_input_tokens": 601,
+      "configured_num_ctx": 8192,
+      "reported_prompt_eval_count": 601,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/report_alone/forward",
+      "counted_input_tokens": 602,
+      "configured_num_ctx": 8192,
+      "reported_prompt_eval_count": 602,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/report_alone/swapped",
+      "counted_input_tokens": 602,
+      "configured_num_ctx": 8192,
+      "reported_prompt_eval_count": 602,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/window_12/forward",
+      "counted_input_tokens": 12627,
+      "configured_num_ctx": 16384,
+      "reported_prompt_eval_count": 12627,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/latest_report_complete/window_12/swapped",
+      "counted_input_tokens": 12627,
+      "configured_num_ctx": 16384,
+      "reported_prompt_eval_count": 12627,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/window_12/forward",
+      "counted_input_tokens": 12637,
+      "configured_num_ctx": 16384,
+      "reported_prompt_eval_count": 12637,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/formal_short_irc_waiver/window_12/swapped",
+      "counted_input_tokens": 12637,
+      "configured_num_ctx": 16384,
+      "reported_prompt_eval_count": 12637,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/window_12/forward",
+      "counted_input_tokens": 12638,
+      "configured_num_ctx": 16384,
+      "reported_prompt_eval_count": 12638,
+      "reported_count_matches": true
+    },
+    {
+      "id": "history_data/brief-errors/r2/evt_3c9998d9f50b4954/next_workflow_action/window_12/swapped",
+      "counted_input_tokens": 12638,
+      "configured_num_ctx": 16384,
+      "reported_prompt_eval_count": 12638,
+      "reported_count_matches": true
+    }
+  ],
+  "interpretation": "Compare native reported counts with exact vocabulary counts; a discrepancy requires investigation, not a model-error label. Counts alone do not prove semantic retention."
+}

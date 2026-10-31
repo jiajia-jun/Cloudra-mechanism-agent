@@ -1,0 +1,214 @@
+{
+  "forward": {
+    "clean": {
+      "top1": {
+        "id": 33,
+        "piece": "B",
+        "logit": 26.229732513427734,
+        "logprob": -0.047067694993817355
+      },
+      "log_mass_A_minus_B": -3.0339119624426587,
+      "all_vocab_probability_A": 0.04591471098725305,
+      "all_vocab_probability_B": 0.9540323006238164,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "corrupt": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.316858291625977,
+        "logprob": -0.00878806712909963
+      },
+      "log_mass_A_minus_B": 4.736363864744963,
+      "all_vocab_probability_A": 0.9912544674931595,
+      "all_vocab_probability_B": 0.008693776415417975,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "fact_patch_layer7": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.095943450927734,
+        "logprob": -0.029632864539681947
+      },
+      "log_mass_A_minus_B": 3.507409005794578,
+      "all_vocab_probability_A": 0.970806981975726,
+      "all_vocab_probability_B": 0.029099432143372534,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "fact_patch_layer15": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.209075927734375,
+        "logprob": -0.01522076274708084
+      },
+      "log_mass_A_minus_B": 4.182282678590603,
+      "all_vocab_probability_A": 0.9848996848464994,
+      "all_vocab_probability_B": 0.015033140257853184,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "fact_patch_layer31": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.315767288208008,
+        "logprob": -0.00804797659743528
+      },
+      "log_mass_A_minus_B": 4.825133503464972,
+      "all_vocab_probability_A": 0.9919885061528521,
+      "all_vocab_probability_B": 0.007961186266546844,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "fact_patch_layer47": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.322551727294922,
+        "logprob": -0.00885696485560672
+      },
+      "log_mass_A_minus_B": 4.728394734152452,
+      "all_vocab_probability_A": 0.9911863802153076,
+      "all_vocab_probability_B": 0.008762733111927566,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "self_patch": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.316858291625977,
+        "logprob": -0.00878806712909963
+      },
+      "log_mass_A_minus_B": 4.736363864744963,
+      "all_vocab_probability_A": 0.9912544674931595,
+      "all_vocab_probability_B": 0.008693776415417975,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "prefix_control": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.316858291625977,
+        "logprob": -0.00878806712909963
+      },
+      "log_mass_A_minus_B": 4.736363864744963,
+      "all_vocab_probability_A": 0.9912544674931595,
+      "all_vocab_probability_B": 0.008693776415417975,
+      "token_count": 124,
+      "global_token_position": 0
+    }
+  },
+  "swapped": {
+    "clean": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.405418395996094,
+        "logprob": -0.0030759100940400685
+      },
+      "log_mass_A_minus_B": 5.793544867982867,
+      "all_vocab_probability_A": 0.99693236659096,
+      "all_vocab_probability_B": 0.003037813650495432,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "corrupt": {
+      "top1": {
+        "id": 33,
+        "piece": "B",
+        "logit": 26.01528549194336,
+        "logprob": -0.07654848629395872
+      },
+      "log_mass_A_minus_B": -2.5322120459426642,
+      "all_vocab_probability_A": 0.07362626165427581,
+      "all_vocab_probability_B": 0.9263145131307639,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "fact_patch_layer7": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 26.03661346435547,
+        "logprob": -0.045100903452109264
+      },
+      "log_mass_A_minus_B": 3.077570894521628,
+      "all_vocab_probability_A": 0.9559080723209845,
+      "all_vocab_probability_B": 0.04403967161219461,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "fact_patch_layer15": {
+      "top1": {
+        "id": 32,
+        "piece": "A",
+        "logit": 24.759489059448242,
+        "logprob": -0.33177202723210186
+      },
+      "log_mass_A_minus_B": 0.9331698990123982,
+      "all_vocab_probability_A": 0.7176603733164583,
+      "all_vocab_probability_B": 0.2822594096472559,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "fact_patch_layer31": {
+      "top1": {
+        "id": 33,
+        "piece": "B",
+        "logit": 26.033523559570312,
+        "logprob": -0.0749177478481613
+      },
+      "log_mass_A_minus_B": -2.5545490490975737,
+      "all_vocab_probability_A": 0.0721174181832125,
+      "all_vocab_probability_B": 0.9278264014558852,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "fact_patch_layer47": {
+      "top1": {
+        "id": 33,
+        "piece": "B",
+        "logit": 26.03013038635254,
+        "logprob": -0.07243531346268384
+      },
+      "log_mass_A_minus_B": -2.589543003587835,
+      "all_vocab_probability_A": 0.0698104872775299,
+      "all_vocab_probability_B": 0.9301326864748086,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "self_patch": {
+      "top1": {
+        "id": 33,
+        "piece": "B",
+        "logit": 26.01528549194336,
+        "logprob": -0.07654848629395872
+      },
+      "log_mass_A_minus_B": -2.5322120459426642,
+      "all_vocab_probability_A": 0.07362626165427581,
+      "all_vocab_probability_B": 0.9263145131307639,
+      "token_count": 124,
+      "global_token_position": 53
+    },
+    "prefix_control": {
+      "top1": {
+        "id": 33,
+        "piece": "B",
+        "logit": 26.01528549194336,
+        "logprob": -0.07654848629395872
+      },
+      "log_mass_A_minus_B": -2.5322120459426642,
+      "all_vocab_probability_A": 0.07362626165427581,
+      "all_vocab_probability_B": 0.9263145131307639,
+      "token_count": 124,
+      "global_token_position": 0
+    }
+  }
+}

@@ -5,7 +5,7 @@
 
 The publication dataset contains 200 task runs: one retained run for each of 50 tasks under Guided, Standard, Record, and Brief. Each run has a composite score and all three component scores. Table~\ref{tab:si-arm-tier} reports the means without pooling away the task tiers. Standard is the actual comparison branch using the same model backbone. Record and Brief vary the workflow's persistent acceptance requirements and diagnostic feedback, respectively.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering
 \small
 \caption{Composite and component means for each workflow and task tier.}
@@ -46,7 +46,7 @@ Impossible & Guided & 10 & 0.4451 & 0.7006 & 0.9100 & 0.1700 \\
 
 Table~\ref{tab:si-pairwise} gives all six pairwise comparisons on the same 50 tasks. Guided--Standard has a mean difference of 0.186302, a median difference of 0.107950, and 35 task wins, eight losses, and seven ties. The 95\% task-bootstrap interval is [0.100268, 0.275854]. Within the Normal tier, the means are 0.737020 and 0.573050, with a difference of 0.163970 [0.036520, 0.292230] and seven wins in ten tasks. Within Hard, the means are 0.957650 and 0.688750; the difference is 0.268900 [0.121300, 0.445930], with Guided higher in all ten task pairs. Easy has means of 0.880940 and 0.730485, with 11 wins, five losses, and four ties; its paired median difference is 0.020850. Impossible has means of 0.445060 and 0.247330 and is examined at the level of the requested target below.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering
 \small
 \caption{All pairwise composite-score comparisons across the 50 tasks.}
@@ -69,7 +69,7 @@ Standard--Brief & -0.1475 & [-0.2474, -0.0494] & 12/33/5 \\
 
 The component decomposition in Table~\ref{tab:si-weighted-gain} expresses each contribution in composite-score units. Across all tasks, the self-consistency contribution is +0.117875 and the accuracy contribution +0.058916. In Normal and Hard together, the composite difference is +0.216435, including +0.124688 from self-consistency and +0.083712 from accuracy. Hard's accuracy contribution, +0.127391, accompanies a +0.135250 self-consistency contribution. These quantities describe the requested comparative study at two levels: the answer reached and the evidence supporting its attribution.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering
 \small
 \caption{Weighted decomposition of the Guided--Standard composite difference.}
@@ -98,7 +98,7 @@ During execution, Guided, Record, and Brief each produced 50 root mechanism grap
 
 The seven Standard studies have a mean organized composite of 0.153743, compared with 0.828529 for Guided on the same tasks. Their contribution is 50.7\% of the total Guided--Standard score difference. The scientific content retained in a run and the production of its final root artifact are both visible in these records. The self-consistency distribution in Table~\ref{tab:si-sc-distribution} further resolves how much evidence was assembled for the 40 non-Impossible tasks. Guided has 24 full-score and 16 partial-score records; Standard has seven full-score, 29 partial-score, and four zero-score records.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering
 \small
 \caption{Self-consistency distribution over all 40 non-Impossible tasks.}
@@ -121,7 +121,7 @@ Brief & 20 & 20 & 0 & 0.8439 \\
 
 Table~\ref{tab:si-batch-times} preserves every batch observation from the 48-run repeated-task experiment. A batch contains the same four tasks at a concurrency of two, and its elapsed time spans the batch's actual start and finish. Guided's mean is 4.4514 h, Standard's 3.9577 h, Record's 3.8942 h, and Brief's 4.8273 h. Relative to Standard, Guided's observed mean is 12.5\% longer; relative to Brief, it is 7.8\% shorter. These observations include waiting, calculation execution, and continuation of the research after results return.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering
 \small
 \caption{All 12 elapsed-time observations in the repeated-task study, in hours.}
@@ -142,7 +142,7 @@ Brief & 7.2689 & 3.6475 & 3.5656 & 4.8273 \\
 
 The P2 effort comparison uses the common 15-task set D3, M1, M8, NB1, NQ5, NR1, NU3, NU5, NU6, HA1, HA6, HB1, HB10, HD2, and HF1. This yields 60 run-level effort records, with all four configurations represented for each task. Table~\ref{tab:si-common-effort} gives the total and mean job-hours, job counts, terminal outcomes, and corresponding final scores. Recorded ledger durations are summed across quantum-chemical jobs. For Standard/M1, the archived effort reconstruction uses native-log CPU time divided by four, as specified in the source record. The measurement unit throughout this comparison is accumulated job-hours.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering
 \small
 \caption{Recorded quantum-chemical effort on the 15 tasks shared by all configurations.}
@@ -167,7 +167,7 @@ Guided's mean of 11.0793 job-hours accompanies a mean composite of 0.812413. Rel
 
 Table~\ref{tab:si-case-profiles} gives every score component for the cases below. Each comparison follows the chemical object to which the numerical or path evidence was attached.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering
 \small
 \caption{Complete score profiles for the four scientific-attribution cases.}
@@ -211,7 +211,7 @@ Standard's archived second-step ring-closure value is 18.837 kcal/mol. Guided re
 
 Table~\ref{tab:si-imp-pairs} resolves Brief's mean composite of 0.482940 and Guided's 0.445060 into all ten task differences. Brief is higher on three tasks, Guided on five, and two tie. The Brief-minus-Guided mean is +0.037880, with the existing task-bootstrap interval [$-0.188220$, 0.283970]. Its weighted contributions are $-0.006607$ from graph, $-0.015500$ from self-consistency, and +0.060000 from accuracy. IA1 and IA9 provide the two large positive differences, while IG8 has the opposite accuracy ordering. Across the seven tasks with equal accuracy components in these two workflows, Brief-minus-Guided averages $-0.050000$.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering
 \small
 \caption{Task-resolved comparison of Brief and Guided in the Impossible tier.}

@@ -1,0 +1,16 @@
+{
+  "source": "companion_data/publication_reproduction",
+  "procedure": "Unmodified preparation script replayed from a temporary copy of the self-contained source tree",
+  "runs": 200,
+  "values_compared": 800,
+  "comparison_fields": [
+    "score",
+    "graph_publication",
+    "selfc_all_publication",
+    "accuracy_publication"
+  ],
+  "absolute_tolerance": 1e-12,
+  "mismatches": 0,
+  "new_agent_runs": 0,
+  "new_qm_jobs": 0
+}

@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-31",
+  "pages": 27,
+  "source_files": 23,
+  "sections": 7,
+  "task_definitions": 50,
+  "task_runs": 200,
+  "score_values": 800,
+  "literature_systems": 85,
+  "authors": [
+    {
+      "name": "Chengyi Yang",
+      "affiliation": 1,
+      "position": "first author"
+    },
+    {
+      "name": "Qianxin Zhou",
+      "affiliation": 2,
+      "position": "co-second author, first-listed"
+    },
+    {
+      "name": "Yang Li",
+      "affiliation": 1,
+      "position": "co-second author"
+    }
+  ],
+  "unknown_references": 0,
+  "out_of_page_text_blocks": 0,
+  "source_zip_matches_editable_sources": true,
+  "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
+  "files": {
+    "Cloudra_SI_EN_Draft.pdf": {
+      "bytes": 288619,
+      "sha256": "fe0e66ec5610b67065faef1ef473ee57cc13f1bd19f55b33a4138b5f2ddf9432"
+    },
+    "Cloudra_SI_Overleaf.zip": {
+      "bytes": 145890,
+      "sha256": "1e1e57403377a287618ee0382ca08b7f04e6c5254b2f885aaa4c531a7c410b13"
+    },
+    "Cloudra_SI_Data.zip": {
+      "bytes": 16826383,
+      "sha256": "b3eb01ea16cd1644b7e336b39e0edd0266d7d736a6ad5f18af2ea18932769665"
+    }
+  },
+  "standalone_reproduction": {
+    "runs": 200,
+    "score_values": 800,
+    "mismatches": 0,
+    "new_model_or_qm_calculations": 0
+  }
+}

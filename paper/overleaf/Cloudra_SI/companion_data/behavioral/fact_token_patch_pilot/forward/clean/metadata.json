@@ -1,0 +1,578 @@
+{
+  "runner_commit": "9d77fa172",
+  "model_path": "/Users/cloudrayyy/.ollama/models/blobs/sha256-f5f1dd8920d417aac2718b0bda3403da274301efdd6760b4f0f4b864ff2ad57d",
+  "prompt_path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/forward/clean.prompt.txt",
+  "prompt_mode": "raw; model special tokens enabled",
+  "token_ids": [
+    248045,
+    8678,
+    198,
+    2523,
+    7543,
+    264,
+    52652,
+    8164,
+    375,
+    13,
+    21134,
+    279,
+    2574,
+    14648,
+    440,
+    6681,
+    799,
+    38175,
+    5576,
+    6321,
+    11,
+    357,
+    466,
+    417,
+    13,
+    3054,
+    524,
+    884,
+    39492,
+    13,
+    248046,
+    198,
+    248045,
+    846,
+    198,
+    99445,
+    96622,
+    95930,
+    97155,
+    99464,
+    9616,
+    169111,
+    7313,
+    4960,
+    198,
+    81,
+    2929,
+    17,
+    7415,
+    19,
+    8,
+    283,
+    220,
+    17,
+    13,
+    15,
+    17,
+    24,
+    198,
+    81,
+    18657,
+    18,
+    10951,
+    23,
+    8,
+    283,
+    220,
+    16,
+    13,
+    17,
+    19,
+    23,
+    198,
+    96795,
+    104646,
+    96138,
+    99134,
+    97346,
+    99274,
+    99464,
+    96017,
+    96706,
+    10992,
+    198,
+    32,
+    13,
+    220,
+    110381,
+    220,
+    17,
+    220,
+    95999,
+    110381,
+    220,
+    19,
+    198,
+    33,
+    13,
+    220,
+    110381,
+    220,
+    18,
+    220,
+    95999,
+    110381,
+    220,
+    23,
+    198,
+    96227,
+    97913,
+    357,
+    220,
+    96348,
+    417,
+    1710,
+    248046,
+    198,
+    248045,
+    74455,
+    198,
+    248068,
+    271,
+    248069,
+    271
+  ],
+  "input_token_bytes_hex": [
+    "3c7c696d5f73746172747c3e",
+    "73797374656d",
+    "0a",
+    "596f75",
+    "20617373697374",
+    "2061",
+    "20636f6d7075746174696f6e616c",
+    "206368656d",
+    "697374",
+    "2e",
+    "20416e73776572",
+    "20746865",
+    "20676976656e",
+    "20646961676e6f73746963",
+    "2077697468",
+    "2065786163746c79",
+    "206f6e65",
+    "20757070657263617365",
+    "2063686f696365",
+    "206c6574746572",
+    "2c",
+    "2041",
+    "206f72",
+    "2042",
+    "2e",
+    "20446f",
+    "206e6f74",
+    "20616464",
+    "206578706c616e6174696f6e73",
+    "2e",
+    "3c7c696d5f656e647c3e",
+    "0a",
+    "3c7c696d5f73746172747c3e",
+    "75736572",
+    "0a",
+    "e5b7a5e585b7",
+    "e6b58b",
+    "e5be97",
+    "e4bba5e4b88b",
+    "e8b79de7a6bb",
+    "efbc88",
+    "c385",
+    "efbc89",
+    "efbc9a",
+    "0a",
+    "72",
+    "2843",
+    "32",
+    "2d43",
+    "34",
+    "29",
+    "203d",
+    "20",
+    "32",
+    "2e",
+    "30",
+    "32",
+    "39",
+    "0a",
+    "72",
+    "284f",
+    "33",
+    "2d48",
+    "38",
+    "29",
+    "203d",
+    "20",
+    "31",
+    "2e",
+    "32",
+    "34",
+    "38",
+    "0a",
+    "e593aa",
+    "e4b880e5afb9",
+    "e58e9f",
+    "e5ad90e79a84",
+    "e6aca7",
+    "e6b08f",
+    "e8b79de7a6bb",
+    "e69bb4",
+    "e79fad",
+    "efbc9f",
+    "0a",
+    "41",
+    "2e",
+    "20",
+    "e58e9fe5ad90",
+    "20",
+    "32",
+    "20",
+    "e4b88e",
+    "e58e9fe5ad90",
+    "20",
+    "34",
+    "0a",
+    "42",
+    "2e",
+    "20",
+    "e58e9fe5ad90",
+    "20",
+    "33",
+    "20",
+    "e4b88e",
+    "e58e9fe5ad90",
+    "20",
+    "38",
+    "0a",
+    "e58faa",
+    "e59b9ee7ad94",
+    "2041",
+    "20",
+    "e68896",
+    "2042",
+    "e38082",
+    "3c7c696d5f656e647c3e",
+    "0a",
+    "3c7c696d5f73746172747c3e",
+    "617373697374616e74",
+    "0a",
+    "3c7468696e6b3e",
+    "0a0a",
+    "3c2f7468696e6b3e",
+    "0a0a"
+  ],
+  "vocab_size": 248320,
+  "trunk_layers": 64,
+  "nextn_layers_metadata": 1,
+  "mtp_loaded": false,
+  "gpu_layers_requested": 99,
+  "context_size": 256,
+  "batch_size": 124,
+  "microbatch_size": 124,
+  "flash_attention": "enabled",
+  "callback_enabled": true,
+  "captures": [
+    {
+      "name": "l_out-7",
+      "type": "f32",
+      "shape": [
+        5120,
+        124,
+        1,
+        1
+      ],
+      "strides_bytes": [
+        4,
+        20480,
+        2539520,
+        2539520
+      ],
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/forward/clean/capture-7.f32",
+      "requested_token_position": 53,
+      "global_token_position": 53,
+      "physical_row": 53,
+      "after_patch": false
+    },
+    {
+      "name": "l_out-15",
+      "type": "f32",
+      "shape": [
+        5120,
+        124,
+        1,
+        1
+      ],
+      "strides_bytes": [
+        4,
+        20480,
+        2539520,
+        2539520
+      ],
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/forward/clean/capture-15.f32",
+      "requested_token_position": 53,
+      "global_token_position": 53,
+      "physical_row": 53,
+      "after_patch": false
+    },
+    {
+      "name": "l_out-31",
+      "type": "f32",
+      "shape": [
+        5120,
+        124,
+        1,
+        1
+      ],
+      "strides_bytes": [
+        4,
+        20480,
+        2539520,
+        2539520
+      ],
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/forward/clean/capture-31.f32",
+      "requested_token_position": 53,
+      "global_token_position": 53,
+      "physical_row": 53,
+      "after_patch": false
+    },
+    {
+      "name": "l_out-47",
+      "type": "f32",
+      "shape": [
+        5120,
+        124,
+        1,
+        1
+      ],
+      "strides_bytes": [
+        4,
+        20480,
+        2539520,
+        2539520
+      ],
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/fact_token_patch_pilot/forward/clean/capture-47.f32",
+      "requested_token_position": 53,
+      "global_token_position": 53,
+      "physical_row": 53,
+      "after_patch": false
+    }
+  ],
+  "patch_applied": false,
+  "patch_file": "",
+  "patch_layer": -1,
+  "requested_token_position": 53,
+  "global_token_position": 53,
+  "patch_physical_row": null,
+  "logits_global_token_position": 123,
+  "logits_file": "logits.f32",
+  "logits_format": "native little-endian IEEE754 float32; vocabulary token order",
+  "top_tokens": [
+    {
+      "id": 33,
+      "piece": "B",
+      "logit": 26.229732513427734,
+      "logprob": -0.047067694993817355
+    },
+    {
+      "id": 32,
+      "piece": "A",
+      "logit": 23.195816040039063,
+      "logprob": -3.0809841683824892
+    },
+    {
+      "id": 34,
+      "piece": "C",
+      "logit": 15.909915924072266,
+      "logprob": -10.366884284349286
+    },
+    {
+      "id": 417,
+      "piece": " B",
+      "logit": 14.711295127868652,
+      "logprob": -11.5655050805529
+    },
+    {
+      "id": 248046,
+      "piece": "<|im_end|>",
+      "logit": 13.826913833618164,
+      "logprob": -12.449886374803388
+    },
+    {
+      "id": 35,
+      "piece": "D",
+      "logit": 13.079907417297363,
+      "logprob": -13.196892791124188
+    },
+    {
+      "id": 65,
+      "piece": "b",
+      "logit": 12.404396057128906,
+      "logprob": -13.872404151292645
+    },
+    {
+      "id": 36,
+      "piece": "E",
+      "logit": 12.207216262817383,
+      "logprob": -14.069583945604169
+    },
+    {
+      "id": 357,
+      "piece": " A",
+      "logit": 12.051417350769043,
+      "logprob": -14.225382857652509
+    },
+    {
+      "id": 37,
+      "piece": "F",
+      "logit": 12.012435913085938,
+      "logprob": -14.264364295335614
+    },
+    {
+      "id": 16,
+      "piece": "1",
+      "logit": 11.88323974609375,
+      "logprob": -14.393560462327802
+    },
+    {
+      "id": 51,
+      "piece": "T",
+      "logit": 11.853824615478516,
+      "logprob": -14.422975592943036
+    },
+    {
+      "id": 5181,
+      "piece": "(B",
+      "logit": 11.738725662231445,
+      "logprob": -14.538074546190106
+    },
+    {
+      "id": 760,
+      "piece": "The",
+      "logit": 11.690560340881348,
+      "logprob": -14.586239867540204
+    },
+    {
+      "id": 248058,
+      "piece": "<tool_call>",
+      "logit": 11.641695022583008,
+      "logprob": -14.635105185838544
+    },
+    {
+      "id": 39,
+      "piece": "H",
+      "logit": 11.497865676879883,
+      "logprob": -14.778934531541669
+    },
+    {
+      "id": 46,
+      "piece": "O",
+      "logit": 11.427495956420898,
+      "logprob": -14.849304252000653
+    },
+    {
+      "id": 49,
+      "piece": "R",
+      "logit": 11.162437438964844,
+      "logprob": -15.114362769456708
+    },
+    {
+      "id": 40,
+      "piece": "I",
+      "logit": 11.12285041809082,
+      "logprob": -15.153949790330731
+    },
+    {
+      "id": 27,
+      "piece": "<",
+      "logit": 10.93043327331543,
+      "logprob": -15.346366935106122
+    },
+    {
+      "id": 17,
+      "piece": "2",
+      "logit": 10.919675827026367,
+      "logprob": -15.357124381395185
+    },
+    {
+      "id": 48,
+      "piece": "Q",
+      "logit": 10.913583755493164,
+      "logprob": -15.363216452928388
+    },
+    {
+      "id": 64,
+      "piece": "a",
+      "logit": 10.810810089111328,
+      "logprob": -15.465990119310224
+    },
+    {
+      "id": 97016,
+      "piece": "比较",
+      "logit": 10.710140228271484,
+      "logprob": -15.566659980150067
+    },
+    {
+      "id": 44,
+      "piece": "M",
+      "logit": 10.692164421081543,
+      "logprob": -15.584635787340009
+    },
+    {
+      "id": 58297,
+      "piece": "Б",
+      "logit": 10.666866302490234,
+      "logprob": -15.609933905931317
+    },
+    {
+      "id": 38,
+      "piece": "G",
+      "logit": 10.554656982421875,
+      "logprob": -15.722143225999677
+    },
+    {
+      "id": 1609,
+      "piece": "_B",
+      "logit": 10.551168441772461,
+      "logprob": -15.72563176664909
+    },
+    {
+      "id": 55,
+      "piece": "X",
+      "logit": 10.532737731933594,
+      "logprob": -15.744062476487958
+    },
+    {
+      "id": 41,
+      "piece": "J",
+      "logit": 10.527965545654297,
+      "logprob": -15.748834662767255
+    }
+  ],
+  "tensors": [],
+  "choice_token_ids": {
+    "A": [
+      32
+    ],
+    "B": [
+      33
+    ],
+    " A": [
+      357
+    ],
+    " B": [
+      417
+    ]
+  },
+  "choice_token_pieces": {
+    "A": [
+      "A"
+    ],
+    "B": [
+      "B"
+    ],
+    " A": [
+      " A"
+    ],
+    " B": [
+      " B"
+    ]
+  },
+  "choice_tokenization": {
+    "add_special": false,
+    "parse_special": false
+  }
+}

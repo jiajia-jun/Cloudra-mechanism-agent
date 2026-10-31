@@ -1,0 +1,33 @@
+{
+  "selection": "Previously prescribed NB1 source, both option orders, XYZ and measured distances.",
+  "model": {
+    "name": "qwen3.8:27b",
+    "model": "qwen3.8:27b",
+    "modified_at": "2026-08-26T01:28:05.467950246+08:00",
+    "size": 17741872154,
+    "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "details": {
+      "parent_model": "qwen3.8:27b-q4_K_M",
+      "format": "gguf",
+      "family": "qwen35",
+      "families": [
+        "qwen35"
+      ],
+      "parameter_size": "27.3B",
+      "quantization_level": "Q4_K_M",
+      "context_length": 262144,
+      "embedding_length": 5120
+    },
+    "capabilities": [
+      "completion",
+      "tools",
+      "thinking",
+      "vision"
+    ]
+  },
+  "n_source_probes": 4,
+  "maximum_output_tokens": 1024,
+  "rendering": "Native /api/chat; no manually inserted model delimiters.",
+  "scope": "One-source exploratory rendering/thinking control, not general geometry or scientific acceptance.",
+  "compute_limit": "Same maximum output budget, potentially different consumed computation."
+}

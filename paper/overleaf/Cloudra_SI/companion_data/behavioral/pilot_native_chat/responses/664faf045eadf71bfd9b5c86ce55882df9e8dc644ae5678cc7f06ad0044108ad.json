@@ -1,0 +1,46 @@
+{
+  "request": {
+    "model": "qwen3.8:27b",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You assist a computational chemist. Answer the given diagnostic with exactly one uppercase choice letter, A or B. Do not add explanations."
+      },
+      {
+        "role": "user",
+        "content": "工具测得以下距离（Å）：\nr(C4-H11) = 2.386\nr(O7-H11) = 0.968\n哪一对原子的欧氏距离更短？\nA. 原子 4 与原子 11\nB. 原子 7 与原子 11\n只回答 A 或 B。"
+      }
+    ],
+    "stream": false,
+    "think": true,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "num_predict": 1024,
+      "num_ctx": 8192,
+      "top_k": 0,
+      "top_p": 1,
+      "min_p": 0,
+      "repeat_penalty": 1,
+      "presence_penalty": 0,
+      "draft_num_predict": 0
+    }
+  },
+  "response": {
+    "model": "qwen3.8:27b",
+    "created_at": "2026-10-28T09:52:16.90404Z",
+    "message": {
+      "role": "assistant",
+      "content": "B",
+      "thinking": "The question asks which pair of atoms has a shorter Euclidean distance.\n\nr(C4-H11) = 2.386 Å\nr(O7-H11) = 0.968 Å\n\n0.968 < 2.386, so the distance between atom 7 and atom 11 is shorter.\n\nThe answer is B."
+    },
+    "done": true,
+    "done_reason": "stop",
+    "total_duration": 6250533833,
+    "load_duration": 581500,
+    "prompt_eval_count": 126,
+    "prompt_eval_duration": 476568000,
+    "eval_count": 86,
+    "eval_duration": 5732132000
+  }
+}

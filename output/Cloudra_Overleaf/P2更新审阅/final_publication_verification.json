@@ -13,13 +13,14 @@
       "all_bib_keys_actually_cited": true,
       "all_24_figures_present": true,
       "text_outside_page": [],
-      "source_files": 36,
+      "source_files": 37,
       "online_source_matches_local": true,
-      "pdf_sha256": "86705250b9d640b980aab24003767cb3caedd5c331f7be151e04fd76804bd0ff",
-      "source_zip_sha256": "db973f1a539988415ebddd7163adc19da8f1eee5067cf5ead8e101d4e0f7f917",
+      "pdf_sha256": "3ec5f75d220782a0a657406f3702eabb61d9898decc9ff1b90e7948febf9a546",
+      "source_zip_sha256": "47ae249e93479ea5ab91d1ff9141d3f86930ce382eedadf6a814a5326c0f87e2",
       "visual_review": "all pages rendered; abstract first pages checked at readable scale; no text outside pages, missing figures, or unknown references",
       "abstract_included": true,
-      "abstract_source_sha256": "4c7db79ccd0a90ee7b65d2fdf15e66a66427e106d3e88d55773e3839b954dd4e"
+      "abstract_source_sha256": "4c7db79ccd0a90ee7b65d2fdf15e66a66427e106d3e88d55773e3839b954dd4e",
+      "authorship_verified": true
     },
     "ZH": {
       "pages": 19,
@@ -28,15 +29,33 @@
       "all_bib_keys_actually_cited": true,
       "all_24_figures_present": true,
       "text_outside_page": [],
-      "source_files": 36,
+      "source_files": 37,
       "online_source_matches_local": true,
-      "pdf_sha256": "781214cda5777e7374ca111a4d6449cd867e782faeeea2ca700f419d639f3089",
-      "source_zip_sha256": "6f19ad63bb3054afc058525304007039d6803a98cee49a2936e541c9ff118b4d",
+      "pdf_sha256": "fbf8009ce80626ba0a8c29c401f613f58f6a240e3241f9c5c8f968a2c2e85fbc",
+      "source_zip_sha256": "f4177d31f70c62bb536c2403010925fb096cdb0c6701f1d2410bddaab250944a",
       "visual_review": "all pages rendered; abstract first pages checked at readable scale; no text outside pages, missing figures, or unknown references",
       "abstract_included": true,
-      "abstract_source_sha256": "c60d6fc46a14765eae39fc3bb26ed28313c3b0554fe826f5937ff004f30ffff1"
+      "abstract_source_sha256": "c60d6fc46a14765eae39fc3bb26ed28313c3b0554fe826f5937ff004f30ffff1",
+      "authorship_verified": true
     }
   },
   "max_score_rounding_difference": 4.971078517046479e-05,
-  "abstract_update": "English abstract supplied by the user retained verbatim; faithful Chinese translation added. Both abstracts appear below the title and before the two-column introduction."
+  "abstract_update": "English abstract supplied by the user retained verbatim; faithful Chinese translation added. Both abstracts appear below the title and before the two-column introduction.",
+  "authors": [
+    {
+      "name": "Chengyi Yang",
+      "affiliation": 1,
+      "position": "first author"
+    },
+    {
+      "name": "Qianxin Zhou",
+      "affiliation": 2,
+      "position": "co-second author, first-listed"
+    },
+    {
+      "name": "Yang Li",
+      "affiliation": 1,
+      "position": "co-second author"
+    }
+  ]
 }

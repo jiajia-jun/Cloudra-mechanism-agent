@@ -9,3 +9,18 @@ Composite scores are displayed to four decimal places and component scores to si
 \input{tables/full_scores_normal}
 \input{tables/full_scores_hard}
 \input{tables/full_scores_impossible}
+
+\subsection{Expanded task-score matrices}
+The two vector panels below expand the complete per-task score view for reading alongside the exact values in Tables~\ref{tab:full-scores-easy}--\ref{tab:full-scores-impossible}. Both use the same color scale and configuration order as the manuscript.
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_tasks.pdf}
+\caption{All Easy and Normal task scores. Each task has four configuration rows and four score layers: composite, graph, scientific self-consistency, and accuracy. Cells are rounded to two decimals; the preceding tables and companion CSV retain greater precision. Backbone denotes Standard.}
+\label{fig:si-task-matrix-en}
+\end{figure}
+\begin{figure}[!t]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_tasks_hi.pdf}
+\caption{All Hard and Impossible task scores, with the same layer and configuration ordering as Figure~\ref{fig:si-task-matrix-en}. All 80 runs have complete composite and component values.}
+\label{fig:si-task-matrix-hi}
+\end{figure}

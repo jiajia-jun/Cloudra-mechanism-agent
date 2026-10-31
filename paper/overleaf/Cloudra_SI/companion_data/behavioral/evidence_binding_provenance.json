@@ -1,0 +1,1967 @@
+{
+  "study_phase": "exploratory_synthetic_evidence_binding_diagnostic",
+  "preregistered": false,
+  "synthetic": true,
+  "mainline": "B",
+  "evaluation_scope": "given_binding_requirements_only_not_scientific_acceptance",
+  "no_llm_executed": true,
+  "n": 32,
+  "source_chains": [
+    {
+      "base_case_id": "brief-errors/r1/evt_8ed26719359e47e0",
+      "task": "E1",
+      "arm": "brief-errors",
+      "round": "r1",
+      "runtime_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/runtime-v2.db",
+      "runtime_event": {
+        "event_id": "evt_8ed26719359e47e0",
+        "project_id": "prj_4fe9281624b14292",
+        "session_id": "as_40ffe5648e634ce3",
+        "run_id": "run_2c06b0f999ec4169",
+        "seq": 8312,
+        "session_seq": 1156,
+        "type": "tool.result_recorded",
+        "created_at": "2026-10-23T21:39:56.707090+00:00",
+        "source_rowid": 20187
+      },
+      "runtime_result_sha256": "61148dd117c7cea45764e04b8fb5df259e3911a3b6de80d6dfebb3f1d2e5380a",
+      "conversation_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/conversations/prj_4fe9281624b14292/tasks/database.db",
+      "review_request_id": "rev_c93898a888954fdd956352087f86c0c9",
+      "review_proposal_sha256": "668fba360c28cc834f7f6ad27f5a343e2709d135cc66e148a728ae189d384595",
+      "target_identity": {
+        "edge_id": "step_4664b5ad",
+        "name": "e1",
+        "label": "e1",
+        "metadata": {},
+        "source": {
+          "node_id": "sp_27924c6c",
+          "name": "RC",
+          "label": "RC",
+          "smiles": "[F-].CCCl",
+          "metadata": {}
+        },
+        "target": {
+          "node_id": "sp_2bb75f84",
+          "name": "P",
+          "label": "P",
+          "smiles": "C=C.F.[Cl-]",
+          "metadata": {}
+        }
+      },
+      "file_rows": [
+        {
+          "evidence_id": "ev_e97ac3d4c809fb7a119296963dc69d064a2ff629c3f0ae075e4e1d0d19ecf16e",
+          "session_id": "as_40ffe5648e634ce3",
+          "source_type": "file",
+          "source_name": "frequency.log",
+          "content_hash": "sha256:b8ebce282cc0583f9aadfdc8952abe252cd1f087a3f777d7804268eb73bdac87",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 74647,
+            "final_energy_hartree": -639.002077473,
+            "frequencies": [
+              -299.6562,
+              48.4679,
+              173.849,
+              322.4682,
+              450.2162,
+              514.6606,
+              776.0172,
+              789.67,
+              978.9355,
+              1013.8542,
+              1161.9711,
+              1206.9784,
+              1256.6218,
+              1446.6546,
+              1446.7335,
+              1463.8462,
+              1746.934,
+              3012.0524,
+              3064.5205,
+              3120.5681,
+              3190.2693
+            ],
+            "imaginary_frequencies": [
+              -299.6562
+            ],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "frequency.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+            "sha256": "02d0898b1d08c35efad07f5b5d9b877b03e5040e422ee7d1ae664fe701fdb841",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/02d0898b1d08c35e_frequency.log"
+          },
+          "created_at": "2026-10-23 21:24:27",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_3b120fa62d70fbc049b98d6bc634799dd9504b133ad422c5367778484982fed3",
+          "session_id": "as_40ffe5648e634ce3",
+          "source_type": "file",
+          "source_name": "refine.log",
+          "content_hash": "sha256:92e74d3ee7ff990d4be8b9fd384eb47f1a649d6f3889c169544c1bdbaa3e1c3e",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 421110,
+            "final_energy_hartree": -639.002077473,
+            "frequencies": null,
+            "imaginary_frequencies": null,
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "refine.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/ts/ts_0001/jobs/declaration_0006/ts_opt/refine.log",
+            "sha256": "37d1802955124cefb38742312dcea6c3e8af0e6fe4ff7da1fe90e03373ce8199",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/37d1802955124cef_refine.log"
+          },
+          "created_at": "2026-10-23 21:24:27",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_a9ee0c60453cecf978e8f45af2effd4c5995f94b10da2cf8cb259caef4e1b3e8",
+          "session_id": "as_40ffe5648e634ce3",
+          "source_type": "file",
+          "source_name": "irc.log",
+          "content_hash": "sha256:ea8202bce7968c746409f894c7011007b641eedebc910f79efe3afbf37b7534f",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 1147878,
+            "final_energy_hartree": -639.003220533,
+            "frequencies": null,
+            "imaginary_frequencies": null,
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "irc.log",
+              "irc_end_a_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/6470e335d9ded41ba165faf8b662f630a12647289d353f8b4ee6429658070b50/irc-32f1c1f23cf1c3fe1f647ca4d827002e28a9ac40caf8ed146a6ac2f4495a3b3e.end-a.xyz",
+              "irc_end_b_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/6470e335d9ded41ba165faf8b662f630a12647289d353f8b4ee6429658070b50/irc-32f1c1f23cf1c3fe1f647ca4d827002e28a9ac40caf8ed146a6ac2f4495a3b3e.end-b.xyz",
+              "irc_manifest": {
+                "sha256": "6470e335d9ded41ba165faf8b662f630a12647289d353f8b4ee6429658070b50",
+                "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/6470e335d9ded41ba165faf8b662f630a12647289d353f8b4ee6429658070b50/irc_endpoints.json"
+              },
+              "irc_sidecars": []
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/ts/ts_0001/jobs/declaration_0008/irc/irc.log",
+            "sha256": "32f1c1f23cf1c3fe1f647ca4d827002e28a9ac40caf8ed146a6ac2f4495a3b3e",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/6470e335d9ded41ba165faf8b662f630a12647289d353f8b4ee6429658070b50/32f1c1f23cf1c3fe_irc.log"
+          },
+          "created_at": "2026-10-23 21:24:27",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_e7f8aaffe582ec8a462c6b703c134b26ef27d8599add6575f0ff501306cce1b3",
+          "session_id": "as_40ffe5648e634ce3",
+          "source_type": "file",
+          "source_name": "src_optfreq.log",
+          "content_hash": "sha256:1a1530d33800be4ad0a348db8996f011bfebcb2fbd59fdce77b8b14793e1bb89",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 350998,
+            "final_energy_hartree": -639.003420901,
+            "frequencies": [
+              10.3,
+              122.5975,
+              273.3609,
+              312.4631,
+              335.4537,
+              461.4636,
+              764.0172,
+              948.2646,
+              966.0682,
+              1080.3326,
+              1160.6949,
+              1247.5912,
+              1273.7341,
+              1441.5498,
+              1454.1017,
+              1493.9089,
+              2780.4076,
+              3029.6212,
+              3065.8211,
+              3169.5049,
+              3234.992
+            ],
+            "imaginary_frequencies": [],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "src_optfreq.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/ts/ts_0001/jobs/declaration_0008/endpoint_optfreq/src_optfreq.log",
+            "sha256": "d4776c1f2783bdcf36443efcbfaba3f51f70e424505292c7ef194636a633da40",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/d4776c1f2783bdcf_src_optfreq.log"
+          },
+          "created_at": "2026-10-23 21:39:36",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_d51b917e9d86c90af824921b36fd6b9c40726e433780501616fb18a447748e25",
+          "session_id": "as_40ffe5648e634ce3",
+          "source_type": "file",
+          "source_name": "pdt_optfreq.log",
+          "content_hash": "sha256:37505d735d88c4ba5dd2018969eecd95f997ed9168cde759addde1c6482a5f8b",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 389705,
+            "final_energy_hartree": -639.022950833,
+            "frequencies": [
+              45.7624,
+              64.1172,
+              82.8643,
+              170.0869,
+              215.639,
+              269.3489,
+              590.7158,
+              683.9742,
+              789.0634,
+              868.6917,
+              916.474,
+              974.7946,
+              1198.7814,
+              1328.0716,
+              1428.916,
+              1626.5833,
+              3106.7746,
+              3189.3209,
+              3192.4302,
+              3280.2927,
+              3547.5618
+            ],
+            "imaginary_frequencies": [],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "pdt_optfreq.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/ts/ts_0001/jobs/declaration_0008/endpoint_optfreq/pdt_optfreq.log",
+            "sha256": "189fee1330579a07aa6388f2ad6e59ab90eb6bcc209c15b1f13efaafaab2dae8",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/189fee1330579a07_pdt_optfreq.log"
+          },
+          "created_at": "2026-10-23 21:39:52",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        }
+      ],
+      "matching_parser_observations": {
+        "ev_3b120fa62d70fbc049b98d6bc634799dd9504b133ad422c5367778484982fed3": [],
+        "ev_e97ac3d4c809fb7a119296963dc69d064a2ff629c3f0ae075e4e1d0d19ecf16e": [
+          {
+            "case_id": "brief-errors/r1/evt_be4e04a4a3d24a7e",
+            "source_event": {
+              "event_id": "evt_be4e04a4a3d24a7e",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_ffeff0dada1c42cb",
+              "run_id": "run_0d59f69ddcb04bd1",
+              "seq": 5310,
+              "session_seq": 2351,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T20:56:23.935043+00:00",
+              "source_rowid": 12705
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [
+                -299.6562
+              ],
+              "electronic_energy_hartree": -639.002077473
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_504f4eda2e254ffe",
+            "source_event": {
+              "event_id": "evt_504f4eda2e254ffe",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_ffeff0dada1c42cb",
+              "run_id": "run_8ae67d1cf7e643b7",
+              "seq": 6271,
+              "session_seq": 2934,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:07:41.699951+00:00",
+              "source_rowid": 14331
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [
+                -299.6562
+              ],
+              "electronic_energy_hartree": -639.002077473
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_c43af6ce03a347de",
+            "source_event": {
+              "event_id": "evt_c43af6ce03a347de",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_e48a8a7f1c7840f2",
+              "run_id": "run_e04d1c6a7a5748b5",
+              "seq": 9191,
+              "session_seq": 92,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:13:59.923806+00:00",
+              "source_rowid": 23129
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [
+                -299.6562
+              ],
+              "electronic_energy_hartree": -639.002077473
+            }
+          }
+        ],
+        "ev_a9ee0c60453cecf978e8f45af2effd4c5995f94b10da2cf8cb259caef4e1b3e8": [
+          {
+            "case_id": "brief-errors/r1/evt_7434bced37e04310",
+            "source_event": {
+              "event_id": "evt_7434bced37e04310",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_ffeff0dada1c42cb",
+              "run_id": "run_03df6c29676d4958",
+              "seq": 7125,
+              "session_seq": 3466,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:22:50.004121+00:00",
+              "source_rowid": 15999
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -639.003220533
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_8aa1fb723bfb4db8",
+            "source_event": {
+              "event_id": "evt_8aa1fb723bfb4db8",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_8f8d9ba7701c475f",
+              "run_id": "run_785eb9c1d9aa48e9",
+              "seq": 7274,
+              "session_seq": 1360,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:23:50.818766+00:00",
+              "source_rowid": 16359
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -639.003220533
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_e1312c01405443d3",
+            "source_event": {
+              "event_id": "evt_e1312c01405443d3",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_e48a8a7f1c7840f2",
+              "run_id": "run_e04d1c6a7a5748b5",
+              "seq": 9203,
+              "session_seq": 104,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:14:01.034186+00:00",
+              "source_rowid": 23141
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -639.003220533
+            }
+          }
+        ],
+        "ev_e7f8aaffe582ec8a462c6b703c134b26ef27d8599add6575f0ff501306cce1b3": [
+          {
+            "case_id": "brief-errors/r1/evt_ec297e7db65a4fde",
+            "source_event": {
+              "event_id": "evt_ec297e7db65a4fde",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_ffeff0dada1c42cb",
+              "run_id": "run_1bd0f2120f8b42cd",
+              "seq": 8146,
+              "session_seq": 3833,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:39:34.238541+00:00",
+              "source_rowid": 20002
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -639.003420901
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_9bd217b786ac4ea7",
+            "source_event": {
+              "event_id": "evt_9bd217b786ac4ea7",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_8f8d9ba7701c475f",
+              "run_id": "run_b24cb49469cd4e19",
+              "seq": 8240,
+              "session_seq": 1631,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:39:46.832946+00:00",
+              "source_rowid": 20096
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -639.003420901
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_c5be0eb26b684456",
+            "source_event": {
+              "event_id": "evt_c5be0eb26b684456",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_e5a1e87fb13e47b9",
+              "run_id": "run_4899b8f981604bbd",
+              "seq": 8700,
+              "session_seq": 1617,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:54:42.884014+00:00",
+              "source_rowid": 21947
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -639.003420901
+            }
+          }
+        ],
+        "ev_d51b917e9d86c90af824921b36fd6b9c40726e433780501616fb18a447748e25": [
+          {
+            "case_id": "brief-errors/r1/evt_b3edf4afeccc4ac3",
+            "source_event": {
+              "event_id": "evt_b3edf4afeccc4ac3",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_8f8d9ba7701c475f",
+              "run_id": "run_b24cb49469cd4e19",
+              "seq": 8249,
+              "session_seq": 1636,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:39:47.351388+00:00",
+              "source_rowid": 20105
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -639.022950833
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_a09599d0c8394ddb",
+            "source_event": {
+              "event_id": "evt_a09599d0c8394ddb",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_ffeff0dada1c42cb",
+              "run_id": "run_1bd0f2120f8b42cd",
+              "seq": 8252,
+              "session_seq": 3879,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:39:47.596122+00:00",
+              "source_rowid": 20108
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -639.022950833
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_ce3b68e708754a5a",
+            "source_event": {
+              "event_id": "evt_ce3b68e708754a5a",
+              "project_id": "prj_4fe9281624b14292",
+              "session_id": "as_e5a1e87fb13e47b9",
+              "run_id": "run_4899b8f981604bbd",
+              "seq": 8694,
+              "session_seq": 1611,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:54:42.470009+00:00",
+              "source_rowid": 21941
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -639.022950833
+            }
+          }
+        ]
+      },
+      "recorded_relation_statements": {
+        "frequency": "Native normal termination and exactly 1 imaginary frequencies required. ",
+        "ts_opt": "Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.",
+        "short_irc": "direct pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/d4776c1f2783bdcf_src_optfreq.log; /home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/189fee1330579a07_pdt_optfreq.log). [advisory] F1-C3: TS=2.767 Å, IRC_endpoint=2.615 Å, intermediate=2.530 Å, inside interval [advisory] F1-Cl4: TS=4.700 Å, IRC_endpoint=4.498 Å, intermediate=4.407 Å, inside interval [advisory] F1-H5: TS=1.355 Å, IRC_endpoint=1.669 Å, intermediate=1.770 Å, inside interval [advisory] F1-H6: TS=3.230 Å, IRC_endpoint=3.363 Å, intermediate=3.395 Å, inside interval [advisory] F1-H7: TS=3.230 Å, IRC_endpoint=3.363 Å, intermediate=3.407 Å, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.277 (<1 means closer than TS). [advisory] Gate pairs layer: distance_top5 (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] F1-C2: TS=2.550 Å, IRC_endpoint=2.637 Å, intermediate=2.662 Å [advisory] [advisory-B] F1-H8: TS=2.705 Å, IRC_endpoint=2.449 Å, intermediate=2.320 Å [advisory] [advisory-B] F1-H9: TS=2.705 Å, IRC_endpoint=2.449 Å, intermediate=2.348 Å [advisory] [advisory-B] C2-C3: TS=1.478 Å, IRC_endpoint=1.502 Å, intermediate=1.505 Å [advisory] [advisory-B] C2-Cl4: TS=2.917 Å, IRC_endpoint=2.846 Å, intermediate=2.837 Å [advisory] [advisory-B] C3-Cl4: TS=1.934 Å, IRC_endpoint=1.893 Å, intermediate=1.895 Å [advisory] [advisory-B] Cl4-H5: TS=3.845 Å, IRC_endpoint=3.736 Å, intermediate=3.727 Å [advisory] [advisory-B] Cl4-H6: TS=3.173 Å, IRC_endpoint=3.075 Å, intermediate=3.061 Å [advisory] [advisory-B] Cl4-H7: TS=3.173 Å, IRC_endpoint=3.075 Å, intermediate=3.066 Å [advisory] F1-H5: TS=1.355 Å, IRC_endpoint=1.008 Å, intermediate=0.950 Å, inside interval [advisory] C2-H5: TS=1.247 Å, IRC_endpoint=1.641 Å, intermediate=1.981 Å, inside interval [advisory] C3-Cl4: TS=1.934 Å, IRC_endpoint=2.150 Å, intermediate=2.909 Å, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.648 (<1 means closer than TS). [advisory] Gate pairs layer: bond_diff (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] F1-H9: TS=2.705 Å, IRC_endpoint=2.817 Å, intermediate=3.477 Å [advisory] [advisory-B] C2-Cl4: TS=2.917 Å, IRC_endpoint=3.045 Å, intermediate=3.966 Å [advisory] [advisory-B] Cl4-H5: TS=3.845 Å, IRC_endpoint=4.185 Å, intermediate=5.035 Å [advisory] [advisory-B] Cl4-H6: TS=3.173 Å, IRC_endpoint=3.386 Å, intermediate=4.538 Å [advisory] [advisory-B] Cl4-H7: TS=3.173 Å, IRC_endpoint=3.386 Å, intermediate=4.537 Å"
+      },
+      "endpoint_pairing_statement": "direct pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/d4776c1f2783bdcf_src_optfreq.log; /home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/E1/batch_8f372f33d68a43b4/.cloudra/evidence/189fee1330579a07_pdt_optfreq.log).",
+      "alternate_target_identity": null,
+      "relation_status": "historical_program_assertions_given_as_diagnostic_premises_not_reverified_truth",
+      "local_fact_status": "numbers_from_dag_evidence_payloads; termination/convergence from historical check statements",
+      "alias_status": "all geometry aliases and the record handles S/O/F/I/R/P are synthetic; alias spelling does not identify the correct association and no geometry hash is asserted",
+      "geometry_alias_mapping_for_audit_only": {
+        "G0": "g_63",
+        "EA": "g_29",
+        "EB": "g_17",
+        "GR": "g_42",
+        "GP": "g_08"
+      },
+      "single_counterfactual_link": {
+        "record": "F",
+        "attribute": "geometry",
+        "original": "g_63",
+        "replacement": "g_42"
+      }
+    },
+    {
+      "base_case_id": "brief-errors/r1/evt_0c8ded93c02b415c",
+      "task": "NB1",
+      "arm": "brief-errors",
+      "round": "r1",
+      "runtime_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/runtime-v2.db",
+      "runtime_event": {
+        "event_id": "evt_0c8ded93c02b415c",
+        "project_id": "prj_eb59e660789c480d",
+        "session_id": "as_cc93c2578cb14f97",
+        "run_id": "run_074b7146708c4b5b",
+        "seq": 17606,
+        "session_seq": 3410,
+        "type": "tool.result_recorded",
+        "created_at": "2026-10-23T22:45:05.809330+00:00",
+        "source_rowid": 28992
+      },
+      "runtime_result_sha256": "34cd048e393fea57421ffa10c5094f51f0272f0c521c394faf080e2b422a3c9e",
+      "conversation_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/conversations/prj_eb59e660789c480d/tasks/database.db",
+      "review_request_id": "rev_f3cd677d030b414a945838f1d03ba438",
+      "review_proposal_sha256": "8658bb1beba86f6ee6bddb9902b4e9750321c27b58009827cbb67b184c44411f",
+      "target_identity": {
+        "edge_id": "step_c1990894",
+        "name": "s1_retroene_decarboxylation",
+        "label": "s1_retroene_decarboxylation",
+        "metadata": {},
+        "source": {
+          "node_id": "sp_b6832773",
+          "name": "RC_malonic_acid",
+          "label": "RC_malonic_acid",
+          "smiles": "O=C(O)CC(=O)O",
+          "metadata": {}
+        },
+        "target": {
+          "node_id": "sp_ceb8393b",
+          "name": "IM1_enol_CO2_complex",
+          "label": "IM1_enol_CO2_complex",
+          "smiles": "C=C(O)O.O=C=O",
+          "metadata": {}
+        }
+      },
+      "file_rows": [
+        {
+          "evidence_id": "ev_6b5aa3f77abd5c00c6abb3ec60cda0f7fd9b4e7a2bd4522e8f6c0b06e2f5ca65",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "frequency.log",
+          "content_hash": "sha256:24e1c7a475752e14889fc4197023ca6fc22a9ead664580bfa2c3ac4bb719257d",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 88769,
+            "final_energy_hartree": -417.315470349,
+            "frequencies": [
+              -409.5973,
+              99.5607,
+              136.0131,
+              298.9421,
+              365.5199,
+              459.1913,
+              553.4409,
+              577.8942,
+              604.1083,
+              671.8598,
+              746.4151,
+              840.3198,
+              906.5626,
+              949.8045,
+              1015.6135,
+              1042.0445,
+              1194.5947,
+              1266.6595,
+              1385.4216,
+              1449.2979,
+              1534.7606,
+              1678.2107,
+              2099.6403,
+              2756.5269,
+              3147.096,
+              3254.1195,
+              3743.4534
+            ],
+            "imaginary_frequencies": [
+              -409.5973
+            ],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "frequency.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/ts/ts_0002/jobs/declaration_0014/frequency/frequency.log",
+            "sha256": "416c54c80edabbe4d70b98111076722f7f39016b293b069a7164a462d7fa7449",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/416c54c80edabbe4_frequency.log"
+          },
+          "created_at": "2026-10-23 22:38:18",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_ec03ab966c0586940b9cdf3c9291fca2a4d6d806bf9b70a2cba48ea967935ff8",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "refine.log",
+          "content_hash": "sha256:b16ab2f8f47f66ae96ee5863881fa3a67af37aca7acb18cb74edef88d94fcff6",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 331343,
+            "final_energy_hartree": -417.315470349,
+            "frequencies": null,
+            "imaginary_frequencies": null,
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "refine.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/ts/ts_0002/jobs/declaration_0014/ts_opt/refine.log",
+            "sha256": "fc353682cacb67b6367788eb4adda10b580332893b7aa6c38f08f2b4f62bb439",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/fc353682cacb67b6_refine.log"
+          },
+          "created_at": "2026-10-23 22:38:18",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_d4887ae7a553e740d9b7d5818473b2d9470777b8ff9619b8e39f6496ad9d77a5",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "irc.log",
+          "content_hash": "sha256:8c750b2585ad69c0ca1203a80ce659499de06cb65165fae905b055d0399bf684",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 1424165,
+            "final_energy_hartree": -417.357891012,
+            "frequencies": null,
+            "imaginary_frequencies": null,
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "irc.log",
+              "irc_end_a_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/974ef1f73d1ebd69d53178b5a25fcb73416c813bb04ea2088bbfce5d4bd11096/irc-3402f45f9679d659eacad65e5b7fc0174a6dd701478ca456b61488d3a3ac8057.end-a.xyz",
+              "irc_end_b_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/974ef1f73d1ebd69d53178b5a25fcb73416c813bb04ea2088bbfce5d4bd11096/irc-3402f45f9679d659eacad65e5b7fc0174a6dd701478ca456b61488d3a3ac8057.end-b.xyz",
+              "irc_manifest": {
+                "sha256": "974ef1f73d1ebd69d53178b5a25fcb73416c813bb04ea2088bbfce5d4bd11096",
+                "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/974ef1f73d1ebd69d53178b5a25fcb73416c813bb04ea2088bbfce5d4bd11096/irc_endpoints.json"
+              },
+              "irc_sidecars": []
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/ts/ts_0002/jobs/declaration_0014/irc/irc.log",
+            "sha256": "3402f45f9679d659eacad65e5b7fc0174a6dd701478ca456b61488d3a3ac8057",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/974ef1f73d1ebd69d53178b5a25fcb73416c813bb04ea2088bbfce5d4bd11096/3402f45f9679d659_irc.log"
+          },
+          "created_at": "2026-10-23 22:38:18",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_2d2c2d9fb2d22f823ec10ad0ab50b433d282b868c96cbd1e62612388f56797fb",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "rc_side_optfreq_v2.log",
+          "content_hash": "sha256:1a2c516fe2b2ae514ba6cb9c18272c8cc4c35051f14f3831ffbfc8075727b97e",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 365057,
+            "final_energy_hartree": -417.360036297,
+            "frequencies": [
+              57.9159,
+              96.5778,
+              265.4578,
+              392.3063,
+              408.9766,
+              485.6571,
+              595.5593,
+              636.1957,
+              698.5017,
+              725.5217,
+              824.5572,
+              895.806,
+              939.3239,
+              967.0898,
+              1172.3854,
+              1201.4583,
+              1270.8165,
+              1279.91,
+              1394.9642,
+              1432.496,
+              1466.1709,
+              1811.6182,
+              1899.71,
+              3052.9642,
+              3148.4147,
+              3457.6085,
+              3731.433
+            ],
+            "imaginary_frequencies": [],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "rc_side_optfreq_v2.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/work/s1end/rc_side_optfreq_v2.log",
+            "sha256": "af26330613aa6de01d22ecb2bcb4b2525d225f5af9eea0fc470d65287bf9276d",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/af26330613aa6de0_rc_side_optfreq_v2.log"
+          },
+          "created_at": "2026-10-23 22:45:00",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_4045e296e0db14eec955a0daf79bf46a72f95e40f95acb62d37563bfedcc54f8",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "im1_side_optfreq_v2.log",
+          "content_hash": "sha256:d98d5c5a811fa8a1ff3aec35c451ba6fbbb28fa67cf0a66173ca868ec35af4ac",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 576159,
+            "final_energy_hartree": -417.332287118,
+            "frequencies": [
+              33.1477,
+              45.2987,
+              95.6573,
+              131.5362,
+              152.9272,
+              321.6987,
+              463.1756,
+              484.9853,
+              553.1192,
+              628.0035,
+              651.0632,
+              668.9701,
+              712.4457,
+              736.992,
+              961.0598,
+              976.7774,
+              1220.4091,
+              1236.5469,
+              1385.2402,
+              1415.3933,
+              1448.1294,
+              1760.4454,
+              2468.848,
+              3185.7866,
+              3291.8151,
+              3782.2923,
+              3808.8204
+            ],
+            "imaginary_frequencies": [],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "im1_side_optfreq_v2.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/work/s1end/im1_side_optfreq_v2.log",
+            "sha256": "a0fe9a8f7c43ff25deb7789d2748fad31f1e96f9008a68c5f0496be1f86fe770",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/a0fe9a8f7c43ff25_im1_side_optfreq_v2.log"
+          },
+          "created_at": "2026-10-23 22:45:01",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        }
+      ],
+      "matching_parser_observations": {
+        "ev_ec03ab966c0586940b9cdf3c9291fca2a4d6d806bf9b70a2cba48ea967935ff8": [],
+        "ev_6b5aa3f77abd5c00c6abb3ec60cda0f7fd9b4e7a2bd4522e8f6c0b06e2f5ca65": [
+          {
+            "case_id": "brief-errors/r1/evt_db1eb29247384e28",
+            "source_event": {
+              "event_id": "evt_db1eb29247384e28",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_1e9e06f2830b411f",
+              "run_id": "run_aa25d5fff1784295",
+              "seq": 13795,
+              "session_seq": 3710,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:07:33.481767+00:00",
+              "source_rowid": 22876
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [
+                -409.5973
+              ],
+              "electronic_energy_hartree": -417.315470349
+            }
+          }
+        ],
+        "ev_d4887ae7a553e740d9b7d5818473b2d9470777b8ff9619b8e39f6496ad9d77a5": [
+          {
+            "case_id": "brief-errors/r1/evt_b841d64ec51546f7",
+            "source_event": {
+              "event_id": "evt_b841d64ec51546f7",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_e724614acebf4d4d",
+              "run_id": "run_6f85c0d740d04682",
+              "seq": 14875,
+              "session_seq": 3089,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:35:53.540979+00:00",
+              "source_rowid": 26261
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -417.357891012
+            }
+          }
+        ],
+        "ev_2d2c2d9fb2d22f823ec10ad0ab50b433d282b868c96cbd1e62612388f56797fb": [
+          {
+            "case_id": "brief-errors/r1/evt_d10b4a4a8a774236",
+            "source_event": {
+              "event_id": "evt_d10b4a4a8a774236",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_f6f468c5b4eb42b2",
+              "run_id": "run_1b4176f95dd244c0",
+              "seq": 17221,
+              "session_seq": 2467,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:42:54.269423+00:00",
+              "source_rowid": 28607
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.360036297
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_be56b84122b84f8a",
+            "source_event": {
+              "event_id": "evt_be56b84122b84f8a",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_e724614acebf4d4d",
+              "run_id": "run_75aa902f6878499e",
+              "seq": 17273,
+              "session_seq": 4092,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:42:57.513110+00:00",
+              "source_rowid": 28659
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.360036297
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_d2764cd0c2864250",
+            "source_event": {
+              "event_id": "evt_d2764cd0c2864250",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_f6f468c5b4eb42b2",
+              "run_id": "run_4c81f23a47a1473c",
+              "seq": 17425,
+              "session_seq": 2522,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:44:05.945710+00:00",
+              "source_rowid": 28811
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.360036297
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_7c6ef99ea05f45e7",
+            "source_event": {
+              "event_id": "evt_7c6ef99ea05f45e7",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_e724614acebf4d4d",
+              "run_id": "run_fcaa67bb89114679",
+              "seq": 17569,
+              "session_seq": 4198,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:45:00.721491+00:00",
+              "source_rowid": 28955
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.360036297
+            }
+          }
+        ],
+        "ev_4045e296e0db14eec955a0daf79bf46a72f95e40f95acb62d37563bfedcc54f8": [
+          {
+            "case_id": "brief-errors/r1/evt_e3ebd2f4733e439f",
+            "source_event": {
+              "event_id": "evt_e3ebd2f4733e439f",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_f6f468c5b4eb42b2",
+              "run_id": "run_4c81f23a47a1473c",
+              "seq": 17430,
+              "session_seq": 2527,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:44:06.339342+00:00",
+              "source_rowid": 28816
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.332287118
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_a4824dc9caa749af",
+            "source_event": {
+              "event_id": "evt_a4824dc9caa749af",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_e724614acebf4d4d",
+              "run_id": "run_fcaa67bb89114679",
+              "seq": 17578,
+              "session_seq": 4207,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:45:01.737340+00:00",
+              "source_rowid": 28964
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.332287118
+            }
+          }
+        ]
+      },
+      "recorded_relation_statements": {
+        "frequency": "Native normal termination and exactly 1 imaginary frequencies required. ",
+        "ts_opt": "Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.",
+        "short_irc": "direct pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/af26330613aa6de0_rc_side_optfreq_v2.log; /home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/a0fe9a8f7c43ff25_im1_side_optfreq_v2.log). [advisory] O1-H11: TS=1.029 Å, IRC_endpoint=1.728 Å, intermediate=1.749 Å, inside interval [advisory] C4-C5: TS=1.991 Å, IRC_endpoint=1.547 Å, intermediate=1.539 Å, inside interval [advisory] O7-H11: TS=1.539 Å, IRC_endpoint=0.985 Å, intermediate=0.986 Å, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.022 (<1 means closer than TS). [advisory] Gate pairs layer: bond_diff (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] O3-H11: TS=2.996 Å, IRC_endpoint=3.486 Å, intermediate=3.592 Å [advisory] O1-C5: TS=2.950 Å, IRC_endpoint=3.291 Å, intermediate=3.468 Å, inside interval [advisory] O1-O6: TS=4.063 Å, IRC_endpoint=4.205 Å, intermediate=4.316 Å, inside interval [advisory] O1-O7: TS=2.491 Å, IRC_endpoint=2.711 Å, intermediate=2.880 Å, inside interval [advisory] C2-C5: TS=2.675 Å, IRC_endpoint=3.072 Å, intermediate=3.515 Å, inside interval [advisory] C2-O6: TS=3.566 Å, IRC_endpoint=3.670 Å, intermediate=4.080 Å, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.548 (<1 means closer than TS). [advisory] Gate pairs layer: distance_top5 (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] C4-O6: TS=2.630 Å, IRC_endpoint=2.967 Å, intermediate=3.620 Å [advisory] [advisory-B] O6-H10: TS=2.791 Å, IRC_endpoint=3.129 Å, intermediate=4.009 Å"
+      },
+      "endpoint_pairing_statement": "direct pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/af26330613aa6de0_rc_side_optfreq_v2.log; /home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/a0fe9a8f7c43ff25_im1_side_optfreq_v2.log).",
+      "alternate_target_identity": null,
+      "relation_status": "historical_program_assertions_given_as_diagnostic_premises_not_reverified_truth",
+      "local_fact_status": "numbers_from_dag_evidence_payloads; termination/convergence from historical check statements",
+      "alias_status": "all geometry aliases and the record handles S/O/F/I/R/P are synthetic; alias spelling does not identify the correct association and no geometry hash is asserted",
+      "geometry_alias_mapping_for_audit_only": {
+        "G0": "g_08",
+        "EA": "g_63",
+        "EB": "g_29",
+        "GR": "g_17",
+        "GP": "g_42"
+      },
+      "single_counterfactual_link": {
+        "record": "I",
+        "attribute": "start_geometry",
+        "original": "g_08",
+        "replacement": "g_42"
+      }
+    },
+    {
+      "base_case_id": "brief-errors/r1/evt_f7ad8d7092784698",
+      "task": "NB1",
+      "arm": "brief-errors",
+      "round": "r1",
+      "runtime_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/runtime-v2.db",
+      "runtime_event": {
+        "event_id": "evt_f7ad8d7092784698",
+        "project_id": "prj_eb59e660789c480d",
+        "session_id": "as_cc93c2578cb14f97",
+        "run_id": "run_074b7146708c4b5b",
+        "seq": 17649,
+        "session_seq": 3425,
+        "type": "tool.result_recorded",
+        "created_at": "2026-10-23T22:45:16.996108+00:00",
+        "source_rowid": 29036
+      },
+      "runtime_result_sha256": "7d8beb95f1b1d9a5f4d4624a6e29c58bd18dc30598f96bc61f547fc666919358",
+      "conversation_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r1/runtime/conversations/prj_eb59e660789c480d/tasks/database.db",
+      "review_request_id": "rev_95982fd10b634312b147380849d88605",
+      "review_proposal_sha256": "dc9de467c5e762a217419c6a594c6d509ee769f83a511a746ff62c0044bd3dbe",
+      "target_identity": {
+        "edge_id": "step_339d9304",
+        "name": "s2_keto_enol_tautomerization",
+        "label": "s2_keto_enol_tautomerization",
+        "metadata": {},
+        "source": {
+          "node_id": "sp_ceb8393b",
+          "name": "IM1_enol_CO2_complex",
+          "label": "IM1_enol_CO2_complex",
+          "smiles": "C=C(O)O.O=C=O",
+          "metadata": {}
+        },
+        "target": {
+          "node_id": "sp_59a349d8",
+          "name": "P_acetic_CO2_complex",
+          "label": "P_acetic_CO2_complex",
+          "smiles": "CC(=O)O.O=C=O",
+          "metadata": {}
+        }
+      },
+      "file_rows": [
+        {
+          "evidence_id": "ev_c37122aa357dd320c61e34df31e5bedb378e608bd70bbe630a5467cd4a84a590",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "frequency.log",
+          "content_hash": "sha256:1531b703b8ef295df05fc49fd07849e992a212495c2f4b661a4b06f5f86ca16e",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 88079,
+            "final_energy_hartree": -417.265894191,
+            "frequencies": [
+              -2053.9192,
+              44.4251,
+              73.1,
+              86.6746,
+              151.0995,
+              171.3255,
+              444.2258,
+              510.813,
+              580.9853,
+              637.3595,
+              651.4107,
+              722.0916,
+              769.6949,
+              798.6062,
+              1015.2215,
+              1053.7892,
+              1130.7785,
+              1268.7452,
+              1385.4788,
+              1399.4682,
+              1544.0806,
+              1610.3975,
+              1960.7413,
+              2470.6958,
+              3112.7867,
+              3207.6936,
+              3622.088
+            ],
+            "imaginary_frequencies": [
+              -2053.9192
+            ],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "frequency.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/ts/ts_0004/jobs/declaration_0001/frequency/frequency.log",
+            "sha256": "a6228037ebbfc389b8eeeb78792323cc07bb3ada3efef180ac8ab8f6891e79c8",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/a6228037ebbfc389_frequency.log"
+          },
+          "created_at": "2026-10-23 21:29:31",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_1a2e39e9e613c881a6f36ba02b5f7685b55ae3cc078bca70261fe464047a606f",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "refine.log",
+          "content_hash": "sha256:8138655cbabf8cfe6fa42b19ab6f653a09e1602a10ced3b0560eb44feb3ff9cb",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 529191,
+            "final_energy_hartree": -417.265886292,
+            "frequencies": null,
+            "imaginary_frequencies": null,
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "refine.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/ts/ts_0004/jobs/declaration_0001/ts_opt/refine.log",
+            "sha256": "b404ce323fae1c598b9bc5d98cd7dc822e1d7e3de1f8f521f00157d41c0f85bd",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/b404ce323fae1c59_refine.log"
+          },
+          "created_at": "2026-10-23 21:29:32",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_957420017172b629b8f0e26cce4bf0354ca4722975eafa458747ab8e07c1e55a",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "irc.log",
+          "content_hash": "sha256:fed20ef33ca5279f5dd00e947028acd4a45f06f877097419925c9f9765e50c8a",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 1249502,
+            "final_energy_hartree": -417.375402658,
+            "frequencies": null,
+            "imaginary_frequencies": null,
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "irc.log",
+              "irc_end_a_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/a156d3da4514f319bd1d0399d76d506a7396092865bdae343818fd95c34b3ea0/irc-1f37c0fa3dd4c51724ef85bdc5cb30a96410d81cc59f868b22742f2700c5a0f7.end-a.xyz",
+              "irc_end_b_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/a156d3da4514f319bd1d0399d76d506a7396092865bdae343818fd95c34b3ea0/irc-1f37c0fa3dd4c51724ef85bdc5cb30a96410d81cc59f868b22742f2700c5a0f7.end-b.xyz",
+              "irc_manifest": {
+                "sha256": "a156d3da4514f319bd1d0399d76d506a7396092865bdae343818fd95c34b3ea0",
+                "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/a156d3da4514f319bd1d0399d76d506a7396092865bdae343818fd95c34b3ea0/irc_endpoints.json"
+              },
+              "irc_sidecars": []
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/ts/ts_0004/jobs/declaration_0001/irc/irc.log",
+            "sha256": "1f37c0fa3dd4c51724ef85bdc5cb30a96410d81cc59f868b22742f2700c5a0f7",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/a156d3da4514f319bd1d0399d76d506a7396092865bdae343818fd95c34b3ea0/1f37c0fa3dd4c517_irc.log"
+          },
+          "created_at": "2026-10-23 21:29:31",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_d69d3971452163588c5dd57d4e6259ccc3f988668825babb09a2f7ec38d648f4",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "im1_side_optfreq_v2.log",
+          "content_hash": "sha256:35732235049225d260f70932b90bd6488bf4684517218b9609b254f8901478b7",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 537064,
+            "final_energy_hartree": -417.333553668,
+            "frequencies": [
+              21.5165,
+              47.0652,
+              83.2527,
+              128.7133,
+              153.5113,
+              308.2897,
+              441.4448,
+              464.9913,
+              555.116,
+              646.742,
+              653.7044,
+              657.6663,
+              687.7755,
+              728.2659,
+              944.757,
+              979.0181,
+              1187.1135,
+              1256.0212,
+              1388.2521,
+              1413.9207,
+              1437.7323,
+              1777.849,
+              2471.9483,
+              3178.9759,
+              3286.2589,
+              3755.5908,
+              3836.5679
+            ],
+            "imaginary_frequencies": [],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "im1_side_optfreq_v2.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/work/s2end/im1_side_optfreq_v2.log",
+            "sha256": "b2b817df4e206911b47570f82c2549108e1bbfeec96f59017ae86e39481511bc",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/b2b817df4e206911_im1_side_optfreq_v2.log"
+          },
+          "created_at": "2026-10-23 22:45:10",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_c1317c78fdeccc82e945d25b08cea00a0a152e0bed99dd9633f42ee6cbc6eb2c",
+          "session_id": "as_cc93c2578cb14f97",
+          "source_type": "file",
+          "source_name": "p_side_optfreq_v2.log",
+          "content_hash": "sha256:f1565e6eae0cfdd17125373a9d2093eb1aa49d1cb998c14696827d466cd32981",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 710545,
+            "final_energy_hartree": -417.381348208,
+            "frequencies": [
+              44.7074,
+              66.0163,
+              81.6078,
+              89.5416,
+              137.4046,
+              163.8879,
+              438.8634,
+              575.9435,
+              616.0017,
+              635.1794,
+              653.8063,
+              762.0795,
+              891.5121,
+              1004.0094,
+              1056.0515,
+              1261.9239,
+              1352.9267,
+              1385.6364,
+              1426.8984,
+              1441.8335,
+              1448.5235,
+              1842.8104,
+              2469.2667,
+              3054.0586,
+              3131.5374,
+              3183.8129,
+              3663.1784
+            ],
+            "imaginary_frequencies": [],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "p_side_optfreq_v2.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/work/s2end/p_side_optfreq_v2.log",
+            "sha256": "faef1b03b4c0822847d8a10e75c3dff908cd00b2dd2da5ea19d529a86b28bf2d",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/faef1b03b4c08228_p_side_optfreq_v2.log"
+          },
+          "created_at": "2026-10-23 22:45:11",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        }
+      ],
+      "matching_parser_observations": {
+        "ev_1a2e39e9e613c881a6f36ba02b5f7685b55ae3cc078bca70261fe464047a606f": [
+          {
+            "case_id": "brief-errors/r1/evt_3cfc8bd8989a427b",
+            "source_event": {
+              "event_id": "evt_3cfc8bd8989a427b",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_f6f468c5b4eb42b2",
+              "run_id": "run_926cec5024754684",
+              "seq": 7987,
+              "session_seq": 636,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:07:09.261332+00:00",
+              "source_rowid": 13880
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -417.265886292
+            }
+          }
+        ],
+        "ev_c37122aa357dd320c61e34df31e5bedb378e608bd70bbe630a5467cd4a84a590": [
+          {
+            "case_id": "brief-errors/r1/evt_d2d19328fd424a45",
+            "source_event": {
+              "event_id": "evt_d2d19328fd424a45",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_f6f468c5b4eb42b2",
+              "run_id": "run_926cec5024754684",
+              "seq": 7993,
+              "session_seq": 642,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:07:09.610188+00:00",
+              "source_rowid": 13886
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": [
+                -2053.9192
+              ],
+              "electronic_energy_hartree": -417.265894191
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_19e7bb49c81a471e",
+            "source_event": {
+              "event_id": "evt_19e7bb49c81a471e",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_e724614acebf4d4d",
+              "run_id": "run_9c3b2d1899354787",
+              "seq": 10507,
+              "session_seq": 1816,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:30:19.907135+00:00",
+              "source_rowid": 18275
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": [
+                -2053.9192
+              ],
+              "electronic_energy_hartree": -417.265894191
+            }
+          }
+        ],
+        "ev_957420017172b629b8f0e26cce4bf0354ca4722975eafa458747ab8e07c1e55a": [
+          {
+            "case_id": "brief-errors/r1/evt_6abf06ec8e804352",
+            "source_event": {
+              "event_id": "evt_6abf06ec8e804352",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_f6f468c5b4eb42b2",
+              "run_id": "run_972c3ceb527841c3",
+              "seq": 9575,
+              "session_seq": 1019,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T21:25:42.190139+00:00",
+              "source_rowid": 17299
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -417.375402658
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_c952ee87088041ce",
+            "source_event": {
+              "event_id": "evt_c952ee87088041ce",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_e724614acebf4d4d",
+              "run_id": "run_fcaa67bb89114679",
+              "seq": 17750,
+              "session_seq": 4311,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:45:45.478366+00:00",
+              "source_rowid": 29137
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -417.375402658
+            }
+          }
+        ],
+        "ev_d69d3971452163588c5dd57d4e6259ccc3f988668825babb09a2f7ec38d648f4": [
+          {
+            "case_id": "brief-errors/r1/evt_14571634d73447b1",
+            "source_event": {
+              "event_id": "evt_14571634d73447b1",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_f6f468c5b4eb42b2",
+              "run_id": "run_4c81f23a47a1473c",
+              "seq": 17435,
+              "session_seq": 2532,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:44:06.707467+00:00",
+              "source_rowid": 28821
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.333553668
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_e021a6da58724e81",
+            "source_event": {
+              "event_id": "evt_e021a6da58724e81",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_e724614acebf4d4d",
+              "run_id": "run_fcaa67bb89114679",
+              "seq": 17587,
+              "session_seq": 4216,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:45:02.824141+00:00",
+              "source_rowid": 28973
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.333553668
+            }
+          }
+        ],
+        "ev_c1317c78fdeccc82e945d25b08cea00a0a152e0bed99dd9633f42ee6cbc6eb2c": [
+          {
+            "case_id": "brief-errors/r1/evt_f5aba38f59a94c8a",
+            "source_event": {
+              "event_id": "evt_f5aba38f59a94c8a",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_f6f468c5b4eb42b2",
+              "run_id": "run_5a441a4f9b7c40ef",
+              "seq": 17487,
+              "session_seq": 2584,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:44:40.711616+00:00",
+              "source_rowid": 28873
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.381348208
+            }
+          },
+          {
+            "case_id": "brief-errors/r1/evt_c075cf759ad44147",
+            "source_event": {
+              "event_id": "evt_c075cf759ad44147",
+              "project_id": "prj_eb59e660789c480d",
+              "session_id": "as_e724614acebf4d4d",
+              "run_id": "run_fcaa67bb89114679",
+              "seq": 17596,
+              "session_seq": 4225,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-23T22:45:04.033085+00:00",
+              "source_rowid": 28982
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -417.381348208
+            }
+          }
+        ]
+      },
+      "recorded_relation_statements": {
+        "frequency": "Native normal termination and exactly 1 imaginary frequencies required. ",
+        "ts_opt": "Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.",
+        "short_irc": "swapped pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/b2b817df4e206911_im1_side_optfreq_v2.log; /home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/faef1b03b4c08228_p_side_optfreq_v2.log). [advisory] C1-H8: TS=1.531 Å, IRC_endpoint=1.098 Å, intermediate=1.096 Å, inside interval [advisory] O4-H8: TS=1.256 Å, IRC_endpoint=2.380 Å, intermediate=2.569 Å, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.137 (<1 means closer than TS). [advisory] Gate pairs layer: bond_diff (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] H8-O9: TS=4.100 Å, IRC_endpoint=5.033 Å, intermediate=5.364 Å [advisory] [advisory-B] H8-C10: TS=3.933 Å, IRC_endpoint=4.986 Å, intermediate=5.311 Å [advisory] [advisory-B] H8-O11: TS=4.160 Å, IRC_endpoint=5.275 Å, intermediate=5.572 Å [advisory] O4-H8: TS=1.256 Å, IRC_endpoint=0.966 Å, intermediate=0.966 Å, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.002 (<1 means closer than TS). [advisory] Gate pairs layer: bond_diff (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] H8-O11: TS=4.160 Å, IRC_endpoint=3.447 Å, intermediate=3.396 Å"
+      },
+      "endpoint_pairing_statement": "swapped pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/b2b817df4e206911_im1_side_optfreq_v2.log; /home/ly/cloudra-p1b-20261024/brief-errors/r1/sandboxes/NB1/batch_8f372f33d68a43b4/.cloudra/evidence/faef1b03b4c08228_p_side_optfreq_v2.log).",
+      "alternate_target_identity": null,
+      "relation_status": "historical_program_assertions_given_as_diagnostic_premises_not_reverified_truth",
+      "local_fact_status": "numbers_from_dag_evidence_payloads; termination/convergence from historical check statements",
+      "alias_status": "all geometry aliases and the record handles S/O/F/I/R/P are synthetic; alias spelling does not identify the correct association and no geometry hash is asserted",
+      "geometry_alias_mapping_for_audit_only": {
+        "G0": "g_08",
+        "EA": "g_63",
+        "EB": "g_29",
+        "GR": "g_17",
+        "GP": "g_42"
+      },
+      "single_counterfactual_link": {
+        "record": "P",
+        "attribute": "input_geometry",
+        "original": "g_63",
+        "replacement": "g_29"
+      }
+    },
+    {
+      "base_case_id": "brief-errors/r2/evt_4c0c8b41a6284357",
+      "task": "HA1",
+      "arm": "brief-errors",
+      "round": "r2",
+      "runtime_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r2/runtime/runtime-v2.db",
+      "runtime_event": {
+        "event_id": "evt_4c0c8b41a6284357",
+        "project_id": "prj_f32fb5ba619841fa",
+        "session_id": "as_8d720e7a053f4eae",
+        "run_id": "run_f7e4f065b7a847b3",
+        "seq": 4936,
+        "session_seq": 1220,
+        "type": "tool.result_recorded",
+        "created_at": "2026-10-24T04:56:53.420431+00:00",
+        "source_rowid": 20097
+      },
+      "runtime_result_sha256": "77472a61f70035678c94bf1f5f35e9968373c0c04fd04985204570ae4407c6ce",
+      "conversation_database": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal48/archive_metadata/cloudra-p1b-20261024/brief-errors/r2/runtime/conversations/prj_f32fb5ba619841fa/tasks/database.db",
+      "review_request_id": "rev_4ef8312049614b15b78f8d87baec8898",
+      "review_proposal_sha256": "face366cd85eecc767aaac0c51090cbe922fb29b486327d0f4f6f37ce5150e30",
+      "target_identity": {
+        "edge_id": "step_b00d3c5a",
+        "name": "conrotatory ring opening to E-diene",
+        "label": "conrotatory ring opening to E-diene",
+        "metadata": {},
+        "source": {
+          "node_id": "sp_a630579e",
+          "name": "3-methylcyclobutene",
+          "label": "3-methylcyclobutene",
+          "smiles": "C[C@H]1CC=C1",
+          "metadata": {}
+        },
+        "target": {
+          "node_id": "sp_e4f218c1",
+          "name": "E-penta-1,3-diene",
+          "label": "E-penta-1,3-diene",
+          "smiles": "C/C=C/C=C",
+          "metadata": {}
+        }
+      },
+      "file_rows": [
+        {
+          "evidence_id": "ev_a9edc75feef2724fa70c9b59e542201842eb5234883de8cf9e116ce8369e9671",
+          "session_id": "as_8d720e7a053f4eae",
+          "source_type": "file",
+          "source_name": "TSE3.log",
+          "content_hash": "sha256:55fe837f826eaee0225df53f5b58647cea16c85928d5f564814299b652c467d3",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 824245,
+            "final_energy_hartree": -195.113158596,
+            "frequencies": [
+              -633.327,
+              63.7718,
+              266.6362,
+              307.8411,
+              510.0224,
+              649.5756,
+              696.0144,
+              755.7255,
+              876.7959,
+              897.9887,
+              922.2968,
+              956.8215,
+              1005.3782,
+              1021.7098,
+              1086.0934,
+              1130.5591,
+              1165.298,
+              1256.8935,
+              1333.0832,
+              1375.116,
+              1428.4731,
+              1461.5053,
+              1475.5251,
+              1505.9571,
+              1562.7795,
+              3002.5075,
+              3075.223,
+              3081.9893,
+              3120.7128,
+              3136.6054,
+              3157.7736,
+              3175.236,
+              3205.0481
+            ],
+            "imaginary_frequencies": [
+              -633.327
+            ],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "TSE3.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/jobs/tsE3/TSE3.log",
+            "sha256": "aa4c91bb75acb8fcaec7e7522344b1fd1cd9050a68dabeb2da85b8b1cf421337",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/aa4c91bb75acb8fc_TSE3.log"
+          },
+          "created_at": "2026-10-24 04:56:49",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_193fc1e68f35d67a41e25c2c0d332913328fb33d127f525d315cae2ec414d42e",
+          "session_id": "as_8d720e7a053f4eae",
+          "source_type": "file",
+          "source_name": "IRCE.log",
+          "content_hash": "sha256:3e75ceee707aa79ed8ab71e3cea5bceafdee155d8d9d1eac4037a1076e0d4108",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 1644331,
+            "final_energy_hartree": -195.161345359,
+            "frequencies": null,
+            "imaginary_frequencies": null,
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "IRCE.log",
+              "irc_end_a_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/5b0cc9bc3f5ce19a22b40b3f01b057245792f838bbd5fe59507eab3679b0d70e/irc-1997d172ca7f2cd2666975bb0d8b8c350f944e7b3552b541ffe3579b61b9e5d7.end-a.xyz",
+              "irc_end_b_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/5b0cc9bc3f5ce19a22b40b3f01b057245792f838bbd5fe59507eab3679b0d70e/irc-1997d172ca7f2cd2666975bb0d8b8c350f944e7b3552b541ffe3579b61b9e5d7.end-b.xyz",
+              "irc_manifest": {
+                "sha256": "5b0cc9bc3f5ce19a22b40b3f01b057245792f838bbd5fe59507eab3679b0d70e",
+                "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/5b0cc9bc3f5ce19a22b40b3f01b057245792f838bbd5fe59507eab3679b0d70e/irc_endpoints.json"
+              },
+              "irc_sidecars": []
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/jobs/ircE/IRCE.log",
+            "sha256": "1997d172ca7f2cd2666975bb0d8b8c350f944e7b3552b541ffe3579b61b9e5d7",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/5b0cc9bc3f5ce19a22b40b3f01b057245792f838bbd5fe59507eab3679b0d70e/1997d172ca7f2cd2_IRCE.log"
+          },
+          "created_at": "2026-10-24 04:56:49",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_4366b5e79e004d2940938724134609199ed16fb41005d5f279d10af660dcf991",
+          "session_id": "as_8d720e7a053f4eae",
+          "source_type": "file",
+          "source_name": "R_ep.log",
+          "content_hash": "sha256:fbf02d51560b5cdbbfe5e74c01e6a3991da02ae477d9e261915630504e599109",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 322630,
+            "final_energy_hartree": -195.165893794,
+            "frequencies": [
+              210.9419,
+              256.442,
+              333.399,
+              466.4426,
+              703.5674,
+              781.8341,
+              867.8808,
+              882.2499,
+              923.4722,
+              953.7466,
+              970.6331,
+              1033.8055,
+              1067.2118,
+              1081.0477,
+              1145.7408,
+              1171.5553,
+              1215.707,
+              1230.9333,
+              1313.0183,
+              1349.2366,
+              1393.6172,
+              1450.6786,
+              1465.7871,
+              1470.4164,
+              1651.4906,
+              3019.7063,
+              3025.4909,
+              3031.9929,
+              3083.6215,
+              3101.0671,
+              3104.3147,
+              3166.9944,
+              3199.142
+            ],
+            "imaginary_frequencies": [],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "R_ep.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/jobs/epE_react/R_ep.log",
+            "sha256": "a98313741ed758a0cc3964e9b85594d08de0d6328360a149dc466f3061e1d995",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/a98313741ed758a0_R_ep.log"
+          },
+          "created_at": "2026-10-24 04:56:48",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        },
+        {
+          "evidence_id": "ev_eb5c6f64d61b128ec508e379b275ce3699c159075f6cfdd41b2a6737b533164d",
+          "session_id": "as_8d720e7a053f4eae",
+          "source_type": "file",
+          "source_name": "PE_ep.log",
+          "content_hash": "sha256:9ffc9668adf0a320e42a34b2dbb87e5e3351987d177198b5f69772c4c4d0f966",
+          "payload": {
+            "engine": "gaussian",
+            "file_size": 378113,
+            "final_energy_hartree": -195.182551999,
+            "frequencies": [
+              110.3116,
+              186.6482,
+              216.8356,
+              242.9694,
+              387.9715,
+              582.3904,
+              651.5409,
+              833.804,
+              901.4209,
+              928.4449,
+              997.7922,
+              1006.3998,
+              1028.8134,
+              1054.5009,
+              1071.3656,
+              1143.1751,
+              1298.4205,
+              1317.8404,
+              1337.2671,
+              1396.2327,
+              1431.8191,
+              1449.4166,
+              1459.4619,
+              1693.7348,
+              1728.1976,
+              3010.9775,
+              3068.8544,
+              3112.7189,
+              3125.2364,
+              3135.5286,
+              3140.2082,
+              3145.118,
+              3234.9699
+            ],
+            "imaginary_frequencies": [],
+            "is_qm_log": true,
+            "metadata": {
+              "filename": "PE_ep.log"
+            },
+            "normal_modes": null,
+            "original_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/jobs/epE_prod/PE_ep.log",
+            "sha256": "8cdd8e10add5c921863a60da0bed9b385c88131a8490d2b5ca257ae8ee5565f4",
+            "snapshot_path": "/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/8cdd8e10add5c921_PE_ep.log"
+          },
+          "created_at": "2026-10-24 04:56:48",
+          "tool_call_id": "",
+          "compute_job_id": ""
+        }
+      ],
+      "matching_parser_observations": {
+        "ev_a9edc75feef2724fa70c9b59e542201842eb5234883de8cf9e116ce8369e9671": [
+          {
+            "case_id": "brief-errors/r2/evt_8155ac5715f74d20",
+            "source_event": {
+              "event_id": "evt_8155ac5715f74d20",
+              "project_id": "prj_f32fb5ba619841fa",
+              "session_id": "as_b35b2d5f909c4afe",
+              "run_id": "run_8d3d29296aeb42e8",
+              "seq": 3193,
+              "session_seq": 1858,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T04:26:42.665055+00:00",
+              "source_rowid": 17627
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [
+                -633.327
+              ],
+              "electronic_energy_hartree": -195.113158596
+            }
+          },
+          {
+            "case_id": "brief-errors/r2/evt_43180aa1cc654781",
+            "source_event": {
+              "event_id": "evt_43180aa1cc654781",
+              "project_id": "prj_f32fb5ba619841fa",
+              "session_id": "as_b5993b3e8a2a40e4",
+              "run_id": "run_a4fe445b6dca426d",
+              "seq": 3580,
+              "session_seq": 695,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T04:27:53.227472+00:00",
+              "source_rowid": 18249
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [
+                -633.327
+              ],
+              "electronic_energy_hartree": -195.113158596
+            }
+          }
+        ],
+        "ev_193fc1e68f35d67a41e25c2c0d332913328fb33d127f525d315cae2ec414d42e": [
+          {
+            "case_id": "brief-errors/r2/evt_aea7ba85b00c44ab",
+            "source_event": {
+              "event_id": "evt_aea7ba85b00c44ab",
+              "project_id": "prj_f32fb5ba619841fa",
+              "session_id": "as_b35b2d5f909c4afe",
+              "run_id": "run_70d6f22028dc469e",
+              "seq": 4154,
+              "session_seq": 2265,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T04:46:09.210928+00:00",
+              "source_rowid": 19157
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -195.161345359
+            }
+          },
+          {
+            "case_id": "brief-errors/r2/evt_96a812675ff54606",
+            "source_event": {
+              "event_id": "evt_96a812675ff54606",
+              "project_id": "prj_f32fb5ba619841fa",
+              "session_id": "as_b5993b3e8a2a40e4",
+              "run_id": "run_6c2afa789a5c4252",
+              "seq": 4637,
+              "session_seq": 826,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T04:55:20.418953+00:00",
+              "source_rowid": 19798
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": null,
+              "imaginary_frequencies": null,
+              "electronic_energy_hartree": -195.161345359
+            }
+          }
+        ],
+        "ev_4366b5e79e004d2940938724134609199ed16fb41005d5f279d10af660dcf991": [
+          {
+            "case_id": "brief-errors/r2/evt_ec66c8ce4baf4e89",
+            "source_event": {
+              "event_id": "evt_ec66c8ce4baf4e89",
+              "project_id": "prj_f32fb5ba619841fa",
+              "session_id": "as_b35b2d5f909c4afe",
+              "run_id": "run_578c61089fa94df6",
+              "seq": 4289,
+              "session_seq": 2382,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T04:49:34.806186+00:00",
+              "source_rowid": 19409
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -195.165893794
+            }
+          },
+          {
+            "case_id": "brief-errors/r2/evt_a8a2f9066e9a4558",
+            "source_event": {
+              "event_id": "evt_a8a2f9066e9a4558",
+              "project_id": "prj_f32fb5ba619841fa",
+              "session_id": "as_b5993b3e8a2a40e4",
+              "run_id": "run_6c2afa789a5c4252",
+              "seq": 4657,
+              "session_seq": 846,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T04:55:21.989060+00:00",
+              "source_rowid": 19818
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -195.165893794
+            }
+          }
+        ],
+        "ev_eb5c6f64d61b128ec508e379b275ce3699c159075f6cfdd41b2a6737b533164d": [
+          {
+            "case_id": "brief-errors/r2/evt_ff9b05a39a504538",
+            "source_event": {
+              "event_id": "evt_ff9b05a39a504538",
+              "project_id": "prj_f32fb5ba619841fa",
+              "session_id": "as_b35b2d5f909c4afe",
+              "run_id": "run_6eecc599b186481d",
+              "seq": 4373,
+              "session_seq": 2466,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T04:49:58.839864+00:00",
+              "source_rowid": 19493
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -195.182551999
+            }
+          },
+          {
+            "case_id": "brief-errors/r2/evt_eb47b0a4a4584da9",
+            "source_event": {
+              "event_id": "evt_eb47b0a4a4584da9",
+              "project_id": "prj_f32fb5ba619841fa",
+              "session_id": "as_b5993b3e8a2a40e4",
+              "run_id": "run_6c2afa789a5c4252",
+              "seq": 4662,
+              "session_seq": 851,
+              "type": "tool.result_recorded",
+              "created_at": "2026-10-24T04:55:22.264086+00:00",
+              "source_rowid": 19823
+            },
+            "local_facts": {
+              "normal_termination": true,
+              "opt_converged": true,
+              "imaginary_frequencies": [],
+              "electronic_energy_hartree": -195.182551999
+            }
+          }
+        ]
+      },
+      "recorded_relation_statements": {
+        "frequency": "Native normal termination and exactly 1 imaginary frequencies required. ",
+        "ts_opt": "Native optimization convergence and one-imaginary-frequency evidence for the same geometry passed; reaction direction is checked separately.",
+        "short_irc": "swapped pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/a98313741ed758a0_R_ep.log; /home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/8cdd8e10add5c921_PE_ep.log). [advisory] C1-C3: TS=3.352 Å, IRC_endpoint=3.944 Å, intermediate=4.578 Å, inside interval [advisory] C1-C4: TS=3.590 Å, IRC_endpoint=3.747 Å, intermediate=3.903 Å, inside interval [advisory] C1-H10: TS=4.210 Å, IRC_endpoint=5.000 Å, intermediate=5.658 Å, inside interval [advisory] C1-H11: TS=3.074 Å, IRC_endpoint=3.354 Å, intermediate=4.328 Å, inside interval [advisory] C1-H13: TS=2.999 Å, IRC_endpoint=2.907 Å, intermediate=2.736 Å, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.586 (<1 means closer than TS). [advisory] Gate pairs layer: distance_top5 (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] C1-C2: TS=1.503 Å, IRC_endpoint=1.492 Å, intermediate=1.497 Å [advisory] [advisory-B] C2-C3: TS=2.154 Å, IRC_endpoint=2.740 Å, intermediate=3.097 Å [advisory] [advisory-B] C2-C5: TS=1.434 Å, IRC_endpoint=1.348 Å, intermediate=1.344 Å [advisory] [advisory-B] C2-H10: TS=3.021 Å, IRC_endpoint=3.794 Å, intermediate=4.171 Å [advisory] [advisory-B] C2-H11: TS=2.327 Å, IRC_endpoint=2.477 Å, intermediate=2.926 Å [advisory] [advisory-B] C3-C4: TS=1.429 Å, IRC_endpoint=1.348 Å, intermediate=1.342 Å [advisory] [advisory-B] C3-H6: TS=4.249 Å, IRC_endpoint=4.870 Å, intermediate=5.189 Å [advisory] [advisory-B] C3-H7: TS=3.668 Å, IRC_endpoint=4.266 Å, intermediate=5.053 Å [advisory] [advisory-B] C3-H8: TS=3.612 Å, IRC_endpoint=4.061 Å, intermediate=5.003 Å [advisory] [advisory-B] C4-C5: TS=1.377 Å, IRC_endpoint=1.465 Å, intermediate=1.468 Å [advisory] [advisory-B] H6-H10: TS=5.082 Å, IRC_endpoint=5.917 Å, intermediate=6.236 Å [advisory] [advisory-B] H6-H11: TS=4.119 Å, IRC_endpoint=4.359 Å, intermediate=4.926 Å [advisory] [advisory-B] H7-H10: TS=4.639 Å, IRC_endpoint=5.336 Å, intermediate=6.106 Å [advisory] [advisory-B] H7-H11: TS=3.152 Å, IRC_endpoint=3.674 Å, intermediate=4.983 Å [advisory] [advisory-B] H8-H10: TS=4.274 Å, IRC_endpoint=5.021 Å, intermediate=6.095 Å [advisory] [advisory-B] H8-H11: TS=3.211 Å, IRC_endpoint=3.244 Å, intermediate=4.551 Å [advisory] [advisory-B] H9-H10: TS=2.827 Å, IRC_endpoint=3.415 Å, intermediate=3.889 Å [advisory] C2-C3: TS=2.154 Å, IRC_endpoint=1.585 Å, intermediate=1.574 Å, inside interval [advisory] Distance-vector ratio endpoint-to-intermediate=0.019 (<1 means closer than TS). [advisory] Gate pairs layer: bond_diff (perception: ts=rdDetermineBonds,intermediate=rdDetermineBonds). [advisory] [advisory-B] C2-C5: TS=1.434 Å, IRC_endpoint=1.520 Å, intermediate=1.523 Å [advisory] [advisory-B] C2-H10: TS=3.021 Å, IRC_endpoint=2.294 Å, intermediate=2.276 Å [advisory] [advisory-B] C3-C4: TS=1.429 Å, IRC_endpoint=1.519 Å, intermediate=1.517 Å [advisory] [advisory-B] C3-H6: TS=4.249 Å, IRC_endpoint=3.646 Å, intermediate=3.578 Å [advisory] [advisory-B] C3-H7: TS=3.668 Å, IRC_endpoint=3.076 Å, intermediate=2.840 Å [advisory] [advisory-B] C3-H8: TS=3.612 Å, IRC_endpoint=3.127 Å, intermediate=3.002 Å [advisory] [advisory-B] C4-H7: TS=3.816 Å, IRC_endpoint=3.584 Å, intermediate=3.291 Å [advisory] [advisory-B] H6-H10: TS=5.082 Å, IRC_endpoint=4.332 Å, intermediate=4.346 Å [advisory] [advisory-B] H7-H10: TS=4.639 Å, IRC_endpoint=3.984 Å, intermediate=3.816 Å [advisory] [advisory-B] H7-H11: TS=3.152 Å, IRC_endpoint=2.919 Å, intermediate=2.613 Å [advisory] [advisory-B] H7-H12: TS=4.847 Å, IRC_endpoint=4.562 Å, intermediate=4.189 Å [advisory] [advisory-B] H8-H10: TS=4.274 Å, IRC_endpoint=3.599 Å, intermediate=3.567 Å"
+      },
+      "endpoint_pairing_statement": "swapped pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima (/home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/a98313741ed758a0_R_ep.log; /home/ly/cloudra-p1b-20261024/brief-errors/r2/sandboxes/HA1/batch_5ed0dc4da8d349ae/.cloudra/evidence/8cdd8e10add5c921_PE_ep.log).",
+      "alternate_target_identity": {
+        "node_id": "sp_49a2f057",
+        "name": "Z-penta-1,3-diene",
+        "label": "Z-penta-1,3-diene",
+        "smiles": "C/C=C\\C=C",
+        "metadata": {}
+      },
+      "relation_status": "historical_program_assertions_given_as_diagnostic_premises_not_reverified_truth",
+      "local_fact_status": "numbers_from_dag_evidence_payloads; termination/convergence from historical check statements",
+      "alias_status": "all geometry aliases and the record handles S/O/F/I/R/P are synthetic; alias spelling does not identify the correct association and no geometry hash is asserted",
+      "geometry_alias_mapping_for_audit_only": {
+        "G0": "g_42",
+        "EA": "g_08",
+        "EB": "g_63",
+        "GR": "g_29",
+        "GP": "g_17"
+      },
+      "single_counterfactual_link": {
+        "record": "P",
+        "attribute": "species_ref",
+        "original": "sp_e4f218c1",
+        "replacement": "sp_49a2f057"
+      }
+    }
+  ],
+  "formal_cases": {
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/formal_cases.jsonl",
+    "sha256": "cdb5f980cb090634205cea850d8b9f60b1defbc688081914fad4244430c69205"
+  },
+  "system_trace": {
+    "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/system_trace.json",
+    "sha256": "84314c49a93ee6b5306fcd41cf07dc951b1f0faf2ed86a7d653569ad649dbe40"
+  },
+  "contract_sources": [
+    "cloudra/dag/models.py:1048-1072",
+    "cloudra/tools/core/irc_evidence.py:495-607",
+    "cloudra/tools/core/irc_evidence.py:610-699"
+  ],
+  "label_basis": "Explicit reference equality, paired endpoint membership, and declared species references under the quoted existing contract; no scientific threshold or scoring rule added.",
+  "factorial_design": "4 source chains x 2 binding conditions x 2 equivalent presentations x 2 option orders = 32 inputs; 16 per answer letter.",
+  "presentation_control": "flat triples and linked records contain identical propositions; grouping/order alone differ.",
+  "binding_control": "Exactly one existing reference changes per source chain. Geometry-ID sets are identical before/after; no new or deleted ID. All numerical values and all local termination/convergence/frequency facts are retained.",
+  "excluded_from_prompts": [
+    "complete",
+    "unresolved",
+    "accepted",
+    "passed",
+    "scientific_checks.status",
+    "next_action",
+    "supervisor verdicts",
+    "expected labels"
+  ],
+  "limitations": [
+    "All 32 inputs are synthetic, source-grounded association diagnostics, not original-context replays.",
+    "Geometry equivalences and local termination/convergence are premises normalized from historical program statements; native logs/coordinates were not independently reverified.",
+    "The positive label means only that the explicitly given association requirements are satisfied; it is not scientific acceptance of any original run.",
+    "Four chains cover three tasks; NB1's two chains share an original run and are not independent research tasks.",
+    "Synthetic aliases and counterfactual links are not added to or substituted for original records.",
+    "No results, general research-ability conclusions, or original-provider behavior claims exist until separately authorized model experiments."
+  ]
+}

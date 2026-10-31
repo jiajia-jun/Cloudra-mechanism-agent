@@ -1,0 +1,54 @@
+[
+  {
+    "arm": "standard",
+    "n_batches": 3,
+    "n_tasks_per_batch": 4,
+    "n_total_runs": 12,
+    "concurrency": 2,
+    "mean_batch_hours": 3.9576851851851855,
+    "median_batch_hours": 4.030555555555556,
+    "sample_sd_batch_hours": 1.418210333628804,
+    "min_batch_hours": 2.5044444444444443,
+    "max_batch_hours": 5.338055555555556,
+    "total_batch_hours": 11.873055555555556
+  },
+  {
+    "arm": "guided",
+    "n_batches": 3,
+    "n_tasks_per_batch": 4,
+    "n_total_runs": 12,
+    "concurrency": 2,
+    "mean_batch_hours": 4.451388888888889,
+    "median_batch_hours": 4.238333333333333,
+    "sample_sd_batch_hours": 0.7151832731527847,
+    "min_batch_hours": 3.8669444444444445,
+    "max_batch_hours": 5.248888888888889,
+    "total_batch_hours": 13.354166666666666
+  },
+  {
+    "arm": "record",
+    "n_batches": 3,
+    "n_tasks_per_batch": 4,
+    "n_total_runs": 12,
+    "concurrency": 2,
+    "mean_batch_hours": 3.8941666666666666,
+    "median_batch_hours": 3.6433333333333335,
+    "sample_sd_batch_hours": 1.4160664033307107,
+    "min_batch_hours": 2.620277777777778,
+    "max_batch_hours": 5.418888888888889,
+    "total_batch_hours": 11.682500000000001
+  },
+  {
+    "arm": "brief-errors",
+    "n_batches": 3,
+    "n_tasks_per_batch": 4,
+    "n_total_runs": 12,
+    "concurrency": 2,
+    "mean_batch_hours": 4.827314814814815,
+    "median_batch_hours": 3.6475,
+    "sample_sd_batch_hours": 2.1148620977233556,
+    "min_batch_hours": 3.5655555555555556,
+    "max_batch_hours": 7.268888888888889,
+    "total_batch_hours": 14.481944444444444
+  }
+]

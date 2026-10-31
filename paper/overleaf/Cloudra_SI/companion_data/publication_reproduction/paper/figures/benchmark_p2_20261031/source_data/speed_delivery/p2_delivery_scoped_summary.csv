@@ -1,0 +1,9 @@
+scope,arm,n_runs,root_graph_present,root_graph_missing,sc_component_available,sc_component_missing,sc_equals_one,sc_less_than_one
+non_impossible,standard,40,34,6,39,1,6,33
+non_impossible,guided,40,40,0,37,3,23,14
+non_impossible,record,40,40,0,40,0,16,24
+non_impossible,brief-errors,40,40,0,38,2,20,18
+impossible,standard,10,9,1,10,0,2,8
+impossible,guided,10,10,0,10,0,8,2
+impossible,record,10,10,0,10,0,3,7
+impossible,brief-errors,10,10,0,10,0,6,4

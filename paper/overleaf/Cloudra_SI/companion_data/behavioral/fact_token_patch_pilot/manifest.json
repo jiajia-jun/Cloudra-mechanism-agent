@@ -1,0 +1,22 @@
+{
+  "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/cloudra_model_study_20261028/geometry_activation_pilot",
+  "fact_token_position": 53,
+  "changed_measurement": {
+    "source": "2.029",
+    "counterfactual": "1.029",
+    "unchanged_other": "1.248"
+  },
+  "synthetic": true,
+  "patch_layers_fixed_before_results": [
+    7,
+    15,
+    31,
+    47
+  ],
+  "controls": [
+    "same-corrupt-state self-patch at the fact token",
+    "unchanged-prefix patch at token 0",
+    "both answer-option orders"
+  ],
+  "scope": "Transmission of a reported numerical fact in one short comparison. Not XYZ computation, scientific validity, original DeepSeek mechanism or a chemistry neuron."
+}

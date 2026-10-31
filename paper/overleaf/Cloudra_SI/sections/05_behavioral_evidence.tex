@@ -11,7 +11,7 @@ The local deployment was archived as \texttt{qwen3.8:27b}, using a GGUF Q4\_K\_M
 \end{quote}
 The local API metadata reports a maximum model context of 262,144 tokens. The short diagnostic requests use an 8,192-token context. Temperature is 0, seed 42, top-$k$ 0, top-$p$ 1, minimum-$p$ 0, repeat penalty 1, presence penalty 0, and draft prediction count 0. The initial identity and evidence-binding probes use the archived explicit ChatML prompt rendering, an empty thinking block, thinking disabled, and a maximum of eight generated tokens; top-20 token log probabilities are retained. The native-chat controls use separate system and user messages, the deployment's native rendering, and a maximum of 1,024 generated tokens, with the thinking setting specified per request. In every choice task, the saved final answer is evaluated as an exact permitted uppercase choice letter. Semantic answer identity is recorded separately from the displayed letter.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering\small
 \caption{Experimental units and crossed conditions of the local diagnostic studies.}
 \label{tab:si-diagnostic-design}
@@ -44,7 +44,7 @@ The identical-string positive conditions provide a baseline for matching a repre
 
 Four NB1 geometries were selected from the archived research trajectories. The local question asks which of two specified atom pairs has the shorter Euclidean distance. The original-XYZ condition supplies the complete geometry in its saved atom order. The measured-distance condition supplies program-calculated values for the same atom pairs. Each condition appears in both answer orders and in direct-answer and thinking modes, yielding 32 native chat calls. Table~\ref{tab:si-distance-stimuli} gives the measured values used to construct the paired conditions; all atom indices are one-based.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering\small
 \caption{Distance comparisons derived from the four archived NB1 geometries.}
 \label{tab:si-distance-stimuli}
@@ -60,7 +60,7 @@ Brief & C4--H11 & 2.386 & O7--H11 & 0.968\\
 \end{tabular}
 \end{table}
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering\small
 \caption{Complete outcomes of the native distance-judgment controls.}
 \label{tab:si-distance-outcomes}
@@ -85,7 +85,7 @@ All eight direct-answer XYZ responses selected A, giving four correct answers an
 
 The E1 source trajectory specifies the transferring hydrogen H7 in the H7--C2--C3--Cl4 dihedral and seeks an anti-periplanar arrangement near $180^\circ$. Rotation of the C3-side fragment about C2--C3 by $+120^\circ$ and $-120^\circ$ produces candidates A and B, while the C3--Cl4 distance is set to 2.35 \AA. The default structural report describes a dihedral involving H5. The subsequent explicit H7 measurement identifies the quantity required by the current research objective.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering\small
 \caption{Dihedral measurements and circular residuals for the saved E1 candidates.}
 \label{tab:si-target-dihedrals}
@@ -111,7 +111,7 @@ The activation experiment uses the same archived local quantized deployment and 
 
 For each option order, the residual-stream state at position 53 is captured from the original prompt and transferred into the edited prompt at zero-based layers 7, 15, 31, and 47. The four layers are fixed in the experiment manifest. The readout is the full-vocabulary softmax probability mass assigned to the original-fact answer, summing its bare-letter and leading-space spellings. Table~\ref{tab:si-fact-patch} preserves the clean, edited, and transferred-state values.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering\small
 \caption{Probability of the original-fact answer under single-position activation replacement.}
 \label{tab:si-fact-patch}
@@ -142,7 +142,7 @@ The question asks whether the supplied associations meet the specified support r
 
 A subsequent native-chat follow-up uses the two source chains implicated by these errors and retains every coherent/altered, flat/linked, and option-order variant, giving 16 association questions per thinking mode. The same follow-up also retains all four variants of five identity pairs implicated by the first-stage identity results, giving 20 identity questions per mode. Table~\ref{tab:si-native-followup} records every outcome category in this 72-call follow-up. Under native chat with thinking disabled, the selected identity and association counts remain 14/20 and 14/16 correct. With thinking enabled, association judgments reach 16/16; the identity family has eight correct final choices and 12 budget-truncated generations at the common 1,024-token maximum.
 
-\begin{table}[!tbp]
+\begin{table}[!htbp]
 \centering\small
 \caption{Complete outcomes for the selected native diagnostic follow-up.}
 \label{tab:si-native-followup}

@@ -1,0 +1,201 @@
+{
+  "n": 96,
+  "model": {
+    "name": "qwen3.8:27b",
+    "model": "qwen3.8:27b",
+    "modified_at": "2026-08-26T01:28:05.467950246+08:00",
+    "size": 17741872154,
+    "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "details": {
+      "parent_model": "qwen3.8:27b-q4_K_M",
+      "format": "gguf",
+      "family": "qwen35",
+      "families": [
+        "qwen35"
+      ],
+      "parameter_size": "27.3B",
+      "quantization_level": "Q4_K_M",
+      "context_length": 262144,
+      "embedding_length": 5120
+    },
+    "capabilities": [
+      "completion",
+      "tools",
+      "thinking",
+      "vision"
+    ]
+  },
+  "by_condition": [
+    {
+      "mainline": "B",
+      "condition": "altered_flat",
+      "n": 8,
+      "correct": 6,
+      "format_failures": 0
+    },
+    {
+      "mainline": "B",
+      "condition": "altered_linked",
+      "n": 8,
+      "correct": 8,
+      "format_failures": 0
+    },
+    {
+      "mainline": "B",
+      "condition": "coherent_flat",
+      "n": 8,
+      "correct": 8,
+      "format_failures": 0
+    },
+    {
+      "mainline": "B",
+      "condition": "coherent_linked",
+      "n": 8,
+      "correct": 8,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/protonation_and_formal_charge",
+      "condition": "equivalent_rewrite/forward",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/protonation_and_formal_charge",
+      "condition": "equivalent_rewrite/swapped",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/protonation_and_formal_charge",
+      "condition": "literal/forward",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/protonation_and_formal_charge",
+      "condition": "literal/swapped",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/forward",
+      "n": 5,
+      "correct": 3,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "equivalent_rewrite/swapped",
+      "n": 5,
+      "correct": 5,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/forward",
+      "n": 5,
+      "correct": 4,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_formula_connectivity",
+      "condition": "literal/swapped",
+      "n": 5,
+      "correct": 5,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_formula_connectivity_and_charge_relocation",
+      "condition": "equivalent_rewrite/forward",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_formula_connectivity_and_charge_relocation",
+      "condition": "equivalent_rewrite/swapped",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_formula_connectivity_and_charge_relocation",
+      "condition": "literal/forward",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_formula_connectivity_and_charge_relocation",
+      "condition": "literal/swapped",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/forward",
+      "n": 8,
+      "correct": 8,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_identity",
+      "condition": "equivalent_rewrite/swapped",
+      "n": 8,
+      "correct": 6,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/forward",
+      "n": 8,
+      "correct": 8,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/same_identity",
+      "condition": "literal/swapped",
+      "n": 8,
+      "correct": 8,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/specified_double_bond_stereochemistry",
+      "condition": "equivalent_rewrite/forward",
+      "n": 1,
+      "correct": 0,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/specified_double_bond_stereochemistry",
+      "condition": "equivalent_rewrite/swapped",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/specified_double_bond_stereochemistry",
+      "condition": "literal/forward",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    },
+    {
+      "mainline": "chemical_identity/specified_double_bond_stereochemistry",
+      "condition": "literal/swapped",
+      "n": 1,
+      "correct": 1,
+      "format_failures": 0
+    }
+  ],
+  "scope": "Frozen localised diagnostic probes; not independent chemistry tasks or original run success rates.",
+  "decoding": "Raw explicit ChatML research prompt, thinking disabled, greedy; no answer grammar.",
+  "probability_limit": "Native top-20 log probabilities are retained; an absent choice is censored, not probability zero."
+}

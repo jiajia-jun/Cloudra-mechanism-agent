@@ -1,0 +1,61 @@
+{
+  "n": 10,
+  "model": {
+    "name": "qwen3.8:27b",
+    "model": "qwen3.8:27b",
+    "modified_at": "2026-08-26T01:28:05.467950246+08:00",
+    "size": 17741872154,
+    "digest": "22130167c4c20e20c7b71454612966ca8e8171e9b3cc8ab6ce8aa6cbfec79643",
+    "details": {
+      "parent_model": "qwen3.8:27b-q4_K_M",
+      "format": "gguf",
+      "family": "qwen35",
+      "families": [
+        "qwen35"
+      ],
+      "parameter_size": "27.3B",
+      "quantization_level": "Q4_K_M",
+      "context_length": 262144,
+      "embedding_length": 5120
+    },
+    "capabilities": [
+      "completion",
+      "tools",
+      "thinking",
+      "vision"
+    ]
+  },
+  "by_condition": [
+    {
+      "mainline": "A",
+      "condition": "proxy_only/next_action",
+      "n": 3,
+      "correct": 3,
+      "format_failures": 0
+    },
+    {
+      "mainline": "A",
+      "condition": "proxy_only/sufficiency",
+      "n": 2,
+      "correct": 2,
+      "format_failures": 0
+    },
+    {
+      "mainline": "A",
+      "condition": "proxy_plus_target/next_action",
+      "n": 3,
+      "correct": 3,
+      "format_failures": 0
+    },
+    {
+      "mainline": "A",
+      "condition": "proxy_plus_target/sufficiency",
+      "n": 2,
+      "correct": 2,
+      "format_failures": 0
+    }
+  ],
+  "scope": "Frozen localised diagnostic probes; not independent chemistry tasks or original run success rates.",
+  "decoding": "Raw explicit ChatML research prompt, thinking disabled, greedy; no answer grammar.",
+  "probability_limit": "Native top-20 log probabilities are retained; an absent choice is censored, not probability zero."
+}
