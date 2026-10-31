@@ -3,7 +3,15 @@
 All notable changes to the Cloudra project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased] (2026-09-22 ~ 2026-10-20)
+## [0.1.0] - 2026-11-01
+
+### 正式发布
+- 版本从 `0.1.0rc1` 更新为 `0.1.0`。
+- 前端默认采用 Acid 风格，保留用户已保存的风格选择。
+- 更新中英文项目首页和贡献指南，集中配置、研究数据与复现入口。
+- 下方保留此前开发记录；现行评分定义和参考证据限定以 `cloudra/benchmark/README.md` 与 `gold_compute/evidence/REPRODUCE.md` 为准。
+
+### 此前开发记录（2026-09-22 至 2026-10-20）
 
 ### 多后端量化计算一致性与底层单源 (Multi-Backend QM Consistency)
 - **多后端行为一致性与逻辑单源权威原则**：
