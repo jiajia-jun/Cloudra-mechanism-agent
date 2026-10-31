@@ -1,0 +1,22 @@
+{
+  "title": "Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration",
+  "authors": [
+    "Chengyi Yang",
+    "Qianxin Zhou",
+    "Yang Li"
+  ],
+  "abstract": "Autonomous exploration of organic reaction mechanisms requires molecular geometries, reaction pathways, and quantum-chemical results to support the same mechanistic conclusion. Large language model (LLM) agents can make unreliable three-dimensional judgments and declare a study complete before the required physical checks are satisfied. We present Cloudra, a multi-agent framework that separates mechanistic reasoning from deterministic geometric operations and scientific validation. Under a design principle of intelligent restraint, topology-aware operators translate chemical intent into spatial operations on molecular structures. A Delivery DAG organized around chemical entities links mechanistic claims to archived quantum-chemical results. It checks stationary points and reaction pathways and records the scientific requirements that remain unresolved. We evaluate Cloudra on CloudraBench, which contains 50 tasks covering elementary reactions, multistep mechanisms, stereochemical competition, and computational method limitations. Across 200 runs under four workflow configurations, Cloudra achieves a mean composite score of 0.780, compared with 0.594 for the same-model Standard baseline. On Hard-tier tasks, the mean score increases from 0.689 to 0.958. Full scientific self-consistency scores are obtained in 24 of 40 non-Impossible tasks, compared with seven under Standard. Behavioral analyses examine how explicit geometric measurements and structured result associations affect local scientific judgments. Cloudra couples computational execution to geometric operations and physical acceptance checks. The framework evaluates completion through the results supporting a mechanistic conclusion and the scientific requirements that those results satisfy.",
+  "abstract_characters": 1774,
+  "suggested_primary_category": "physics.chem-ph",
+  "optional_cross_list": "cs.AI",
+  "category_selection_status": "author choice pending; recommendation based on subject matter",
+  "comments_draft": "23 pages, 24 figures; Supplementary Information: 31 pages, 2 figures.",
+  "license": null,
+  "license_status": "author choice pending",
+  "journal_reference": null,
+  "publication_doi": null,
+  "account_endorsement_status": "not checked; depends on submitting account",
+  "public_data_location_status": "pending; existing 16.8 MB data archive is ready locally",
+  "code_repository_visibility_checked": "private, GitHub connector, 2026-11-01",
+  "compiler_requirement": "XeLaTeX; arXiv currently supports TeX Live 2025 (default) and 2023; existing Overleaf projects use 2026"
+}

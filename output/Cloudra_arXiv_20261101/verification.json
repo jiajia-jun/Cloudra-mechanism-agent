@@ -1,0 +1,39 @@
+{
+  "date": "2026-11-01",
+  "scope": "Three author-authorized wording/notation corrections; publication preparation and independent Astra review.",
+  "languages": {
+    "EN": {
+      "pages": 23,
+      "source_files": 37,
+      "pdf_sha256": "2f88eaa110ea3f6e3bb244a9ab8269b36f900d3aa4f61ff9feb1468cc954d56c",
+      "source_zip_sha256": "29ad9a188229e5cd8df645017882af5d38b8a4f723d2bf21cf1939f701d9838c",
+      "source_zip_matches_editable_sources": true,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0
+    },
+    "ZH": {
+      "pages": 19,
+      "source_files": 37,
+      "pdf_sha256": "9597eec05261f05f2749342fc73e4e4a33daecf2e6a9ef1149aede52625c432e",
+      "source_zip_sha256": "5c8ad68242a42e06bcf0b7107f46317ff0f7e8a5d8476981ad06ba69f3fb21de",
+      "source_zip_matches_editable_sources": true,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0
+    },
+    "SI": {
+      "pages": 31,
+      "source_files": 26,
+      "pdf_sha256": "9080a1bad8f49e5bd1da8f5ef82c04ac9c074ee0a5e80c2dd5cdc685143933b6",
+      "source_zip_sha256": "e8a6072cc43d92afde351e9dd3350f68bf337129b6d5f8247a9d893b010d9c39",
+      "source_zip_matches_editable_sources": true,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0
+    }
+  },
+  "all_numbered_formulas_unchanged": true,
+  "formal_200_run_800_values_unchanged": true,
+  "si_data_zip_unchanged": true,
+  "arxiv_submitted": false,
+  "arxiv_texlive2025_compile": "pending",
+  "draft_version_labels": "retained; not part of the authorized three corrections"
+}

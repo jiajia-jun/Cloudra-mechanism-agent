@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-31",
+  "date": "2026-11-01",
   "layout": "native figure/figure* floats; continuous two-column text; one full-page 50-task matrix; no manual subsection page/column breaks",
   "publication_runs": 200,
   "publication_components": 600,
@@ -15,8 +15,8 @@
       "text_outside_page": [],
       "source_files": 37,
       "online_source_matches_local": true,
-      "pdf_sha256": "224bd7aef613046717b54deab7d67f1f3bd977adbb11bbb95885e4bc68c99c58",
-      "source_zip_sha256": "cb591a9cf9f27993cb6d1c8ab599f3492f9f0494032443ab8dc45f9abd3afefd",
+      "pdf_sha256": "2f88eaa110ea3f6e3bb244a9ab8269b36f900d3aa4f61ff9feb1468cc954d56c",
+      "source_zip_sha256": "29ad9a188229e5cd8df645017882af5d38b8a4f723d2bf21cf1939f701d9838c",
       "visual_review": "All pages rendered and checked; first page, result figure pages, new case paragraphs, and discussion inspected at readable scale.",
       "abstract_included": true,
       "abstract_source_sha256": "8b8943cf17004211cf79b109807e1e08f6c4ebd4b6cec5634b1b1be348657bc9",
@@ -35,8 +35,8 @@
       "text_outside_page": [],
       "source_files": 37,
       "online_source_matches_local": true,
-      "pdf_sha256": "aa46e5f4d4000eb0616b8c06d868e856bb7f1d8ccaa64c4a72be561a081d8706",
-      "source_zip_sha256": "d5b86e06c5be7bc09d404170b2e9d32dcff8b953ecd5c7a87ccddc04976a949f",
+      "pdf_sha256": "9597eec05261f05f2749342fc73e4e4a33daecf2e6a9ef1149aede52625c432e",
+      "source_zip_sha256": "5c8ad68242a42e06bcf0b7107f46317ff0f7e8a5d8476981ad06ba69f3fb21de",
       "visual_review": "All pages rendered and checked; first page, result figure pages, new case paragraphs, and discussion inspected at readable scale.",
       "abstract_included": true,
       "abstract_source_sha256": "54fa7fec8fb4140fd6263a5cc9db3fadcbe955e13678d3b2bab4eebbf9d8beb9",
@@ -67,5 +67,6 @@
     }
   ],
   "title": "Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration",
-  "review_revision": "2026-10-31; confirmed deployment, case trajectories, conditional matcher sensitivity, conformer/free-energy scope, targeted prose and typesetting revisions"
+  "review_revision": "2026-10-31; confirmed deployment, case trajectories, conditional matcher sensitivity, conformer/free-energy scope, targeted prose and typesetting revisions",
+  "minor_revision": "Astra-authorized Mean S header, relative-displacement wording, and distinct B_axis total; numbered formulas, thresholds, scores, and data archive unchanged."
 }
