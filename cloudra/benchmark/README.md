@@ -21,15 +21,11 @@
 
 按计算节点容量调整并发。`--only NR1,NY3,HI1,HL1,IB9` 可限定任务。每次启动记录独立批次，结果、沙箱和运行事件保存在指定数据目录。默认命令行只选 easy 且 backend=none，是空运行，不代表真实评测。
 
-## 参考证据与复现
+## 数据与复现
 
-[Google Drive下载入口及完整包校验值](../../gold_compute/evidence/DELIVERY.md) · [复现步骤](../../gold_compute/evidence/REPRODUCE.md) · [逐题索引](../../gold_compute/evidence/README.md)。
+[研究数据入口](../../docs/RESEARCH_DATA_CN.md)区分论文图表复算、P2 正式运行、P1b 先导运行与 Gold 参考计算。各数据包的版本、权限及上传状态只在对应交付页维护。
 
-[P1b 四臂实验数据包](https://drive.google.com/file/d/1EFYWbJFuDSSgHv12yGF0ntHIxoIaSwSU/view?usp=drivesdk) · [复评分结果与脚本](https://drive.google.com/file/d/12JdoiLjiUpSlpRPu0P9Sl2nor6XLv16N/view?usp=drivesdk) · [包校验与解压说明](../../docs/benchmarks/P1B_DELIVERY.md)：包含 48 次先导运行及复评分材料，下载需要文件访问权限；与 Gold 参考证据分开保存。
-
-[2026-10-25 Standard 离线整理与重评分](../../docs/benchmarks/p1b_offline_20261025/README.md)：HA1/r2 从原运行证据恢复缺失机理图后综合分为 0.805，Standard 12 次均分为 0.6848833；完整 IRC 连接仍未确证。历史四臂 CSV 单独保留。
-
-Git包含正式50题、Gold、索引及哈希，原始参考输入/日志/几何仅在Drive交付包。运行Benchmark用Agent本次交付的日志评分，不会自动下载Gold原件；审查或回读参考计算时，先按复现说明下载并还原到`gold_compute/evidence/`。这些文件和本地ZIP已被Git忽略，不要重新提交。Drive当前需文件访问权限。
+审查 Gold 时按[复现说明](../../gold_compute/evidence/REPRODUCE.md)下载和恢复原件；重新运行 Benchmark 使用本次 Agent 产生的日志评分，不会自动下载 Gold 原件。运行期即时评分是诊断快照，论文采用离线整理后的正式评分。
 
 ## 判分口径
 
@@ -41,16 +37,30 @@ Git包含正式50题、Gold、索引及哈希，原始参考输入/日志/几何
 - IMP 最终正确否定得分，错误宣称正确、可达或交付可信数值失分；探索后正确否定不扣。
 - NB1_E2/NQ5_E2 按既定 PT 规则有意不设数值参考。IB9 首步为用户确认的 5.65；第二步为负例。
 
-## 评分机制与公平性规范（2026-10-25 更新）
+## 历史评分修复
 
-P1b 先导实验后修复了以下格式与证据关联问题；2026-10-25 再将离线整理与科学评分明确分开：
-- **Schema 宽容度**：节点与边的 `properties` 允许列表等复杂类型（如 `evidence_log: ["opt.log", "freq.log"]`），忽略无害的扩展注释键，避免触发整图作废与 −1.0 罚分。
-- **TS 多日志完整绑定**：自动遍历并绑定 TS 节点引用的所有可用原生日志（优化、频率、IRC），确保频率分析块被准确提取，不因首文件无频率而误判无鞍点。
-- **产物同构选择性比对**：定性选择性通过产物物种同构性（`species_substitution_cost`）对齐优势通道，不再强求匹配题库未公开的内部字符串标签。
-- 2026-10-24 的先导 48 沙箱历史重算对照见 [评分公平性修复](../../docs/benchmarks/SCORING_FAIRNESS_FIXES.md) 与 [历史重算明细](../../docs/benchmarks/p1b_rescored_results.csv)；本次 Standard 局部更新见 [离线整理结果](../../docs/benchmarks/p1b_offline_20261025/README.md)，不能视为全 48 次统一重评。
+P1b 格式解析和证据关联修复见[评分公平性修复](../../docs/benchmarks/SCORING_FAIRNESS_FIXES.md)。[2026-10-24 四臂快照](../../docs/benchmarks/p1b_rescored_results.csv)与[2026-10-25 Standard 离线整理](../../docs/benchmarks/p1b_offline_20261025/README.md)是不同版本；后者不代表全部 48 次统一重评。
 
 原始文件、参照值和保留项见 [当前参考状态](../../gold_compute/queue_20261018/REFERENCE_STATUS.md) 与 [证据索引](../../gold_compute/evidence/README.md)。NR1 的成功 `ts_0042` 原件仍待补归档；HL1 endo 的真实 IRC 反应物端关联未闭环。这些事实保留，不伪称所有 Gold 均已自动通过严格验收。
 
 ## 检查
 
 改动后运行语法检查、Ruff 和相关 Benchmark 模块测试；原生日志回放用于核对能垒提取和参照选择。工程测试通过、真实 Agent 运行完成与科学验收分别记录。
+
+## 评分细则
+
+### 评分分量
+
+| 评分项 | 权重 | 判定规则 | 人话解释 |
+| :--- | :---: | :--- | :--- |
+| **图结构相似度 (Graph)** | **10%** | 子图同构与覆盖率判定。交付图中多出的无关边不扣分，但关键边缺失或 `accessible` 状态颠倒会重罚。 | “你找没找到当前 Gold 参考中的关键机理主干？” |
+| **物理自洽性 (Self-consistency)** | **30%** | **分级计分**：一阶鞍点 0.35、IRC 起点一致 0.15、两端端点 Opt/Freq 链 0.50（只通一侧给 0.25）。证据先按图上的绑定找，找不到时**在沙箱内检索**（按声明能量/几何剪枝，接受条件仍是 `verify_short_irc_direction` 通过）；`selfconsistency_passed` 仍按全有或全无记录，供科学验收口径使用。显式不可达目标直接记满分。 | “你算出来的每个分子结构在物理上站得住脚吗？有没有拿局部极大值冒充基态？” |
+| **能垒准确度 (Accuracy)** | **60%** | 从 ORCA/Gaussian 真实日志中提取活化能垒，与黄金标准（Gold）比对。按高斯容差打分。 | “算出来的能垒和标准答案差多少 kcal/mol？” |
+
+### 缺失与不一致证据
+
+- **自洽失败不再倒扣图分**：图分只由 `graph_similarity` 决定；自洽层按上面三项分级扣分，同一件事只罚一次。
+- **能垒声明兜底**：边没写 `barrier_kcal_mol` 时，用节点 `properties.energy_hartree` 的 `E(TS) − E(起点)` 按共享常量 `HARTREE_TO_KCAL_MOL` 反推，仍要求日志推算值与之一致。
+- **造假 / 数据不一致 Fail-Loud 短路**：
+  存在能垒证据时，若 Agent 声明的能垒既得不到任何合法日志组合支撑，交付证据也对不上参考答案，**评测触发短路：自洽性和准确度分量归零，最终得分仅保留 $0.1 \times \text{图分}$。** 证据包含与参考一致的合法组合时，沿用现有答案定义差异评分。
+- **不完整交付按步骤扣分**：缺少目标步骤、缺日志推算或未声明能垒时，仅对应参考边的准确度记 0；分母仍包含全部 Gold 边，保留其他边、图结构和自洽项原有贡献。缺失扣分不受数值偏差扣分封顶保护，不因漏做获得保底分；部分得分不能代表完整机理通过科学验收。

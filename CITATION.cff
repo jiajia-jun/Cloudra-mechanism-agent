@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use or reference Cloudra in your scientific research, please cite this repository."
+message: "If you use Cloudra in research, please cite the manuscript below and record the software commit used."
 title: "Cloudra: An Autonomous Agent for Organic Small-Molecule Mechanism Computation"
 abstract: >-
   An autonomous agent system for organic small-molecule reaction mechanism computation:
@@ -19,3 +19,16 @@ keywords:
   - quantum chemistry
   - LLM agent
   - reproducibility
+preferred-citation:
+  type: unpublished
+  title: "Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration"
+  authors:
+    - family-names: Yang
+      given-names: Chengyi
+    - family-names: Zhou
+      given-names: Qianxin
+    - family-names: Li
+      given-names: Yang
+  year: 2026
+  notes: "Working draft, 31 October 2026. Qianxin Zhou and Yang Li contributed equally as co-second authors."
+  url: "https://github.com/yyywaa/Cloudra-mechanism-agent"

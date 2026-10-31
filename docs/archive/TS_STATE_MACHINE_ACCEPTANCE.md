@@ -1,6 +1,8 @@
+> 历史验收记录。当前接口、流程与科学要求统一维护在 [TS 指南](../TS_PROCESS_SOP.md)。下文“当前”指原记录更新时点。
+
 # TS 状态机实现验收（更新至 2026-10-18）
 
-当前入口和科学验收口径以下表及[TS 流程说明](TS_PROCESS_SOP.md)为准。工具调用成功、工作流结束、工程回归通过与真实计算的科学验收分别记录；本次文档更新没有运行新的 ORCA/Gaussian 全链，不把后文的历史 fixture 测试数字算作本轮真实引擎验收。
+当前入口和科学验收口径以下表及[TS 流程说明](../TS_PROCESS_SOP.md)为准。工具调用成功、工作流结束、工程回归通过与真实计算的科学验收分别记录；本次文档更新没有运行新的 ORCA/Gaussian 全链，不把后文的历史 fixture 测试数字算作本轮真实引擎验收。
 
 ## 当前接口与验收口径
 
@@ -16,7 +18,7 @@
 | 编号与不可变证据 | 当前结构/反应引用为 1-based；扫描/冻结参数按相应引擎编号（ORCA 0-based，Gaussian/xTB 1-based）。新输入在执行边界转换，历史输入/日志保持原编号与字节 | `TsPrepare_input_schema`、`TsResume_input_schema`、`normalize_ts_input_atoms` |
 | 方法与额度 | 每阶段显式声明方法；Benchmark 另受当前题目 MethodPolicy 约束，普通项目不凭旧样例套白名单。介入次数只累计、不设置 TS 介入次数上限；预算声明仍按实际动作/模型调用记录 | `ts_inputs.py`、`ts_revision.py`、`ts_process.py` |
 
-当前 50 题及原始证据的实际到货/缺件情况见[参考状态](../gold_compute/queue_20261018/REFERENCE_STATUS.md)与[Drive 交付说明](../gold_compute/evidence/DELIVERY.md)。这些归档不等于在本文重新完成真实引擎验收。
+当前 50 题及原始证据的实际到货/缺件情况见[参考状态](../../gold_compute/queue_20261018/REFERENCE_STATUS.md)与[Drive 交付说明](../../gold_compute/evidence/REPRODUCE.md)。这些归档不等于在本文重新完成真实引擎验收。
 
 ## 历史工程验收记录（2026-10-02）
 

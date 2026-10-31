@@ -15,7 +15,7 @@
 
 最新验收事实覆盖下文旧快照：IA8新e5b2d829接口已传同轮835/836/841/840及原watch，仍fail、无端点check（tc_58fab4b3a3644b26，[完整回执](results/IA8/new_verification_review/e5b2d829/result.json)）。IB9用户已允许完整TS/IRC通到身份正确的软模接触体，以742/745零虚频分离组分作参考，不再要求整体零虚频minimum；其新版组件验收因owner故障未完成，旧真实返回仅inconclusive missing TS geometry，不能把整体软负频继续作为新方案的否决条件，见[恢复结论](results/IB9/new_verification_review/recovery/RESULT.md)。两题均未pass/未新增Gold，无新QM或strict循环；本轮按权限阻塞收口。
 
-2026-10-18 本轮科学取舍收稿；仅汇总 producer 的报告与证据，不代作电子态、机制或可达性裁决。范围为 **9边**（IA1/IA5/IA7/IA8/IA9各1，IB9/IB10各2）。依据：[最新PROCESS](../../PROCESS.md)、[题目交接](IMPOSSIBLE.txt)、AgentHub「IMP PM7-xTB coordination」及下列七份REPORT。各owner已确认无后台计算、无新增授权；以下以最新PROCESS、owners报告及协调交接覆盖旧进行中/等待措辞，**未闭合不等于物理不可达**。
+2026-10-18 本轮科学取舍收稿；仅汇总 producer 的报告与证据，不代作电子态、机制或可达性裁决。范围为 **9边**（IA1/IA5/IA7/IA8/IA9各1，IB9/IB10各2）。依据：[最新PROCESS](../archive/imp-process-20261018.md)、[题目交接](IMPOSSIBLE.txt)、AgentHub「IMP PM7-xTB coordination」及下列七份REPORT。各owner已确认无后台计算、无新增授权；以下以最新PROCESS、owners报告及协调交接覆盖旧进行中/等待措辞，**未闭合不等于物理不可达**。
 
 “最低点”仅指相应模型的优化/频率证据，不保证目标电子态或全局最低；独立端点不等于IRC外端。OptTS完成≠一阶TS；扫描峰≠势垒；入队≠已计算。表中未闭合均不意味着设计不可达。
 

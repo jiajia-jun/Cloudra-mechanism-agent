@@ -15,8 +15,8 @@
       "text_outside_page": [],
       "source_files": 37,
       "online_source_matches_local": true,
-      "pdf_sha256": "2f88eaa110ea3f6e3bb244a9ab8269b36f900d3aa4f61ff9feb1468cc954d56c",
-      "source_zip_sha256": "29ad9a188229e5cd8df645017882af5d38b8a4f723d2bf21cf1939f701d9838c",
+      "pdf_sha256": "85a213ee299eb63bb7f2332ff8657018d15dbac1318af0570017f86452b7bf14",
+      "source_zip_sha256": "6b3a34939235256f389ad3153bde3d6d742d7951ca05ee402e6826e8fbc66fff",
       "visual_review": "All pages rendered and checked; first page, result figure pages, new case paragraphs, and discussion inspected at readable scale.",
       "abstract_included": true,
       "abstract_source_sha256": "8b8943cf17004211cf79b109807e1e08f6c4ebd4b6cec5634b1b1be348657bc9",
@@ -24,7 +24,8 @@
       "source_zip_matches_editable_sources": true,
       "out_of_page_text_blocks": 0,
       "deployment": "DeepSeek-v4.1-flash (1017)",
-      "archived_api_alias": "deepseek-v4-flash"
+      "archived_api_alias": "deepseek-v4-flash",
+      "public_data_link_present": true
     },
     "ZH": {
       "pages": 19,
@@ -35,8 +36,8 @@
       "text_outside_page": [],
       "source_files": 37,
       "online_source_matches_local": true,
-      "pdf_sha256": "9597eec05261f05f2749342fc73e4e4a33daecf2e6a9ef1149aede52625c432e",
-      "source_zip_sha256": "5c8ad68242a42e06bcf0b7107f46317ff0f7e8a5d8476981ad06ba69f3fb21de",
+      "pdf_sha256": "79b7a05a13f54894b92aedb2281a6ff438db64fc461d23e35eb016c8734c2675",
+      "source_zip_sha256": "ee615f9de59ddd8908cb883a1d4a2ddba1d34a0ac7ee64fcbcdbb066a505411c",
       "visual_review": "All pages rendered and checked; first page, result figure pages, new case paragraphs, and discussion inspected at readable scale.",
       "abstract_included": true,
       "abstract_source_sha256": "54fa7fec8fb4140fd6263a5cc9db3fadcbe955e13678d3b2bab4eebbf9d8beb9",
@@ -44,7 +45,8 @@
       "source_zip_matches_editable_sources": true,
       "out_of_page_text_blocks": 0,
       "deployment": "DeepSeek-v4.1-flash (1017)",
-      "archived_api_alias": "deepseek-v4-flash"
+      "archived_api_alias": "deepseek-v4-flash",
+      "public_data_link_present": true
     }
   },
   "max_score_rounding_difference": 4.971078517046479e-05,
@@ -68,5 +70,6 @@
   ],
   "title": "Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration",
   "review_revision": "2026-10-31; confirmed deployment, case trajectories, conditional matcher sensitivity, conformer/free-energy scope, targeted prose and typesetting revisions",
-  "minor_revision": "Astra-authorized Mean S header, relative-displacement wording, and distinct B_axis total; numbered formulas, thresholds, scores, and data archive unchanged."
+  "minor_revision": "Astra-authorized Mean S header, relative-displacement wording, and distinct B_axis total; numbered formulas, thresholds, scores, and data archive unchanged.",
+  "data_availability_update": "Public read-only research-data directory added; retained scores, methods, and numbered formulas unchanged."
 }

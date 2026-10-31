@@ -2,7 +2,7 @@
 
 > 实现：`cloudra/infra/ssh_transport.py`（传输原语）+
 > `cloudra/runtime/remote_compute.py`（看守 poller）。注册表 schema 见
-> `docs/PHASE8_NODE_REGISTRY.md`。
+> `docs/NODE_REGISTRY.md`。
 
 Cloudra 本体只跑在本地一台机器上；SSH 远端节点让 agent 把计算作业投到
 **无 Cloudra 的远端服务器**执行——资源调度（排队、容量记账、认领）全部发生在

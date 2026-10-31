@@ -85,7 +85,7 @@ Coordinator 提交声明式机理提案 dag_propose_mechanism（species 体系�
   - 频率计数只表示 `frequency_count_valid` / `frequency_data_present`，不能单独表示分子身份、反应方向或科学完成。TS 必须正好一个虚频（`n_imag == 1`）；
   - 基态极小点必须无虚频（`n_imag == 0`），真实几何还须匹配声明物种。氢的显式/隐式表示保持一致；组成或成键不匹配时返回实际感知结果。
   - 只有完工并成功解析的产物才被接受；作业提交记录 `submit_compute_job` 绝对不是完成证据。
-  - 默认步骤还必须有 `short_irc` 方向证明：两向 IRC 都从同一个已验证 TS 出发；真实外帧分别经收敛 Opt 到声明的正确端点，并有同几何的零虚频 Freq。完整或分开的 Opt/Freq 日志都可用。IRC 本身可以 partial，无须到底收敛。几何区间只作提示；异常或无法判断时警告并建议检查轨迹，不否决已成立的端点优化链。独立物种种子和单纯区间吻合都不能替代真实外帧来源。
+  - 默认步骤还必须有 `short_irc` 方向证明；真实 IRC 外帧、端点 Opt/Freq 与来源关联要求统一见 [TS 科学验收](TS_PROCESS_SOP.md#科学验收)。DAG 复用这些检查，不以草稿接受或作业提交替代科学证据。
 
 分离产物先声明为列表（如 `smiles=["B", "C"]`），再用 `dag_submit_species_evidence(species_name="P", opt_file=["B.out", "C.out"])` 一次提交所有组分的正常终止、零虚频且结构匹配的日志；优化与频率分开时，`freq_file` 列表须与 `opt_file` 逐项对应。随后提交步骤的 TS 与真实双向 IRC，`target_minimum_file` 保持可选并可省略，系统复用目标物种已绑定的组分证据。这样可证明分离产物通道，不会验证 `"B.C"` 络合物极小值，也不会把组分能量合并成络合物能量；该步源物种与 TS 的能垒证据仍单独绑定。
 
@@ -151,4 +151,3 @@ DAG 模式下，项目工作区存在 `mechanism_graph.json` 时，退出审计�
   - `dag_delivery_report`：输出完整的交付覆盖率审计报告；
   - `dag_view_evidence`：查阅送审证据的不可变快照与解析数据；
   - `dag_message_supervisor`：向 Supervisor 发送沟通与申诉请求。
-

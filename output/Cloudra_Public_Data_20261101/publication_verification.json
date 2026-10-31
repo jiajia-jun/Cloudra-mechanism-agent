@@ -1,0 +1,41 @@
+{
+  "date": "2026-11-01",
+  "scope": "Public data-availability links in bilingual manuscript and SI; Overleaf exports match canonical sources.",
+  "languages": {
+    "EN": {
+      "pages": 23,
+      "source_files": 37,
+      "pdf_sha256": "85a213ee299eb63bb7f2332ff8657018d15dbac1318af0570017f86452b7bf14",
+      "source_zip_sha256": "6b3a34939235256f389ad3153bde3d6d742d7951ca05ee402e6826e8fbc66fff",
+      "source_zip_matches_editable_sources": true,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0,
+      "public_data_link_present": true
+    },
+    "ZH": {
+      "pages": 19,
+      "source_files": 37,
+      "pdf_sha256": "79b7a05a13f54894b92aedb2281a6ff438db64fc461d23e35eb016c8734c2675",
+      "source_zip_sha256": "ee615f9de59ddd8908cb883a1d4a2ddba1d34a0ac7ee64fcbcdbb066a505411c",
+      "source_zip_matches_editable_sources": true,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0,
+      "public_data_link_present": true
+    },
+    "SI": {
+      "pages": 31,
+      "source_files": 26,
+      "pdf_sha256": "c1ca4e233e89f5b8e5e47f9d6aa728e65fdb9c3bf9996ca2f170865bfbaa6db1",
+      "source_zip_sha256": "347466c1cbc5408aa708a7d5b1f074e38aac91f3a3870ae0e596982e91f0afbd",
+      "source_zip_matches_editable_sources": true,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0,
+      "public_data_link_present": true,
+      "complete_behavioral_source_link_present": true
+    }
+  },
+  "scientific_data_unchanged": true,
+  "si_data_zip_sha256": "361d6577bceac73d0e291bfec04905a2a7d74c90d030ab0fa57e6ca624d9d3ec",
+  "all_five_data_categories_public": true,
+  "drive_verification_record": "drive_publication.json"
+}

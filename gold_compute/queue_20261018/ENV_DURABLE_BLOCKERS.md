@@ -2,7 +2,7 @@
 
 **状态更新：旧done→Freq未接续阻塞已由系统恢复，以下旧诊断作为历史保留，不再代表当前无提交。当前Freq/IRC/端点Opt-Freq已实际执行，转为endpoint geometry mismatch；直接文件/哈希/量化对照见[当前端点几何审计](ENV_ENDPOINT_GEOMETRY_AUDIT.md)。不得因工程量化证据直接认定严格通过，IB10错物种与IA8模式问题独立。**
 
-仅公开ts_inspect、现行[TS SOP](../../docs/TS_PROCESS_SOP.md)、[PROCESS](../../PROCESS.md)及原生日志只读检查；未读应用源码、修订run、增预算、编辑状态或原证据，未手跑TS/IRC。
+仅公开ts_inspect、现行[TS SOP](../../docs/TS_PROCESS_SOP.md)、[PROCESS](../archive/imp-process-20261018.md)及原生日志只读检查；未读应用源码、修订run、增预算、编辑状态或原证据，未手跑TS/IRC。
 
 ## 当前结论
 四个run为**已完成TS优化后未自动调度频率的工程推进缺口**，不是已证化学失败，也不是缺少frequency方法声明。没有公开可调用的reconcile/推进动作可供本env角色修复；inspect是只读且不会触发推进。原owner已有resume失败/无变化的尝试，反复改无关字段不构成可靠修复。需运行时维护者通过受权机制核终态事件消费与阶段结果认可；不能由Agent手改状态。

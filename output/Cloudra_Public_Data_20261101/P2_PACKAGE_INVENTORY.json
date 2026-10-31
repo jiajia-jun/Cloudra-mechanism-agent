@@ -1,0 +1,102 @@
+{
+  "file": "Cloudra-P2-final-20261031-FULL.tar.gz",
+  "size_bytes": 14915315627,
+  "sha256": "dfd3fe8f71f236b8bc463ad1753d05bdf89aee44be9b11dbe9a2bce43b9c3155",
+  "md5": "c16b4e6ada0e92d2a41e3363050b0e57",
+  "members": 267405,
+  "regular_files": 195453,
+  "directories": 71952,
+  "uncompressed_file_bytes": 48488766289,
+  "top_level_groups": {
+    "Cloudra-P2-final-20261031/MANIFEST.txt": {
+      "files": 1,
+      "bytes": 545,
+      "examples": [
+        "Cloudra-P2-final-20261031/MANIFEST.txt"
+      ]
+    },
+    "Cloudra-P2-final-20261031/reports": {
+      "files": 7,
+      "bytes": 289332,
+      "examples": [
+        "Cloudra-P2-final-20261031/reports/divergence_table.md",
+        "Cloudra-P2-final-20261031/reports/divergence_report.md"
+      ]
+    },
+    "Cloudra-P2-final-20261031/README.md": {
+      "files": 1,
+      "bytes": 4972,
+      "examples": [
+        "Cloudra-P2-final-20261031/README.md"
+      ]
+    },
+    "Cloudra-P2-final-20261031/SHA256SUMS": {
+      "files": 1,
+      "bytes": 4216,
+      "examples": [
+        "Cloudra-P2-final-20261031/SHA256SUMS"
+      ]
+    },
+    "Cloudra-P2-final-20261031/runs": {
+      "files": 2,
+      "bytes": 90662,
+      "examples": [
+        "Cloudra-P2-final-20261031/runs/raw_scores_p2.csv",
+        "Cloudra-P2-final-20261031/runs/all_runs_detail.csv"
+      ]
+    },
+    "Cloudra-P2-final-20261031/reconstructions": {
+      "files": 20,
+      "bytes": 114833,
+      "examples": [
+        "Cloudra-P2-final-20261031/reconstructions/INDEX.md",
+        "Cloudra-P2-final-20261031/reconstructions/guided/HI1/_score_replay.json"
+      ]
+    },
+    "Cloudra-P2-final-20261031/docs": {
+      "files": 5,
+      "bytes": 165755,
+      "examples": [
+        "Cloudra-P2-final-20261031/docs/KNOWN_ISSUES.md",
+        "Cloudra-P2-final-20261031/docs/std-missing-adjudication.md"
+      ]
+    },
+    "Cloudra-P2-final-20261031/tables": {
+      "files": 5,
+      "bytes": 88048,
+      "examples": [
+        "Cloudra-P2-final-20261031/tables/final_scores_per_run.csv",
+        "Cloudra-P2-final-20261031/tables/product_patch_validation.json"
+      ]
+    },
+    "Cloudra-P2-final-20261031/campaign_data": {
+      "files": 195411,
+      "bytes": 48488007926,
+      "examples": [
+        "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/brief-errors.pid",
+        "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/record.log"
+      ]
+    }
+  },
+  "run_table_counts": {
+    "rows": 200,
+    "campaigns": {
+      "cloudra-p2b-20261025": 3,
+      "cloudra-p2c-20261025": 197
+    },
+    "arms": {
+      "brief-errors": 50,
+      "guided": 50,
+      "record": 50,
+      "standard": 50
+    },
+    "tiers_across_four_arms": {
+      "easy": 80,
+      "normal": 40,
+      "hard": 40,
+      "impossible": 40
+    }
+  },
+  "raw_campaign_contents": "campaign_data/cloudra-p2b-20261025 and campaign_data/cloudra-p2c-20261025 contain per-arm benchmark.db, sandboxes with native calculation logs and molecular geometries, runtime/runtime-v2.db agent trajectories, compute.db ledgers, configuration snapshots, and campaign_data/SHA256SUMS_DBS.txt plus DIRS.txt.",
+  "full_readme_generated": "2026-10-31T17:28:18+08:00"
+}

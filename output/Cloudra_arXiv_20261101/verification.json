@@ -5,29 +5,33 @@
     "EN": {
       "pages": 23,
       "source_files": 37,
-      "pdf_sha256": "2f88eaa110ea3f6e3bb244a9ab8269b36f900d3aa4f61ff9feb1468cc954d56c",
-      "source_zip_sha256": "29ad9a188229e5cd8df645017882af5d38b8a4f723d2bf21cf1939f701d9838c",
+      "pdf_sha256": "85a213ee299eb63bb7f2332ff8657018d15dbac1318af0570017f86452b7bf14",
+      "source_zip_sha256": "6b3a34939235256f389ad3153bde3d6d742d7951ca05ee402e6826e8fbc66fff",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
-      "out_of_page_text_blocks": 0
+      "out_of_page_text_blocks": 0,
+      "public_data_link_present": true
     },
     "ZH": {
       "pages": 19,
       "source_files": 37,
-      "pdf_sha256": "9597eec05261f05f2749342fc73e4e4a33daecf2e6a9ef1149aede52625c432e",
-      "source_zip_sha256": "5c8ad68242a42e06bcf0b7107f46317ff0f7e8a5d8476981ad06ba69f3fb21de",
+      "pdf_sha256": "79b7a05a13f54894b92aedb2281a6ff438db64fc461d23e35eb016c8734c2675",
+      "source_zip_sha256": "ee615f9de59ddd8908cb883a1d4a2ddba1d34a0ac7ee64fcbcdbb066a505411c",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
-      "out_of_page_text_blocks": 0
+      "out_of_page_text_blocks": 0,
+      "public_data_link_present": true
     },
     "SI": {
       "pages": 31,
       "source_files": 26,
-      "pdf_sha256": "9080a1bad8f49e5bd1da8f5ef82c04ac9c074ee0a5e80c2dd5cdc685143933b6",
-      "source_zip_sha256": "e8a6072cc43d92afde351e9dd3350f68bf337129b6d5f8247a9d893b010d9c39",
+      "pdf_sha256": "c1ca4e233e89f5b8e5e47f9d6aa728e65fdb9c3bf9996ca2f170865bfbaa6db1",
+      "source_zip_sha256": "347466c1cbc5408aa708a7d5b1f074e38aac91f3a3870ae0e596982e91f0afbd",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
-      "out_of_page_text_blocks": 0
+      "out_of_page_text_blocks": 0,
+      "public_data_link_present": true,
+      "complete_behavioral_source_link_present": true
     }
   },
   "all_numbered_formulas_unchanged": true,
@@ -35,5 +39,7 @@
   "si_data_zip_unchanged": true,
   "arxiv_submitted": false,
   "arxiv_texlive2025_compile": "pending",
-  "draft_version_labels": "retained; not part of the authorized three corrections"
+  "draft_version_labels": "retained; not part of the authorized three corrections",
+  "data_availability_update": "Public data links added to bilingual manuscript and SI S7; Overleaf exports match the editable sources.",
+  "latest_publication_verification": "../Cloudra_Public_Data_20261101/publication_verification.json"
 }

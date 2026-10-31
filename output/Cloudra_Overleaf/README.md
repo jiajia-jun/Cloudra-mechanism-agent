@@ -34,3 +34,5 @@ P2 逐运行的图结构、自洽性和准确度共 600 个分项均已对应其
 本轮审稿修订标题为“Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration”。主干模型明确为DeepSeek-v4.1-flash（1017），调用别名单独记录；新增反例轨迹分析与条件性匹配敏感性，正式分数未改。[审稿回复与本轮核查](../Cloudra_Revision_20261031/Response_to_Reviewers_EN.md)。
 
 2026年11月1日：已落实Astra提出的三处小修，统一Mean S列头、相对位移表述及B_axis总分符号；中英文正文与SI已同步Overleaf并重新导出，页数保持23/19/31。公式、阈值、正式分数和数据包未改。审阅和arXiv准备清单见 [发布准备目录](../Cloudra_arXiv_20261101/arXiv发布准备.md)。
+
+2026年11月1日数据公开更新：中英文正文和SI第S7节已加入[研究数据公开目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)，并同步Overleaf。新版PDF为23/19/31页；正式评分与SI数据ZIP保持不变。各包获取方式见[数据交付说明](../../docs/benchmarks/P2_DELIVERY.md)。

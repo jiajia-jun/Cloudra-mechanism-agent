@@ -1,8 +1,8 @@
 # P1b 四臂实验数据交付
 
-2026-10-25 更新。原始运行包、历史复评分补充包与本次离线整理结果分别保存；文件名、大小和目录与 Drive 元数据核对。下列 SHA256 用于下载后的内容校验；Drive 接口未返回云端内容哈希。
+2026-10-25归档更新；2026-11-01开放公开读取。原始运行包、历史复评分补充包与本次离线整理结果分别保存；文件名、大小和目录与 Drive 元数据核对。下列 SHA256 用于下载后的内容校验；Drive 接口未返回云端内容哈希。
 
-[Google Drive 数据目录](https://drive.google.com/drive/folders/1UIrzVTqZg8RofJcWX_dlhN-EoqpfkBjg)（私有，下载需要文件访问权限，未公开分享）。本页与 [Gold 参考证据包](../../gold_compute/evidence/DELIVERY.md)并列：Gold 包提供参考计算，本包保存 P1b 的实际 Agent 运行与复评分材料。
+[P1b Google Drive 数据目录](https://drive.google.com/drive/folders/1UIrzVTqZg8RofJcWX_dlhN-EoqpfkBjg)已纳入[Cloudra 公开研究数据目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)，持有链接即可读取和下载。本页与 [Gold 参考证据包](../../gold_compute/evidence/REPRODUCE.md)并列：Gold 包提供参考计算，本包保存 P1b 的实际 Agent 运行与复评分材料。
 
 ## 文件与校验值
 
@@ -12,7 +12,7 @@
 | `cloudra-p1b-20261024-supplement.zip` | 11,479 | [下载补充包](https://drive.google.com/file/d/12JdoiLjiUpSlpRPu0P9Sl2nor6XLv16N/view?usp=drivesdk) | `RESCORED/` 下 4 份文件、2 份原始复评分脚本、README 与 SHA256 清单 |
 | `cloudra-p1b-20261025-offline-results.zip` | 41,789 | [下载离线整理结果](https://drive.google.com/file/d/1iCNLRmEZZaO5gYwETrpBQFevkpqV7KGw/view?usp=drivesdk) | Standard 12 次结果、HA1/r2 人工恢复图、完整评分理由、来源与复现说明 |
 
-[下载 SHA256 校验表](https://drive.google.com/file/d/1yStsru1pNe11B0ldXAOZd1lSpMRWBIJ3/view?usp=drivesdk)。文件沿用该私有目录的访问权限。
+[下载 SHA256 校验表](https://drive.google.com/file/d/1yStsru1pNe11B0ldXAOZd1lSpMRWBIJ3/view?usp=drivesdk)。文件继承公开目录的只读权限。
 
 | 文件 | SHA256 |
 | --- | --- |

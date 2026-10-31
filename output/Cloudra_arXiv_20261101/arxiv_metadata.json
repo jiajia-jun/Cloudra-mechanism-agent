@@ -16,7 +16,10 @@
   "journal_reference": null,
   "publication_doi": null,
   "account_endorsement_status": "not checked; depends on submitting account",
-  "public_data_location_status": "pending; existing 16.8 MB data archive is ready locally",
+  "public_data_location_status": "Public read-only access verified: P2 full archive, 48-run P1b study, Gold evidence, complete behavioral-source archive, and SI companion data.",
   "code_repository_visibility_checked": "private, GitHub connector, 2026-11-01",
-  "compiler_requirement": "XeLaTeX; arXiv currently supports TeX Live 2025 (default) and 2023; existing Overleaf projects use 2026"
+  "compiler_requirement": "XeLaTeX; arXiv currently supports TeX Live 2025 (default) and 2023; existing Overleaf projects use 2026",
+  "public_data_directory": "https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7",
+  "p2_full_archive_url": "https://drive.google.com/file/d/1DXtlUEmhshADrG48fyZLkEuqNxFWOTFM/view?usp=drivesdk",
+  "public_data_release_record": "../Cloudra_Public_Data_20261101/drive_publication.json"
 }

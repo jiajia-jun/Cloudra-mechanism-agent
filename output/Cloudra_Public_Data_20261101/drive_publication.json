@@ -1,0 +1,89 @@
+{
+  "date": "2026-11-01",
+  "public_access": "Anyone with the link can view and download; public read-only permissions verified through Drive metadata.",
+  "p2_upload_complete": true,
+  "p2_cloud_size_matches_source": true,
+  "p2_source_sha256": "dfd3fe8f71f236b8bc463ad1753d05bdf89aee44be9b11dbe9a2bce43b9c3155",
+  "p2_source_md5": "c16b4e6ada0e92d2a41e3363050b0e57",
+  "checksum_source": "Whole-package hashes computed from the original local archive; Drive connector does not expose remote content hashes.",
+  "records": [
+    {
+      "id": "1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7",
+      "name": "Cloudra_Public_Research_Data",
+      "url": "https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7",
+      "size_bytes": null,
+      "permissions": [
+        {
+          "type": "anyone",
+          "role": "reader",
+          "allowFileDiscovery": false
+        }
+      ]
+    },
+    {
+      "id": "1DXtlUEmhshADrG48fyZLkEuqNxFWOTFM",
+      "name": "Cloudra-P2-final-20261031-FULL.tar.gz",
+      "url": "https://drive.google.com/file/d/1DXtlUEmhshADrG48fyZLkEuqNxFWOTFM/view?usp=drivesdk",
+      "size_bytes": 14915315627,
+      "permissions": [
+        {
+          "type": "anyone",
+          "role": "reader",
+          "allowFileDiscovery": false
+        }
+      ]
+    },
+    {
+      "id": "1UIrzVTqZg8RofJcWX_dlhN-EoqpfkBjg",
+      "name": "Cloudra-P1b-20261024",
+      "url": "https://drive.google.com/drive/folders/1UIrzVTqZg8RofJcWX_dlhN-EoqpfkBjg",
+      "size_bytes": null,
+      "permissions": [
+        {
+          "type": "anyone",
+          "role": "reader",
+          "allowFileDiscovery": false
+        }
+      ]
+    },
+    {
+      "id": "15YDa_ycWoLUANPsDdQ1rUOiNp_-wqOs5",
+      "name": "cloudra-benchmark-evidence-20261018-d10056e7-drive1.zip",
+      "url": "https://drive.google.com/file/d/15YDa_ycWoLUANPsDdQ1rUOiNp_-wqOs5/view?usp=drivesdk",
+      "size_bytes": 31407841,
+      "permissions": [
+        {
+          "type": "anyone",
+          "role": "reader",
+          "allowFileDiscovery": false
+        }
+      ]
+    },
+    {
+      "id": "1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL",
+      "name": "Cloudra_SI_Data.zip",
+      "url": "https://drive.google.com/file/d/1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL/view?usp=drivesdk",
+      "size_bytes": 16818721,
+      "permissions": [
+        {
+          "type": "anyone",
+          "role": "reader",
+          "allowFileDiscovery": false
+        }
+      ]
+    },
+    {
+      "id": "1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K",
+      "name": "Cloudra_Chapter3_Interpretability_Evidence_20261030",
+      "url": "https://drive.google.com/drive/folders/1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K",
+      "size_bytes": null,
+      "permissions": [
+        {
+          "type": "anyone",
+          "role": "reader",
+          "allowFileDiscovery": false
+        }
+      ]
+    }
+  ]
+}

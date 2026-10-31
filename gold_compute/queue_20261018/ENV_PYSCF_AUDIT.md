@@ -1,6 +1,6 @@
 # PySCF 环境能力审计（2026-10-18）
 
-用户转向“没有pm7试试pyscf”。仅环境/import/API核查，无分子构建、能量、梯度或频率计算；未安装/修改任何软件。先读 [PROCESS](../../PROCESS.md) 与 [前轮审计](ENV_PM7_XTB_AUDIT.md)。PySCF是程序而非Hamiltonian，方法、基组、活性空间、电子态仍需专家显式决定。
+用户转向“没有pm7试试pyscf”。仅环境/import/API核查，无分子构建、能量、梯度或频率计算；未安装/修改任何软件。先读 [PROCESS](../archive/imp-process-20261018.md) 与 [前轮审计](ENV_PM7_XTB_AUDIT.md)。PySCF是程序而非Hamiltonian，方法、基组、活性空间、电子态仍需专家显式决定。
 
 ## 实际可执行环境
 绝对Python：`/Users/cloudrayyy/miniconda3/envs/chemai/bin/python`。

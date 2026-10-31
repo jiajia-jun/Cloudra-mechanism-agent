@@ -1,8 +1,8 @@
 # AGENTS.md — Cloudra 项目开发者与 AI 协作指南
 
 > **一句话定位**：Cloudra 是一个面向化学反应机理自主探索的多 Agent 系统。
-> 本文件是仓库的**人话版全景地图与工程交规**，旨在让新开发者和 AI 助手能瞬间看懂架构、少踩深坑。
-> 架构设计背景请参考 [README.md](README.md)；本文档是**地图而非实现手册**，各模块细节以代码为准。
+> 本文件约定开发者与 AI 助手的协作和工程规则。
+> 项目使用见 [README_CN.md](README_CN.md)，模块职责见[架构说明](docs/ARCHITECTURE.md)，实现细节以代码为准。
 
 ---
 
@@ -66,33 +66,9 @@ Cloudra 当前优先减少接口、字段、提示词和维护负担。改动应
 
 ---
 
-## 🛠️ 常用开发命令速查 (Cheat Sheet)
+## 开发与检查
 
-```bash
-# 1. 语法检查与代码风格检查（改完代码必跑）
-uv run python -m compileall -q cloudra tests
-uv run ruff check cloudra tests
-
-# 2. 聚焦运行测试（按改动的子系统挑选，只跑相关单测）
-uv run pytest -q tests/test_dag_engine.py       # DAG 引擎单测
-uv run pytest -q tests/test_runtime_v2_*        # Agent 新内核单测
-uv run pytest -q tests/test_compute*            # 计算执行与调度单测
-
-# 3. 验收全套测试（仅在用户明确要求或发版前跑；注意：千万不要管道给 tail/grep，会掩盖退出码！）
-uv run pytest -q tests/ > /tmp/pytest.log 2>&1; echo EXIT=$?
-
-# 4. 服务启停与调度器
-cloudra                                         # 构建前端并启动 Web 服务（后台自动拉起 scheduler 守护）
-cloudra web --host 0.0.0.0 --port 8000          # 绑定公网/局域网（注意：非 127.0.0.1 时绝对禁止关 token）
-cloudra scheduler                               # 在前台运行计算调度守护进程（依赖单实例 flock 锁）
-cloudra stop                                    # 显式安全停止所有服务（安全终止，不误杀 QM 计算）
-
-# 5. LLM 遥测数据导出与观测
-cloudra stats tokens|cache|agents|export <id> -o <path>
-
-# 6. JS 宿主环境测试
-npm --prefix cloudra/runtime_v2/js_host test    # 运行 QuickJS 宿主测试
-```
+安装与启动见 [README](README_CN.md)，开发检查命令见 [CONTRIBUTING](CONTRIBUTING.md#development-workflow)，配置与服务命令见[配置指南](docs/CONFIGURATION_CN.md)。
 
 > [!IMPORTANT]
 > **平台支持政策**：本项目为 **纯 POSIX 目标（Linux / macOS）**，要求 Python >= 3.11。
@@ -100,133 +76,14 @@ npm --prefix cloudra/runtime_v2/js_host test    # 运行 QuickJS 宿主测试
 
 ---
 
-## 🗺️ 仓库架构与模块“人话”地图
+## 项目文档
 
-Cloudra 的代码主体在 `cloudra/` 目录下。为了防止迷路，以下是各模块的人话解读：
-
-```
-cloudra/
-├── runtime_v2/    # 【大脑与中枢】新一代事件驱动 Agent 内核，模型推理循环的唯一实现
-├── dag/           # 【监理看板】机理研究的 DAG（有向无环图）编排与交付物审核体系
-├── tools/         # 【工具箱】提供给 Agent 调用的化学、量子化学、文件及搜索工具
-├── scheduler/     # 【调度中心】量子化学计算任务的分发、排队与多节点配额管理
-├── runtime/       # 【运行时守卫】计算任务的执行监视器（Monitor/Guard）及 Prompt 拼装
-├── services/      # 【控制面 API】FastAPI 路由、多节点注册与关停管理
-├── persistence/   # 【持久化层】统一路径生成器（paths.py）与数据库管理
-├── knowledge/     # 【知识库 Chem-KB】化学反应与过渡态知识检索（严格只读）
-├── benchmark/     # 【评测考场】机理探索能力的独立打分体系
-├── infra/         # 【水电气底座】配置中心、进程锁（flock）、SSH/Slurm 远端通信
-└── base/          # 【基类与协议】技能加载器、人机审批钩子、角色身份映射
-```
-
-### 1. `runtime_v2/`：Agent 智能内核
-- **推理循环**：基于事件驱动（Event-driven）。模型做出决策 → 通过 `CommandBus` 派发命令（四步：决定 → 先存盘后生效 → 执行副作用） → `apply_event` 更新状态。
-- **角色体系**：所有 Agent 身份在 `runtime_v2/roles.py` 的 `RoleProfile` 中单点定义，废弃了历史的继承类体系。
-- **督导机制 (`supervision.py`)**：Supervisor 是普通 runtime_v2 Agent，从持久信箱接收图更新和研究请求，以只读工具检查当前 DAG；它不直接改图或解锁阶段，仍由提交的科学证据决定交付状态。
-- **沙箱隔离 (`js_runtime.py`)**：通过 QuickJS-WASM 运行轻量代码逻辑。如需终止，只杀 JS 进程，绝不触碰底层的量子化学计算！
-- **Policy 过滤链**：权限、无人值守、Benchmark 方法限制、DAG、研究目标、定时调度和行为引导按 `runtime_v2/policies/__init__.py` 的顺序执行；上下文压缩由运行时单独管理。方法白名单仅约束明确标识的 Benchmark 项目。
-
-### 2. `dag/`：DAG 引导与证据交付（核心业务）
-- **核心思想**：反应机理是一个有向无环图。模型“说自己完成了”是无效的，必须把**经受住频率分析和路径检验的计算结果**绑定到图的节点和边上。
-- **数据流向**：`models.py`（图数据结构） → `store.py`（持久存储，权威事实源） → `engine.py`（事务变更引擎，删边/删点必须给合理理由） → `controller.py`（门面控制器）。
-- **计算完成与科学确证分开**：原生正常终止、优化收敛、频率和路径证据分别核对。极小值需要 0 虚频；一阶鞍点需要且仅需要 1 个虚频，并证明其对应目标反应。阶段已绑定、Supervisor 已审阅，都不能替代缺失的科学证据。**“没做频率分析”绝不等同于“验证成功”！**
-
-### 3. `tools/`：化学与系统工具箱
-- **注册单源**：所有工具统一在 `registry.py` 注册，并根据角色白名单（`role_allowlist`）控制暴露。
-- **物理判据绝不造假**：
-  - `structure_builder.py`：分片建模。“几何优化 exit 0”不代表化学结构可用！
-  - `crest_runner.py` / `xtb_path_runner.py`：构象与反应路径扫描。进程没有崩溃不代表找到了过渡态，必须依据确凿的能量和结构特征判断。
-  - `ts_process.py` / `irc_path.py` / `irc_evidence.py`：过渡态与 IRC 方向证明组装。
-  - `Chemtool/mechanism_predict.py`：FlowER 机器学习机理预测**仅供生成假设，绝不能充当计算证据**。
-- **编号规范**：Gaussian 默认从 1 开始编号（1-based），ORCA 从 0 开始编号（0-based），结构工具统一 1-based，内部逻辑精准转换，不准猜。
-
-### 4. `scheduler/` & `runtime/`：量子化学计算监视与调度
-- **计算调度 (`scheduler/`)**：
-  - 与 Web API 完全解耦，单实例运行，通过 `compute.db` 驱动。
-  - **容量池管理**：每个计算节点声明固定并发额度。如果一个作业指定了在集群 A 跑，哪怕集群 A 塞车、机器 B 空闲，也**绝对不允许自动转投机器 B**！
-- **任务守卫 (`runtime/monitor.py`)**：
-  - 启动 `calculator.sh` 并在后台守卫。
-  - **计算成败标准**：以量子化学软件原生输出文件末尾的**官方正常终止标记（如 ORCA TERMINATED NORMALLY）**为准。`cclib` 仅用来抓取几何与能量数值，绝不能凭 cclib 解析成功就认定计算通过。
-
-### 5. `persistence/`：持久化与数据目录单源
-- `paths.py`：**项目所有数据目录的唯一权威路径表**。需要找临时目录、计算输出、数据库文件？统统从 `paths.py` 取，严禁自己拼接路径！
-- `database.py`：维护会话库（`ConversationDB`）与中央计算账本库（`ComputeDB`，即 `data_dir/compute.db`）。
-
-### 6. `infra/`：基础设施底座
-- `flocks.py`：**判断底层进程生死与互斥的唯一手段**（基于 Linux/macOS 文件排他锁）。
-- `config.py`：YAML 配置的唯一事实源，修改配置必须走 `mutate_config`。
-- `ssh_transport.py`：集群 SSH 提交与 Rsync 文件传输，同步阻塞调用一律使用 `asyncio.to_thread` 转到子线程。
-
----
-
-## 📁 顶层与辅助目录导航
-
-- `kg_data/`：知识图谱 CSV 数据（`cloudra knowledge import` 的输入）。
-- `ideapool/tasks/{easy,normal,hard,impossible}/`：当前正式 Benchmark 入口，共 50 题（20/10/10/10）；运行与方法配置见 [Benchmark 说明](cloudra/benchmark/README.md)。
-- `ideapool/reaction_candidates/`：存量 benchmark 题源 Markdown；与登记表一起由生成器生成正式 JSON。新候选见 `gold_compute/README.md`。
-- `知识卡片/`：知识源文本；当前 AgentHub 知识检索以图谱关键词命中来源，再读取对应完整源文，不走向量兜底。`vector_store/` 是历史离线资产，不代表当前检索入口。
-- `gold_compute/`：Gold 参考与策展目录；当前题库及科学限定见 `queue_20261018/REFERENCE_STATUS.md`。`evidence/` 在 Git 中保留索引、清单和复现说明；原始输入、日志、几何与 Hessian 放在 Google Drive，下载及恢复步骤见 [交付说明](gold_compute/evidence/DELIVERY.md)。归档交接见 `gold_compute/archive/`。
-- `paper/`：保存研究论文正文；`paper/literature/` 收拢文献原件与下载缓存；阶段性综述在 `paper/archive/`。
-- `scripts/`：脚本目录（详见 `scripts/README.md` 索引）；申报文档编辑脚本在 `scripts/application_docs/`。
-- `docs/`：项目文档与技术设计 Spec；阶段性交付文档按 `docs/README.md` 归档到 `docs/archive/`；原图资源位于 `docs/assets/`。
-- `build/`、`.worktrees/`、`cloudra.egg-info/`：构建与分发副产物，严禁手改。软著清单由 `scripts/gen_copyright_source.py` 在本地自动生成，`软著申请材料/` 不入库。
-
----
-
-## 🔬 DAG 机理图：反应步骤如何才算交付成功？
-
-在 DAG 编排模式下，Agent 需要提交一个反应机理图。对于一条反应步骤（即连接反应物和产物的过渡态边），如何才算通过审查？
-
-按当前交付契约推进并绑定证据。默认机理草稿要求 `ts_opt`、独立的 `frequency` 和 `short_irc`；`ts_guess` 只作建议。热力学或其它阶段是否必需，以该任务声明的契约为准，不能把一次工具成功当成整步完成：
-
-```mermaid
-flowchart LR
-    A["ts_guess (建议性初猜)"] -.-> B["ts_opt (鞍点优化)"]
-    B --> F["frequency (频率确证)"]
-    F --> C["short_irc (方向证明)"]
-    C -.-> D["thermochemistry (按契约补充)"]
-```
-
-1. **`ts_guess`（过渡态初猜）**：建议性阶段，生成合理的过渡态结构猜测。
-2. **`ts_opt` / `frequency`（鞍点优化与频率确证）**：优化必须正常收敛，频率分析必须确证为**一阶鞍点（有且仅有 1 个虚频）**；初猜或扫描峰不能充抵。
-3. **`short_irc`（路径方向区间证明）**：
-   - 证明虚频振动的两端确实一边倒向反应物、一边倒向产物。
-   - **无需整条 IRC 必须完全收敛到底**。同一个 TS 的双向 IRC 真实末帧分别经收敛优化到正确的零虚频极小值，即接受方向证明；必须保留末帧、优化、频率之间的真实计算关联。几何区间只作提示，异常或无法判断时明确警告并建议检查轨迹，不否决已成立的端点优化证据。
-4. **`thermochemistry`（热力学校正）**：需要自由能或焓时，按契约提取相应校正。当前 50 题的数值能垒按题目定义使用纯电子能差，参照对应物种的稳定极小值；同物种已声明构象连接可共用稳定参照，构象转换步骤仍用自身起点，不混用不同立体底物或独立通道接触体。能量分母与 IRC 实际连接分别记录。
-
-> [!NOTE]
-> **关于不可达反应（Impossible 题目）**：
-> 如果某个反应通路在物理化学上不可行，Agent 应当在最终机理图中如实将相应步骤或目标物种标记为 `accessible=false` 并保留依据。当前 IMP 按最终交付判定：正确否定得分；错误宣称正确、可达或交付可信数值失分；尝试后正确否定不扣分。不要求为不存在的目标补造 TS 或数值，单一负物种题也不虚构过程边。
-
----
-
-## 🎯 Benchmark 评分体系：分数是怎么算出来的？
-
-Benchmark 的运行阶段采集研究轨迹与原始计算产物；**正式评分在离线整理后完成**。离线整理可从该次运行已有的对话、工具记录、报告和日志恢复统一机理图、修复文件引用并换算已有数值，人工参与和字段来源必须记录，各组采用相同规则。不能根据 Gold 补入原轨迹没有的科学结论、通道或计算证据。
-
-评分器仍读取统一机理图 JSON 与原生日志，不直接给聊天散文打分；缺失的频率、IRC 与真实端点关联也不能靠整理补造。原运行是否生成机理图与离线科学得分分别保留，运行期即时分数作为诊断快照。P1b 的事后离线整理结果见 [重评分说明](docs/benchmarks/p1b_offline_20261025/README.md)。
-
-### 1. 综合得分公式（2026-09-25 用户裁决定版）
-
-$$\text{Composite Score} = 0.1 \times \text{图结构分 (Graph)} + 0.3 \times \text{自洽性 (Self-consistency)} + 0.6 \times \text{准确度 (Accuracy)}$$
-
-*为什么图结构只占 10%？因为只要反应机理不正确，在 Accuracy（准确度）层就会受到毁灭性扣分，因此图结构不应虚高。*
-
-### 2. 三大评分支柱
-
-| 评分项 | 权重 | 判定规则 | 人话解释 |
-| :--- | :---: | :--- | :--- |
-| **图结构相似度 (Graph)** | **10%** | 子图同构与覆盖率判定。交付图中多出的无关边不扣分，但关键边缺失或 `accessible` 状态颠倒会重罚。 | “你找没找到当前 Gold 参考中的关键机理主干？” |
-| **物理自洽性 (Self-consistency)** | **30%** | **分级计分**：一阶鞍点 0.35、IRC 起点一致 0.15、两端端点 Opt/Freq 链 0.50（只通一侧给 0.25）。证据先按图上的绑定找，找不到时**在沙箱内检索**（按声明能量/几何剪枝，接受条件仍是 `verify_short_irc_direction` 通过）；`selfconsistency_passed` 仍按全有或全无记录，供科学验收口径使用。显式不可达目标直接记满分。 | “你算出来的每个分子结构在物理上站得住脚吗？有没有拿局部极大值冒充基态？” |
-| **能垒准确度 (Accuracy)** | **60%** | 从 ORCA/Gaussian 真实日志中提取活化能垒，与黄金标准（Gold）比对。按高斯容差打分。 | “算出来的能垒和标准答案差多少 kcal/mol？” |
-
-### 3. 关键扣分规则
-
-- **自洽失败不再倒扣图分**：图分只由 `graph_similarity` 决定；自洽层按上面三项分级扣分，同一件事只罚一次。
-- **能垒声明兜底**：边没写 `barrier_kcal_mol` 时，用节点 `properties.energy_hartree` 的 `E(TS) − E(起点)` 按共享常量 `HARTREE_TO_KCAL_MOL` 反推，仍要求日志推算值与之一致。
-- **造假 / 数据不一致 Fail-Loud 短路**：
-  存在能垒证据时，若 Agent 声明的能垒既得不到任何合法日志组合支撑，交付证据也对不上参考答案，**评测触发短路：自洽性和准确度分量归零，最终得分仅保留 $0.1 \times \text{图分}$。** 证据包含与参考一致的合法组合时，沿用现有答案定义差异评分。
-- **不完整交付按步骤扣分**：缺少目标步骤、缺日志推算或未声明能垒时，仅对应参考边的准确度记 0；分母仍包含全部 Gold 边，保留其他边、图结构和自洽项原有贡献。缺失扣分不受数值偏差扣分封顶保护，不因漏做获得保底分；部分得分不能代表完整机理通过科学验收。
+- [架构与目录职责](docs/ARCHITECTURE.md)：运行内核、工具、调度、数据路径和模块维护入口。
+- [DAG 编排](docs/DAG_ORCHESTRATION.md)：图交付、阶段契约与审查。
+- [TS 流程与科学验收](docs/TS_PROCESS_SOP.md)：当前工具接口、编号、频率及真实 IRC 端点证据要求。工程通过、作业完成与科学验证必须分开。
+- [Benchmark 运行与评分](cloudra/benchmark/README.md)：正式评分定义、离线整理与 IMP 判定。不得用 Gold 补造原运行没有的结论或证据。
+- [Gold 参考证据](gold_compute/README.md)：下载、缺件和科学限定；归档内容不作为新待算队列。
+- [文档中心](docs/README.md)：使用、部署、研究数据和历史入口。
 
 ---
 

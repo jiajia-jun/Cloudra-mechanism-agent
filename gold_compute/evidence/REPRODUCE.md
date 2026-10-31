@@ -1,10 +1,18 @@
 # 下载、复现与审查
 
-Git保存正式50题、证据索引、MANIFEST哈希清单和校验脚本；原始输入、日志、几何、Hessian及来源记录保存在[Google Drive](DELIVERY.md)。下载后还原到本目录，原件及`gold_compute/releases/`本地交付包已被Git忽略。
+Git保存正式50题、证据索引、MANIFEST哈希清单和校验脚本；原始输入、日志、几何、Hessian及来源记录保存在[公开研究数据目录](../../docs/RESEARCH_DATA_CN.md)。下载后还原到本目录，原件及`gold_compute/releases/`本地交付包已被Git忽略。
+
+## 发布版本
+
+版本 `20261018-d10056e7-drive1`，2026-10-18 整理，2026-11-01 开放公开读取。完整包包含 886 份整理证据、正式 50 题 JSON、逐题索引、复现说明、独立校验脚本和文件校验表，共 999 个发布文件。下载入口是在上传后登记的，不属于包内清单。
+
+文件继承公开研究数据目录的只读权限。云端确认依据为文件名、类型、大小和权限；Drive 没有返回远端内容校验字段。以下 SHA256 用于下载后核对内容。包内字节及哈希已逐项核对，整理时回读了 12 组能垒；这不表示所有参考计算都已完整复现。
+
+逐题缺件、来源限制与人工验收例外保留在[证据索引](README.md)及[参考状态](../queue_20261018/REFERENCE_STATUS.md)。本包提供 Gold 参考计算；P1b/P2 的 Agent 运行记录另见[研究数据入口](../../docs/RESEARCH_DATA_CN.md)。
 
 ## 1. 下载并校验
 
-登录有文件访问权限的Google账号，从[Drive下载](https://drive.google.com/file/d/15YDa_ycWoLUANPsDdQ1rUOiNp_-wqOs5/view?usp=drivesdk)：
+从公开[Drive入口下载](https://drive.google.com/file/d/15YDa_ycWoLUANPsDdQ1rUOiNp_-wqOs5/view?usp=drivesdk)：
 
 `cloudra-benchmark-evidence-20261018-d10056e7-drive1.zip`
 

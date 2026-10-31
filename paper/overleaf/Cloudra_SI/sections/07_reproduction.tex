@@ -1,5 +1,12 @@
 \section{Data, software, and reproduction materials}
 \label{sec:si-reproduction}
+\subsection{Public data availability}
+The study data are publicly available with read-only access at \url{https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7}. This directory provides the full P2 campaign archive \path{Cloudra-P2-final-20261031-FULL.tar.gz}, the 48-run P1b repeated-task archive and its offline-organization supplements, the Gold reference-calculation evidence snapshot, and the compact SI companion-data archive \path{Cloudra_SI_Data.zip}. The package versions, inventories, and checksums are provided with the downloads.
+
+The P2 archive retains the campaign records underlying the 200-run full-benchmark study. The P1b archive contains the separate 48-run repeated-task study. The Gold archive contains the reference calculation inputs, native outputs, geometries, Hessians, and associated curation records. The SI companion archive contains the task definitions, full-precision score tables, behavioral records, and publication-reproduction materials described below.
+
+The separate \href{https://drive.google.com/drive/folders/1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K}{complete behavioral-source archive (20261030)} provides frozen inputs and responses, activation states and logits, readable event traces, source databases and calculation records, analysis scripts, and vector figures. Its topic index and manuscript-context files retain the version-specific section and figure references.
+
 \subsection{Machine-readable task and score records}
 The supplementary source package contains \path{companion_data/cloudrabench_50_task_catalogue.csv}, the 50 formal task JSON files in \path{companion_data/task_definitions/}, and \path{companion_data/cloudrabench_200_run_scores.csv}. The task JSON files preserve the molecular inputs, task text, permitted methods, Gold graphs, and scoring settings. The score table retains full source precision for all 200 composites and all 600 components. A provenance manifest records file hashes and the displayed precision used by the printed tables.
 
@@ -21,7 +28,7 @@ python scripts/benchmark\_p2/plot\_imp.py
 The companion-data archive preserves the publication reproduction tree under \path{companion_data/publication_reproduction/}; running the four commands from that directory retains the same relative file layout. The independent timing extractions and frozen behavioral requests/responses are included. The activation archive includes the original prompts, intervention commands, captured states, and full-vocabulary logits, allowing the reported probability readouts and control equalities to be reconstructed without new model inference. Scripts for replay and analysis are retained under \path{companion_data/behavioral_scripts/}. No model weights are included. The literature directory retains the complete register, screening records, and search history used for the manuscript sample. Editable TeX files, vector figures, and the bibliography are included with this SI so that scientific content, printed values, and source records remain connected during subsequent revision.
 
 \subsection{Data-package inventory}
-The data archive is distributed separately from the compact Overleaf typesetting project. Unpack it beside the SI source to obtain the referenced \path{companion_data/} directory. Its subdirectories contain the following materials:
+The \href{https://drive.google.com/file/d/1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL/view}{SI companion-data archive} is distributed separately from the compact Overleaf typesetting project. Unpack \path{Cloudra_SI_Data.zip} beside the SI source to obtain the referenced \path{companion_data/} directory. Its subdirectories contain the following materials:
 \begin{itemize}[nosep,leftmargin=1.5em]
 \item \path{task_definitions/}: all 50 original task definitions, including molecular inputs and rubrics.
 \item \path{publication_reproduction/}: publication input records, field provenance, bootstrap summaries, timing records, and table/figure scripts.

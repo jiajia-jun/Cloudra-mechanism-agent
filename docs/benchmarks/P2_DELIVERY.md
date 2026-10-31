@@ -1,0 +1,59 @@
+# P2 正式实验数据交付
+
+归档版本：`Cloudra-P2-final-20261031-FULL`。登记日期：2026-11-01。
+
+[Cloudra 公开研究数据目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)集中保存 P2 正式实验、P1b 重复实验、Gold 参考证据、行为与激活原始档案和 SI 配套复现材料，权限为“持有链接的任何人／查看者”。
+
+## P2 完整归档
+
+- 文件：`Cloudra-P2-final-20261031-FULL.tar.gz`
+- 文件大小：14,915,315,627 字节（14.915 GB），已与云端核对。
+- 实验范围：50题、四种配置、200次保留运行。
+- 包内 README 生成时间：`2026-10-31T17:28:18+08:00`；归档代码快照：`master 0961d9ab`。
+- 归档含195,453个普通文件，文件逻辑总量48,488,766,289字节（约48.5 GB）；其中195,411个文件位于`campaign_data/`。
+- 本地整包 SHA256：`dfd3fe8f71f236b8bc463ad1753d05bdf89aee44be9b11dbe9a2bce43b9c3155`
+- 本地整包 MD5：`c16b4e6ada0e92d2a41e3363050b0e57`
+- 上传状态：已完成；[直接下载完整归档](https://drive.google.com/file/d/1DXtlUEmhshADrG48fyZLkEuqNxFWOTFM/view?usp=drivesdk)，已验证公开只读权限。
+
+## 完整包目录与用途
+
+| 目录或文件 | 用途 |
+| --- | --- |
+| `campaign_data/cloudra-p2b-20261025/` | 3次保留运行的原始实验目录。 |
+| `campaign_data/cloudra-p2c-20261025/` | 197次保留运行的原始实验目录。 |
+| 各实验目录内的分臂记录 | `benchmark.db` 保存运行期评测记录；`sandboxes/<TASK>/` 保存原生计算日志、`PROCESS`、`REPORT` 与机理图。 |
+| `runtime/runtime-v2.db`、`compute.db` 与配置快照 | 保存运行轨迹、计算账本与当时的运行设置。 |
+| `campaign_data/SHA256SUMS_DBS.txt`、`campaign_data/DIRS.txt` | 数据库校验表与原始实验目录清单。 |
+| `tables/`、`runs/` | 正式结果表、逐次运行分数和运行期原始评分记录。 |
+| `reconstructions/`、`docs/` | 离线恢复图、字段来源、方法说明与评分修复记录。 |
+| `reports/`、`MANIFEST.txt`、`SHA256SUMS` | 配套分析、发布文件目录与校验表。 |
+
+正式得分采用离线整理后的发布表；原始运行数据库保留运行期记录。各目录的具体内容及来源按包内 README 和清单读取。
+
+## SI 配套复现包
+
+[公开下载 `Cloudra_SI_Data.zip`](https://drive.google.com/file/d/1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL/view?usp=drivesdk)，约16.8 MB。该包保存50题任务定义、200次正式运行的完整精度评分表、行为实验与激活记录、文献登记，以及出版表格和配图的独立复现脚本；解压得到 `companion_data/`。包内 `file_manifest.json` 提供逐文件大小与 SHA256。
+
+## 行为实验与激活原始档案
+
+[公开下载第三章完整原始档案](https://drive.google.com/drive/folders/1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K)：3个ZIP分别为60,639,211、52,035,252和52,033,587字节，合计164,708,050字节（164.7 MB）。目录同时提供 README、文件索引与校验材料，保存正文行为诊断与激活干预对应的完整原始记录，并与精简 SI 复现包配套使用。
+
+## 其他公开数据
+
+- [P1b重复实验：48次运行、历史复评分和离线整理结果](P1B_DELIVERY.md)。
+- [Gold参考计算证据：版本、逐文件清单与校验](../../gold_compute/evidence/REPRODUCE.md)。
+
+## 下载与解压
+
+在公开目录下载 P2 完整归档后，先校验再解压。macOS 命令如下；Linux 可将 `shasum -a 256` 换为 `sha256sum`。
+
+```bash
+shasum -a 256 -c <<'SHA256'
+dfd3fe8f71f236b8bc463ad1753d05bdf89aee44be9b11dbe9a2bce43b9c3155  Cloudra-P2-final-20261031-FULL.tar.gz
+SHA256
+
+mkdir -p cloudra-p2-data
+tar -xzf Cloudra-P2-final-20261031-FULL.tar.gz -C cloudra-p2-data
+```
+
+上述哈希来自本地完整归档，供下载后校验。云端文件大小与本地一致，公开只读权限已通过Drive元数据核实。包内容统计见公开目录中的 `P2_PACKAGE_INVENTORY.json`。
