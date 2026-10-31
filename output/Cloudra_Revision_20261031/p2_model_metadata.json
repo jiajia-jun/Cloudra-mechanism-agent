@@ -1,0 +1,514 @@
+{
+  "archive_filename": "Cloudra-P2-final-20261031-FULL.tar.gz",
+  "model_identity_granularity": "author-specified deployment version with separately preserved archived API alias",
+  "study_definitions": {
+    "P1b": "Four tasks x four configurations x three independent task runs = 48 task runs.",
+    "P2": "50 tasks x four configurations x one retained task run = 200 task runs.",
+    "P2b_and_P2c": "Execution campaigns contributing to the retained P2 dataset."
+  },
+  "retained_p2_run_selection": {
+    "source_member": "Cloudra-P2-final-20261031/tables/final_scores_per_run.csv",
+    "runs_by_campaign": {
+      "cloudra-p2b-20261025": 3,
+      "cloudra-p2c-20261025": 197
+    },
+    "retained_p2b_runs": [
+      {
+        "arm": "guided",
+        "task": "D3"
+      },
+      {
+        "arm": "record",
+        "task": "D1"
+      },
+      {
+        "arm": "standard",
+        "task": "D3"
+      }
+    ],
+    "total": 200
+  },
+  "api_route": {
+    "provider_endpoint": "https://api.deepseek.com",
+    "transport": "streaming OpenAI-compatible chat completions",
+    "invocation_protocol": "javascript",
+    "configuration_native_search": "auto",
+    "route_evidence": {
+      "source_revision": "53309d0e",
+      "repository_source_paths": [
+        "cloudra/runtime_v2/adapters.py",
+        "cloudra/infra/web_search_native.py",
+        "cloudra/infra/llm_client.py"
+      ]
+    },
+    "evidence_type": "Frozen configuration and campaign-era routing implementation, cross-checked with runtime model telemetry."
+  },
+  "event_count_scope": "Counts cover retained runtime telemetry in each campaign-arm archive, including cancelled P2b attempts and auxiliary LLM activities. They are not benchmark task-run counts.",
+  "budget_scope": "max_tokens values are archived spawned-agent request settings, not consumed tokens or a whole-task token total.",
+  "campaign_manifests": [
+    {
+      "source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/MANIFEST.txt",
+      "recorded_fields": {
+        "campaign": "p2b-formal",
+        "started": "2026-10-25T18:01:17+08:00",
+        "master_base": "53309d0e require-basic-delivery-across-modes",
+        "repeats": "1",
+        "concurrency_per_arm": "2 (total 8)",
+        "isolation": "masked mount namespace v3 (sibling arms masked)",
+        "scoring": "trajectories saved; scores computed offline"
+      },
+      "arm_commits": {
+        "guided": "6e89d20c13c29d2036f8be2dd08f421682286d09",
+        "record": "746c33f0ae0e7c6da3b174b6b3ef039dc59272d1",
+        "standard": "c7fc94a1299575f4a00d1f33f40865a2cb146636",
+        "brief-errors": "3b9831bb6465c0f211117dcc0ad0a072b7be0fa3"
+      }
+    },
+    {
+      "source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/MANIFEST.txt",
+      "recorded_fields": {
+        "campaign": "p2c-resume",
+        "started": "2026-10-25T22:18:45+08:00",
+        "reason": "continue remaining tasks after P2b stop; same 8-concurrency config"
+      },
+      "arm_commits": {
+        "guided": "6e89d20c13c29d2036f8be2dd08f421682286d09",
+        "record": "746c33f0ae0e7c6da3b174b6b3ef039dc59272d1",
+        "standard": "c7fc94a1299575f4a00d1f33f40865a2cb146636",
+        "brief-errors": "3b9831bb6465c0f211117dcc0ad0a072b7be0fa3"
+      }
+    }
+  ],
+  "configuration_and_runtime_records": [
+    {
+      "campaign": "cloudra-p2b-20261025",
+      "arm": "brief-errors",
+      "repeat": "r1",
+      "configuration_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/brief-errors/r1/config.snapshot.yaml",
+      "runtime_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/brief-errors/r1/runtime/runtime-v2.db",
+      "model_slots": {
+        "coordinator": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        },
+        "follower": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        }
+      },
+      "model_event_counts": {
+        "llm.request_started": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 872
+          }
+        ],
+        "llm.completed": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 880
+          }
+        ]
+      },
+      "run_started_temperatures": [
+        {
+          "temperature": 1.0,
+          "events": 112
+        }
+      ],
+      "spawned_agent_token_budgets": [
+        {
+          "max_tokens": 32768,
+          "events": 7
+        }
+      ]
+    },
+    {
+      "campaign": "cloudra-p2b-20261025",
+      "arm": "guided",
+      "repeat": "r1",
+      "configuration_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/guided/r1/config.snapshot.yaml",
+      "runtime_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/guided/r1/runtime/runtime-v2.db",
+      "model_slots": {
+        "coordinator": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        },
+        "follower": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        }
+      },
+      "model_event_counts": {
+        "llm.request_started": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 794
+          }
+        ],
+        "llm.completed": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 806
+          }
+        ]
+      },
+      "run_started_temperatures": [
+        {
+          "temperature": 1.0,
+          "events": 65
+        }
+      ],
+      "spawned_agent_token_budgets": [
+        {
+          "max_tokens": 32768,
+          "events": 11
+        }
+      ]
+    },
+    {
+      "campaign": "cloudra-p2b-20261025",
+      "arm": "record",
+      "repeat": "r1",
+      "configuration_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/record/r1/config.snapshot.yaml",
+      "runtime_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/record/r1/runtime/runtime-v2.db",
+      "model_slots": {
+        "coordinator": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        },
+        "follower": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        }
+      },
+      "model_event_counts": {
+        "llm.request_started": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 420
+          }
+        ],
+        "llm.completed": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 425
+          }
+        ]
+      },
+      "run_started_temperatures": [
+        {
+          "temperature": 1.0,
+          "events": 48
+        }
+      ],
+      "spawned_agent_token_budgets": [
+        {
+          "max_tokens": 32768,
+          "events": 5
+        }
+      ]
+    },
+    {
+      "campaign": "cloudra-p2b-20261025",
+      "arm": "standard",
+      "repeat": "r1",
+      "configuration_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/standard/r1/config.snapshot.yaml",
+      "runtime_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2b-20261025/standard/r1/runtime/runtime-v2.db",
+      "model_slots": {
+        "coordinator": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        },
+        "follower": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        }
+      },
+      "model_event_counts": {
+        "llm.request_started": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 645
+          }
+        ],
+        "llm.completed": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 651
+          }
+        ]
+      },
+      "run_started_temperatures": [
+        {
+          "temperature": 1.0,
+          "events": 95
+        }
+      ],
+      "spawned_agent_token_budgets": [
+        {
+          "max_tokens": 32768,
+          "events": 6
+        }
+      ]
+    },
+    {
+      "campaign": "cloudra-p2c-20261025",
+      "arm": "brief-errors",
+      "repeat": "r1",
+      "configuration_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/brief-errors/r1/config.snapshot.yaml",
+      "runtime_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/brief-errors/r1/runtime/runtime-v2.db",
+      "model_slots": {
+        "coordinator": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        },
+        "follower": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        }
+      },
+      "model_event_counts": {
+        "llm.request_started": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 35917
+          }
+        ],
+        "llm.completed": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 36224
+          }
+        ]
+      },
+      "run_started_temperatures": [
+        {
+          "temperature": 1.0,
+          "events": 4187
+        }
+      ],
+      "spawned_agent_token_budgets": [
+        {
+          "max_tokens": 32768,
+          "events": 203
+        }
+      ]
+    },
+    {
+      "campaign": "cloudra-p2c-20261025",
+      "arm": "guided",
+      "repeat": "r1",
+      "configuration_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/config.snapshot.yaml",
+      "runtime_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/runtime/runtime-v2.db",
+      "model_slots": {
+        "coordinator": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        },
+        "follower": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        }
+      },
+      "model_event_counts": {
+        "llm.request_started": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 35430
+          }
+        ],
+        "llm.completed": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 35861
+          }
+        ]
+      },
+      "run_started_temperatures": [
+        {
+          "temperature": 1.0,
+          "events": 3917
+        }
+      ],
+      "spawned_agent_token_budgets": [
+        {
+          "max_tokens": 32768,
+          "events": 307
+        }
+      ]
+    },
+    {
+      "campaign": "cloudra-p2c-20261025",
+      "arm": "record",
+      "repeat": "r1",
+      "configuration_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/record/r1/config.snapshot.yaml",
+      "runtime_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/record/r1/runtime/runtime-v2.db",
+      "model_slots": {
+        "coordinator": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        },
+        "follower": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        }
+      },
+      "model_event_counts": {
+        "llm.request_started": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 8559
+          }
+        ],
+        "llm.completed": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 8648
+          }
+        ]
+      },
+      "run_started_temperatures": [
+        {
+          "temperature": 1.0,
+          "events": 835
+        }
+      ],
+      "spawned_agent_token_budgets": [
+        {
+          "max_tokens": 32768,
+          "events": 84
+        }
+      ]
+    },
+    {
+      "campaign": "cloudra-p2c-20261025",
+      "arm": "standard",
+      "repeat": "r1",
+      "configuration_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/standard/r1/config.snapshot.yaml",
+      "runtime_source_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/standard/r1/runtime/runtime-v2.db",
+      "model_slots": {
+        "coordinator": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        },
+        "follower": {
+          "provider": "deepseek",
+          "model": "deepseek-v4-flash",
+          "url": "https://api.deepseek.com",
+          "native_search": "auto",
+          "context_window": 400000,
+          "timeout": 300,
+          "reasoning_effort": "minimal"
+        }
+      },
+      "model_event_counts": {
+        "llm.request_started": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 8651
+          }
+        ],
+        "llm.completed": [
+          {
+            "model": "deepseek-v4-flash",
+            "events": 8747
+          }
+        ]
+      },
+      "run_started_temperatures": [
+        {
+          "temperature": 1.0,
+          "events": 841
+        }
+      ],
+      "spawned_agent_token_budgets": [
+        {
+          "max_tokens": 32768,
+          "events": 88
+        }
+      ]
+    }
+  ],
+  "deployment": {
+    "model_name": "deepseek-v4.1-flash",
+    "version": "1017",
+    "source": "Author correction in manuscript revision, 2026-10-31",
+    "archived_api_alias": "deepseek-v4-flash"
+  }
+}

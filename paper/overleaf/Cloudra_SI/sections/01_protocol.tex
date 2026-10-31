@@ -4,7 +4,7 @@
 \subsection{Task specification and study units}
 CloudraBench comprises 50 tasks, distributed as 20 Easy, 10 Normal, 10 Hard, and 10 Impossible tasks. Easy tasks cover elementary transformations, conformational changes, and basic execution; Normal tasks require intermediate identification and continuity across elementary steps; Hard tasks emphasize competing pathways and stereochemical identity; Impossible tasks require conclusions appropriate to the capabilities of the allowed electronic-structure methods. A task fixes the reactant and target identities, reaction conditions, total charge, spin multiplicity, requested deliverables, and permitted methods. These specifications are common to the workflow configurations compared on that task. The complete task catalogue accompanies the per-task results.
 
-Two studies provide complementary experimental units (Table~\ref{tab:si-study-design}). The repeated-task study contains three independent runs for each combination of four tasks and four configurations. E1 concerns elimination preorganization; NB1 concerns multistep decarboxylation; HA1 concerns stereochemical ring opening; and IA1 concerns an electronic-structure method limitation. The full-benchmark study contains one retained run for each of the 50 tasks under each configuration. Its primary matched unit is therefore a task represented in all four configurations. The 48 repeated-task runs and the 200 full-benchmark runs are reported as separate studies.
+The repeated-task study is identified as P1b and the full-benchmark study as P2. Two studies provide complementary experimental units (Table~\ref{tab:si-study-design}). The repeated-task study contains three independent runs for each combination of four tasks and four configurations. E1 concerns elimination preorganization; NB1 concerns multistep decarboxylation; HA1 concerns stereochemical ring opening; and IA1 concerns an electronic-structure method limitation. The full-benchmark study contains one retained run for each of the 50 tasks under each configuration. Its primary matched unit is therefore a task represented in all four configurations. The 48 repeated-task runs and the 200 full-benchmark runs are reported as separate studies.
 
 \begin{table}[htbp]
 \centering
@@ -16,6 +16,7 @@ Two studies provide complementary experimental units (Table~\ref{tab:si-study-de
 Design & Repeated-task study (P1b) & Full-benchmark study (P2) \\
 \midrule
 Task set & E1, NB1, HA1, IA1 & All 50 CloudraBench tasks \\
+Backbone & DeepSeek-v4.1-flash (1017) & DeepSeek-v4.1-flash (1017); official DeepSeek chat-completions API \\
 Configurations & Guided, Standard, Record, Brief-errors & Guided, Standard, Record, Brief-errors \\
 Repetitions & Three per task and configuration & One retained run per task and configuration \\
 Task-level runs & $4\times4\times3=48$ & $50\times4=200$ \\
@@ -44,7 +45,9 @@ Brief-errors & Retained & Retained & Shortened \\
 \end{tabular}
 \end{table}
 
-The repeated-run archive records the model name as DeepSeek-v4-flash.\citep{deepseekv42026} Model names, campaign identifiers, budgets, stopping reasons, and artifacts are retained with the corresponding runs. Cloudra revision 70daa5a identifies the implementation described in the main-text methods.\citep{ref14} This implementation identifier, the experiment records, and the scoring/organization records serve different purposes: software or API versions are taken from the applicable archive rather than inferred from a later installed environment or model alias.
+Both studies used DeepSeek-v4.1-flash (1017). The API alias is \texttt{deepseek-v4-flash} in all eight frozen coordinator and follower configurations and in their actual model-call telemetry.\citep{deepseekv42026} Model names, campaign identifiers, budgets, stopping reasons, and artifacts are retained with the corresponding runs. Cloudra revision 70daa5a identifies the implementation described in the main-text methods.\citep{ref14} This implementation identifier, the experiment records, and the scoring and organization records serve different purposes: software or API versions are taken from the applicable archive rather than inferred from a later installed environment or model alias.
+
+\input{sections/p2_model_metadata}
 
 \subsection{Allowed calculations and reference definitions}
 Easy, Normal, and Hard tasks permit xTB, PM7, and B3LYP-D3(BJ)/def2-SVP.\citep{gfn2xtb2019,pm72013,becke1993,lyp1988,stephens1994,d32010,d3bj2011,def22005} Impossible tasks are restricted to xTB and PM7. Native ORCA, Gaussian, and MOPAC records supply the corresponding computational quantities and termination information.\citep{orca2025,gaussian16,mopac2026,ref11} Each result is associated with the engine, calculation level, species, and task conditions represented in its source record.

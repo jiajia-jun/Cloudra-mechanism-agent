@@ -1,6 +1,6 @@
 # Cloudra SI 初稿
 
-日期：2026年10月31日。英文 SI 共27页，已在 Overleaf 使用 XeLaTeX、TeX Live 2026 编译。
+日期：2026年10月31日。英文 SI 共31页，已在 Overleaf 使用 XeLaTeX、TeX Live 2026 编译。
 
 - [SI初稿PDF](Cloudra_SI_EN_Draft.pdf)
 - [Overleaf可编辑项目包](Cloudra_SI_Overleaf.zip)
@@ -14,3 +14,5 @@ SI包含7节、50题完整定义、200次运行的800个总分与评分分项、
 作者顺序：杨程驿（Chengyi Yang）；Qianxin Zhou；李洋（Yang Li）。Qianxin Zhou与李洋标为共同第二作者，其中Zhou排列在前。杨程驿和李洋的单位为长沙理工大学化学与医药工程学院；Zhou为图片所示福州大学单位。
 
 可编辑源稿见 paper/overleaf/Cloudra_SI/。首页署名已同步至中英文正文。
+
+本轮审稿修订加入主干模型与调用元数据、5个Easy反例的原始轨迹分析，以及IA5/IC3目标匹配的四情景敏感性表；正式200次运行的800个数值保持不变。模型为DeepSeek-v4.1-flash（1017），归档API别名另列。标题改为强调科学有效性检验；相关限制集中在Discussion。

@@ -1,0 +1,42 @@
+\subsection{P2 model configuration and campaign versions}
+\label{sec:si-p2-model-metadata}
+
+P1b denotes the repeated-task study: four tasks, four workflow configurations, and three runs per combination, giving 48 task runs. P2 denotes the full-benchmark study of 50 tasks under the four configurations, giving 200 retained task runs. The P2b and P2c execution campaigns supply this P2 dataset. Three completed P2b runs were retained (Guided/D3, Record/D1, and Standard/D3), and P2c supplied the remaining 197 runs.
+
+The deployed backbone was DeepSeek-v4.1-flash (1017), as specified by the authors. All eight P2 configuration snapshots, one for each campaign and workflow combination, specify \texttt{deepseek-v4-flash} for both the coordinator and follower slots. The request-start and completion telemetry in all eight runtime archives records the same model identifier. Cloudra called the official DeepSeek endpoint through streaming OpenAI-compatible chat completions. The frozen \texttt{native\_search=auto} setting selects this route in the campaign-era implementation. Table~\ref{tab:si-p2-model-metadata} records the request settings and execution versions. The deployment name and version are reported alongside the literal API alias preserved in the execution records.
+
+\begin{table}[htbp]
+\centering
+\small
+\caption{Frozen P2 configuration and campaign metadata. Request settings describe the harness configuration; telemetry counts are provided in the accompanying \texttt{p2\_model\_metadata.json}.}
+\label{tab:si-p2-model-metadata}
+\begin{tabular}{p{0.27\linewidth}p{0.66\linewidth}}
+\toprule
+Item & Recorded value \\
+\midrule
+Deployed model & DeepSeek-v4.1-flash (1017) \\
+Provider and API alias & DeepSeek; \texttt{deepseek-v4-flash} in all eight snapshots and their request/completion telemetry \\
+Endpoint and transport & \url{https://api.deepseek.com}; streaming chat completions \\
+Role slots & Coordinator and follower use the same provider, model identifier, and request settings \\
+Reasoning setting & Requested \texttt{reasoning\_effort=minimal} \\
+Temperature & 1.0 in the archived run-start settings \\
+Context window & 400,000 tokens in the frozen harness configuration \\
+Spawned-agent budget & \texttt{max\_tokens=32768} in the archived \texttt{agent.spawned} settings; this is the per-agent request setting, not the run's total token consumption \\
+Tool invocation & JavaScript protocol \\
+Retained task runs & Three from P2b and 197 from P2c \\
+Task concurrency & Two per configuration, eight in total \\
+Campaign starts & P2b: 25 October 2026, 18:01:17 UTC+8; P2c: 25 October 2026, 22:18:45 UTC+8 \\
+Campaign base & \texttt{53309d0e} \\
+Configuration commits & Guided: \texttt{6e89d20c}; Record: \texttt{746c33f0}; Standard: \texttt{c7fc94a1}; Brief-errors: \texttt{3b9831bb}. Both campaigns use these commits. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The configuration commits identify experiment execution. The implementation reference used to describe the system, subsequent evaluator fixes, and publication-table reproduction have their own version records. The companion metadata file gives archive-relative source members for each configuration and runtime record. Its request-start and completion counts refer to the archived runtime events, including auxiliary LLM activity and cancelled P2b attempts; the benchmark sample remains the 200 retained task runs.
+
+\paragraph{Fixed geometric heuristics.}
+The atom-map ranking uses fixed coefficients: 2 for each formed or broken bond, 1 for each bond-order change, 4 for a hydrogen-count mismatch, 8 for charge or radical-electron mismatches, and 2 for a stereochemical mismatch. The $J_{\min}+2$ window retains near-optimal maps when reporting ambiguity. The branch-crowding descriptor also uses fixed implementation heuristics: decay $\rho=0.5$, traversal through depth five, and a cumulative $B_s\geq9.0$ congestion flag. These settings rank or annotate candidate structures. Quantum-chemical evidence determines their subsequent physical qualification. The imaginary-mode participation ratio has a comparison value of 0.5; its alignment flag is advisory, and strict acceptance uses the first-order-saddle and IRC/endpoint evidence.
+
+\paragraph{Conformational sampling.}
+The default preorganization uses topology-aware rigid placements and guided MMFF94 relaxation, followed by energy/RMSD selection. Its standard multicomponent settings sample 32 relative orientations and retain up to eight guided placements. The separate conformer-search tool defaults to the RDKit backend and also provides an external CREST backend\citep{crest2020} for additional conformer or noncovalent-complex sampling. The default CREST route uses GFN2-xTB with the quick setting. Search outputs enter the calculation workflow as candidate geometries and undergo the task-specific stationary-point and pathway checks.
+

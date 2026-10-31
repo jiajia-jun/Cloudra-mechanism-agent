@@ -1,7 +1,7 @@
 {
   "date": "2026-10-31",
-  "pages": 27,
-  "source_files": 23,
+  "pages": 31,
+  "source_files": 26,
   "sections": 7,
   "task_definitions": 50,
   "task_runs": 200,
@@ -30,16 +30,16 @@
   "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
   "files": {
     "Cloudra_SI_EN_Draft.pdf": {
-      "bytes": 288619,
-      "sha256": "fe0e66ec5610b67065faef1ef473ee57cc13f1bd19f55b33a4138b5f2ddf9432"
+      "bytes": 314020,
+      "sha256": "8f59235a4231e5377c1cfe486af79450c3b9b4b48b170c905c97a33d270bc6fd"
     },
     "Cloudra_SI_Overleaf.zip": {
-      "bytes": 145890,
-      "sha256": "1e1e57403377a287618ee0382ca08b7f04e6c5254b2f885aaa4c531a7c410b13"
+      "bytes": 155528,
+      "sha256": "7804eff0760738c8f4624e2da7f79ca1ee70d5791cabe75b89ba0126c5a55004"
     },
     "Cloudra_SI_Data.zip": {
-      "bytes": 16826383,
-      "sha256": "b3eb01ea16cd1644b7e336b39e0edd0266d7d736a6ad5f18af2ea18932769665"
+      "bytes": 16818721,
+      "sha256": "361d6577bceac73d0e291bfec04905a2a7d74c90d030ab0fa57e6ca624d9d3ec"
     }
   },
   "standalone_reproduction": {
@@ -47,5 +47,13 @@
     "score_values": 800,
     "mismatches": 0,
     "new_model_or_qm_calculations": 0
-  }
+  },
+  "pdf_sha256": "8f59235a4231e5377c1cfe486af79450c3b9b4b48b170c905c97a33d270bc6fd",
+  "source_zip_sha256": "7804eff0760738c8f4624e2da7f79ca1ee70d5791cabe75b89ba0126c5a55004",
+  "bibliography_entries": 38,
+  "authorship_verified": true,
+  "deployment": "DeepSeek-v4.1-flash (1017)",
+  "archived_api_alias": "deepseek-v4-flash",
+  "title": "Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration",
+  "conditional_sensitivity_separate_from_formal_scores": true
 }

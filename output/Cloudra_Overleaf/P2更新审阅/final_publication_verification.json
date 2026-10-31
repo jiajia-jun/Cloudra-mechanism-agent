@@ -9,38 +9,46 @@
     "EN": {
       "pages": 23,
       "unknown_references": 0,
-      "bibliography_entries": 43,
+      "bibliography_entries": 44,
       "all_bib_keys_actually_cited": true,
       "all_24_figures_present": true,
       "text_outside_page": [],
       "source_files": 37,
       "online_source_matches_local": true,
-      "pdf_sha256": "3ec5f75d220782a0a657406f3702eabb61d9898decc9ff1b90e7948febf9a546",
-      "source_zip_sha256": "47ae249e93479ea5ab91d1ff9141d3f86930ce382eedadf6a814a5326c0f87e2",
-      "visual_review": "all pages rendered; abstract first pages checked at readable scale; no text outside pages, missing figures, or unknown references",
+      "pdf_sha256": "224bd7aef613046717b54deab7d67f1f3bd977adbb11bbb95885e4bc68c99c58",
+      "source_zip_sha256": "cb591a9cf9f27993cb6d1c8ab599f3492f9f0494032443ab8dc45f9abd3afefd",
+      "visual_review": "All pages rendered and checked; first page, result figure pages, new case paragraphs, and discussion inspected at readable scale.",
       "abstract_included": true,
-      "abstract_source_sha256": "4c7db79ccd0a90ee7b65d2fdf15e66a66427e106d3e88d55773e3839b954dd4e",
-      "authorship_verified": true
+      "abstract_source_sha256": "8b8943cf17004211cf79b109807e1e08f6c4ebd4b6cec5634b1b1be348657bc9",
+      "authorship_verified": true,
+      "source_zip_matches_editable_sources": true,
+      "out_of_page_text_blocks": 0,
+      "deployment": "DeepSeek-v4.1-flash (1017)",
+      "archived_api_alias": "deepseek-v4-flash"
     },
     "ZH": {
       "pages": 19,
       "unknown_references": 0,
-      "bibliography_entries": 43,
+      "bibliography_entries": 44,
       "all_bib_keys_actually_cited": true,
       "all_24_figures_present": true,
       "text_outside_page": [],
       "source_files": 37,
       "online_source_matches_local": true,
-      "pdf_sha256": "fbf8009ce80626ba0a8c29c401f613f58f6a240e3241f9c5c8f968a2c2e85fbc",
-      "source_zip_sha256": "f4177d31f70c62bb536c2403010925fb096cdb0c6701f1d2410bddaab250944a",
-      "visual_review": "all pages rendered; abstract first pages checked at readable scale; no text outside pages, missing figures, or unknown references",
+      "pdf_sha256": "aa46e5f4d4000eb0616b8c06d868e856bb7f1d8ccaa64c4a72be561a081d8706",
+      "source_zip_sha256": "d5b86e06c5be7bc09d404170b2e9d32dcff8b953ecd5c7a87ccddc04976a949f",
+      "visual_review": "All pages rendered and checked; first page, result figure pages, new case paragraphs, and discussion inspected at readable scale.",
       "abstract_included": true,
-      "abstract_source_sha256": "c60d6fc46a14765eae39fc3bb26ed28313c3b0554fe826f5937ff004f30ffff1",
-      "authorship_verified": true
+      "abstract_source_sha256": "54fa7fec8fb4140fd6263a5cc9db3fadcbe955e13678d3b2bab4eebbf9d8beb9",
+      "authorship_verified": true,
+      "source_zip_matches_editable_sources": true,
+      "out_of_page_text_blocks": 0,
+      "deployment": "DeepSeek-v4.1-flash (1017)",
+      "archived_api_alias": "deepseek-v4-flash"
     }
   },
   "max_score_rounding_difference": 4.971078517046479e-05,
-  "abstract_update": "English abstract supplied by the user retained verbatim; faithful Chinese translation added. Both abstracts appear below the title and before the two-column introduction.",
+  "abstract_update": "Humanizer revision preserves the supplied abstract scientific content and all quantitative results; corresponding Chinese revision included.",
   "authors": [
     {
       "name": "Chengyi Yang",
@@ -57,5 +65,7 @@
       "affiliation": 1,
       "position": "co-second author"
     }
-  ]
+  ],
+  "title": "Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration",
+  "review_revision": "2026-10-31; confirmed deployment, case trajectories, conditional matcher sensitivity, conformer/free-energy scope, targeted prose and typesetting revisions"
 }

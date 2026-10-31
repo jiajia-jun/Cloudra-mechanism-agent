@@ -1,0 +1,68 @@
+\subsection{Easy-tier energy references and delivery trajectories}
+\label{sec:si-easy-case-audit}
+
+The five Easy tasks examined here distinguish numerical reference choice, chemical identity matching, and the delivery of computed evidence. We inspected the retained runs' final mechanism graphs, native calculation logs, evaluation notes, and runtime events. Table~\ref{tab:si-easy-case-audit} preserves the released scores. $\mathrm{SC}_{\mathrm{all}}$ grades the delivered graph, whereas $\mathrm{SC}_{\mathrm{Gold}}$ grades its reference-matched subgraph and excludes additional elements. Their difference identifies a change in the objects being assessed; the composite uses $\mathrm{SC}_{\mathrm{all}}$.
+
+\begin{table}[!htbp]
+\centering
+\small
+\setlength{\tabcolsep}{4pt}
+\caption{Released component scores for the five inspected Easy tasks, rounded to four decimal places. Brief denotes Brief-errors. The two SC columns retain their separate assessment scopes. Accuracy is the final component after reference matching and the specified numerical penalty cap.}
+\label{tab:si-easy-case-audit}
+\begin{tabular}{llrrrrr}
+\toprule
+Task & Workflow & Graph & $\mathrm{SC}_{\mathrm{all}}$ & $\mathrm{SC}_{\mathrm{Gold}}$ & Accuracy & Composite \\
+\midrule
+F4 & Guided & 0.6009 & 1.0000 & 0.0000 & 0.0000 & 0.3601 \\
+ & Standard & 0.8333 & 0.7500 & 0.7500 & 1.0000 & 0.9083 \\
+ & Record & 0.9167 & 0.7500 & 0.7500 & 1.0000 & 0.9167 \\
+ & Brief & 0.6009 & 1.0000 & 0.0000 & 0.0000 & 0.3601 \\
+\addlinespace
+G2 & Guided & 0.8889 & 0.5000 & 0.5000 & 0.0000 & 0.2389 \\
+ & Standard & 1.0000 & 0.5000 & 0.5000 & 0.8782 & 0.7769 \\
+ & Record & 1.0000 & 0.5000 & 0.5000 & 0.8782 & 0.7769 \\
+ & Brief & 1.0000 & 0.5000 & 0.5000 & 1.0000 & 0.8500 \\
+\addlinespace
+D1 & Guided & 1.0000 & 1.0000 & 1.0000 & 0.7000 & 0.8200 \\
+ & Standard & 0.7917 & 0.5000 & 0.5000 & 1.0000 & 0.8291 \\
+ & Record & 0.7917 & 1.0000 & 1.0000 & 0.7000 & 0.7992 \\
+ & Brief & 1.0000 & 0.7500 & 0.7500 & 0.7000 & 0.7450 \\
+\addlinespace
+D3 & Guided & 1.0000 & 0.7500 & 0.7500 & 0.7000 & 0.7450 \\
+ & Standard & 1.0000 & 0.7500 & 0.7500 & 0.9995 & 0.9247 \\
+ & Record & 0.9444 & 0.3500 & 0.3500 & 0.9909 & 0.7940 \\
+ & Brief & 0.8333 & 0.7500 & 0.7500 & 0.7000 & 0.7283 \\
+\addlinespace
+L2 & Guided & 1.0000 & 0.7500 & 0.7500 & 0.7000 & 0.7450 \\
+ & Standard & 1.0000 & 0.5000 & 0.5000 & 0.7000 & 0.6700 \\
+ & Record & 1.0000 & 0.7500 & 0.7500 & 0.8832 & 0.8549 \\
+ & Brief & 1.0000 & 0.8333 & 0.7500 & 0.8832 & 0.8799 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{F4: reference identity and a verified adduct pathway.}
+Guided delivered hydride transfer from the Lewis adduct of borane and formaldehyde to methoxyborane. Its bound reactant and saddle energies were $-141.041124115$ and $-141.015601446$~hartree, giving 16.01572~kcal~mol$^{-1}$ and supporting the declared 16.02. Independent saddle frequency analysis gave one imaginary frequency, $-398.7218$~cm$^{-1}$. Both actual IRC outer frames subsequently converged to the corresponding zero-imaginary-frequency endpoint minima. The four workflows obtained essentially the same saddle and adduct energies.
+
+The campaign reference at revision \texttt{53309d0e} encoded the reactant as \texttt{[BH3].C=O}, although its step description and 16.02-kcal~mol$^{-1}$ reference concerned the Lewis adduct. Guided and Brief instead declared the bonded adduct. The original Guided evaluation explicitly reported that no delivered step matched the reference endpoint species. Revision \texttt{0b7b5e5b} corrected the reference node to \texttt{[BH3-][O+]=C}; the retained offline protocol used the earlier campaign taskbank. The released Standard and Record scores include their recorded annotation-identity recovery. F4 therefore contains a documented reference-identity effect: Guided's $\mathrm{SC}_{\mathrm{all}}=1$ coexists with $\mathrm{SC}_{\mathrm{Gold}}=0$ and Accuracy~0 despite the archived 16.02 pathway. Table~\ref{tab:si-easy-case-audit} retains this publication record.
+
+\paragraph{G2: computed evidence and final structured delivery.}
+Guided's native logs contain a concerted double-H-transfer saddle at $-189.093172517$~hartree with one imaginary frequency, $-444.9504$~cm$^{-1}$. The optimized cis reactant complex and the IRC-derived reactant minimum have energies of $-189.094518484$ and $-189.094518735$~hartree. They give barriers of 0.84461 and 0.84476~kcal~mol$^{-1}$, respectively, close to the 0.87 reference.
+
+The runtime recorded four rejections of a numerical barrier on a companion complex-product edge whose scientific checks remained open. Meanwhile, delivery reports for the selected separated-products target returned \texttt{complete=true} with no unresolved target. After an initial deletion, a Supervisor request prompted restoration of all numerical barriers and the saddle's energy/log fields. The fourth barrier rejection was followed by deletion of the companion-edge values. A subsequent artifact check rejected the saddle-evidence claim; the next recorded edit removed the selected edge's remaining numerical barrier and the saddle's energy/log fields. The successful write and program output confirm these removals. The final graph retained the values in descriptive text, so the numerical target received Accuracy~0. Its graded SC contribution remained 0.5.
+
+Brief retained a numerical barrier of 0.844 and obtained Accuracy~0.99999. Standard and Record declared approximately 3.4 using a lower-energy reactant reference; Record's native report identifies this as a trans-diimide stack and separately records the approximately 0.84 cis-reference result.
+
+\paragraph{D1 and D3: numerical penalties with different physical origins.}
+The evaluation notes explicitly attribute Accuracy~0.7 to the maximum numerical-deviation penalty of 0.3. For D1, 15.738 versus 18.830~kcal~mol$^{-1}$ gives an underlying Gaussian score of 0.5880 before this cap. Guided and Standard obtained nearly identical saddle energies, but their reactant energies differ by 3.11859~kcal~mol$^{-1}$. Their butadiene dihedrals are approximately $26.33^\circ$ and $-179.93^\circ$, corresponding to reactive s-cis and lower s-trans references. Record also delivered the s-cis barrier and retained SC~1 with Accuracy~0.7.
+
+D3 has a different origin. Guided and Standard delivered barriers of 18.14687 and 14.55472~kcal~mol$^{-1}$. Their reactant energies differ by only 0.09899~kcal~mol$^{-1}$, whereas their saddle energies differ by 3.69113~kcal~mol$^{-1}$. Both saddle logs contain exactly one imaginary frequency. The archived evaluations separately assign SC~0.75 with product-endpoint association warnings; the Accuracy cap follows the numerical barrier comparison.
+
+\paragraph{L2: two reference barriers and the selected comparison edge.}
+Guided used the reactive cZc minimum and obtained 18.98740~kcal~mol$^{-1}$; its graph states that the stable-to-reactive conformer contribution was uncomputed. Record and Brief used the lower tZt reference, giving approximately 28.275. The conformer energy difference is 9.28761~kcal~mol$^{-1}$.
+
+Standard delivered both references and both barriers: 18.99 on edge \texttt{e1} and 28.28 on \texttt{e2}. The archived evaluation selected \texttt{e1}. Both candidates have identical bond-change lists, and the unspecified-stereochemistry reference gives equal endpoint substitution costs for these reactants. The final edge-identifier tie-break selects \texttt{e1}, so the local-reference value receives the capped Accuracy~0.7. Standard's final report explicitly contains the stable-reference barrier and conformer gap.
+
+% Discussion proposal: this paragraph can be placed in the main Discussion.
+\paragraph{Discussion: preserving scientific objects across representations.}
+These cases identify where the computational record and its scientific interpretation need persistent associations. F4 requires reference identities to remain consistent across task versions. G2 shows how coupling numerical declarations to completion status can cause an agent to remove calculated facts while reconciling a research DAG with an exported graph. D1 and L2 require separate records for the reactive conformer, stable energy reference, and actual IRC endpoint. L2 further shows that this distinction must survive evaluation matching. Keeping computed quantities and evidence associations in the program, alongside separately recorded validation status, would allow the agent's scientific judgment to operate on the same physical objects throughout research and delivery.

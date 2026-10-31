@@ -1,0 +1,48 @@
+{
+  "date": "2026-10-31",
+  "checks": {
+    "EN": {
+      "pages": 23,
+      "source_files": 37,
+      "source_zip_matches_editable_sources": true,
+      "pdf_sha256": "224bd7aef613046717b54deab7d67f1f3bd977adbb11bbb95885e4bc68c99c58",
+      "source_zip_sha256": "cb591a9cf9f27993cb6d1c8ab599f3492f9f0494032443ab8dc45f9abd3afefd",
+      "bibliography_entries": 44,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0,
+      "authorship_verified": true,
+      "deployment": "DeepSeek-v4.1-flash (1017)",
+      "archived_api_alias": "deepseek-v4-flash"
+    },
+    "ZH": {
+      "pages": 19,
+      "source_files": 37,
+      "source_zip_matches_editable_sources": true,
+      "pdf_sha256": "aa46e5f4d4000eb0616b8c06d868e856bb7f1d8ccaa64c4a72be561a081d8706",
+      "source_zip_sha256": "d5b86e06c5be7bc09d404170b2e9d32dcff8b953ecd5c7a87ccddc04976a949f",
+      "bibliography_entries": 44,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0,
+      "authorship_verified": true,
+      "deployment": "DeepSeek-v4.1-flash (1017)",
+      "archived_api_alias": "deepseek-v4-flash"
+    },
+    "SI": {
+      "pages": 31,
+      "source_files": 26,
+      "source_zip_matches_editable_sources": true,
+      "pdf_sha256": "8f59235a4231e5377c1cfe486af79450c3b9b4b48b170c905c97a33d270bc6fd",
+      "source_zip_sha256": "7804eff0760738c8f4624e2da7f79ca1ee70d5791cabe75b89ba0126c5a55004",
+      "bibliography_entries": 38,
+      "unknown_references": 0,
+      "out_of_page_text_blocks": 0,
+      "authorship_verified": true,
+      "deployment": "DeepSeek-v4.1-flash (1017)",
+      "archived_api_alias": "deepseek-v4-flash"
+    }
+  },
+  "formal_score_data_unchanged": true,
+  "sensitivity": "Two target assignments; conditional only; weights and scientific acceptance unchanged.",
+  "humanizer": "cloudra/skills/humanizer/SKILL.md, v2.9.1",
+  "data_reproduction_record": "../Cloudra_SI/reproduction_verification.json"
+}

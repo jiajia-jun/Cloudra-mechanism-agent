@@ -94,7 +94,7 @@ After all-atom correspondence is established, each endpoint is centered. Let $\m
 \begin{gathered}
 \min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\
 \mathbf{P}^{\mathsf{T}}\mathbf{R}=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
-\mathbf{Q}=\mathbf{U}\operatorname{diag}[1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})]\mathbf{V}^{\mathsf{T}}.
+\mathbf{Q}=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
 \end{gathered}
 \end{equation}
 
@@ -152,7 +152,7 @@ For a first-order saddle point with imaginary normal-mode displacement vector $\
 \eta=\frac{\max_{(i,j)\in W}\|\mathbf{u}_i-\mathbf{u}_j\|}{\max_{i<j}\|\mathbf{u}_i-\mathbf{u}_j\|}.
 \end{equation}
 
-The diagnostic $\eta\in[0,1]$ evaluates whether the imaginary normal mode aligns primarily with the monitored reaction coordinates, identifying spectator motions such as methyl wagging or solvent libration prior to path integration.
+The diagnostic $\eta\in[0,1]$ measures reaction-center participation relative to the largest pair displacement, using a comparison ratio of 0.5. It can identify spectator motion such as methyl wagging or solvent libration. The resulting alignment flag is advisory; scientific acceptance uses the first-order-saddle requirement and the same-TS bidirectional IRC and endpoint optimization/frequency chain.
 
 \subsubsection{IRC Direction and Endpoint Consistency}
 Intrinsic reaction coordinate (IRC) trajectories evolve from the saddle point along the steepest-descent path in mass-weighted coordinates $\mathbf{q}=\mathbf{M}^{1/2}\mathbf{x}$ \citep{ref09,ref10}:
@@ -186,7 +186,7 @@ The electronic activation barrier is computed directly from verified stationary-
 Energies share a consistent quantum chemical level of theory. For thermochemical profiles, zero-point energy, enthalpy, and Gibbs free-energy corrections are evaluated from harmonic partition functions under declared temperature and pressure specifications.
 
 \subsection{Diagnostics and Recovery}
-The harness categorizes computational setbacks into execution errors, numerical nonconvergence, and physical evidence defects. Execution errors encompass input syntax, environmental faults, or parsing anomalies. Numerical status tracks self-consistent field (SCF) and geometry optimization convergence. Physical evidence defects identify curvature violations ($n_{\mathrm{imag}}\ne 1$), imaginary-mode misalignment ($\eta<\eta_{\mathrm{thresh}}$), unverified IRC endpoints, or chemical graph discrepancies.
+The harness categorizes computational setbacks into execution errors, numerical nonconvergence, and physical evidence defects. Execution errors encompass input syntax, environmental faults, or parsing anomalies. Numerical status tracks self-consistent field (SCF) and geometry optimization convergence. Physical evidence checks identify curvature violations ($n_{\mathrm{imag}}\ne 1$), unverified IRC endpoints, or chemical graph discrepancies. Imaginary-mode participation and geometric interval checks provide advisory diagnostics for deciding what to inspect or revise.
 
 Let $T$ denote the set of declared target species and elementary steps. Extending $P_{e,k}$ across all targets $t\in T$, the outstanding scientific evidence requirements form the unsatisfied contract set:
 
@@ -202,6 +202,10 @@ Recovery preserves historical attempts and raw calculation outputs while resched
 
 \subsection{Implementation Defaults}
 The implementation described here corresponds to Cloudra revision 70daa5a.\citep{ref14} Numerical arrays and linear algebra use NumPy\citep{numpy2020}; quantum-chemical quantities are extracted with cclib alongside engine-specific native-log readers\citep{cclib2008}; and benchmark graph representation and matching use NetworkX\citep{networkx2008}. Preorganization uses 32 rigid orientations, up to 8 guided placements, minimum interfragment separation 1.0 Å, fragment-contact multiplier 1.7, and heavy-atom RMSD clustering threshold 0.5 Å. MMFF94 relaxation uses up to 2000 iterations per phase with a distance restraint force constant of 100.0. Standard IDPP employs 10 images optimized via MDMin (100 steps, force tolerance $f_{\max}=0.1$, NEB spring constant $k=0.1$); lightweight IDPP uses Adam optimization (4000 steps, step size 0.02, gradient tolerance $10^{-7}$). Path convergence criteria evaluate the maximum force residual on intermediate path images.\par
+
+The mapping coefficients and the $J_{\min}+2$ ambiguity window are fixed ranking heuristics. Charge and radical mismatches carry larger costs than hydrogen-count and bond-edit mismatches. Branch crowding uses the fixed decay $\rho=0.5$, traversal through depth five, and congestion flag $B_s\geq9.0$. The mode-participation diagnostic uses the comparison ratio 0.5 as an advisory flag. These values rank or annotate candidates; stationary-point and pathway evidence determine scientific acceptance.
+
+Cloudra also provides a conformer-search tool with RDKit and external CREST backends.\citep{crest2020} The default preorganization described above uses rigid placements, guided MMFF94 relaxation, and clustering. CREST can be requested for additional conformer or noncovalent-complex sampling, followed by quantum-chemical optimization and physical validation.
 
 \subsection{CloudraBench construction and experimental design}
 
@@ -230,7 +234,7 @@ Graph structure, self-consistency, and accuracy are evaluated separately and com
 
 \subsubsection{Repeated-task study, primary comparison, and workflow ablations}
 
-The repeated-task study compares Guided, Standard, Record, and Brief-errors on E1, NB1, HA1, and IA1, with three independent runs per combination (48 runs). The repeated runs used DeepSeek-v4-flash.\citep{deepseekv42026} E1, NB1, HA1, and IA1 respectively concern elimination preorganization, multistep decarboxylation, stereochemical ring opening, and electronic-structure method limits; their archived trajectories supply the subsequent local diagnostic cases. Its elapsed-time unit is a four-task batch at a concurrency of two, with three batches per configuration. The full-benchmark study retains one run for each of the 50 tasks and four configurations (200 runs). The primary comparison is Guided against the actual Standard branch using the same model backbone.
+The repeated-task study (P1b) compares Guided, Standard, Record, and Brief-errors on E1, NB1, HA1, and IA1, with three independent runs per combination (48 task-level runs). The repeated runs used DeepSeek-v4.1-flash (1017).\citep{deepseekv42026} E1, NB1, HA1, and IA1 concern elimination preorganization, multistep decarboxylation, stereochemical ring opening, and electronic-structure method limits, respectively; their archived trajectories supply the subsequent local diagnostic cases. Its elapsed-time unit is a four-task batch at concurrency two, with three batches per configuration. The full-benchmark study (P2) retains one run for each of the 50 tasks and four configurations (200 task-level runs). All P2 configurations used DeepSeek-v4.1-flash (1017), called with the archived API alias \texttt{deepseek-v4-flash} through the official DeepSeek endpoint and streaming OpenAI-compatible chat completions, with requested minimal reasoning effort. Frozen configurations and actual request/completion records agree on this model identifier. The primary comparison is Guided against Standard using this same backbone; Standard is labelled Backbone in the figures. P1b and P2 are the archived identifiers of the repeated-task and full-benchmark studies. The P2 execution versions and request settings are listed in Supplementary Information Section S1.
 
 
 

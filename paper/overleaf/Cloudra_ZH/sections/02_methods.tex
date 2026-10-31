@@ -94,7 +94,7 @@ S(\mathbf{X})=\max_{(i,j)\in W}\{&0,\,l_{ij}-d_{ij}(\mathbf{X}),\\
 \begin{gathered}
 \min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\
 \mathbf{P}^{\mathsf{T}}\mathbf{R}=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
-\mathbf{Q}=\mathbf{U}\operatorname{diag}[1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})]\mathbf{V}^{\mathsf{T}}.
+\mathbf{Q}=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
 \end{gathered}
 \end{equation}
 
@@ -152,7 +152,7 @@ S_t={}&\mathbf{1}[R\ne\emptyset]\\
 \eta=\frac{\max_{(i,j)\in W}\|\mathbf{u}_i-\mathbf{u}_j\|}{\max_{i<j}\|\mathbf{u}_i-\mathbf{u}_j\|}.
 \end{equation}
 
-对齐度度量 $\eta\in[0,1]$ 用于在启动 IRC 积分前，检查虚频简正模是否主要落在设定的反应活性坐标上，以识别甲基面外晃动或溶剂扰动等模式。
+诊断量 $\eta\in[0,1]$ 衡量反应中心原子对相对全局最大原子对位移的参与程度，比较比值为0.5，可提示甲基摇摆或溶剂运动等旁观模式。对齐标记只提供诊断建议；科学验收依据一阶鞍点要求及同一 TS 的双向 IRC 和端点优化/频率证据链。
 
 \subsubsection{内禀反应坐标（IRC）方向与端点一致性}
 内禀反应坐标（IRC）是在质量加权坐标 $\mathbf{q}=\mathbf{M}^{1/2}\mathbf{x}$ 下从过渡态出发的最陡下降路径 \citep{ref09,ref10}：
@@ -186,7 +186,7 @@ A_e=\bigwedge_{k\in K_e}P_{e,k}.
 所用能量来源于相同的量子化学方法与基组级别。对于热力学性质，零点能校正、焓变与 Gibbs 自由能校正在指定温度与压强下基于谐性配分函数提取。
 
 \subsection{引导式诊断与自愈恢复}
-系统将探索中遭遇的计算挫折归入运行执行错误、数值不收敛与科学证据缺陷三类。运行错误涵盖语法错误、环境异常或输出解析失败；数值状态捕捉自洽场（SCF）或几何优化步数超限；科学证据缺陷则定位曲率异常（$n_{\mathrm{imag}}\ne 1$）、虚频投影模式未对齐（$\eta<\eta_{\mathrm{thresh}}$）、IRC 漂移或端点物种拓扑不匹配。
+系统将计算问题区分为执行错误、数值不收敛和物理证据问题。执行错误包括输入语法、环境或解析问题；数值状态记录 SCF 与几何优化收敛；物理检查核对驻点曲率、IRC 端点和化学身份。虚频模式参与程度及几何区间检查作为诊断建议，帮助选择需要检查或修订的对象。
 
 设 $T$ 为任务声明的目标物种与反应步集合。将 $P_{e,k}$ 推广至任意目标对象 $t\in T$，未满足的科学证据契约集合形式化为：
 
@@ -210,6 +210,10 @@ U=\{(t,k):t\in T,\, k\in K_t,\, P_{t,k}=0\}.
 \end{minipage}
 \end{figure*}
 
+原子映射系数及 $J_{\min}+2$ 歧义窗口是固定的候选排序启发式。电荷与自由基不匹配的代价高于氢数和键编辑不匹配。支链拥挤度使用衰减 $\rho=0.5$、遍历至深度五和 $B_s\geq9.0$ 标记；模式参与诊断的比较比值为0.5。这些参数用于候选排序或诊断，驻点及路径证据决定科学验收。
+
+Cloudra 的构象搜索工具提供 RDKit 和外部 CREST 后端。\citep{crest2020} 上述默认预组织使用刚体放置、受限 MMFF94 松弛及聚类；需要时可请求 CREST 进一步搜索构象或非共价复合物，再进行量子化学优化与物理检验。
+
 \subsection{CloudraBench 基准构建与实验设计}
 
 \subsubsection{任务覆盖与分层依据}
@@ -232,7 +236,7 @@ CloudraBench 包含 50 题：Easy 20 题检验基元转化、构象变化与基�
 
 \subsubsection{重复实验、主对照与工作流消融}
 
-重复实验在E1、NB1、HA1和IA1上比较Guided、Standard、Record及Brief-errors，每个组合独立运行三次，共48次；重复实验采用DeepSeek-v4-flash\citep{deepseekv42026}；E1、NB1、HA1和IA1分别涉及消除反应预组织、多步脱羧、立体化学开环及电子结构方法边界，其归档轨迹用于后续局部诊断。耗时单位为并发度2的四题批次，每种配置三个批次。全题库实验为50题、四配置各保留一次运行，共200次。主对照是Guided相对使用同一模型backbone实际运行的Standard。
+重复任务研究（P1b）比较 E1、NB1、HA1 与 IA1 在 Guided、Standard、Record 和 Brief-errors 四配置下的表现，每种题目与配置组合独立运行三次，共48次任务运行。重复实验使用 DeepSeek-v4.1-flash（1017）。\citep{deepseekv42026} 四题分别涉及消除预组织、多步脱羧、立体化学开环及电子结构方法边界，其轨迹用于后续局部诊断。耗时单位为并发二、四题一批的实际批次，每配置三批。全基准研究（P2）保留50题、四配置各一次运行，共200次任务运行。全部 P2 配置均通过 DeepSeek 官方端点的流式 OpenAI 兼容 chat completions 接口调用 DeepSeek-v4.1-flash（1017），归档 API 别名为 \texttt{deepseek-v4-flash}，请求 minimal 推理设置；冻结配置与实际请求/完成记录中的模型标识一致。主比较为使用同一主干的 Guided 与 Standard，后者在图中标记为 Backbone。P1b 与 P2 是重复任务及全基准研究沿用的归档标识。P2 执行版本和请求设置见 SI 第 S1 节。
 
 
 

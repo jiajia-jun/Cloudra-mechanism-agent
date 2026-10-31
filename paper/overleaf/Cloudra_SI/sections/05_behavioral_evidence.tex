@@ -107,7 +107,7 @@ Ten local probes then separate the available measurement from the action questio
 
 \subsection{Single-token transfer of a reported numerical fact}
 
-The activation experiment uses the same archived local quantized deployment and a short reported-distance comparison.\citep{ref16} One displayed number is changed from 2.029 to 1.029 \AA, while the second remains 1.248 \AA. This reverses the correct comparison. The clean and edited prompts each contain 124 tokens; their token IDs differ only at global position 53, corresponding to the initial digit of the changed measurement. The original-fact answer is B in the forward option order and A in the reversed order.
+The activation experiment uses the archived local quantized model for a reported-distance comparison.\citep{ref16} We changed the first reported distance from 2.029 to 1.029~\AA. The second distance remains 1.248~\AA. This reverses the correct comparison. The clean and edited prompts each contain 124 tokens; their token IDs differ only at global position 53, corresponding to the initial digit of the changed measurement. The original-fact answer is B in the forward option order and A in the reversed order.
 
 For each option order, the residual-stream state at position 53 is captured from the original prompt and transferred into the edited prompt at zero-based layers 7, 15, 31, and 47. The four layers are fixed in the experiment manifest. The readout is the full-vocabulary softmax probability mass assigned to the original-fact answer, summing its bare-letter and leading-space spellings. Table~\ref{tab:si-fact-patch} preserves the clean, edited, and transferred-state values.
 

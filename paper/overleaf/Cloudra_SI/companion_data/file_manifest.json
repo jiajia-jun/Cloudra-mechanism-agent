@@ -2,8 +2,8 @@
   "files": [
     {
       "file": "README.md",
-      "bytes": 1015,
-      "sha256": "1194b485e3e71396f48642408c9c63ade1fed1f3d30aef02bc876cdb120a92ab"
+      "bytes": 3032,
+      "sha256": "036f90fa1fd5ebe3adc1f6570d7b0a0ec41c8dd11c9e3db18be6453e32495d52"
     },
     {
       "file": "behavioral/chemical_identity_controls/chemical_identity_provenance.json",
@@ -2136,6 +2136,31 @@
       "sha256": "45010b5cb484bc2625a76804cfaf384ab2cdd66c1fd3916da1efdee3a4ac3f53"
     },
     {
+      "file": "revision_20261031/easy_case_findings.md",
+      "bytes": 24629,
+      "sha256": "dcdb5c191117e65858835dfaedcda2be972204567ee62587b07e80a7657bd797"
+    },
+    {
+      "file": "revision_20261031/matcher_sensitivity_findings.md",
+      "bytes": 12636,
+      "sha256": "753539a0f5675db0eee631876e7d0fcd28743802e6a099eee8adcbe1362add64"
+    },
+    {
+      "file": "revision_20261031/matcher_sensitivity_scenarios.csv",
+      "bytes": 2678,
+      "sha256": "70cfade17e6f1ad48e74149a8268a897833ed319e35d9d3c8e029cdd164be385"
+    },
+    {
+      "file": "revision_20261031/metadata_and_methods_findings.md",
+      "bytes": 16907,
+      "sha256": "1829252ecd9ac41a29883972fc95c966e11e66395773bfffc4fb3fb29c9b6bff"
+    },
+    {
+      "file": "revision_20261031/p2_model_metadata.json",
+      "bytes": 15924,
+      "sha256": "c4070fcdc66092b058b660d7cc27c880a385f6274162da127599e949a37996ca"
+    },
+    {
       "file": "task_definitions/easy/D1.json",
       "bytes": 8301,
       "sha256": "f480bdc4a2406dcb095aae62457a4cbf2c75ac222f922f1f8d05264cb34ef02b"
@@ -2386,6 +2411,6 @@
       "sha256": "898e12abaabc62ec3c3122566ced4fc63005db396627c02bc0307d5e07f570c6"
     }
   ],
-  "count": 477,
-  "total_bytes": 29557110
+  "count": 482,
+  "total_bytes": 29631901
 }

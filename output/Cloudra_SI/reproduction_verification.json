@@ -12,5 +12,73 @@
   "absolute_tolerance": 1e-12,
   "mismatches": 0,
   "new_agent_runs": 0,
-  "new_qm_jobs": 0
+  "new_qm_jobs": 0,
+  "revision_20261031": {
+    "verification_procedure": "Existing standalone preparation replay result retained; additive packaging verified by SHA-256 for every unchanged payload and exact source numeric strings for all 800 score values. No inference or quantum-chemical calculation was executed.",
+    "prior_manifest_sha256": "7bce5c3c28772fe98123d0091ebc72892ac1d694f0b5504c92aba48d68d7c826",
+    "prior_manifest_payload_files": 477,
+    "unchanged_preexisting_payload_files": 476,
+    "changed_preexisting_files": [
+      "README.md",
+      "file_manifest.json"
+    ],
+    "added_files": [
+      "revision_20261031/easy_case_findings.md",
+      "revision_20261031/matcher_sensitivity_findings.md",
+      "revision_20261031/matcher_sensitivity_scenarios.csv",
+      "revision_20261031/metadata_and_methods_findings.md",
+      "revision_20261031/p2_model_metadata.json"
+    ],
+    "score_rows": 200,
+    "score_values_compared": 800,
+    "numeric_string_mismatches": 0,
+    "score_csv_sha256_before": "b2e0d7f8fe6c591d64ce30e3c24e44631fae3e3a3eff89a5c00966df64f921b0",
+    "score_csv_sha256_after": "b2e0d7f8fe6c591d64ce30e3c24e44631fae3e3a3eff89a5c00966df64f921b0",
+    "publication_source_sha256_before": "3a211750e47ee5fb291e8d1699c16a6bec1a8dec31e8a2a0483605e4b5b6faec",
+    "publication_source_sha256_after": "3a211750e47ee5fb291e8d1699c16a6bec1a8dec31e8a2a0483605e4b5b6faec",
+    "all_preexisting_source_bytes_and_line_endings_unchanged": true,
+    "conditional_scenarios": {
+      "rows": 16,
+      "scenario_count": 4,
+      "single_case_composite_delta": 0.6,
+      "single_case_IMP_mean_delta": 0.06,
+      "single_case_50task_mean_delta": 0.012,
+      "arithmetic_mismatches": 0,
+      "formal_scores_overwritten": false
+    },
+    "model_identity": {
+      "deployment": "deepseek-v4.1-flash",
+      "version": "1017",
+      "author_reported_identifier": "deepseek-v4.1-flash1017",
+      "archived_api_alias": "deepseek-v4-flash",
+      "sources_separated": true
+    },
+    "distribution_safety": {
+      "revision_files": 5,
+      "public_metadata_whitelist_used": true,
+      "full_configurations_or_databases_bundled": false,
+      "credential_markers_or_private_drive_links_in_additions": false,
+      "local_absolute_paths_in_additions": false,
+      "full_package_json_files_checked": 354,
+      "credential_values_found": 0,
+      "private_drive_or_private_key_markers_found": 0
+    },
+    "manifest": {
+      "payload_files": 482,
+      "payload_bytes": 29631901,
+      "sha256": "1841dad2c51eac38510883221c9b287bdd629a3d43a8f769f2497a77614b1d18",
+      "verified_hashes": 482,
+      "hash_mismatches": 0
+    },
+    "package": {
+      "path": "output/Cloudra_SI/Cloudra_SI_Data.zip",
+      "files_including_manifest": 483,
+      "bytes": 16818721,
+      "sha256": "361d6577bceac73d0e291bfec04905a2a7d74c90d030ab0fa57e6ca624d9d3ec",
+      "zip_crc_errors": 0,
+      "zip_payload_hash_mismatches": 0
+    },
+    "new_agent_runs": 0,
+    "new_qm_jobs": 0
+  }
 }
