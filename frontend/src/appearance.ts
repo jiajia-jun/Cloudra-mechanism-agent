@@ -14,9 +14,9 @@ const CHANGE_EVENT = 'cloudra:appearance';
 export function readAppearance(): Appearance {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    return APPEARANCES.find((appearance) => appearance.id === saved)?.id ?? 'modernism';
+    return APPEARANCES.find((appearance) => appearance.id === saved)?.id ?? 'acid';
   } catch {
-    return 'modernism';
+    return 'acid';
   }
 }
 
