@@ -1,0 +1,61 @@
+arm,task,tier,flex_class,job_hours,qm_jobs,qm_done,qm_failed,qm_cancelled,official_final,fair_final,final_score_source,root_graph_present,manual_graph_repair,job_hours_method,snapshot_undelivered,snapshot_selfc,snapshot_failure_mode,n_ts_inputs,n_irc_inputs,source_csv_row
+guided,D3,easy,rigid,3.08,11,9,1,1,0.745,0.745,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,0.75,saddle/conformer misassignment,1,4,2
+record,D3,easy,rigid,18.73,39,21,12,6,0.794,0.794,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.35,verification: TS/IRC proof gap,4,18,3
+standard,D3,easy,rigid,4.46,20,11,2,7,0.9247,0.9247,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.75,verification: TS/IRC proof gap,3,2,4
+brief-errors,D3,easy,rigid,17.55,49,26,5,18,0.7283,0.7283,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.75,saddle/conformer misassignment,7,19,5
+guided,M1,easy,conformer,5.39,28,11,1,16,0.9478,0.9478,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,1.0,solved,12,2,6
+record,M1,easy,conformer,1.55,14,13,0,1,0.9476,0.9476,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,2,1,7
+standard,M1,easy,conformer,5.08,25,23,2,0,0.7526,0.7526,snapshot,1,0,native log Job CPU time / 4,1,0.35,verification: TS/IRC proof gap,6,6,8
+brief-errors,M1,easy,conformer,15.68,51,22,3,26,0.9476,0.9476,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,14,10,9
+guided,M8,easy,conformer,5.15,30,27,3,0,0.9996,0.9996,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,1.0,solved,2,5,10
+record,M8,easy,conformer,1.63,24,21,3,0,0.9996,0.9996,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,2,7,11
+standard,M8,easy,conformer,2.58,30,22,6,2,0.9996,0.9996,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,4,7,12
+brief-errors,M8,easy,conformer,3.72,22,20,2,0,0.9996,0.9996,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,6,2,13
+guided,NB1,normal,conformer,17.38,71,48,19,4,0.9628,0.9628,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,1.0,solved,11,9,14
+record,NB1,normal,conformer,4.07,25,20,3,2,0.8625,0.8625,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.675,verification: TS/IRC proof gap,4,2,15
+standard,NB1,normal,conformer,10.74,30,24,5,1,0.9128,0.9128,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.8333333333333334,verification: TS/IRC proof gap,8,3,16
+brief-errors,NB1,normal,conformer,12.75,42,30,10,2,0.99,0.99,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,8,8,17
+guided,NQ5,normal,conformer,14.21,51,36,10,5,0.7075,0.7075,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.625,saddle/conformer misassignment,7,11,18
+record,NQ5,normal,conformer,10.55,51,45,6,0,0.8725,0.8725,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.625,verification: TS/IRC proof gap,10,7,19
+standard,NQ5,normal,conformer,8.79,43,29,1,13,0.751,0.751,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.55,verification: TS/IRC proof gap,7,4,20
+brief-errors,NQ5,normal,conformer,32.62,108,78,9,21,0.781,0.781,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.625,verification: TS/IRC proof gap,6,20,21
+guided,NR1,normal,conformer,7.06,63,44,16,3,0.6167,0.6167,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.8333333333333334,coverage: gold saddle never delivered,15,7,22
+record,NR1,normal,conformer,4.42,39,32,5,2,0.5378,0.5378,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.5333333333333333,coverage: gold saddle never delivered,7,5,23
+standard,NR1,normal,conformer,0.12,5,5,0,0,0.1643,-1.0,snapshot,0,1,sum ledger QM job end_timestamp - start_timestamp,1,0.0,delivery: no parseable mechanism_graph,2,0,24
+brief-errors,NR1,normal,conformer,20.85,63,44,19,0,0.6142,0.6142,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.875,coverage: gold saddle never delivered,5,10,25
+guided,NU3,normal,conformer,17.7,119,96,11,12,0.5527,0.5527,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,0.9166666666666666,coverage: gold saddle never delivered,20,18,26
+record,NU3,normal,conformer,2.16,37,33,4,0,0.4071,0.4071,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.5,coverage: gold saddle never delivered,4,7,27
+standard,NU3,normal,conformer,3.46,48,33,3,12,0.3621,0.3621,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.35,coverage: gold saddle never delivered,8,8,28
+brief-errors,NU3,normal,conformer,11.7,50,35,14,1,0.6829,0.6829,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.6666666666666666,coverage: gold saddle never delivered,8,11,29
+guided,NU5,normal,conformer,24.95,92,49,21,22,0.3518,0.3518,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.9583333333333334,coverage: gold saddle never delivered,37,11,30
+record,NU5,normal,conformer,10.57,16,8,7,1,0.2966,0.2966,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.2333333333333333,coverage: gold saddle never delivered,3,5,31
+standard,NU5,normal,conformer,20.16,22,11,11,0,0.2654,0.2654,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.11666666666666665,coverage: gold saddle never delivered,6,1,32
+brief-errors,NU5,normal,conformer,21.95,70,41,16,13,0.1983,0.1983,snapshot_timeout_filled,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.44000000000000006,coverage: gold saddle never delivered,19,19,33
+guided,NU6,normal,conformer,5.03,77,65,9,3,0.6719,0.6719,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,0.9375,coverage: gold saddle never delivered,31,7,34
+record,NU6,normal,conformer,8.27,16,9,5,2,0.145,0.145,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.35,coverage: gold saddle never delivered,4,1,35
+standard,NU6,normal,conformer,3.69,30,24,3,3,0.6892,0.6892,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.625,saddle/conformer misassignment,7,3,36
+brief-errors,NU6,normal,conformer,1.41,33,24,9,0,0.34,0.34,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,1.0,coverage: gold saddle never delivered,9,1,37
+guided,HA1,hard,stereo-channel,3.43,56,53,2,1,0.9625,0.9625,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.875,verification: TS/IRC proof gap,5,6,38
+record,HA1,hard,stereo-channel,2.11,22,20,1,1,0.925,0.925,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.75,verification: TS/IRC proof gap,4,2,39
+standard,HA1,hard,stereo-channel,0.07,4,4,0,0,0.1,-1.0,snapshot,0,1,sum ledger QM job end_timestamp - start_timestamp,1,0.0,delivery: no parseable mechanism_graph,0,0,40
+brief-errors,HA1,hard,stereo-channel,7.2,100,85,12,3,0.925,0.925,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.75,verification: TS/IRC proof gap,10,22,41
+guided,HA6,hard,stereo-channel,1.21,45,38,5,2,0.975,0.975,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.9166666666666666,verification: TS/IRC proof gap,16,7,42
+record,HA6,hard,stereo-channel,4.94,39,36,0,3,0.975,0.975,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.9166666666666666,verification: TS/IRC proof gap,7,6,43
+standard,HA6,hard,stereo-channel,6.39,40,30,8,2,0.9625,0.9625,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.875,verification: TS/IRC proof gap,9,7,44
+brief-errors,HA6,hard,stereo-channel,4.03,48,38,4,6,0.975,0.975,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.9166666666666666,verification: TS/IRC proof gap,10,5,45
+guided,HB1,hard,stereo-channel,10.71,45,39,6,0,0.9325,0.9325,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.875,verification: TS/IRC proof gap,2,6,46
+record,HB1,hard,stereo-channel,15.44,39,28,2,9,0.97,0.97,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,18,4,47
+standard,HB1,hard,stereo-channel,2.61,13,11,0,2,0.825,0.825,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.5,verification: TS/IRC proof gap,6,2,48
+brief-errors,HB1,hard,stereo-channel,6.7,26,22,3,1,0.98,0.98,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,2,6,49
+guided,HB10,hard,stereo-channel,3.85,22,17,5,0,0.9995,0.9995,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,1.0,solved,3,6,50
+record,HB10,hard,stereo-channel,8.19,22,14,4,4,0.8044,0.8044,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.35,verification: TS/IRC proof gap,3,9,51
+standard,HB10,hard,stereo-channel,3.58,24,22,0,2,0.9928,0.9928,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,1.0,solved,3,2,52
+brief-errors,HB10,hard,stereo-channel,10.38,52,35,15,2,0.7845,0.7845,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.35,verification: TS/IRC proof gap,4,20,53
+guided,HD2,hard,stereo-channel,9.58,39,24,2,13,0.7867,0.7867,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,0,1.0,partial,10,3,54
+record,HD2,hard,stereo-channel,11.9,25,14,4,7,0.595,0.595,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.25,saddle/conformer misassignment,8,4,55
+standard,HD2,hard,stereo-channel,12.71,58,53,0,5,0.6977,0.6977,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.35,verification: TS/IRC proof gap,7,0,56
+brief-errors,HD2,hard,stereo-channel,16.7,56,41,11,4,0.6699,0.6699,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.5,verification: TS/IRC proof gap,8,6,57
+guided,HF1,hard,stereo-channel,37.46,40,25,3,12,0.9742,0.9742,rescue,1,0,sum ledger QM job end_timestamp - start_timestamp,0,0.0,infrastructure: agent crash/timeout,10,7,58
+record,HF1,hard,stereo-channel,13.63,23,17,6,0,0.9072,0.9072,snapshot,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.75,verification: TS/IRC proof gap,6,4,59
+standard,HF1,hard,stereo-channel,28.88,27,22,4,1,0.3425,-1.0,snapshot,0,1,sum ledger QM job end_timestamp - start_timestamp,1,0.0,delivery: no parseable mechanism_graph,7,5,60
+brief-errors,HF1,hard,stereo-channel,50.61,113,55,35,23,0.2937,0.2937,rescue,1,0,sum ledger QM job end_timestamp - start_timestamp,1,0.75,chemistry: wrong favored channel,19,23,61

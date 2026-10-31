@@ -1,0 +1,12 @@
+[
+  {
+    "archive_member": "cloudra-p1b-20261024/SUMMARY.md",
+    "bytes": 4850,
+    "output": "/private/tmp/cloudra_paper_update/speed_delivery/p1b_source_SUMMARY.md"
+  },
+  {
+    "archive_member": "cloudra-p1b-20261024/runs.csv",
+    "bytes": 2777,
+    "output": "/private/tmp/cloudra_paper_update/speed_delivery/p1b_source_runs.csv"
+  }
+]

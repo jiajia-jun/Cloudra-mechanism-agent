@@ -1,0 +1,6 @@
+case,finding,source,lines,type,fair,selfc,accuracy
+HB1_record,favored label receives full accuracy although declared energy order favors exo,reports/evidence_notes.md,95-136,archived analyst transcription,0.97,1.0,1.0
+HA8_reference,cisoid rather than stable all-s-trans reference creates ~9 kcal/mol difference,reports/divergence_report.md,58-78,archived analyst transcription,guided .9625; record .925; std .625; brief .745,see final CSV,see final CSV
+NU6_network,verified concerted alternative is selfc-complete while two Gold elementary steps are uncovered,reports/evidence_notes.md,665-706,archived run text plus analyst transcription,brief .34,brief 1.0,brief 0.0
+NU5_edge_binding,run identifies .5 kcal point as methyl rotor; target Mumm saddle unresolved; forensic E3 match is not the declared chemical conclusion,reports/evidence_notes.md,650-662,archived run text plus analyst transcription,brief .1983 raw fallback,missing in final table,missing in final table
+IA9_and_IA5,PM7 saddle does not establish model applicability; correct IA5 negative channel may be lost by endpoint matching,reconstructions/standard/IA9/provenance.md; reports/divergence_report.md,IA9 14-63; IA5 150-156,post-hoc reconstruction provenance plus archived analyst transcription,std IA9 -1; record IA5 .4,IA9 .75 only repaired; IA5 1.0,0.0

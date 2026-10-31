@@ -1,0 +1,5 @@
+arm,n_runs,root_graph_present,root_graph_missing,posthoc_root_graphs,prose_reference_repairs,sc_component_available,sc_component_missing,sc_equals_one,sc_less_than_one,n_complete_components,known_runtime_crash,known_dag_failure_but_scored,official_mean
+standard,50,43,7,7,0,49,1,8,41,49,0,0,0.59402
+guided,50,50,0,0,0,47,3,31,16,47,1,0,0.780322
+record,50,50,0,0,0,50,0,19,31,50,0,0,0.70443
+brief-errors,50,50,0,0,1,48,2,26,22,48,0,1,0.741506

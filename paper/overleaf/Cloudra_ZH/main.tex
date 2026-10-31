@@ -15,8 +15,9 @@
 \usepackage{microtype}
 \usepackage{caption}
 \captionsetup{font=small,labelfont=bf,labelsep=period,skip=5pt}
-\usepackage{dblfloatfix}\usepackage{balance}
-\usepackage[section]{placeins}
+\usepackage{dblfloatfix}
+\usepackage{flushend}
+
 \usepackage{titlesec}
 \titleformat{\section}{\large\bfseries\raggedright}{\thesection}{0.5em}{}
 \titleformat{\subsection}{\normalsize\bfseries\raggedright}{\thesubsection}{0.5em}{}
@@ -46,7 +47,6 @@
 \setcounter{bottomnumber}{2}
 \setcounter{totalnumber}{5}
 \raggedbottom
-\newcommand{\discussionSpace}{\par\vspace{2\baselineskip}}
 \title{Cloudra：自主机理探索中的几何推理与科学证据}
 \author{}
 \date{\small 工作审阅稿 --- 2026年10月29日}
@@ -61,11 +61,10 @@
 \setlength{\bibsep}{3pt plus 1pt}
 \begin{document}
 \maketitle
-\nocite{ref01,ref02,ref03,ref04,ref05,ref06,ref07,ref08,ref09,ref10,ref11,ref12,ref13,ref14,ref15,ref16,ref17,ref18}
+
 \input{sections/01_introduction}
 \input{sections/02_methods}
 \input{sections/03_results}
-\balance
 \bibliographystyle{unsrtnat}
 \bibliography{references}
 \end{document}

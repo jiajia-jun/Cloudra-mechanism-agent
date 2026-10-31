@@ -1,0 +1,373 @@
+{
+  "publication_runs": 200,
+  "publication_components": 600,
+  "scope": "Official components are complete. This auxiliary selfc_gold comparison uses only actual recorded variant values; it is not the main decomposition denominator.",
+  "variant_subset_all": {
+    "n": 187,
+    "increase": 19,
+    "decrease": 15,
+    "same": 153,
+    "all_perfect_gold_zero": [
+      {
+        "arm": "brief-errors",
+        "task": "F4",
+        "tier": "easy",
+        "selfc_all": 1.0,
+        "selfc_gold": 0.0,
+        "delta": -1.0,
+        "graph": 0.6009018553609635,
+        "accuracy": 0.0,
+        "score": 0.3601,
+        "source_row": 7
+      },
+      {
+        "arm": "brief-errors",
+        "task": "NU6",
+        "tier": "normal",
+        "selfc_all": 1.0,
+        "selfc_gold": 0.0,
+        "delta": -1.0,
+        "graph": 0.4,
+        "accuracy": 0.0,
+        "score": 0.34,
+        "source_row": 47
+      },
+      {
+        "arm": "guided",
+        "task": "F4",
+        "tier": "easy",
+        "selfc_all": 1.0,
+        "selfc_gold": 0.0,
+        "delta": -1.0,
+        "graph": 0.6009018553609635,
+        "accuracy": 0.0,
+        "score": 0.3601,
+        "source_row": 57
+      }
+    ],
+    "gold_perfect_all_lower": [
+      {
+        "arm": "brief-errors",
+        "task": "HA6",
+        "tier": "hard",
+        "selfc_all": 0.9166666666666666,
+        "selfc_gold": 1.0,
+        "delta": 0.08333333333333337,
+        "graph": 1.0,
+        "accuracy": 1.0,
+        "score": 0.975,
+        "source_row": 11
+      },
+      {
+        "arm": "brief-errors",
+        "task": "HD2",
+        "tier": "hard",
+        "selfc_all": 0.5,
+        "selfc_gold": 1.0,
+        "delta": 0.5,
+        "graph": 0.9991757922811216,
+        "accuracy": 0.7,
+        "score": 0.6699,
+        "source_row": 15
+      },
+      {
+        "arm": "brief-errors",
+        "task": "ID2",
+        "tier": "impossible",
+        "selfc_all": 0.5,
+        "selfc_gold": 1.0,
+        "delta": 0.5,
+        "graph": 0.3392436312341828,
+        "accuracy": 0.0,
+        "score": 0.1839,
+        "source_row": 26
+      },
+      {
+        "arm": "guided",
+        "task": "F1",
+        "tier": "easy",
+        "selfc_all": 0.8333333333333334,
+        "selfc_gold": 1.0,
+        "delta": 0.16666666666666663,
+        "graph": 0.9166666666666666,
+        "accuracy": 0.9999998242201098,
+        "score": 0.9417,
+        "source_row": 56
+      },
+      {
+        "arm": "guided",
+        "task": "HA6",
+        "tier": "hard",
+        "selfc_all": 0.9166666666666666,
+        "selfc_gold": 1.0,
+        "delta": 0.08333333333333337,
+        "graph": 1.0,
+        "accuracy": 1.0,
+        "score": 0.975,
+        "source_row": 61
+      },
+      {
+        "arm": "guided",
+        "task": "NU5",
+        "tier": "normal",
+        "selfc_all": 0.9583333333333334,
+        "selfc_gold": 1.0,
+        "delta": 0.04166666666666663,
+        "graph": 0.6428571428571428,
+        "accuracy": 0.0,
+        "score": 0.3518,
+        "source_row": 96
+      },
+      {
+        "arm": "record",
+        "task": "HA6",
+        "tier": "hard",
+        "selfc_all": 0.9166666666666666,
+        "selfc_gold": 1.0,
+        "delta": 0.08333333333333337,
+        "graph": 1.0,
+        "accuracy": 1.0,
+        "score": 0.975,
+        "source_row": 111
+      },
+      {
+        "arm": "record",
+        "task": "HI1",
+        "tier": "hard",
+        "selfc_all": 0.7833333333333333,
+        "selfc_gold": 1.0,
+        "delta": 0.21666666666666667,
+        "graph": 0.9995878961405608,
+        "accuracy": 0.9999980756277926,
+        "score": 0.935,
+        "source_row": 118
+      },
+      {
+        "arm": "record",
+        "task": "ID2",
+        "tier": "impossible",
+        "selfc_all": 0.0,
+        "selfc_gold": 1.0,
+        "delta": 1.0,
+        "graph": 0.0,
+        "accuracy": 0.0,
+        "score": 0.0,
+        "source_row": 126
+      },
+      {
+        "arm": "record",
+        "task": "NB1",
+        "tier": "normal",
+        "selfc_all": 0.675,
+        "selfc_gold": 1.0,
+        "delta": 0.32499999999999996,
+        "graph": 0.6,
+        "accuracy": 0.999971547994984,
+        "score": 0.8625,
+        "source_row": 139
+      },
+      {
+        "arm": "standard",
+        "task": "ID2",
+        "tier": "impossible",
+        "selfc_all": 0.0,
+        "selfc_gold": 1.0,
+        "delta": 1.0,
+        "graph": 0.0,
+        "accuracy": 0.0,
+        "score": 0.0,
+        "source_row": 176
+      },
+      {
+        "arm": "standard",
+        "task": "L1",
+        "tier": "easy",
+        "selfc_all": 0.9166666666666666,
+        "selfc_gold": 1.0,
+        "delta": 0.08333333333333337,
+        "graph": 1.0,
+        "accuracy": 0.9999001065595352,
+        "score": 0.9749,
+        "source_row": 180
+      },
+      {
+        "arm": "standard",
+        "task": "NI5",
+        "tier": "normal",
+        "selfc_all": 0.675,
+        "selfc_gold": 1.0,
+        "delta": 0.32499999999999996,
+        "graph": 0.5714285714285714,
+        "accuracy": 0.0898776103637772,
+        "score": 0.3136,
+        "source_row": 191
+      }
+    ]
+  },
+  "variant_subset_non_impossible": {
+    "n": 148,
+    "increase": 14,
+    "decrease": 12,
+    "same": 122,
+    "all_perfect_gold_zero": [
+      {
+        "arm": "brief-errors",
+        "task": "F4",
+        "tier": "easy",
+        "selfc_all": 1.0,
+        "selfc_gold": 0.0,
+        "delta": -1.0,
+        "graph": 0.6009018553609635,
+        "accuracy": 0.0,
+        "score": 0.3601,
+        "source_row": 7
+      },
+      {
+        "arm": "brief-errors",
+        "task": "NU6",
+        "tier": "normal",
+        "selfc_all": 1.0,
+        "selfc_gold": 0.0,
+        "delta": -1.0,
+        "graph": 0.4,
+        "accuracy": 0.0,
+        "score": 0.34,
+        "source_row": 47
+      },
+      {
+        "arm": "guided",
+        "task": "F4",
+        "tier": "easy",
+        "selfc_all": 1.0,
+        "selfc_gold": 0.0,
+        "delta": -1.0,
+        "graph": 0.6009018553609635,
+        "accuracy": 0.0,
+        "score": 0.3601,
+        "source_row": 57
+      }
+    ],
+    "gold_perfect_all_lower": [
+      {
+        "arm": "brief-errors",
+        "task": "HA6",
+        "tier": "hard",
+        "selfc_all": 0.9166666666666666,
+        "selfc_gold": 1.0,
+        "delta": 0.08333333333333337,
+        "graph": 1.0,
+        "accuracy": 1.0,
+        "score": 0.975,
+        "source_row": 11
+      },
+      {
+        "arm": "brief-errors",
+        "task": "HD2",
+        "tier": "hard",
+        "selfc_all": 0.5,
+        "selfc_gold": 1.0,
+        "delta": 0.5,
+        "graph": 0.9991757922811216,
+        "accuracy": 0.7,
+        "score": 0.6699,
+        "source_row": 15
+      },
+      {
+        "arm": "guided",
+        "task": "F1",
+        "tier": "easy",
+        "selfc_all": 0.8333333333333334,
+        "selfc_gold": 1.0,
+        "delta": 0.16666666666666663,
+        "graph": 0.9166666666666666,
+        "accuracy": 0.9999998242201098,
+        "score": 0.9417,
+        "source_row": 56
+      },
+      {
+        "arm": "guided",
+        "task": "HA6",
+        "tier": "hard",
+        "selfc_all": 0.9166666666666666,
+        "selfc_gold": 1.0,
+        "delta": 0.08333333333333337,
+        "graph": 1.0,
+        "accuracy": 1.0,
+        "score": 0.975,
+        "source_row": 61
+      },
+      {
+        "arm": "guided",
+        "task": "NU5",
+        "tier": "normal",
+        "selfc_all": 0.9583333333333334,
+        "selfc_gold": 1.0,
+        "delta": 0.04166666666666663,
+        "graph": 0.6428571428571428,
+        "accuracy": 0.0,
+        "score": 0.3518,
+        "source_row": 96
+      },
+      {
+        "arm": "record",
+        "task": "HA6",
+        "tier": "hard",
+        "selfc_all": 0.9166666666666666,
+        "selfc_gold": 1.0,
+        "delta": 0.08333333333333337,
+        "graph": 1.0,
+        "accuracy": 1.0,
+        "score": 0.975,
+        "source_row": 111
+      },
+      {
+        "arm": "record",
+        "task": "HI1",
+        "tier": "hard",
+        "selfc_all": 0.7833333333333333,
+        "selfc_gold": 1.0,
+        "delta": 0.21666666666666667,
+        "graph": 0.9995878961405608,
+        "accuracy": 0.9999980756277926,
+        "score": 0.935,
+        "source_row": 118
+      },
+      {
+        "arm": "record",
+        "task": "NB1",
+        "tier": "normal",
+        "selfc_all": 0.675,
+        "selfc_gold": 1.0,
+        "delta": 0.32499999999999996,
+        "graph": 0.6,
+        "accuracy": 0.999971547994984,
+        "score": 0.8625,
+        "source_row": 139
+      },
+      {
+        "arm": "standard",
+        "task": "L1",
+        "tier": "easy",
+        "selfc_all": 0.9166666666666666,
+        "selfc_gold": 1.0,
+        "delta": 0.08333333333333337,
+        "graph": 1.0,
+        "accuracy": 0.9999001065595352,
+        "score": 0.9749,
+        "source_row": 180
+      },
+      {
+        "arm": "standard",
+        "task": "NI5",
+        "tier": "normal",
+        "selfc_all": 0.675,
+        "selfc_gold": 1.0,
+        "delta": 0.32499999999999996,
+        "graph": 0.5714285714285714,
+        "accuracy": 0.0898776103637772,
+        "score": 0.3136,
+        "source_row": 191
+      }
+    ]
+  }
+}

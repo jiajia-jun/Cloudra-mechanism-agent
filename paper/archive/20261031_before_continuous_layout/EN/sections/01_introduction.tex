@@ -1,0 +1,53 @@
+\section{Introduction}
+
+\subsection{The Physical Foundations and Challenges of Autonomous Reaction Mechanism Research}
+
+Determining the mechanism of an organic reaction is an important component of research in organic synthetic methodology. The validity of a mechanistic claim depends on internal consistency among three-dimensional molecular geometries, pathways on the reaction potential energy surface, and rigorous quantum-chemical evidence. In multistep reactions and complex stereoselective competition, this process is highly sensitive to the underlying physics: normal termination of a single geometry optimization (exit 0) does not mean that a stable reaction intermediate has been located; the presence of a single imaginary frequency alone cannot establish that a structure is the first-order saddle point for the target elementary reaction; and once an intrinsic reaction coordinate (IRC) trajectory veers toward dissociation or configurational inversion, all preceding energy calculations lose their physical basis for mechanistic interpretation.
+
+Recent agent systems for computational chemistry have made remarkable progress. El Agente Q \citep{ref01}, Aitomia \citep{ref02}, and Gráfico \citep{ref06} have successfully automated the orchestration of complex quantum-chemical calculations and the execution of typed workflows; Estructural \citep{ref04} and ARCHE \citep{ref05} have demonstrated the feasibility of using specialized tools for molecular fragment editing, atom mapping, and transition-state geometry preparation; and Quntur \citep{ref03} has further explored reaction kinetics and transition-state research. However, two major bottlenecks remain as these systems move toward fully autonomous exploration of organic reaction mechanisms.
+
+Large language models have inherent limitations in three-dimensional geometric reasoning. In complex organic reactions, aligning stereochemical orientations, assembling reaction fragments, and preparing pathway endpoints impose demanding geometric requirements. As explicitly noted by frontier studies such as Quntur \citep{ref03}, the preparation of complex reaction pathways and transition states often requires human experts to assist with endpoint alignment. Requiring large language models to directly infer or manipulate the underlying three-dimensional Cartesian coordinates can readily lead to erroneous computational results through hallucinations in spatial perception.
+
+Normal termination of a calculation does not establish the scientific validity and completeness of its products. Existing agent systems can successfully invoke quantum-chemical software and obtain computational results, but their final deliverables generally rely on the generative model's subjective summaries and assertions about its own results in conversation. Consequently, a model may declare an exploration complete without ensuring that the delivered mechanism is physically rigorous and traceable: confirmation of zero imaginary frequencies for intermediates is lacking, and connectivity between first-order saddle points and bidirectional IRC paths cannot be established. Enabling chemists' research intentions to guide three-dimensional geometric exploration while anchoring every step of reasoning in immutable physicochemical evidence remains a challenge for truly autonomous mechanistic research.
+
+\subsection{Cloudra: A Physical Contract–Driven System for Autonomous Mechanism Exploration}
+
+To address these bottlenecks, we introduce Cloudra, a multi-agent system for the autonomous exploration of reaction mechanisms involving small organic molecules. Cloudra's central design philosophy is the complete separation of scientific responsibilities: large language models propose mechanistic hypotheses, plan exploration pathways, and diagnose computational setbacks scientifically; the underlying deterministic software maintains rigorous atom-topology correspondences and performs local spatial operations; and an independent system of physical validation gates oversees all computational products, determining whether mechanistic claims are accepted according to deterministic physicochemical rules.
+
+Figure~\ref{fig:01} summarizes a structured literature sample of 85 chemical AI agent systems: 39 concern materials or surfaces, 23 concern finite molecules or complexes, 12 concern soft matter or biomolecules, and a further 11 demonstrate multiple categories of objects. Figures~\ref{fig:02} and \ref{fig:03} show documented tasks in the finite-molecule/complex category and benchmark Cloudra's capabilities alongside existing systems; the complete matrix and sources for each entry are provided in the accompanying literature materials.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\linewidth]{figures/fig01.pdf}
+\caption{Physical targets in a structured literature sample of 85 chemical AI agent systems: 39 materials/surface, 23 finite-molecule/complex, 12 soft-matter/biomolecular, and 11 cross-class systems.}
+\label{fig:01}
+\end{figure}
+
+
+For geometric reasoning, Cloudra adopts a paradigm of “intelligent restraint,” removing three-dimensional spatial operations from the large language model's cognitive workload. The system connects cheminformatics-based structural perception with local geometric operators. A maximum common-subgraph (MCS) algorithm retrieves molecular fragments, while atom mapping and reaction-center identification tightly link molecular topology to spatial coordinates; measurement operators provide bond lengths, bond angles, dihedral angles, and stereochemical features, while local manipulation operators perform fragment rotation, translation, and transition-state assembly. Large language models need not guess the underlying Cartesian coordinates. Instead, they issue structural transformation instructions expressing clear chemical intentions, allowing hypotheses to evolve through observable geometric changes and reducing the need for manual endpoint alignment.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\linewidth]{figures/fig02.pdf}
+\caption{Documented tasks in the finite-molecule/complex class (panel 1 of 2; 23 chemical AI agent systems in total). T: structure construction/editing; E: static energy/properties; O: geometry optimization; F: vibrations/thermochemistry; R: explicit pathways/TS; D: molecular/quantum dynamics. Filled cells denote positive evidence; blanks are unencoded, not absent capabilities.}
+\label{fig:02}
+\end{figure}
+
+
+For scientific delivery, Cloudra establishes a directed acyclic graph of mechanistic evidence centered on chemical entities (the Delivery DAG). This differs fundamentally from conventional pipelines of task calls: nodes in Cloudra's delivery graph represent ground-state chemical species in the reaction mechanism, while edges represent elementary reaction steps for which verification of a first-order saddle point (with exactly one valid imaginary frequency) and bidirectional IRC paths has been completed. Every advance in a scientific claim must be directly bound to genuine underlying quantum-chemical calculation logs, while the Supervisor gate reviews the state of the delivery graph against scientific contracts to ensure that errors in programmatic judgments are not overlooked. Even if the large language model declares the exploration complete during interaction, a step lacking complete frequency or pathway support remains unconfirmed, suppressing false mechanistic deliverables.
+
+\begin{figure}[tbp]
+\centering
+\includegraphics[width=\linewidth]{figures/fig03.pdf}
+\caption{Chemical AI agent systems in the finite-molecule/complex class, continued (panel 2 of 2), using the codes in Figure~\ref{fig:02}. Cloudra (this work) is benchmarked at the bottom. Complete matrices for all 85 chemical AI agent systems and source-level qualifications accompany the draft.}
+\label{fig:03}
+\end{figure}
+
+
+\subsection{Core Contributions}
+
+Cloudra introduces a mechanism delivery graph (Delivery DAG) in which chemical species and elementary reactions are the entities and physicochemical laws serve as validation gates. By assigning authority over evidence to the underlying quantum-chemical products rather than the large language model's natural-language descriptions, the system constrains model behavior to suppress false completion and scientific hallucinations during long-range scientific reasoning.
+
+To address the widespread bottlenecks of human intervention and spatial hallucinations in molecular geometric reasoning, this work establishes the methodological paradigm of “intelligent restraint.” Geometric operations, including maximum common-subgraph topological mapping, steric graph traversal, and transition-state fragment assembly, are implemented as underlying deterministic operators. This allows large language models to focus on formulating higher-level chemical hypotheses, selecting among competing pathways, and identifying the causes of failure, achieving end-to-end autonomous localization of transition states for complex organic reactions.
+
+This work develops CloudraBench to evaluate graph coverage, physical self-consistency, and quantitative barrier accuracy from native computational outputs. Its 50 chemical tasks cover elementary and multistep processes, stereochemistry, and the applicability limits of the allowed methods. Evaluation combines 48 independent runs with three repeats on four tasks and a completed 200-run, four-configuration study across all 50 tasks. The primary comparison uses the same model backbone in Standard, while Record and Brief-errors locate the effects of evidence organization and diagnostic feedback.

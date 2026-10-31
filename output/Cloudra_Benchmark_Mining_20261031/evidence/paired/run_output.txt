@@ -1,0 +1,19 @@
+            track          arm  n     mean   ci_low  ci_high  median     p10  minimum  bottom10_mean  n_lt_0  n_lt_point4  n_ge_point9  n_ge_point99
+official_repaired       guided 50 0.780322 0.704147 0.852046 0.93985 0.35001   0.1717        0.31814       0            9           28            15
+official_repaired       record 50 0.704430 0.612158 0.790994 0.85870 0.16995   0.0000        0.16091       0           11           22            10
+official_repaired     standard 50 0.594020 0.497240 0.688906 0.72585 0.10000   0.0000        0.09304       0           19           14             7
+official_repaired brief-errors 50 0.741506 0.660308 0.818280 0.86495 0.29016   0.1731        0.26817       0           11           24            12
+            track    arm_a        arm_b  n  mean_difference    ci_low   ci_high  stratified_ci_low  stratified_ci_high  a_wins  b_wins  ties  median_difference  trimmed_10pct_difference   loo_min   loo_max largest_a_win_task  largest_a_win largest_b_win_task  largest_b_win  n_a_wins_gt_point1  n_b_wins_gt_point1
+official_repaired   guided       record 50         0.075892  0.012134  0.143818           0.021530            0.133398      27       8    15            0.01565                  0.056442  0.057033  0.088800                IG8         1.0000                 F4        -0.5566                  15                   4
+official_repaired   guided     standard 50         0.186302  0.100268  0.275854           0.102392            0.275164      35       8     7            0.10795                  0.160412  0.171286  0.201292                M17         0.9221                 F4        -0.5482                  26                   4
+official_repaired   guided brief-errors 50         0.038816 -0.031704  0.107648          -0.027582            0.103648      26      10    14            0.00135                  0.038815  0.025720  0.056512                HF1         0.6805                IA1        -0.8283                  13                   5
+official_repaired   record     standard 50         0.110410  0.016712  0.206198           0.022840            0.200010      28      13     9            0.02810                  0.082145  0.093104  0.133071                 F1         0.9584                IG8        -1.0000                  20                   8
+official_repaired   record brief-errors 50        -0.037076 -0.099918  0.025826          -0.089796            0.018762      15      23    12            0.00000                 -0.040535 -0.050353 -0.020929                HF1         0.6135                IA1        -0.8283                   5                  14
+official_repaired standard brief-errors 50        -0.147486 -0.247368 -0.049438          -0.244862           -0.051630      12      33     5           -0.09860                 -0.139750 -0.165412 -0.131678                NQ1         0.7309                M17        -0.9221                   6                  25
+   arm_a        arm_b  n excluded_tasks  final_difference  component_difference  graph_contribution  selfc_contribution  accuracy_contribution
+  guided       record 50                         0.075892              0.075895            0.009121            0.061675               0.005099
+  guided     standard 50                         0.186302              0.186304            0.009513            0.117875               0.058916
+  guided brief-errors 50                         0.038816              0.038818            0.003587            0.022935               0.012296
+  record     standard 50                         0.110410              0.110410            0.000392            0.056200               0.053817
+  record brief-errors 50                        -0.037076             -0.037077           -0.005535           -0.038740               0.007197
+standard brief-errors 50                        -0.147486             -0.147487           -0.005927           -0.094940              -0.046620

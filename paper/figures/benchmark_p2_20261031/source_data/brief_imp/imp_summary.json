@@ -1,0 +1,52 @@
+{
+  "n_tasks": 10,
+  "comparison_direction": "brief-errors minus guided",
+  "official_mean_difference": 0.03788000000000001,
+  "paired_bootstrap_ci": {
+    "low": -0.18822000000000005,
+    "high": 0.28397000000000006,
+    "source": "/private/tmp/cloudra_mining/paired/tier_pairwise.csv",
+    "reused_existing_sample": true
+  },
+  "task_wins": {
+    "brief-errors": 3,
+    "guided": 5,
+    "tie": 2
+  },
+  "weighted_component_mean_deltas": {
+    "graph": -0.006606712633459697,
+    "selfc": -0.015499999999999996,
+    "accuracy": 0.06
+  },
+  "same_accuracy_tasks": [
+    "IA5",
+    "IA7",
+    "IB9",
+    "IC3",
+    "ID2",
+    "IE2",
+    "IF3"
+  ],
+  "same_accuracy_mean_difference": -0.04999999999999998,
+  "same_accuracy_wins": {
+    "brief-errors": 1,
+    "guided": 4,
+    "tie": 2
+  },
+  "hindsight_pair_oracle_mean": 0.58788,
+  "hindsight_four_arm_oracle_mean": 0.58788,
+  "selfc_1_accuracy_0_total": 14,
+  "accuracy_histogram": {
+    "0": 33,
+    "0.5": 1,
+    "0.7": 2,
+    "1": 4
+  },
+  "scope": "Final saved scores only; no new runs, native-log replays, threshold changes, or rescores. Scores are not scientific acceptance rates.",
+  "claim_cautions": [
+    "The brief/guided final refusal trajectories for IMP are absent from this local package.",
+    "record/IA5 is a documented correct refusal under-scored by duplicate-endpoint matching.",
+    "brief/IC3 explicitly refuses the requested open-shell state and numerical gap but retains an accessible closed-shell branch; its accuracy zero is not sufficient evidence of a wrong scientific refusal.",
+    "brief/IC3 .4 is a reference repair already folded into the source fair column; standard/IA9 .2583 is post-hoc graph reconstruction used by official track."
+  ]
+}

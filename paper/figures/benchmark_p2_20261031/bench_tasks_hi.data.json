@@ -1,0 +1,2278 @@
+{
+  "source_files": [
+    "source_data/publication_scores_per_run.csv",
+    "source_data/component_provenance.json",
+    "source_data/pairwise.csv",
+    "source_data/publication_component_groups.csv"
+  ],
+  "tasks": [
+    "HA1",
+    "HA6",
+    "HA8",
+    "HB1",
+    "HB10",
+    "HD2",
+    "HF1",
+    "HH1",
+    "HI1",
+    "HL1",
+    "IA1",
+    "IA5",
+    "IA7",
+    "IA9",
+    "IB9",
+    "IC3",
+    "ID2",
+    "IE2",
+    "IF3",
+    "IG8"
+  ],
+  "arms": [
+    "guided",
+    "standard",
+    "record",
+    "brief-errors"
+  ],
+  "values": [
+    {
+      "task": "HA1",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.9625,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.1,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "record",
+      "field": "score",
+      "value": 0.925,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.925,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.975,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.9625,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "record",
+      "field": "score",
+      "value": 0.975,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.975,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.9625,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.625,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "record",
+      "field": "score",
+      "value": 0.925,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.745,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.9325,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.825,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "record",
+      "field": "score",
+      "value": 0.97,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.98,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.9995,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.9928,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "record",
+      "field": "score",
+      "value": 0.8044,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.7845,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.7867,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.6977,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "record",
+      "field": "score",
+      "value": 0.595,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.6699,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.9742,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.3425,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "record",
+      "field": "score",
+      "value": 0.9072,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.2937,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.9838,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.8338,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "record",
+      "field": "score",
+      "value": 0.7888,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.9838,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.9999,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.7032,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "record",
+      "field": "score",
+      "value": 0.935,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.9999,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.9999,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.805,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "record",
+      "field": "score",
+      "value": 0.8972,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.925,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.1717,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.1717,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "record",
+      "field": "score",
+      "value": 0.1717,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.4,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.1417,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "record",
+      "field": "score",
+      "value": 0.4,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.3667,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.2583,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.1383,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "record",
+      "field": "score",
+      "value": 0.2583,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.2583,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.3667,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.2583,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "record",
+      "field": "score",
+      "value": 0.3667,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.9333,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.82,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.18,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "record",
+      "field": "score",
+      "value": 0.545,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.77,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.4,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.1833,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "record",
+      "field": "score",
+      "value": 0.2167,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.4,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.3339,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "record",
+      "field": "score",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.1839,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.3333,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.0333,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "record",
+      "field": "score",
+      "value": 0.0333,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.1833,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "guided",
+      "field": "score",
+      "value": 0.3667,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "standard",
+      "field": "score",
+      "value": 0.3667,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "record",
+      "field": "score",
+      "value": 0.3333,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.4,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "guided",
+      "field": "score",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "standard",
+      "field": "score",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "record",
+      "field": "score",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "brief-errors",
+      "field": "score",
+      "value": 0.3339,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "standard",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "record",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "standard",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "record",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "standard",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "record",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.8,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.9323442840706796,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.999010950737346,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.8,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "record",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.9991757922811216,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.741868093594489,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.799505475368673,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.8217276975908953,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.687405314994908,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "standard",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "record",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.9991757922811216,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.3325091256144551,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.9995878961405608,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.9991757922811216,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.9991757922811216,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "standard",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.7222222222222222,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "record",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.1999999999999999,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.3392436312341828,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.3392436312341828,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "guided",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "standard",
+      "field": "graph",
+      "value": 0.6666666666666667,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.3333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "guided",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "standard",
+      "field": "graph",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "record",
+      "field": "graph",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "brief-errors",
+      "field": "graph",
+      "value": 0.3393287366540305,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 0.875,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 0.9166666666666666,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.875,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.9166666666666666,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.9166666666666666,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 0.875,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 0.875,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.5,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.25,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.5,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.875,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.5,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.2333333333333333,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.7833333333333333,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.25,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.35,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.75,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.8333333333333334,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.5,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.5,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.5,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 0.5,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "guided",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "standard",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "record",
+      "field": "selfc_all",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "brief-errors",
+      "field": "selfc_all",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA1",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA6",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.9999610124858388,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.9999607349456135,
+      "marker": ""
+    },
+    {
+      "task": "HA8",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB1",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.9992252863434854,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.999217118669171,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.9992256887944724,
+      "marker": ""
+    },
+    {
+      "task": "HB10",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.9992389213741152,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.8767954435203171,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "HD2",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "HF1",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.9730666654437904,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.973064097049228,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.973065737978206,
+      "marker": ""
+    },
+    {
+      "task": "HH1",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.9730655952903436,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.9999980820585171,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.9999979970395418,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.9999980756277926,
+      "marker": ""
+    },
+    {
+      "task": "HI1",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.9999980788332216,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.9999989467349392,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.9999989393629972,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.9999946936762856,
+      "marker": ""
+    },
+    {
+      "task": "HL1",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.9999988364502967,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA1",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA5",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA7",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IA9",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.5,
+      "marker": ""
+    },
+    {
+      "task": "IB9",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.7,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IC3",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "ID2",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IE2",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IF3",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "guided",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "standard",
+      "field": "accuracy",
+      "value": 1.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "record",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    },
+    {
+      "task": "IG8",
+      "arm": "brief-errors",
+      "field": "accuracy",
+      "value": 0.0,
+      "marker": ""
+    }
+  ]
+}

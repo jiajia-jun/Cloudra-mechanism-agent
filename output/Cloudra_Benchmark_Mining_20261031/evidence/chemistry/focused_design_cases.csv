@@ -1,0 +1,5 @@
+case,relation_lost,observed,source,evidence_type
+HA8,reactive conformer vs lowest stable-state energy reference,guided/record29.46 vs standard/brief20.43,"reports/divergence_report.md:58-78,218; catalog.csv HA8",archived analysis
+NU5_brief,first-order methyl rotor vs Mumm acyl-transfer reaction motion,run says no Mumm saddle/no barrier; archived comparison pairs E3 with0.52,reports/evidence_notes.md:650-662,archived run statement and archived comparison
+HB10_guided_record,same reported barriers vs accepted TS-IRC-endpoint proof chain,"14.27/14.04 both; guided SC1, recordSC.35",reports/evidence_notes.md:139-161; final_scores_per_run.csv,archived analysis plus final metrics
+NU6,concerted RC-to-P saddle vs intermediate-to-P step label,"guided TS-minus-betaine18.836772, standard E2=18.837","reports/evidence_notes.md:672,689-696; catalog.csv standard/NU6","archived run statement, archived comparison, arithmetic reconstruction"

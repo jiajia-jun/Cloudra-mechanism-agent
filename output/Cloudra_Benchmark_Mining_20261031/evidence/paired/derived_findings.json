@@ -1,0 +1,65 @@
+{
+  "standard_missing_graph_concentration": {
+    "repaired_mean_on_seven": 0.15374285714285715,
+    "guided_net_gap_share_from_seven": 0.5070799025238591,
+    "record_net_gap_share_from_seven": 0.8314645412553211,
+    "guided_mean_on_same_seven": 0.8285285714285714,
+    "record_mean_on_same_seven": 0.8094714285714285
+  },
+  "guided_record_tier_concentration": {
+    "impossible_share_of_net_gap": 0.5601644442101934,
+    "easy_net_deficit_share_from_F4_G2": 0.8633172963167443,
+    "normal_hard_all_20_mean_difference": 0.14684499999999998,
+    "normal_hard_component_shares": {
+      "graph": 0.05678155429280538,
+      "selfc": 0.6260853280670099,
+      "accuracy": 0.317163726442317
+    }
+  },
+  "hindsight_routing": {
+    "all_four_max_score_mean": 0.8512479999999999,
+    "guided_brief_max_score_mean": 0.8298739999999998,
+    "all_four_gain_over_guided": 0.07092599999999999,
+    "guided_brief_share_of_all_four_gain": 0.698643656769027,
+    "best_arm_by_tier_hindsight_mean": 0.8132560000000001,
+    "best_arm_by_tier": {
+      "easy": "record",
+      "hard": "guided",
+      "impossible": "brief-errors",
+      "normal": "guided"
+    },
+    "all_four_max_score_ge_point9_count": 33,
+    "all_four_max_score_below_point9_tasks": [
+      "D1",
+      "G2",
+      "HD2",
+      "IA5",
+      "IA7",
+      "IB9",
+      "IC3",
+      "ID2",
+      "IE2",
+      "IF3",
+      "L2",
+      "NI5",
+      "NQ5",
+      "NR1",
+      "NU3",
+      "NU5",
+      "NU6"
+    ],
+    "best_or_tied_best_count": {
+      "guided": 34,
+      "record": 16,
+      "standard": 10,
+      "brief-errors": 22
+    },
+    "unique_best_count": {
+      "guided": 17,
+      "record": 3,
+      "standard": 4,
+      "brief-errors": 8
+    },
+    "warning": "Descriptive hindsight ceiling with observed runs; not deployable router gains; no cost or scientific-success interpretation."
+  }
+}

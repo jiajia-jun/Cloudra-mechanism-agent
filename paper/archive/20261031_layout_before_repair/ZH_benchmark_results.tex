@@ -1,0 +1,154 @@
+
+\subsection{端到端基准评估}
+
+\subsubsection{四题重复实验与全题库比较}
+
+重复实验在 E1、NB1、HA1 和 IA1 上比较四种配置，每个组合进行三次独立运行，共计48次。四题分别涉及消除反应的预组织、多步脱羧、立体化学开环及电子结构方法的适用边界。实验使用 DeepSeek-v4-flash，保存对话、工具调用、计算账本及原生量子化学输出。同一问题的三次重复保留了多条研究轨迹，并为后续局部诊断实验提供真实案例。
+
+全题库实验将评估扩展至全部50道 CloudraBench 任务，每个任务与配置组合使用一个独立沙箱，最终纳入200次运行。主对照是 Cloudra Guided 与使用同一模型 backbone 实际运行的 Standard。Standard 隐藏显式 DAG 工具并提供中性的计算反馈；Guided 增加持续的证据组织、科学检查与详细诊断。Record 保留工具及记录而取消强制验收；Brief-errors 保留工作流引导而缩短诊断反馈。后两组用于拆解研究工作流各部分的作用。
+
+下文先报告最终整理后的综合分，再考察图结构、自洽性与准确度分量。离线整理从每次运行自身的研究材料组装机理图，并对齐已有评分记录，得到200次运行全部三项分量与综合分，整体均分为0.7051。图~\ref{fig:bench-overview}至图~\ref{fig:bench-tasks-hi}据此区分最终交付、单项计算获得的科学支撑，以及结果与任务答案之间的对应关系。
+
+\begin{figure*}[!tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_overview.pdf}
+\caption{P2 主比较与逐题差异。a，Cloudra Guided 与同一 backbone 的 Standard 基线在全部 50 题及各难度层的整理后复合分；Easy 为 20 题，其余各 10 题。b，保留全部 50 个同题配对。c，配对均差与 100,000 次按任务整组 bootstrap 的 95\% 百分位区间。}
+\label{fig:bench-overview}
+\end{figure*}
+
+\subsubsection{相对同一backbone，Cloudra提高了研究交付质量}
+
+Guided 的综合均分为0.7803，Standard 为0.5940。50道题逐题配对的平均增益为0.1863，95\%任务 bootstrap 区间为[0.1003, 0.2759]。Guided 在35题中更高、8题中更低、7题持平，配对差值的中位数为0.1080（图~\ref{fig:bench-overview}）。差异因此出现在多个研究问题中，而非仅由最高分运行的少量提升形成。各组最低分十题的均值也有差别：Guided 为0.3181，Standard 为0.0930。
+
+最一致的改善出现在 Hard 立体化学任务。Guided 均分为0.9577，Standard 为0.6888，配对增益为0.2689 [0.1213, 0.4459]，十题中 Guided 全部更高。这些任务要求系统持续区分相互竞争的构型或通道，比较相应能垒，并将支持证据关联至对应结论。观察到的改善因此体现为一项比较性化学研究的完成质量，包括支撑立体化学判断的计算证据组织。
+
+Normal 任务中，Guided 均分为0.7370，Standard 为0.5731，增益0.1640 [0.0365, 0.2922]，7题更高、3题更低。Easy 均分分别为0.8809和0.7305，但配对差值中位数为0.0209，其分布与 Hard 中广泛为正的改善不同。Impossible 均分分别为0.4451和0.2473；这组分数取决于运行是否回答了题目所要求的方法受限负结论，因而在后文单独分析。
+
+
+
+
+
+\FloatBarrier
+
+\begin{figure*}[!tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_components.pdf}
+\caption{全部200次整理后运行的三个评分层。a--c，各配置、难度层的Graph、自洽性与Accuracy均值；每配置总体50题，Easy为20题，其余各层10题。d，按固定0.1/0.3/0.6权重分解Guided相对Backbone的均差，全部、Normal与Hard分别使用完整50、10和10个配对。各运行分量由其自身研究材料与评分记录对齐至最终整理总分。}
+\label{fig:bench-components}
+\end{figure*}
+
+\subsubsection{分量增益主要体现为计算证据的闭合}
+
+拆开三项分数，可以定位工作流在哪一层出现差异（图~\ref{fig:bench-components}）。Graph 衡量交付物中所要求物种与步骤的覆盖及身份；Self-consistency 衡量鞍点、频率、IRC起点与端点优化/频率之间的支持关系；Accuracy 衡量结果与任务数值或负目标的符合程度。因此，一次运行可能给出接近参考的数值，而其路径证据仍未完整；也可能完成自洽的局部计算，却没有回答指定的研究问题。
+
+全部50个 Guided--Standard 配对中，平均增益的加权图结构贡献为+0.0095，自洽性贡献为+0.1179，准确度贡献为+0.0589，合计对应综合增益0.1863。Normal与Hard的全部20题均差为0.2164，图结构、自洽性与准确度分别贡献+0.0080、+0.1247和+0.0837。其中10道Normal题的三项贡献为+0.0098、+0.1141和+0.0400，10道Hard题为+0.0063、+0.1353和+0.1274。完整题库分解因此将收益同时定位到科学证据闭合与目标答案；Hard中准确度与自洽性的改善幅度相近。
+
+HH1给出了直接例子。Guided 与 Standard 均交付联萘消旋能垒23.48 kcal/mol，接近参考23.01 kcal/mol；两者图结构均为1，准确度均约0.973。自洽性分别为1.0和0.5，对应综合分0.9838和0.8338。归档的 Standard 研究已有候选通道和 IRC 输入，但被接受的证据尚未形成所要求的端点连接；Guided 将路径证据关联至相应鞍点及端点。HI1呈现类似结果：两组准确度均约为1，自洽性由0.2333提高至1.0，综合分由0.7032提高至0.9999。这些对照定位到一个有价值的完成层次：得到有希望的数值答案之后，研究仍需把相关计算组织成可核对的证明。
+
+
+
+
+
+\FloatBarrier
+
+\begin{figure*}[!tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_delivery.pdf}
+\caption{运行期交付图与最终科学支持。a，每配置50题中的原始根图记录，Guided、Backbone、Record与Brief分别为50、43、50和50；斜线标记从运行自身材料离线组装的7份Backbone图，整理后每配置均为50份。b，每配置全部40道非Impossible题的自洽分布，区分SC=1、部分正分及SC=0；满分数依次为24、7、16和20，Backbone另有4题零分。c，7个未在运行中形成根图的Backbone任务整理后总分，范围0.0333至0.3425，均值0.1537。}
+\label{fig:bench-delivery}
+\end{figure*}
+
+\subsubsection{交付文件与分级科学支撑分别记录}
+
+根目录交付图是否在运行中形成，与图中携带了多少科学证据，描述研究过程的不同部分（图~\ref{fig:bench-delivery}）。原运行中，Standard在50题中交付43份根图，Guided、Record与Brief-errors各交付50份。Standard未在运行中形成根图的7题为F1、HA1、HF1、IA9、M17、NR1和P3。离线整理从对应运行已有研究材料组装其机理图，最终各配置均形成完整50题记录。
+
+Standard这7题整理后均分为0.1537，Guided在相同任务上的均分为0.8285，贡献了两组总净差的50.7\%；其逐题分数范围为0.0333至0.3425。这个对照将运行期结束判断与最终可交付的研究量联系起来：计算结果和候选描述可能已经留在运行记录中，而所要求的路径或比较结论尚未完成。整理后的机理图保留这一研究状态，并用于统一评价。
+
+自洽分的分布进一步显示完整任务记录内部的差异。各配置40道非Impossible任务中，Guided有24题的自洽连续分恰好为1、16题获得部分正分；Standard有7题满分、29题部分正分、4题零分；Record为16题满分、24题部分正分；Brief-errors各有20题满分与部分正分。图~\ref{fig:bench-delivery}并列展示完整证据分布与单独记录的运行期根图交付数，保留每项研究已建立的科学支持程度。
+
+
+
+
+
+\FloatBarrier
+
+\begin{figure*}[!tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_speed.pdf}
+\caption{运行速度与计算投入。a，P1b 的 12 个真实批次，每配置 3 批，每批 4 题，并发为 2；点为观测批次，短线为均值。b，P2 四配置共同 15 题的逐运行累计 QM job-hours 及均值。c，同一任务集每运行的完成、失败和取消作业数量。d，Standard 与 Guided 同题的计算投入及整理后总分，箭头连接相同任务，菱形标记离线组装机理图的运行。}
+\label{fig:bench-speed}
+\end{figure*}
+
+\subsubsection{研究耗时与计算投入揭示不同的工作流收益}
+
+图~\ref{fig:bench-speed}并列展示重复实验的耗时和 P2 可获得的计算投入。重复实验的测量单位是一个四题批次，批内并发度为2，每种配置实际观察3个批次。Guided、Standard、Record 和 Brief-errors 的平均批次耗时分别为4.451、3.958、3.894和4.827小时。Guided 平均比 Standard 长12.5\%，比 Brief-errors 短7.8\%。图中保留12个真实批次点及原始运行结果所对应的变异。这一测量包含批次的研究生命周期、计算等待及结果返回后的继续研究。
+
+P2投入统计覆盖四组共有的15道深挖任务。Guided 每题使用11.08 job-hours，Standard 为7.55，Record 为7.88，Brief-errors 为15.59；对应最终综合均分分别为0.8124、0.6495、0.7360和0.7273。相对 Standard，Guided 累计计算时长多46.7\%，均分高0.1629；相对 Brief-errors，累计计算时长少28.9\%，均分高0.0851。在15个配对任务中，Guided 有7题同时比 Brief-errors 使用更少累计计算时长并得到更高分。
+
+作业数量补充了这些投入的具体形式。共同任务中，Guided 记录789个量子化学作业，Standard 为419，Record 为431，Brief-errors 为883；其中失败作业分别为114、45、62和167，取消作业另行记录。NU3、NU5、NU6和NR1四道困难研究的16次运行共使用163.5 job-hours，占可用63条投入档案673.82 job-hours的24.3\%。相当一部分计算投入集中于这些追加尝试未能一致补齐网络缺口的研究。在归档的 Standard 缺图案例中，计算还可能晚于研究会话结束，使后续结果没有重新进入活跃研究。因此，结果返回后能否继续推进研究，也是这里所衡量的交付工作流的一部分。
+
+
+
+
+
+\FloatBarrier
+
+\subsubsection{逐题差异定位需要持续维护的化学关系}
+
+图~\ref{fig:bench-tasks}和图~\ref{fig:bench-tasks-hi}展示全部50题、四种配置及完整评分分量，既呈现稳定收益，也保留具体反例。Guided在Hard比较性研究中表现强，NB1和NI1也显示多步研究能够保持高分及充分证据。NB1中，Guided、Standard和Brief-errors分别为0.9628、0.9128和0.9900，Guided与Brief-errors的自洽性均为1；NI1中，Guided为0.9958，Standard为0.6196，自洽性分别为1和0.35。与此同时，NQ5中Record高于Guided，NU3中Brief-errors更高。这些差异使具体目标步骤与证据关系比按网络长度作单一排序更有解释力。
+
+\begin{figure*}[!tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_tasks.pdf}
+\caption{Easy20题与Normal10题的逐题分层成绩。每块按Guided、Backbone、Record、Brief展示整理后总分、Graph、自洽性和Accuracy，各运行的全部分量均与最终整理总分对应。色标统一为0--1，数字保留两位小数，来源表保留完整精度。}
+\label{fig:bench-tasks}
+\end{figure*}
+\begin{figure*}[!tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_tasks_hi.pdf}
+\caption{Hard10题与Impossible10题的逐题分层成绩，配置顺序、四个评分块和色标同前图。全部80次运行均具有完整综合分与三项分量。逐题展示保留相近数值答案的证据差异、通道与目标判断的反转，以及各分量与最终整理总分的关系。}
+\label{fig:bench-tasks-hi}
+\end{figure*}
+
+
+三个归档对照进一步说明哪些化学关系影响研究结论（图~\ref{fig:bench-cases}）。HA8中，Guided 给出29.46 kcal/mol，Standard 给出20.43 kcal/mol，参考为29.48 kcal/mol。档案将9.03 kcal/mol的差别追溯至能量参照：Guided 采用最低 all-s-trans 反应物极小值，Standard 采用反应性 cisoid 构象。局部 IRC 连接和活化能所采用的稳定物种参照需要持续关联，同时分别记录：前者确定一条具体路径连接了哪些结构，后者确定研究问题要求的能量起点。
+
+NU6显示路径身份也可能在计算后改变。Guided 记录的 concerted 鞍点能量为$-247.030042392$ Ha，betaine极小值为$-247.060060699$ Ha，两者差为18.836772 kcal/mol。Guided 将其描述为经过 concerted 鞍点区域的能量代价，并保留目标 betaine至产物闭环鞍点尚未找到的状态；Standard 则将18.837 kcal/mol交付为第二步闭环能垒。这个数值指纹将分歧定位到能差被解释为哪一个科学步骤。Guided 从 betaine 插值结构和受约束扫描峰出发的尝试，释放约束后反复回到直接反应物至产物的鞍点区域。因此，所要求的路径身份需要在优化后重新核对，不能直接从初猜名称继承。
+
+这些例子与HH1的证据对照相互补充：同一个研究状态需要持续保留哪个构象定义能量参照、实际找到哪个驻点、它连接哪些端点，以及这些结果支撑哪个结论。逐题结果也保留F4与G2等 Guided 低于 Standard 的反例。对 Guided 与 Record 的比较，这两题解释了 Easy 净劣势的86.3\%；因此，这一差异集中在可定位的具体研究，而非基本化学任务普遍退化。
+
+\begin{figure*}[!tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_cases.pdf}
+\caption{计算结果的科学归属。a，HA8 分别采用稳定极小值与反应性构象作参照的声明能垒，与 campaign Gold 并列。b，HH1 两组均给出 23.48 kcal/mol 能垒且准确度接近，自洽证据分不同。c，NU6 两个已记录能量之差为 18.836772 kcal/mol；Guided 将其保留为 concerted 鞍点区域的代价，并将目标闭环鞍点留为未解决，Standard 则将 18.837 声明为第二步闭环能垒。计算细节与路径文字取自归档证据记录。}
+\label{fig:bench-cases}
+\end{figure*}
+
+
+
+\subsubsection{消融区分能力可用与引导持续生效}
+
+Record的全50题均分为0.7044，Brief-errors为0.7415。Guided相对Record高0.0759 [0.0121, 0.1438]，27题更高、8题更低、15题持平。Normal与Hard全部20题均差为0.1468，其中图结构贡献+0.0083、自洽性+0.0919、准确度+0.0466。保留工具及记录位置，与让未满足的科学要求在研究中持续参与后续动作选择，产生了不同结果。
+
+Guided 相对 Brief-errors 的总体增益为0.0388，区间为[$-0.0317$, 0.1076]，26题更高、10题更低、14题持平。比较随研究要求改变：Guided 在 Normal 中平均高0.1514，在 Hard 中高0.1295，而 Brief-errors 的 Impossible 均分更高。结合共同任务的投入结果，这些观察支持进一步考察诊断究竟帮助系统修复什么：某个鞍点归属、路径端点、能量参照，或允许方法能否支持所要求的结论。更多诊断文字并未在所有这些决定上形成同一种排序。
+
+\subsubsection{Impossible任务区分局部证据与目标负结论}
+
+Impossible 组考察在 xTB/PM7 限制下能否得到题目规定的方法受限结论。Brief-errors 均分为0.4829，Guided 为0.4451，Standard 为0.2473，Record 为0.2325（图~\ref{fig:bench-imp}）。Brief-errors 相对 Guided 赢3题、负5题、平2题。其平均高0.0379，集中于特定答案：IA1贡献+0.8283，IA9贡献+0.5666；相反，IG8中 Guided 的结果在 Brief-errors减Guided方向贡献$-0.6661$。
+
+IA1涉及环丁二烯方形几何的自同分异构目标，Brief-errors 的图结构、自洽性和准确度均为1，Guided 准确度为0。IA9涉及二氧杂环丁烷热分解，两组自洽性均为1，准确度分别为1和0。铬二聚体目标IG8则呈相反的准确度排序。在 Brief-errors 与 Guided 准确度相同的其余7题中，Brief-errors 平均低0.0500。其 Impossible 总体优势分解为图结构$-0.0066$、自洽性$-0.0155$、准确度+0.0600：更高均分来自特定任务的目标结论，而 Guided 在另外一些任务中保留了更充分的局部支持。
+
+全部40次 Impossible 运行中，4次准确度为1，14次同时具有自洽性1与准确度0。这一区别在分量矩阵中直接可见。例如，Guided 与 Brief-errors 在IA5、IC3和IF3中均得到自洽性1，却未获得目标负结论的准确度分；在兼含正负步骤的IB9中，两者准确度均为0.7。这些结果持续区分局部计算支撑与任务所要求的科学主张。
+
+保存的 Brief-errors/IC3图提供了科学报告层面的具体例子。图中将最低开壳层单重态及相应状态转换边标记为不可达，拒绝给出所求单重态—三重态能隙；已经计算的闭壳层单重态仍作为独立表征分支保留，两个方法依赖的相对能量被明确排除在目标能隙之外。该运行保留了有效探索结果，同时没有把它们提升为关于另一个电子态的答案；其最终准确度分仍为0。这里同时保留科学声明与对应分数，状态映射问题放在讨论中处理。这个行为与IA1、IA9和IG8的得分逆转相互补充，明确指出了哪些结果可计算、哪些目标主张仍未获支持。
+
+后续小节利用归档研究轨迹及 Qwen3.8:27b 局部诊断，考察这些结果涉及的接口：化学身份、目标原子对应的几何操作、证据关联及结束研究的判断。原始轨迹定位具体研究问题；配对局部输入与内部状态干预则考察特定信息怎样改变判断和动作。
+
+\begin{figure*}[!tbp]
+\centering
+\includegraphics[width=\textwidth]{figures/bench_imp.pdf}
+\caption{Impossible层的逐题对照与Brief--Guided差异。a--c，全部10题、四配置的完整整理总分、自洽性和Accuracy，色标统一为0--1。d，Brief相对Guided的逐题总分差，均差+0.03788集中于IA1与IA9，IG8呈相反结果；Guided赢5题、Brief赢3题、2题持平。e，按既定权重分解均差，Accuracy贡献+0.06000、Graph贡献$-0.00661$、自洽性贡献$-0.01550$，细微加总差异来自保存总分的舍入；任务bootstrap的95\%区间为$-0.188$至+0.284。Backbone/IA9的自洽分为0.75。保存的科学声明进一步区分目标通道和电子态，Record/IA5与Brief/IC3见正文讨论。}
+\label{fig:bench-imp}
+\end{figure*}
+
+\FloatBarrier

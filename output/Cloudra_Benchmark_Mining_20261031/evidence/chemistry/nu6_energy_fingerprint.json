@@ -1,0 +1,11 @@
+{
+  "task": "NU6",
+  "guided_reported_concerted_ts_hartree": -247.030042392,
+  "guided_reported_betaine_hartree": -247.060060699,
+  "hartree_to_kcal_mol": 627.5094740631,
+  "recomputed_gap_kcal_mol": 18.83677203782058,
+  "standard_archived_E2_kcal_mol": 18.837,
+  "absolute_difference_from_rounded_standard": 0.00022796217941944974,
+  "source": "reports/evidence_notes.md:672,689-696; reports/catalog.csv standard/NU6",
+  "interpretation": "Energy fingerprint supporting common saddle-region interpretation; not independent proof of identical native geometry."
+}

@@ -1,0 +1,5 @@
+arm,n_snapshot_rows,evidence_manifest_present,evidence_manifest_absent,snapshot_sc_equals_one
+standard,16,0,16,2
+guided,16,10,6,6
+record,16,0,16,3
+brief-errors,15,1,14,5

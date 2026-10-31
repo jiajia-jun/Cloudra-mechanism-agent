@@ -1,0 +1,161 @@
+task,task_name,arm,metric,value,repair,score_disposition
+IA1,cyclobutadiene D4h automerization,guided,graph,0.6666666666666667,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,guided,selfc,0.35,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,guided,accuracy,0.0,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,guided,final,0.1717,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,standard,graph,0.6666666666666667,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,standard,selfc,0.35,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,standard,accuracy,0.0,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,standard,final,0.1717,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,record,graph,0.6666666666666667,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,record,selfc,0.35,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,record,accuracy,0.0,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,record,final,0.1717,none,no_accuracy_credit
+IA1,cyclobutadiene D4h automerization,brief-errors,graph,1.0,none,accepted_negative_target
+IA1,cyclobutadiene D4h automerization,brief-errors,selfc,1.0,none,accepted_negative_target
+IA1,cyclobutadiene D4h automerization,brief-errors,accuracy,1.0,none,accepted_negative_target
+IA1,cyclobutadiene D4h automerization,brief-errors,final,1.0,none,accepted_negative_target
+IA5,cyclobutene disrotatory ring opening,guided,graph,1.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,guided,selfc,1.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,guided,accuracy,0.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,guided,final,0.4,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,standard,graph,0.6666666666666667,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,standard,selfc,0.25,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,standard,accuracy,0.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,standard,final,0.1417,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,record,graph,1.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,record,selfc,1.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,record,accuracy,0.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,record,final,0.4,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,brief-errors,graph,0.6666666666666667,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,brief-errors,selfc,1.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,brief-errors,accuracy,0.0,none,no_accuracy_credit
+IA5,cyclobutene disrotatory ring opening,brief-errors,final,0.3667,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",guided,graph,0.33333333333333337,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",guided,selfc,0.75,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",guided,accuracy,0.0,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",guided,final,0.2583,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",standard,graph,0.33333333333333337,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",standard,selfc,0.35,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",standard,accuracy,0.0,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",standard,final,0.1383,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",record,graph,0.33333333333333337,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",record,selfc,0.75,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",record,accuracy,0.0,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",record,final,0.2583,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",brief-errors,graph,0.33333333333333337,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",brief-errors,selfc,0.75,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",brief-errors,accuracy,0.0,none,no_accuracy_credit
+IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",brief-errors,final,0.2583,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",guided,graph,0.6666666666666667,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",guided,selfc,1.0,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",guided,accuracy,0.0,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",guided,final,0.3667,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",standard,graph,0.3333333333333333,graph_reconstruction,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",standard,selfc,0.75,graph_reconstruction,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",standard,accuracy,0.0,graph_reconstruction,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",standard,final,0.2583,graph_reconstruction,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",record,graph,0.6666666666666667,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",record,selfc,1.0,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",record,accuracy,0.0,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",record,final,0.3667,none,no_accuracy_credit
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",brief-errors,graph,0.33333333333333337,none,accepted_negative_target
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",brief-errors,selfc,1.0,none,accepted_negative_target
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",brief-errors,accuracy,1.0,none,accepted_negative_target
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",brief-errors,final,0.9333,none,accepted_negative_target
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,guided,graph,1.0,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,guided,selfc,1.0,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,guided,accuracy,0.7,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,guided,final,0.82,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,standard,graph,0.75,none,no_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,standard,selfc,0.35,none,no_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,standard,accuracy,0.0,none,no_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,standard,final,0.18,none,no_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,record,graph,0.19999999999999996,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,record,selfc,0.75,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,record,accuracy,0.5,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,record,final,0.545,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,brief-errors,graph,1.0,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,brief-errors,selfc,0.8333333333333334,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,brief-errors,accuracy,0.7,none,partial_accuracy_credit
+IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,brief-errors,final,0.77,none,partial_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,guided,graph,1.0,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,guided,selfc,1.0,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,guided,accuracy,0.0,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,guided,final,0.4,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,standard,graph,0.33333333333333337,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,standard,selfc,0.5,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,standard,accuracy,0.0,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,standard,final,0.1833,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,record,graph,0.6666666666666667,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,record,selfc,0.5,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,record,accuracy,0.0,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,record,final,0.2167,none,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,brief-errors,graph,1.0,reference_repair,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,brief-errors,selfc,1.0,reference_repair,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,brief-errors,accuracy,0.0,reference_repair,no_accuracy_credit
+IC3,phenylnitrene open-shell singlet state,brief-errors,final,0.4,reference_repair,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),guided,graph,0.3392436312341828,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),guided,selfc,1.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),guided,accuracy,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),guided,final,0.3339,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),standard,graph,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),standard,selfc,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),standard,accuracy,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),standard,final,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),record,graph,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),record,selfc,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),record,accuracy,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),record,final,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),brief-errors,graph,0.3392436312341828,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),brief-errors,selfc,0.5,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),brief-errors,accuracy,0.0,none,no_accuracy_credit
+ID2,anomalous bonding in dioxygen difluoride (FOOF),brief-errors,final,0.1839,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,guided,graph,0.33333333333333337,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,guided,selfc,1.0,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,guided,accuracy,0.0,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,guided,final,0.3333,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,standard,graph,0.33333333333333337,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,standard,selfc,0.0,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,standard,accuracy,0.0,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,standard,final,0.0333,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,record,graph,0.33333333333333337,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,record,selfc,0.0,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,record,accuracy,0.0,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,record,final,0.0333,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,brief-errors,graph,0.33333333333333337,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,brief-errors,selfc,0.5,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,brief-errors,accuracy,0.0,none,no_accuracy_credit
+IE2,nitrogen triple-bond dissociation curve,brief-errors,final,0.1833,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,guided,graph,0.6666666666666667,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,guided,selfc,1.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,guided,accuracy,0.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,guided,final,0.3667,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,standard,graph,0.6666666666666667,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,standard,selfc,1.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,standard,accuracy,0.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,standard,final,0.3667,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,record,graph,0.33333333333333337,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,record,selfc,1.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,record,accuracy,0.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,record,final,0.3333,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,brief-errors,graph,1.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,brief-errors,selfc,1.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,brief-errors,accuracy,0.0,none,no_accuracy_credit
+IF3,triangulene triplet ground state and singlet-triplet gap,brief-errors,final,0.4,none,no_accuracy_credit
+IG8,chromium dimer ground-state dissociation curve,guided,graph,1.0,none,accepted_negative_target
+IG8,chromium dimer ground-state dissociation curve,guided,selfc,1.0,none,accepted_negative_target
+IG8,chromium dimer ground-state dissociation curve,guided,accuracy,1.0,none,accepted_negative_target
+IG8,chromium dimer ground-state dissociation curve,guided,final,1.0,none,accepted_negative_target
+IG8,chromium dimer ground-state dissociation curve,standard,graph,1.0,none,accepted_negative_target
+IG8,chromium dimer ground-state dissociation curve,standard,selfc,1.0,none,accepted_negative_target
+IG8,chromium dimer ground-state dissociation curve,standard,accuracy,1.0,none,accepted_negative_target
+IG8,chromium dimer ground-state dissociation curve,standard,final,1.0,none,accepted_negative_target
+IG8,chromium dimer ground-state dissociation curve,record,graph,0.0,none,no_accuracy_credit
+IG8,chromium dimer ground-state dissociation curve,record,selfc,0.0,none,no_accuracy_credit
+IG8,chromium dimer ground-state dissociation curve,record,accuracy,0.0,none,no_accuracy_credit
+IG8,chromium dimer ground-state dissociation curve,record,final,0.0,none,no_accuracy_credit
+IG8,chromium dimer ground-state dissociation curve,brief-errors,graph,0.3393287366540305,none,no_accuracy_credit
+IG8,chromium dimer ground-state dissociation curve,brief-errors,selfc,1.0,none,no_accuracy_credit
+IG8,chromium dimer ground-state dissociation curve,brief-errors,accuracy,0.0,none,no_accuracy_credit
+IG8,chromium dimer ground-state dissociation curve,brief-errors,final,0.3339,none,no_accuracy_credit

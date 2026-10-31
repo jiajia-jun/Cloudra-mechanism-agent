@@ -9,11 +9,11 @@
       "pdf": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/cloudrabench_design_20261029/task_distribution_en.pdf",
       "png": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/cloudrabench_design_20261029/task_distribution_en.png",
       "width_mm": 180,
-      "height_mm": 110,
+      "height_mm": 80,
       "png_dpi": 600,
       "png_size_px": [
         4252,
-        2599
+        1890
       ]
     },
     {
@@ -22,11 +22,11 @@
       "pdf": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/cloudrabench_design_20261029/task_distribution_zh.pdf",
       "png": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/cloudrabench_design_20261029/task_distribution_zh.png",
       "width_mm": 180,
-      "height_mm": 110,
+      "height_mm": 80,
       "png_dpi": 600,
       "png_size_px": [
         4252,
-        2599
+        1890
       ]
     }
   ],

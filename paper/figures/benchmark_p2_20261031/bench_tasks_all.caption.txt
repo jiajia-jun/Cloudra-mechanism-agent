@@ -1,0 +1,1 @@
+Complete per-task CloudraBench scores for all 50 tasks and four configurations. The aligned blocks show composite score, Graph, Self-consistency, and Accuracy; all 800 values are displayed on the same 0–1 scale. Tier boundaries separate 20 Easy, 10 Normal, 10 Hard, and 10 Impossible tasks. Values are rounded to two decimals; the source table retains full precision.

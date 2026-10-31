@@ -1,0 +1,76 @@
+{
+  "source_files": [
+    "source_data/publication_scores_per_run.csv",
+    "source_data/component_provenance.json",
+    "source_data/pairwise.csv",
+    "source_data/publication_component_groups.csv"
+  ],
+  "HA8_reported": [
+    29.46,
+    20.43,
+    29.48
+  ],
+  "HH1": [
+    {
+      "arm": "guided",
+      "campaign": "cloudra-p2c-20261025",
+      "task": "HH1",
+      "tier": "hard",
+      "raw_final": 0.9838,
+      "fair_final": 0.9838,
+      "graph": 1.0,
+      "selfc_all": 1.0,
+      "selfc_gold": 1.0,
+      "accuracy": 0.9730666654437904,
+      "repaired_final": null,
+      "repair_source": null,
+      "flags": "rescued_parallel",
+      "neg_class": null,
+      "sandbox": "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/HH1/batch_94084d85d0634ca0",
+      "source": "rescue",
+      "score": 0.9838,
+      "graph_publication": 1.0,
+      "selfc_all_publication": 1.0,
+      "accuracy_publication": 0.9730666654437904,
+      "component_source": "final offline score table",
+      "recomputed_publication": 0.9838399992662742,
+      "rounding_difference": 3.9999266274182155e-05,
+      "no_graph": false,
+      "carried": false,
+      "repair": false
+    },
+    {
+      "arm": "standard",
+      "campaign": "cloudra-p2c-20261025",
+      "task": "HH1",
+      "tier": "hard",
+      "raw_final": 0.8338,
+      "fair_final": 0.8338,
+      "graph": 1.0,
+      "selfc_all": 0.5,
+      "selfc_gold": 0.5,
+      "accuracy": 0.973064097049228,
+      "repaired_final": null,
+      "repair_source": null,
+      "flags": "branch=composite",
+      "neg_class": null,
+      "sandbox": "/home/ly/cloudra-p2c-20261025/standard/r1/sandboxes/HH1/batch_8b2051b670f348ba",
+      "source": "snapshot",
+      "score": 0.8338,
+      "graph_publication": 1.0,
+      "selfc_all_publication": 0.5,
+      "accuracy_publication": 0.973064097049228,
+      "component_source": "final offline score table",
+      "recomputed_publication": 0.8338384582295368,
+      "rounding_difference": 3.845822953685296e-05,
+      "no_graph": false,
+      "carried": false,
+      "repair": false
+    }
+  ],
+  "NU6": {
+    "concerted_ts_hartree": -247.030042392,
+    "betaine_hartree": -247.060060699,
+    "difference_kcal_mol": 18.836772
+  }
+}

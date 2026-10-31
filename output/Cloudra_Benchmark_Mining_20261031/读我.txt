@@ -1,0 +1,18 @@
+Cloudra P2 数据挖掘，2026-10-31
+
+阅读报告：http://127.0.0.1:52106/
+本机预览保留，重新登录后自动恢复。
+离线完整报告：.data-app-offline/exports/Cloudra_Benchmark_Mining.html
+
+主比较：Cloudra guided 对同一backbone实际standard基线。
+全部50题：0.594020 → 0.780322，逐题配对+0.186302。
+normal：0.573050 → 0.737020。
+hard/立体化学：0.688750 → 0.957650，10题10胜。
+
+figures/：可独立使用的PNG和SVG。
+evidence/：200行来源、50题明细、配对统计、成本、案例、复算脚本。
+正文先讲发现，Discussion集中解释大模型特性与局限。
+原始实验文件未改动。
+
+分项更新：完整出版轨200次运行×3个真实分项；全部50题进入组件配对分解，总分不变。
+复算与修订说明：evidence/PUBLICATION_REFRESH.md。

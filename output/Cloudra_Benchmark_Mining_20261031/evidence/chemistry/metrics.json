@@ -1,0 +1,341 @@
+{
+  "source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/output/Cloudra_Benchmark_Mining_20261031/evidence/source_publication_scores_per_run.csv",
+  "n": 200,
+  "task_structure_source": "git commit 53309d0e (campaign base documented by archive)",
+  "evidence_scope": "Archive reports and reconstructed provenance only; no native .log files are present locally.",
+  "tier": {
+    "easy": {
+      "n": 80,
+      "score_negative_n": 0,
+      "score_mean_all": 0.8652825,
+      "score_mean_nonnegative": 0.8652825,
+      "graph": {
+        "n": 80,
+        "mean": 0.9431475463840241
+      },
+      "selfc_all": {
+        "n": 80,
+        "mean": 0.8320833333333333
+      },
+      "accuracy": {
+        "n": 80,
+        "mean": 0.8689114007266253
+      }
+    },
+    "normal": {
+      "n": 40,
+      "score_negative_n": 0,
+      "score_mean_all": 0.606115,
+      "score_mean_nonnegative": 0.606115,
+      "graph": {
+        "n": 40,
+        "mean": 0.7613310988275389
+      },
+      "selfc_all": {
+        "n": 40,
+        "mean": 0.6940208333333333
+      },
+      "accuracy": {
+        "n": 40,
+        "mean": 0.5362858285434331
+      }
+    },
+    "hard": {
+      "n": 40,
+      "score_negative_n": 0,
+      "score_mean_all": 0.83671,
+      "score_mean_nonnegative": 0.83671,
+      "graph": {
+        "n": 40,
+        "mean": 0.9029054390698013
+      },
+      "selfc_all": {
+        "n": 40,
+        "mean": 0.7247916666666666
+      },
+      "accuracy": {
+        "n": 40,
+        "mean": 0.8816467487919544
+      }
+    },
+    "impossible": {
+      "n": 40,
+      "score_negative_n": 0,
+      "score_mean_all": 0.3519575,
+      "score_mean_nonnegative": 0.3519575,
+      "graph": {
+        "n": 40,
+        "mean": 0.5658620666447266
+      },
+      "selfc_all": {
+        "n": 40,
+        "mean": 0.6895833333333333
+      },
+      "accuracy": {
+        "n": 40,
+        "mean": 0.1475
+      }
+    }
+  },
+  "accessible_by_gold_sequential_depth": {
+    "1": {
+      "n": 120,
+      "score_negative_n": 0,
+      "score_mean_all": 0.8557583333333333,
+      "score_mean_nonnegative": 0.8557583333333333,
+      "graph": {
+        "n": 120,
+        "mean": 0.9297335106126164
+      },
+      "selfc_all": {
+        "n": 120,
+        "mean": 0.7963194444444445
+      },
+      "accuracy": {
+        "n": 120,
+        "mean": 0.8731565167484017
+      }
+    },
+    "2": {
+      "n": 20,
+      "score_negative_n": 0,
+      "score_mean_all": 0.729845,
+      "score_mean_nonnegative": 0.729845,
+      "graph": {
+        "n": 20,
+        "mean": 0.8080823071639013
+      },
+      "selfc_all": {
+        "n": 20,
+        "mean": 0.735625
+      },
+      "accuracy": {
+        "n": 20,
+        "mean": 0.713918271222141
+      }
+    },
+    "3": {
+      "n": 16,
+      "score_negative_n": 0,
+      "score_mean_all": 0.48216875,
+      "score_mean_nonnegative": 0.48216875,
+      "graph": {
+        "n": 16,
+        "mean": 0.7242433816324891
+      },
+      "selfc_all": {
+        "n": 16,
+        "mean": 0.6535416666666667
+      },
+      "accuracy": {
+        "n": 16,
+        "mean": 0.3561291443188694
+      }
+    },
+    "4": {
+      "n": 4,
+      "score_negative_n": 0,
+      "score_mean_all": 0.48324999999999996,
+      "score_mean_nonnegative": 0.48324999999999996,
+      "graph": {
+        "n": 4,
+        "mean": 0.6759259259259259
+      },
+      "selfc_all": {
+        "n": 4,
+        "mean": 0.6479166666666667
+      },
+      "accuracy": {
+        "n": 4,
+        "mean": 0.36875035204814854
+      }
+    }
+  },
+  "normal_hard_complete_component_gap": {
+    "normal_n": 40,
+    "hard_n": 40,
+    "hard_minus_normal_weighted_contributions": {
+      "graph": 0.014157434024226236,
+      "selfc_all": 0.009231249999999991,
+      "accuracy": 0.20721655214911275
+    },
+    "accuracy_fraction": 0.8985769602965752,
+    "note": "Accuracy includes missing Gold steps and task-specific qualitative/numerical rubrics; not pure chemical numerical error."
+  },
+  "impossible": {
+    "accuracy_histogram": {
+      "1.0": 4,
+      "0.0": 33,
+      "0.7": 2,
+      "0.5": 1
+    },
+    "selfc_exactly_1_accuracy_exactly_0_n": 14,
+    "accuracy_1_pairs": [
+      [
+        "brief-errors",
+        "IA1"
+      ],
+      [
+        "brief-errors",
+        "IA9"
+      ],
+      [
+        "guided",
+        "IG8"
+      ],
+      [
+        "standard",
+        "IG8"
+      ]
+    ],
+    "all_four_accuracy_0_tasks": [
+      "IA5",
+      "IA7",
+      "IC3",
+      "ID2",
+      "IE2",
+      "IF3"
+    ],
+    "per_arm": {
+      "brief-errors": {
+        "accuracy_1_n": 2,
+        "accuracy_0_n": 7
+      },
+      "guided": {
+        "accuracy_1_n": 1,
+        "accuracy_0_n": 8
+      },
+      "record": {
+        "accuracy_1_n": 0,
+        "accuracy_0_n": 9
+      },
+      "standard": {
+        "accuracy_1_n": 1,
+        "accuracy_0_n": 9
+      }
+    },
+    "caution": "accuracy=0 does not universally mean incorrect refusal: archived record/IA5 is a documented channel-matching under-score; brief/IC3 .4 appears in fair and repaired."
+  },
+  "hindsight_oracle": {
+    "easy": {
+      "score_mean": 0.95926,
+      "fractional_wins": {
+        "standard": 3.5,
+        "guided": 6.333333333333333,
+        "brief-errors": 4.833333333333333,
+        "record": 5.333333333333333
+      },
+      "not_a_deployed_policy": "Uses all four runs plus outcome knowledge; merely a descriptive complementarity ceiling."
+    },
+    "normal": {
+      "score_mean": 0.78744,
+      "fractional_wins": {
+        "brief-errors": 2.0,
+        "guided": 5.0,
+        "standard": 2.0,
+        "record": 1.0
+      },
+      "not_a_deployed_policy": "Uses all four runs plus outcome knowledge; merely a descriptive complementarity ceiling."
+    },
+    "hard": {
+      "score_mean": 0.9624,
+      "fractional_wins": {
+        "guided": 7.333333333333333,
+        "brief-errors": 2.333333333333333,
+        "record": 0.3333333333333333
+      },
+      "not_a_deployed_policy": "Uses all four runs plus outcome knowledge; merely a descriptive complementarity ceiling."
+    },
+    "impossible": {
+      "score_mean": 0.58788,
+      "fractional_wins": {
+        "brief-errors": 3.833333333333333,
+        "guided": 4.833333333333333,
+        "record": 0.8333333333333333,
+        "standard": 0.5
+      },
+      "not_a_deployed_policy": "Uses all four runs plus outcome knowledge; merely a descriptive complementarity ceiling."
+    }
+  },
+  "hard_by_rubric": {
+    "qualitative_selectivity": {
+      "n": 16,
+      "score_negative_n": 0,
+      "score_mean_all": 0.81406875,
+      "score_mean_nonnegative": 0.81406875,
+      "graph": {
+        "n": 16,
+        "mean": 0.8750316613468103
+      },
+      "selfc_all": {
+        "n": 16,
+        "mean": 0.796875
+      },
+      "accuracy": {
+        "n": 16,
+        "mean": 0.8125
+      }
+    },
+    "numerical_barrier": {
+      "n": 24,
+      "score_negative_n": 0,
+      "score_mean_all": 0.8518041666666667,
+      "score_mean_nonnegative": 0.8518041666666667,
+      "graph": {
+        "n": 24,
+        "mean": 0.9214879575517951
+      },
+      "selfc_all": {
+        "n": 24,
+        "mean": 0.6767361111111111
+      },
+      "accuracy": {
+        "n": 24,
+        "mean": 0.9277445813199239
+      }
+    }
+  },
+  "guided_minus_record": {
+    "normal": {
+      "all_task_n": 10,
+      "score_gap_all_tasks": 0.2083,
+      "component_complete_pair_n": 10,
+      "excluded_tasks": [],
+      "weighted_component_differences": {
+        "graph": 0.01803279889893043,
+        "selfc_all": 0.09712499999999999,
+        "accuracy": 0.09314751109619204
+      },
+      "graph_plus_selfc_fraction": 0.5528317972385192
+    },
+    "hard": {
+      "all_task_n": 10,
+      "score_gap_all_tasks": 0.08539,
+      "component_complete_pair_n": 10,
+      "excluded_tasks": [],
+      "weighted_component_differences": {
+        "graph": -0.0013566242186762523,
+        "selfc_all": 0.08675000000000001,
+        "accuracy": 3.0372265204858804e-07
+      },
+      "graph_plus_selfc_fraction": 0.9999964432654289
+    },
+    "normal_and_hard": {
+      "all_task_n": 20,
+      "score_gap_all_tasks": 0.146845,
+      "component_complete_pair_n": 20,
+      "excluded_tasks": [],
+      "weighted_component_differences": {
+        "graph": 0.008338087340127087,
+        "selfc_all": 0.09193749999999999,
+        "accuracy": 0.046573907409422056
+      },
+      "graph_plus_selfc_fraction": 0.6828459812622879
+    }
+  },
+  "offline_organization": {
+    "runs": 200,
+    "components": 600,
+    "method": "Existing run records organized into mechanism graphs and evidence references before scoring; totals unchanged."
+  }
+}

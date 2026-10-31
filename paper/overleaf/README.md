@@ -1,6 +1,6 @@
 # Cloudra 双语 LaTeX 主稿
 
-更新日期：2026年10月30日。
+更新日期：2026年10月31日。
 
 两版正式排版源文件分别位于 [Cloudra_EN](Cloudra_EN/) 和 [Cloudra_ZH](Cloudra_ZH/)。各项目独立完整，在 Overleaf 中以 `main.tex` 为主文件，使用 **XeLaTeX、TeX Live 2026** 编译。
 
@@ -9,7 +9,11 @@
 - `references.bib`：参考文献条目，正文通过引用键关联来源。
 - `figures/`：独立图件 PDF，图号、图注和正文引用由 LaTeX 管理。
 
-方法 2.6 已包含 CloudraBench 设计与 50 题分布图。结果 3.1 先介绍 48 组重复实验，再介绍 200 个消融沙箱，保留讨论小节和写作空间，随后进入机制分析。
+方法 2.6 已包含 CloudraBench 设计与 50 题分布图。结果 3.1 已接入 P1b 的 48 次重复运行和 P2 四臂 × 50 题的完整 200 次结果，讨论 3.4 已随 P2 结果更新；原有 3.2 与 3.3 保留。Guided 与同一 Backbone 为主比较，Record 和 Brief 为消融比较。
+
+两版主稿沿用既定版式。新增 7 组矢量图覆盖整体与分层得分、完整 600 个评分分项、速度与计算投入、机理图组织、全部 50 题和科学归属案例。将既有研究产物离线组织为统一机理图属于正式评测方法，整理后的 200 个综合分数保持不变。图件索引、数据来源和复现命令见 [P2 图件说明](../figures/benchmark_p2_20261031/README.md)。
+
+英文新增正文为 [结果 3.1](Cloudra_EN/sections/03_benchmark_results.tex) 和 [讨论 3.4](Cloudra_EN/sections/03_benchmark_discussion.tex)；中文对应 [结果 3.1](Cloudra_ZH/sections/03_benchmark_results.tex) 和 [讨论 3.4](Cloudra_ZH/sections/03_benchmark_discussion.tex)。两版均通过各自的 `sections/03_results.tex` 接入。`sections/03_figures.tex` 集中声明跨栏浮动图，正文保持自然双栏流动，不用手工换页或锁列。
 
 `build_sections.py` 记录首次从 Markdown 迁移到 LaTeX 的转换过程；后续不运行它覆盖正式 TeX。旧 Word 文件保留为迁移前的审阅快照。
 

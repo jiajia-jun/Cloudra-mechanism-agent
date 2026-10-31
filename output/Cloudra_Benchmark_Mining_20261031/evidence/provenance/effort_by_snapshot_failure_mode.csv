@@ -1,0 +1,9 @@
+snapshot_failure_mode,n,hours,mean_hours,final_mean_score,jobs,failed_cancelled
+chemistry: wrong favored channel,1,50.61,50.61,0.2937,113,58
+coverage: gold saddle never delivered,14,159.69,11.406428571428572,0.43160714285714286,745,221
+delivery: no parseable mechanism_graph,3,29.07,9.69,0.20226666666666668,36,5
+infrastructure: agent crash/timeout,1,37.46,37.46,0.9742,40,15
+partial,1,9.58,9.58,0.7867,39,15
+saddle/conformer misassignment,5,50.43,10.086,0.693,166,57
+solved,14,121.07,8.647857142857143,0.9800214285714286,468,138
+verification: TS/IRC proof gap,24,215.91,8.99625,0.8581208333333333,997,212

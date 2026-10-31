@@ -1,0 +1,76 @@
+{
+  "EN": [
+    {
+      "file": "figures/bench_overview.pdf",
+      "label": "fig:bench-overview",
+      "caption_tex": "P2 benchmark outcomes under the archive-adjudicated track. (a) Guided and the same-backbone Standard baseline across all 50 tasks and each tier. (b) All 50 paired task outcomes. (c) Mean paired score differences with 95\\% percentile intervals from 100,000 task-level bootstrap resamples. Each task has one run per configuration; Easy contains 20 tasks and the other tiers contain 10 each."
+    },
+    {
+      "file": "figures/bench_components.pdf",
+      "label": "fig:bench-components",
+      "caption_tex": "CloudraBench score layers across all 200 organized runs. (a--c) Means of Graph, Self-consistency, and Accuracy in each arm and tier, using 50 tasks per arm overall, 20 Easy tasks, and ten tasks in each other tier. (d) Guided--Backbone mean differences decomposed with the fixed weights 0.1/0.3/0.6, using all 50 pairs, ten Normal pairs, and ten Hard pairs. Components are aligned with the final organized totals using each run's recorded research materials and score records."
+    },
+    {
+      "file": "figures/bench_delivery.pdf",
+      "label": "fig:bench-delivery",
+      "caption_tex": "Runtime graph delivery and final scientific support in P2. (a) Original root mechanism graphs across 50 tasks per arm: Guided 50, Backbone 43, Record 50, and Brief 50. The hatched segment marks seven additional Backbone graphs assembled offline from the runs' own research materials; the organized set contains 50 graphs per arm. (b) Final continuous self-consistency (SC) scores for all 40 non-Impossible tasks per arm, separating SC = 1, partial positive credit, and SC = 0. Full-score counts are 24, 7, 16, and 20; Backbone has four zero-score tasks. (c) Organized composite scores for the seven Backbone tasks without runtime root graphs, ranging from 0.0333 to 0.3425 (mean 0.1537)."
+    },
+    {
+      "file": "figures/bench_speed.pdf",
+      "label": "fig:bench-speed",
+      "caption_tex": "Research elapsed time and computational investment. (a) Twelve P1b four-task batches at concurrency two, three per arm; lines mark means. (b) Cumulative QM process durations for the 15 P2 tasks shared by all arms. (c) Mean completed, failed, and cancelled jobs in that cohort. (d) Same-task Backbone-to-Guided changes in investment and final score; diamonds mark offline-organized Backbone graphs. Job-hours sum process walltime; panel a measures batch latency. Backbone/M1 effort is reconstructed from native CPU time divided by four."
+    },
+    {
+      "file": "figures/bench_tasks_all.pdf",
+      "label": "fig:bench-tasks",
+      "caption_tex": "Complete CloudraBench results for all 50 tasks and four configurations. The aligned blocks show composite, Graph, Self-consistency, and Accuracy on the same 0--1 scale; all 800 cells are present. Values are rounded to two decimals; the source table retains full precision."
+    },
+    {
+      "file": "figures/bench_cases.pdf",
+      "label": "fig:bench-cases",
+      "caption_tex": "Scientific attribution in matched Guided--Backbone tasks. (a) HA8 barriers use stable-minimum or reactive-conformer references. (b) HH1 retains the same barrier and accuracy, with different evidence closure. (c) NU6's recorded energy difference is assigned to different pathways. Values and assignments derive from the archived records."
+    },
+    {
+      "file": "figures/bench_imp.pdf",
+      "label": "fig:bench-imp",
+      "caption_tex": "Impossible-tier outcomes and the brief-diagnostic ablation. (a--c) Composite, self-consistency (SC), and accuracy for all ten tasks and four arms, using the complete organized scores on a common 0--1 scale. Backbone denotes the actual same-backbone Standard arm. (d) Paired Brief-minus-Guided differences: the mean advantage of 0.03788 is concentrated in IA1 and IA9, with an opposite outcome in IG8; Guided scores higher on five tasks, Brief on three, and two tie. (e) The mean difference decomposes into weighted accuracy (+0.06000), Graph ($-0.00661$), and SC ($-0.01550$); the small discrepancy in their sum reflects rounding of saved totals. The paired task-bootstrap 95\\% interval is $-0.188$ to +0.284; task-specific claims are analyzed below."
+    }
+  ],
+  "ZH": [
+    {
+      "file": "figures/bench_overview.pdf",
+      "label": "fig:bench-overview",
+      "caption_tex": "P2 主比较与逐题差异。a，Cloudra Guided 与同一 backbone 的 Standard 基线在全部 50 题及各难度层的整理后复合分；Easy 为 20 题，其余各 10 题。b，保留全部 50 个同题配对。c，配对均差与 100,000 次按任务整组 bootstrap 的 95\\% 百分位区间。"
+    },
+    {
+      "file": "figures/bench_components.pdf",
+      "label": "fig:bench-components",
+      "caption_tex": "全部200次整理后运行的三个评分层。a--c，各配置、难度层的Graph、自洽性与Accuracy均值；每配置总体50题，Easy为20题，其余各层10题。d，按固定0.1/0.3/0.6权重分解Guided相对Backbone的均差，全部、Normal与Hard分别使用完整50、10和10个配对。各运行分量由其自身研究材料与评分记录对齐至最终整理总分。"
+    },
+    {
+      "file": "figures/bench_delivery.pdf",
+      "label": "fig:bench-delivery",
+      "caption_tex": "运行期交付图与最终科学支持。a，每配置50题中的原始根图记录，Guided、Backbone、Record与Brief分别为50、43、50和50；斜线标记从运行自身材料离线组装的7份Backbone图，整理后每配置均为50份。b，每配置全部40道非Impossible题的自洽分布，区分SC=1、部分正分及SC=0；满分数依次为24、7、16和20，Backbone另有4题零分。c，7个未在运行中形成根图的Backbone任务整理后总分，范围0.0333至0.3425，均值0.1537。"
+    },
+    {
+      "file": "figures/bench_speed.pdf",
+      "label": "fig:bench-speed",
+      "caption_tex": "运行速度与计算投入。a，P1b 的 12 个真实批次，每配置 3 批，每批 4 题，并发为 2；点为观测批次，短线为均值。b，P2 四配置共同 15 题的逐运行累计 QM job-hours 及均值。c，同一任务集每运行的完成、失败和取消作业数量。d，Standard 与 Guided 同题的计算投入及整理后总分，箭头连接相同任务，菱形标记离线组装机理图的运行。"
+    },
+    {
+      "file": "figures/bench_tasks_all.pdf",
+      "label": "fig:bench-tasks",
+      "caption_tex": "CloudraBench全部50题、四配置的完整逐题成绩。四个评分块按相同顺序展示综合分、Graph、自洽性与Accuracy，色标统一为0--1，800格全部呈现。数值保留两位小数，来源表保留完整精度。"
+    },
+    {
+      "file": "figures/bench_cases.pdf",
+      "label": "fig:bench-cases",
+      "caption_tex": "计算结果的科学归属。a，HA8 分别采用稳定极小值与反应性构象作参照的声明能垒，与 campaign Gold 并列。b，HH1 两组均给出 23.48 kcal/mol 能垒且准确度接近，自洽证据分不同。c，NU6 两个已记录能量之差为 18.836772 kcal/mol；Guided 将其保留为 concerted 鞍点区域的代价，并将目标闭环鞍点留为未解决，Standard 则将 18.837 声明为第二步闭环能垒。计算细节与路径文字取自归档证据记录。"
+    },
+    {
+      "file": "figures/bench_imp.pdf",
+      "label": "fig:bench-imp",
+      "caption_tex": "Impossible层的逐题对照与Brief--Guided差异。a--c，全部10题、四配置的完整整理总分、自洽性和Accuracy，色标统一为0--1。d，Brief相对Guided的逐题总分差，均差+0.03788集中于IA1与IA9，IG8呈相反结果；Guided赢5题、Brief赢3题、2题持平。e，按既定权重分解均差，Accuracy贡献+0.06000、Graph贡献$-0.00661$、自洽性贡献$-0.01550$，细微加总差异来自保存总分的舍入；任务bootstrap的95\\%区间为$-0.188$至+0.284，逐题科学声明见下文分析。"
+    }
+  ]
+}

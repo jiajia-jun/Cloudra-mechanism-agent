@@ -17,7 +17,7 @@ from reportlab.pdfgen.canvas import Canvas
 ROOT = Path(__file__).resolve().parents[3]
 OUT = Path(__file__).resolve().parent
 SOURCE = ROOT / "paper/figures/benchmark_semantic_space_20261028"
-W, H = 180 / 25.4 * 72, 110 / 25.4 * 72
+W, H = 180 / 25.4 * 72, 80 / 25.4 * 72
 NS = "http://www.w3.org/2000/svg"
 ET.register_namespace("", NS)
 FONT_FILES = {
@@ -67,7 +67,7 @@ class Figure:
 
     def __init__(self, stem, language):
         self.stem, self.language = stem, language
-        self.svg = ET.Element(f"{{{NS}}}svg", {"width": "180mm", "height": "110mm", "viewBox": f"0 0 {W} {H}"})
+        self.svg = ET.Element(f"{{{NS}}}svg", {"width": "180mm", "height": "80mm", "viewBox": f"0 0 {W} {H}"})
         ET.SubElement(self.svg, f"{{{NS}}}title").text = LABELS[language]["a"] + "; " + LABELS[language]["b"]
         self.pdf = Canvas(str(OUT / f"{stem}.pdf"), pagesize=(W, H))
         self.pdf.setTitle("CloudraBench task design")
@@ -212,15 +212,15 @@ def main():
         fig.rect(256, 10, 11, 11, "#D7E955")
         fig.text(261.5, 18.5, "b", 8, True, "middle")
         fig.text(272, 19, text["b"], 9.5, True)
-        fig.text(12, 42, text["total"], 9, True)
+        fig.text(12, 38, text["total"], 9, True)
         for i, tier in enumerate(TIERS):
-            y = 64 + i * 49
+            y = 52 + i * 38
             fig.text(12, y + 8, tier.capitalize(), 8.5, True)
             fig.rect(82, y, 112 * counts[tier] / 20, 11, COLORS[tier])
             fig.text(200, y + 8.5, f"{counts[tier]} ({counts[tier] * 2}%)", 7.5)
-            fig.text(12, y + 31, text["focus"][i], 7.5, fill=MUTED)
+            fig.text(12, y + 27, text["focus"][i], 7.5, fill=MUTED)
         # The same unmodified PCA coordinates are used in both languages.
-        px, py, pw, ph = 289, 47, 210, 193
+        px, py, pw, ph = 289, 42, 210, 120
         xlim, ylim = (-0.51, 0.59), (-0.63, 0.40)
 
         def xy(v):
@@ -238,9 +238,9 @@ def main():
             fig.text(px - 7, y + 2.5, f"{value:.1f}", 7.5, anchor="end", fill=MUTED)
         fig.line(px, py + ph, px + pw, py + ph, MUTED, 0.65)
         fig.line(px, py, px, py + ph, MUTED, 0.65)
-        fig.text(px + pw / 2, 267, text["xlabel"], 8, anchor="middle")
+        fig.text(px + pw / 2, 188, text["xlabel"], 8, anchor="middle")
         fig.text(262, py + ph / 2, text["ylabel"], 8, anchor="middle", rotate=True)
-        fig.text(px, 38, "50 / 50", 7.5, fill=MUTED)
+        fig.text(px, 34, "50 / 50", 7.5, fill=MUTED)
         for task in sorted(tasks, key=lambda t: t["task_id"] in highlighted):
             x, y = xy(task["pca"])
             fig.mark(
@@ -256,7 +256,7 @@ def main():
             x, y = xy(by_id[task_id]["pca"])
             fig.line(x + dx * 0.2, y + dy * 0.2, x + dx, y + dy - 3, MUTED, 0.55)
             fig.text(x + dx, y + dy, task_id, 8, True)
-        for tier, x, y in [("easy", 293, 285), ("normal", 383, 285), ("hard", 293, 301), ("impossible", 383, 301)]:
+        for tier, x, y in [("easy", 293, 205), ("normal", 383, 205), ("hard", 293, 219), ("impossible", 383, 219)]:
             fig.mark(x, y - 2.5, tier, 2.7)
             fig.text(x + 8, y, tier.capitalize(), 7.5)
         dimensions = fig.save()
@@ -267,7 +267,7 @@ def main():
                 "pdf": str(OUT / f"task_distribution_{lang}.pdf"),
                 "png": str(OUT / f"task_distribution_{lang}.png"),
                 "width_mm": 180,
-                "height_mm": 110,
+                "height_mm": 80,
                 "png_dpi": 600,
                 "png_size_px": dimensions,
             }

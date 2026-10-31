@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-31",
+  "layout": "native figure/figure* floats; continuous two-column text; one full-page 50-task matrix; no manual subsection page/column breaks",
+  "publication_runs": 200,
+  "publication_components": 600,
+  "totals_changed": false,
+  "main_figure_groups": 7,
+  "languages": {
+    "EN": {
+      "pages": 22,
+      "unknown_references": 0,
+      "bibliography_entries": 43,
+      "all_bib_keys_actually_cited": true,
+      "all_24_figures_present": true,
+      "text_outside_page": [],
+      "source_files": 35,
+      "online_source_matches_local": true,
+      "pdf_sha256": "47dac9e4453fe401660628fd9e48189abf3fb2a8298d8ecd9adb0f1dc787dfc0",
+      "source_zip_sha256": "6eab56b3ccdeeef9a2a8c44c06b117a8b9db8600bc71d625db734c9cddaf2b93",
+      "visual_review": "all pages inspected as contact sheets; EN7,8,17 and bibliography checked at readable scale; all original annotated blank regions resolved"
+    },
+    "ZH": {
+      "pages": 19,
+      "unknown_references": 0,
+      "bibliography_entries": 43,
+      "all_bib_keys_actually_cited": true,
+      "all_24_figures_present": true,
+      "text_outside_page": [],
+      "source_files": 35,
+      "online_source_matches_local": true,
+      "pdf_sha256": "e3d1eef501726cdd7f36043c6c350b6cb859bcca9c44e689c649ae12f43e4d94",
+      "source_zip_sha256": "480520e9f668fc9729f87f213a639fa0351d877cb1a9d47eb458e04027d9d261",
+      "visual_review": "all pages inspected as contact sheets; EN7,8,17 and bibliography checked at readable scale; all original annotated blank regions resolved"
+    }
+  },
+  "max_score_rounding_difference": 4.971078517046479e-05
+}

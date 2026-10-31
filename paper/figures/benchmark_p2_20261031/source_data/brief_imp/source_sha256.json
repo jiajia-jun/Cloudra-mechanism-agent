@@ -1,0 +1,8 @@
+{
+  "tables/final_scores_per_run.csv": "d0c9105dac124031f87882d31c06b925f5aa9ed3c19c865929873c58ddaabf99",
+  "runs/raw_scores_p2.csv": "8294a28722957442fc4b3f1574634deef4356e2cc59d6bff39fbc0fe7c52a4ef",
+  "reports/catalog.csv": "599ea2339223dc451c4e1d899b4f369b8ff405aa64f944bffd807b5b31f660e1",
+  "reconstructions/brief-errors/IC3/mechanism_graph.json": "dc67f154844cd7a2febbfd8ea3290424742b8d04ca73baf8442f82c5c475fc52",
+  "reconstructions/brief-errors/IC3/provenance.md": "1e9a8cf695b7a173b84c84ea98d55908bf47d782c56572dc981584f086ebf54f",
+  "reconstructions/standard/IA9/provenance.md": "f94deae71085983cfb4ec80961efa5c9dc0c20f5309066f241a40a363cf8d1b9"
+}

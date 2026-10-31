@@ -5,7 +5,7 @@ Cloudra takes reactant identities, reaction conditions, target species or mechan
 
 The multi-agent system divides responsibilities by functional role. The Coordinator formulates mechanistic hypotheses, proposes candidate elementary reaction steps, and maintains exploration branches. Computational agents execute assigned reaction steps, invoking geometric operators to assemble three-dimensional coordinates and scheduling quantum chemical calculations. When an assigned step encounters geometric divergence, saddle-point nonconvergence, or pathway bifurcation, the computational agent assesses whether the step remains viable; if the current step appears obstructed, it feeds diagnostic information back to the Coordinator to adjust the hypothesis or switch branches. The Supervisor independently audits the delivery graph against task specifications, maintaining review notes separately from parsed computational facts.
 
-\begin{figure*}[tbp]
+\begin{figure*}[!tbp]
 \centering
 \includegraphics[width=\textwidth]{figures/fig04.pdf}
 \caption{Cloudra multi-agent system architecture: coupling mechanistic hypothesis generation (Coordinator), deterministic geometric manipulation (Operators), asynchronous computational execution (ComputeDB), and physical evidence validation gates.}
@@ -19,7 +19,7 @@ The computational execution harness is governed by a central calculation ledger 
 A molecular input consists of an attributed graph $H=(A,B)$ and Cartesian coordinates $\mathbf{X}\in\mathbb{R}^{n\times 3}$. Here $A$ is the atom set, $B$ is the bond set, and each row of $\mathbf{X}$ gives one atom position. Atom and bond attributes encode chemical identity; coordinate operators update $\mathbf{X}$ and return measured changes. Operators that replace atoms or functional groups also update $H$.
 
 \subsubsection{Atom Correspondence and Reaction Centers}
-Atom attributes retain element, isotope, formal charge, hydrogen count, radical-electron count, and declared stereochemistry; bond attributes retain order and stereochemical labels. Components lacking three-dimensional coordinates are embedded using ETKDGv3 \citep{ref12,ref13}, then assembled if necessary. Existing coordinates are retained. Complete, unique atom-map labels on both endpoints define the correspondence directly and must agree in element and isotope. Otherwise, let $A_{\mathrm{P}}$ and $A_{\mathrm{R}}$ be the product and reactant heavy-atom sets. Candidate bijections $\pi:A_{\mathrm{P}}\to A_{\mathrm{R}}$ satisfy $z_i^{\mathrm{P}}=z_{\pi(i)}^{\mathrm{R}}$ and $\iota_i^{\mathrm{P}}=\iota_{\pi(i)}^{\mathrm{R}}$, where $z$ is atomic number and $\iota$ is isotope label. Each candidate is scored by
+Atom attributes retain element, isotope, formal charge, hydrogen count, radical-electron count, and declared stereochemistry; bond attributes retain order and stereochemical labels. Components lacking three-dimensional coordinates are embedded using ETKDGv3 \citep{ref12,etkdg2020,ref13}, then assembled if necessary. Existing coordinates are retained. Complete, unique atom-map labels on both endpoints define the correspondence directly and must agree in element and isotope. Otherwise, let $A_{\mathrm{P}}$ and $A_{\mathrm{R}}$ be the product and reactant heavy-atom sets. Candidate bijections $\pi:A_{\mathrm{P}}\to A_{\mathrm{R}}$ satisfy $z_i^{\mathrm{P}}=z_{\pi(i)}^{\mathrm{R}}$ and $\iota_i^{\mathrm{P}}=\iota_{\pi(i)}^{\mathrm{R}}$, where $z$ is atomic number and $\iota$ is isotope label. Each candidate is scored by
 
 \begin{equation}\label{eq:methods-01}
 \begin{aligned}
@@ -85,10 +85,10 @@ S(\mathbf{X})=\max_{(i,j)\in W}\{&0,\,l_{ij}-d_{ij}(\mathbf{X}),\\
 \end{aligned}
 \end{equation}
 
-Candidate configurations with low $S(\mathbf{X})$ are deployed as seeds for distance-restrained MMFF94 force-field optimization, guiding fragments toward target interaction intervals while relaxing nonbonded contacts. Qualified candidates must simultaneously satisfy force-field convergence, distance compliance, stereochemical retention, and fragment contact connectivity $d_{i^*j^*}\le 1.7(r_{i^*}+r_{j^*})$. Qualified candidates are ranked by unconstrained single-point energy and clustered with a heavy-atom Kabsch RMSD threshold of 0.5 Å to yield preorganization seeds.
+Candidate configurations with low $S(\mathbf{X})$ are deployed as seeds for distance-restrained MMFF94 force-field optimization\citep{mmff941996}, guiding fragments toward target interaction intervals while relaxing nonbonded contacts. Qualified candidates must simultaneously satisfy force-field convergence, distance compliance, stereochemical retention, and fragment contact connectivity $d_{i^*j^*}\le 1.7(r_{i^*}+r_{j^*})$. Qualified candidates are ranked by unconstrained single-point energy and clustered with a heavy-atom Kabsch RMSD threshold of 0.5 Å to yield preorganization seeds.
 
 \subsubsection{Endpoint Alignment and IDPP Interpolation}
-After all-atom correspondence is established, each endpoint is centered. Let $\mathbf{P}$ and $\mathbf{R}$ be the centered product and reactant coordinate matrices. Kabsch alignment solves
+After all-atom correspondence is established, each endpoint is centered. Let $\mathbf{P}$ and $\mathbf{R}$ be the centered product and reactant coordinate matrices. Kabsch alignment\citep{ref07} solves
 
 \begin{equation}\label{eq:methods-07}
 \begin{gathered}
@@ -109,7 +109,7 @@ V_k&=\sum_{i<j}\frac{(d_{ij,k}-d_{ij,k}^*)^2}{d_{ij,k}^4}.
 \end{aligned}
 \end{equation}
 
-The inverse-fourth-power weighting $d_{ij,k}^{-4}$ imparts stiffness to short covalent bonds, prioritizing the preservation of basic covalent distances while allowing long-range nonbonded contacts to relax. Standard mode couples intermediate images with improved-tangent nudged elastic band (NEB) springs and optimizes with MDMin, evaluating convergence by the maximum force residual across movable atoms. Lightweight mode evaluates target distances with an objective denominator $\max(d_{ij,k}^*,0.1\,\text{Å})^4$ and relaxes intermediate images independently using Adam optimization.
+The inverse-fourth-power weighting $d_{ij,k}^{-4}$ imparts stiffness to short covalent bonds, prioritizing the preservation of basic covalent distances while allowing long-range nonbonded contacts to relax. Standard mode couples intermediate images with improved-tangent nudged elastic band (NEB) springs and optimizes with MDMin, evaluating convergence by the maximum force residual across movable atoms.\citep{neb2000,ase2017} Lightweight mode evaluates target distances with an objective denominator $\max(d_{ij,k}^*,0.1\,\text{Å})^4$ and relaxes intermediate images independently using Adam optimization.\citep{adam2015}
 
 Active monitoring pairs $W$ incorporate bond-state changes, pairs bonded at both endpoints with $|\Delta d|\ge 0.15$ Å, and the five atom pairs exhibiting the largest endpoint distance variations. Within the monitoring set $W$, the primary reaction coordinate is selected by $p^*\in\operatorname{argmax}_{p\in W}|d_p^{\mathrm{P}}-d_p^{\mathrm{R}}|$, setting $m=(d_{p^*}^{\mathrm{R}}+d_{p^*}^{\mathrm{P}})/2$. The initial transition-state guess is extracted from the first image $k$ satisfying $(d_{p^*,k}-m)(d_{p^*}^{\mathrm{R}}-m)\le 0$, or the image minimizing $|d_{p^*,k}-m|$. The selected configuration serves as the initial seed for saddle-point optimization.
 
@@ -198,17 +198,10 @@ The set $U$ records the agent's outstanding targets. Structured diagnostic feedb
 
 Recovery preserves historical attempts and raw calculation outputs while rescheduling dependent stages. Atom index reordering, evidence binding, and graph status updates are handled by the harness, allowing the model to focus on modifying chemical constraints, adjusting dihedral angles, or selecting alternative electronic-structure approximations.
 
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=\textwidth]{figures/fig05.pdf}
-\caption{CloudraBench task composition and research themes. (a) Counts and evaluation focus of the four task tiers. (b) Two-dimensional PCA of BAAI/bge-m3 embeddings of all 50 original task names. E1, NB1, HA1, and IA1 are the four tasks used in the repeated-run experiment. Colors and marker shapes encode the predefined task tiers.}
-\label{fig:05}
-\end{figure*}
+
 
 \subsection{Implementation Defaults}
-The implementation described here corresponds to Cloudra revision 70daa5a. Preorganization uses 32 rigid orientations, up to 8 guided placements, minimum interfragment separation 1.0 Å, fragment-contact multiplier 1.7, and heavy-atom RMSD clustering threshold 0.5 Å. MMFF94 relaxation uses up to 2000 iterations per phase with a distance restraint force constant of 100.0. Standard IDPP employs 10 images optimized via MDMin (100 steps, force tolerance $f_{\max}=0.1$, NEB spring constant $k=0.1$); lightweight IDPP uses Adam optimization (4000 steps, step size 0.02, gradient tolerance $10^{-7}$). Path convergence criteria evaluate the maximum force residual on intermediate path images.
-
-
+The implementation described here corresponds to Cloudra revision 70daa5a.\citep{ref14} Numerical arrays and linear algebra use NumPy\citep{numpy2020}; quantum-chemical quantities are extracted with cclib alongside engine-specific native-log readers\citep{cclib2008}; and benchmark graph representation and matching use NetworkX\citep{networkx2008}. Preorganization uses 32 rigid orientations, up to 8 guided placements, minimum interfragment separation 1.0 Å, fragment-contact multiplier 1.7, and heavy-atom RMSD clustering threshold 0.5 Å. MMFF94 relaxation uses up to 2000 iterations per phase with a distance restraint force constant of 100.0. Standard IDPP employs 10 images optimized via MDMin (100 steps, force tolerance $f_{\max}=0.1$, NEB spring constant $k=0.1$); lightweight IDPP uses Adam optimization (4000 steps, step size 0.02, gradient tolerance $10^{-7}$). Path convergence criteria evaluate the maximum force residual on intermediate path images.\par
 
 \subsection{CloudraBench construction and experimental design}
 
@@ -220,10 +213,30 @@ CloudraBench contains 50 tasks: 20 Easy tasks examine elementary transformations
 
 \subsubsection{Reference answers and evaluation protocol}
 
-Each task fixes the chemical conditions, charge, spin, deliverables, and allowed methods. Easy, Normal, and Hard tasks permit xTB, PM7, and B3LYP-D3(BJ)/def2-SVP; Impossible tasks are restricted to xTB and PM7. Computational evidence is read from native ORCA or Gaussian logs. Reference answers specify species, elementary steps, stereochemical identities, and applicable numerical or negative targets. Numerical barriers are electronic energy differences at a consistent level of theory; stable-minimum references and actual IRC connectivity are verified separately. For accessible reaction steps requiring verification, TS frequencies, bidirectional IRCs, outer-frame provenance, and endpoint optimization/frequency calculations form the evidence chain. Species-property and electronic-state questions are checked against their specified targets.
+Each task fixes the chemical conditions, charge, spin, deliverables, and allowed methods. Easy, Normal, and Hard tasks permit xTB\citep{gfn2xtb2019}, PM7\citep{pm72013}, and B3LYP-D3(BJ)/def2-SVP\citep{becke1993,lyp1988,stephens1994,d32010,d3bj2011,def22005}; Impossible tasks are restricted to xTB and PM7. Computational evidence is read from native ORCA, Gaussian, or MOPAC logs.\citep{orca2025,gaussian16,mopac2026,ref11} Reference answers specify species, elementary steps, stereochemical identities, and applicable numerical or negative targets. Numerical barriers are electronic energy differences at a consistent level of theory; stable-minimum references and actual IRC connectivity are verified separately. For accessible reaction steps requiring verification, TS frequencies, bidirectional IRCs, outer-frame provenance, and endpoint optimization/frequency calculations form the evidence chain. Species-property and electronic-state questions are checked against their specified targets.
 
-Graph structure, self-consistency, and accuracy are evaluated separately and combined with weights of 0.1, 0.3, and 0.6. Scientific acceptance and delivery completeness are reported separately. Offline organization recovers information already present in a run, recording human intervention and field provenance without adding research conclusions from Gold. Correct recognition of a method limitation does not require an invented barrier. Reference-evidence completeness, special treatment, and unresolved qualifications are documented per task; the presence of a reference graph and complete scientific acceptance are assessed separately.
+\begin{figure*}[!tbp]
+\begin{minipage}{\textwidth}
+\centering
+\includegraphics[width=\textwidth]{figures/fig05.pdf}
+\caption{CloudraBench task composition and research themes. (a) Counts and evaluation focus of the four task tiers. (b) Two-dimensional PCA, computed with scikit-learn\citep{sklearn2011}, of BAAI/bge-m3 embeddings\citep{bgem32024} of all 50 original task names. E1, NB1, HA1, and IA1 are the four tasks used in the repeated-run experiment. Colors and marker shapes encode the predefined task tiers.}
+\label{fig:05}
+\end{minipage}
+\end{figure*}
 
-\subsubsection{Repeated-task experiment and full-benchmark ablation}
+\subsubsection{Scoring and study configurations}
 
-The two experiments compare four experimental branches: Guided, Record, Standard, and Brief-errors. In these experimental settings, Guided retains explicit evidence organization, scientific checks, and detailed diagnostics; Record removes mandatory acceptance; Standard additionally removes explicit DAG tools and neutralizes scientific feedback; and Brief-errors compresses diagnostic information. The repeated-task experiment uses E1, NB1, HA1, and IA1 with three independent runs per task and configuration, yielding 48 runs to examine repeatability and research trajectories. The full-benchmark experiment uses one independent sandbox per task and configuration across all 50 tasks, yielding 200 sandboxes to examine coverage across tasks. Comparisons use common task statements, method restrictions, and offline organization rules; run versions, budgets, and stopping reasons are archived with the data.
+Graph structure, self-consistency, and accuracy are evaluated separately and combined with weights of 0.1, 0.3, and 0.6. Scientific acceptance and delivery completeness are reported separately. Correct recognition of a method limitation does not require an invented barrier. Reference-evidence completeness, special treatment, and unresolved qualifications are documented per task; the presence of a reference graph and complete scientific acceptance are assessed separately.
+
+\subsubsection{Repeated-task study, primary comparison, and workflow ablations}
+
+The repeated-task study compares Guided, Standard, Record, and Brief-errors on E1, NB1, HA1, and IA1, with three independent runs per combination (48 runs). The repeated runs used DeepSeek-v4-flash.\citep{deepseekv42026} E1, NB1, HA1, and IA1 respectively concern elimination preorganization, multistep decarboxylation, stereochemical ring opening, and electronic-structure method limits; their archived trajectories supply the subsequent local diagnostic cases. Its elapsed-time unit is a four-task batch at a concurrency of two, with three batches per configuration. The full-benchmark study retains one run for each of the 50 tasks and four configurations (200 runs). The primary comparison is Guided against the actual Standard branch using the same model backbone.
+
+
+
+Standard hides explicit DAG tools, removes scientific acceptance interception, and supplies neutral computational feedback. Guided retains the research graph, scientific checks, and detailed diagnostics. Record preserves available tools and records while removing mandatory acceptance; Brief-errors retains guidance while shortening diagnostics. Common task statements and method restrictions apply across configurations; run versions, budgets, stopping reasons, and artifact provenance are retained in the archive.
+
+
+
+Offline organization assembles each mechanism graph from the corresponding run's conversations, tool records, reports, and computational artifacts, and aligns the graph's scores with the run's existing component records while retaining field provenance. It adds no conclusions from Gold. The final analysis contains all 200 runs, with Graph, Self-consistency, and Accuracy aligned to each organized composite score. Paired differences and 95\% percentile intervals use 100,000 task-cluster bootstrap samples, retaining the four configurations of each task together (seed 20261031). Computational effort uses the 15 selected tasks shared by all four configurations in the deep-dive archive, reporting quantum-chemical job counts and cumulative job-hours. These effort measurements and the pilot's batch elapsed times are reported as separate quantities.
+

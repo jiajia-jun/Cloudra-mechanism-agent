@@ -1,0 +1,11 @@
+{
+  "source_rows": 200,
+  "component_values_reproduced": 600,
+  "total_scores_reproduced": 200,
+  "component_numeric_differences": [],
+  "score_numeric_differences": [],
+  "original_publication_and_figure_files_unchanged": 41,
+  "max_score_rounding_difference": 4.971078517046479e-05,
+  "replay_script": "scripts/benchmark_p2/prepare_publication_data.py",
+  "method": "Unmodified script replayed from nine standalone source files in an isolated temporary directory; original publication data and figures remain unchanged."
+}

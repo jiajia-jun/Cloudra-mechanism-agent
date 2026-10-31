@@ -1,0 +1,34 @@
+{
+  "unique_runs": 200,
+  "tasks": 50,
+  "primary_comparison": "guided - standard (actual same-backbone baseline)",
+  "hard_paired_wins": 10,
+  "buildStatus": "complete",
+  "report_sections": 12,
+  "checks": [
+    "200 unique arm/task keys",
+    "4 arms × 50 tasks",
+    "baseline paired figures match CSV",
+    "bootstrap and component tables independently reviewed",
+    "Discussion contains interpretation limits",
+    "split HTML build and portable offline export succeed",
+    "200×3 publication components complete",
+    "all 50 paired component decompositions",
+    "weighted components reproduce all final scores to saved rounding",
+    "original final scores unchanged",
+    "stable app identity and existing style preserved"
+  ],
+  "figures": [
+    "figures/backbone_comparison.png",
+    "figures/backbone_comparison.svg"
+  ],
+  "sources": "evidence/",
+  "publication_runs": 200,
+  "publication_components": 600,
+  "complete_task_pairs": 50,
+  "component_exclusions": 0,
+  "component_max_saved_rounding_error": 4.971078517046479e-05,
+  "report_identity": "report:f24a9031-996a-4c63-a794-c8a195799524",
+  "all_original_final_scores_unchanged": true,
+  "browser_visual_check": "Unavailable: cua reports no browser available. Existing ReportContent/CSS preserved; installed-runtime build and offline export succeeded."
+}

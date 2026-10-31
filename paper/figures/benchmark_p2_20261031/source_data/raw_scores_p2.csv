@@ -1,0 +1,398 @@
+batch,arm,task_id,tier,final,graph,selfconsistency,accuracy,notes_first
+P2b,guided,D3,easy,0.745,1.0,0.75,0.7,"edge step_139cce16: IRC proof TS candidates (anchor, frequency witness): [('gjf/TS_endo_v1.log', 'gjf/TS_endo_v1.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/6cd80c03044a2edc_RC_min.log', 'gjf/.cloudra/execution"
+P2b,guided,D1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,E1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,F1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,D4,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,F4,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,G2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,G3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,L1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,L2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,M1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,M14,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,M15,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,M16,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,M17,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,M3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,M8,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,P2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,P3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,X1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NB1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NI1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NI5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NQ1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NQ5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NR1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NU3,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NU5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NU6,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,NY3,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HA1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HA6,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HA8,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HB1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HB10,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HD2,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HF1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HH1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HI1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,HL1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IA1,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IA5,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IA7,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IA9,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IB9,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IC3,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,ID2,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IE2,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IF3,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,guided,IG8,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,D1,easy,0.7992,0.7916666666666666,1.0,0.7,gold edge D1_E1 matched delivered step e1 by endpoint species
+P2b,record,D3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,E1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,F1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,F4,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,G2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,G3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,D4,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,L1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,L2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,M1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,M14,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,M15,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,M16,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,M17,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,M3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,M8,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,P2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,P3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,X1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NB1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NI1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NI5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NQ1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NQ5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NR1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NU3,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NU5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NU6,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,NY3,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HA1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HA6,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HA8,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HB1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HB10,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HD2,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HF1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HH1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HI1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,HL1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IA1,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IA5,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IA7,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IA9,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IB9,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IC3,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,ID2,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IE2,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IF3,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,record,IG8,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,D3,easy,0.9247,1.0,0.75,0.9994958200835024,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0014/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0014/frequency/frequency.log')]; SOURCE endpoint evidence: ['min/rc"
+P2b,standard,D4,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,E1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,F1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,F4,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,G2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,G3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,L1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,L2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,M1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,M14,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,M15,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,D1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,M16,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,M17,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,M3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,M8,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,P2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,P3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,X1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NB1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NI1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NI5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NQ1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NQ5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NR1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NU3,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NU5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NU6,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,NY3,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HA1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HA6,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HA8,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HB1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HB10,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HD2,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HF1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HH1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HI1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,HL1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IA1,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IA5,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IA7,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IA9,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IB9,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IC3,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,ID2,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IE2,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IF3,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,standard,IG8,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,D1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,D4,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,E1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,F1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,F4,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,D3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,G2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,G3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,L1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,L2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,M1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,M14,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,M15,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,M16,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,M17,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,M3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,M8,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,P2,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,P3,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,X1,easy,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NB1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NI1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NI5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NQ1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NQ5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NR1,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NU3,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NU5,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NU6,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,NY3,normal,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HA1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HA6,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HA8,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HB1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HB10,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HD2,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HF1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HH1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HI1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,HL1,hard,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IA1,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IA5,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IA7,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IA9,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IB9,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IC3,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,ID2,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IE2,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IF3,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2b,brief-errors,IG8,impossible,0.0,0.0,0.0,0.0,cancelled by batch stop
+P2c,guided,D1,easy,0.82,1.0,1.0,0.7,gold edge D1_E1 matched delivered step e1 by endpoint species
+P2c,guided,D4,easy,0.925,1.0,0.75,0.999981895318618,"edge step_4b1e2415: IRC proof TS candidates (anchor, frequency witness): [('round6_ts2/ts_optfreq.log', 'round6_ts2/ts_optfreq.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/1e919daa8d8a3a4a_rc_end_b_optfreq.log',"
+P2c,guided,E1,easy,1.0,1.0,1.0,0.999972110014782,gold edge E1_E1 matched delivered step e1 by endpoint species
+P2c,guided,F4,easy,0.3601,0.6009018553609635,1.0,0.0,gold edge F4_E1 carries a reference barrier but no delivered step matches its endpoint species; scored 0
+P2c,guided,F1,easy,0.9417,0.9166666666666666,0.8333333333333334,0.9999998242201098,species INT_ionpair: verified minima do not cover every declared species; a complex needs its own minimum
+P2c,guided,G3,easy,0.9832,0.8333333333333334,1.0,0.99983024702055,gold edge G3_E1 matched delivered step Concerted Alder-ene addition by endpoint species
+P2c,guided,G2,easy,0.2389,0.888888888888889,0.5,0.0,unbound nodes (no matching evidence file): ['sp_ece0bcef']
+P2c,guided,L1,easy,0.9999,1.0,1.0,0.9998993364405472,gold edge L1_E1 matched delivered step e1 by endpoint species
+P2c,guided,M1,easy,0.9478,1.0,1.0,0.913061907917538,gold edge M1_E1 matched delivered step Aryl-Aryl Rotation by endpoint species
+P2c,guided,L2,easy,0.745,1.0,0.75,0.7,"edge step_29e6224c: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log', 'ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/e"
+P2c,guided,M15,easy,1.0,1.0,1.0,0.9999986440023167,gold edge M15_E1 matched delivered step e1 by endpoint species
+P2c,guided,M14,easy,1.0,1.0,1.0,0.9999999992333282,gold edge M14_E1 matched delivered step step_3a338c0a by endpoint species
+P2c,guided,M17,easy,0.9999,1.0,1.0,0.9999144382854448,"gold edge M17_E1 matched delivered step 1,2-Methyl Shift by endpoint species"
+P2c,guided,M3,easy,1.0,1.0,1.0,0.9999959176567847,gold edge M3_E1 matched delivered step e1 by endpoint species
+P2c,guided,M16,easy,0.9748,1.0,0.9166666666666666,0.9996909278514492,"edge e2: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0007/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0007/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cloud"
+P2c,guided,M8,easy,0.9996,1.0,1.0,0.9993349633240488,gold edge M8_E1 matched delivered step e1 by endpoint species
+P2c,guided,P2,easy,1.0,1.0,1.0,0.999947516027788,gold edge P2_E1 matched delivered step step_8ec9e109 by endpoint species
+P2c,guided,X1,easy,0.9999,1.0,1.0,0.9999161663906276,gold edge X1_E1 matched delivered step e1 by endpoint species
+P2c,guided,P3,easy,0.938,1.0,1.0,0.8967388728350613,gold edge P3_E1 matched delivered step e1 by endpoint species
+P2c,guided,NI1,normal,0.9958,1.0,1.0,0.9930462551968232,gold edge NI1_E1 matched delivered step e1 by endpoint species
+P2c,guided,NB1,normal,0.9628,0.6285714285714286,1.0,0.9999717501293452,gold edge NB1_E1 matched delivered step e1 by endpoint species
+P2c,guided,NQ1,normal,0.7395,0.9454545454545454,0.75,0.7,"edge step_24e66693: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log', 'ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log')]; SOURCE endpoint evidence: ['.cloudr"
+P2c,guided,NQ5,normal,0.7075,1.0,0.625,0.7,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('jobs/ts1/ts1_tsB_optfreq.log', 'jobs/ts1/ts1_tsB_optfreq.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/30837a8ba17597d0_rc_c2_optfreq.log', 'jobs/r"
+P2c,guided,NR1,normal,0.6167,0.6666666666666667,0.8333333333333334,0.4999999450855771,partial-credit binds (protonation/charge-state variants): ['TS2']
+P2c,guided,NI5,normal,0.7715,0.9285714285714286,1.0,0.631094155877326,edge s1_addition: no transition-state node (`via`)
+P2c,guided,NU3,normal,0.5527,0.7768319284448859,0.9166666666666666,0.3333296644618405,"edge step_eabc0c6d: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0002/jobs/declaration_0004/frequency/frequency.log', 'ts/ts_0002/jobs/declaration_0004/frequency/frequency.log')]; SOURCE endpoint evidenc"
+P2c,guided,NU5,normal,0.3518,0.6428571428571428,0.9583333333333334,0.0,"edge sA_CC_coupling_to_IMI: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log', 'ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log')]; SOURCE endpoint evidence: ["
+P2c,guided,NU6,normal,0.6719,1.0,0.9375,0.4843927680180522,edge step_e864fbc7: no evidence explicitly associated with TS sp_77fb8cb9; declare its evidence_log or energy_hartree
+P2c,guided,HA1,hard,0.9625,1.0,0.875,1.0,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0004/jobs/declaration_0001/ts_opt/refine.log', 'ts/ts_0004/jobs/declaration_0001/ts_opt/refine.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/"
+P2c,guided,NY3,normal,1.0,1.0,1.0,0.9999983789411312,edge e3: several minima of CA1 below the saddle; using work/min/ca_conf1_opt_freq.log (lowest-energy stable intermediate in the declared source conformational state)
+P2c,guided,HA6,hard,0.975,1.0,0.9166666666666666,1.0,unbound nodes (no matching evidence file): ['TS_dis']
+P2c,guided,HA8,hard,0.9625,1.0,0.875,0.9999610124858388,"edge cyclization_cis_intrinsic: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0003/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0003/frequency/frequency.log')]; SOURCE endp"
+P2c,guided,HB1,hard,0.9325,0.7,0.875,1.0,"edge step_20ffd8c3: IRC proof TS candidates (anchor, frequency witness): [('ts_exo_opt.log', 'ts_exo_opt.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/902e249b868c7877_rc_endo_minA.log', '.cloudra/execution-1794/"
+P2c,guided,HB10,hard,0.9995,1.0,1.0,0.9992252863434854,gold edge HB10_E1 matched delivered step e_endo by endpoint species
+P2c,guided,HD2,hard,0.7867,0.6666666666666667,1.0,0.7,gold edge HD2_E1 matched delivered step anti_opening_trans_irc by endpoint species
+P2c,guided,HF1,hard,0.0,0.0,0.0,0.0,task crashed: TimeoutError('waiting for Supervisor exit review but no live supervisor remains in project prj_7f049aa675de4457')
+P2c,guided,HH1,hard,0.9838,1.0,1.0,0.9730666654437904,gold edge HH1_E1 matched delivered step step_042bf2b6 by endpoint species
+P2c,guided,HI1,hard,0.9999,0.9991757922811216,1.0,0.9999980820585171,gold edge HI1_e1_erythro_syn matched delivered step step_da041b5e by endpoint species
+P2c,guided,IA1,impossible,-1.0,0.0,0.35,0.0,"unbound nodes (no matching evidence file): ['sp_2330d85b', 'sp_fdd873b3', 'sp_34cbb128']"
+P2c,guided,HL1,hard,0.9999,0.9991757922811216,1.0,0.9999989467349392,gold edge e_exo matched delivered step step_d4517147 by endpoint species
+P2c,guided,IA5,impossible,0.4,1.0,1.0,0.0,"edge conrotatory_ring_opening: several saddle logs ['ts/ts_0001/jobs/declaration_0005/frequency/frequency.log', 'work/final_ts_optfreq.log']; using ts/ts_0001/jobs/declaration_0005/frequency/frequency.log (deterministic "
+P2c,guided,IA7,impossible,0.2583,0.3333333333333333,0.75,0.0,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,guided,IA9,impossible,0.3667,0.6666666666666667,1.0,0.0,edge IA9_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0
+P2c,guided,IC3,impossible,-1.0,0.3333333333333333,0.5,0.0,"unbound nodes (no matching evidence file): ['sp_1fd25e06', 'sp_328f0f69']"
+P2c,guided,ID2,impossible,0.3339,0.3392436312341828,1.0,0.0,"unbound nodes (no matching evidence file): ['FOO', 'F']"
+P2c,guided,IB9,impossible,0.82,1.0,1.0,0.7,transition_state TS2: no accessible edge through this TS is covered
+P2c,guided,IE2,impossible,0.3333,0.3333333333333333,1.0,0.0,unbound nodes (no matching evidence file): ['2N']
+P2c,guided,IF3,impossible,-1.0,0.3333333333333333,0.0,0.0,unbound nodes (no matching evidence file): ['T1-triangulene']
+P2c,guided,IG8,impossible,0.3,0.0,1.0,0.0,"unbound nodes (no matching evidence file): ['Cr2', 'Cr2_asymptote']"
+P2c,record,D4,easy,0.9104,1.0,0.75,0.9756990479348993,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0005/ts_opt/refine.log', '.cloudra/evidence/c813f9635a6b95dd_frequency.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/2b"
+P2c,record,E1,easy,1.0,1.0,1.0,0.9999727446666812,gold edge E1_E1 matched delivered step e1 by endpoint species
+P2c,record,F1,easy,0.9917,0.9166666666666666,1.0,0.99999982706104,gold edge F1_E1 matched delivered step e1 by endpoint species
+P2c,record,D3,easy,0.794,0.9444444444444444,0.35,0.9909394571070966,"edge e_endo: IRC proof TS candidates (anchor, frequency witness): [('endo/work/endo_ts_optfreq_v4.log', 'endo/work/endo_ts_optfreq_v4.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/f44da1ccf1bf21e1_RC_complex_prob"
+P2c,record,F4,easy,0.2583,0.3333333333333333,0.75,0.0,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,record,G2,easy,0.7769,1.0,0.5,0.8781609817939373,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0003/jobs/declaration_0001/frequency/frequency.log', 'ts/ts_0003/jobs/declaration_0001/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cloud"
+P2c,record,L1,easy,0.9999,1.0,1.0,0.9999000562958816,gold edge L1_E1 matched delivered step e1 by endpoint species
+P2c,record,G3,easy,0.9832,0.8333333333333334,1.0,0.9998302161902028,gold edge G3_E1 matched delivered step e1 by endpoint species
+P2c,record,M1,easy,0.9476,1.0,1.0,0.912639041424962,gold edge M1_E1 matched delivered step e1 by endpoint species
+P2c,record,L2,easy,0.8549,1.0,0.75,0.8832305081044819,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results/refine.log', 'ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results"
+P2c,record,M15,easy,1.0,1.0,1.0,0.9999833830484204,gold edge M15_E1 matched delivered step e1 by endpoint species
+P2c,record,M16,easy,0.9915,0.9166666666666666,1.0,0.9996940757622472,gold edge M16_E1 matched delivered step e1 by endpoint species
+P2c,record,M17,easy,0.9999,1.0,1.0,0.99991361000019,gold edge M17_E1 matched delivered step e1 by endpoint species
+P2c,record,M3,easy,1.0,1.0,1.0,0.9999959532245056,gold edge M3_E1 matched delivered step e1 by endpoint species
+P2c,record,M8,easy,0.9996,1.0,1.0,0.9992941593643652,gold edge M8_E1 matched delivered step e1 by endpoint species
+P2c,record,P2,easy,0.9833,0.8333333333333334,1.0,0.9999472650042056,gold edge P2_E1 matched delivered step e1 by endpoint species
+P2c,record,M14,easy,1.0,1.0,1.0,0.9999999993005864,gold edge M14_E1 matched delivered step e1 by endpoint species
+P2c,record,X1,easy,0.9999,1.0,1.0,0.9999156401584646,gold edge X1_E1 matched delivered step e1 by endpoint species
+P2c,record,P3,easy,0.938,1.0,1.0,0.8967347568333611,gold edge P3_E1 matched delivered step e1 by endpoint species
+P2c,record,NI1,normal,0.7767,0.8166666666666667,0.9166666666666666,0.7,"edge e2: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log', '.cloudra/evidence/c44f04b8fa7a6d34_frequency.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/f4"
+P2c,record,NB1,normal,0.8625,0.6,0.675,0.999971547994984,"edge e3: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0004/jobs/declaration_0001/ts_opt/refine.log', '.cloudra/evidence/4ba76197c69078cd_frequency.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/3f"
+P2c,record,NI5,normal,0.1542,0.4423750763783267,0.3666666666666667,0.0,"partial-credit binds (protonation/charge-state variants): ['TS2', 'TS3']"
+P2c,record,NQ1,normal,0.7131,0.6808080808080808,0.75,0.7,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log', 'ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/"
+P2c,record,NR1,normal,0.5378,0.7777777777777778,0.5333333333333333,0.4999999310364946,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0003/jobs/declaration_0001/ts_opt/refine.log', 'ts/ts_0003/jobs/declaration_0001/ts_opt/refine.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/"
+P2c,record,NQ5,normal,0.8725,1.0,0.625,0.974998626171599,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('calc/ts1_ts.log', 'calc/ts1_ts.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/c5b599db0e9a49a6_rc_conf3.log', 'calc/.cloudra/execution-595/results/r"
+P2c,record,NU3,normal,0.3929,0.4285714285714286,0.5,0.3333295765991493,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,record,NU5,normal,0.2966,0.7797619047619048,0.2333333333333333,0.2477414721499762,species IM1: verified minima do not cover every declared species; a complex needs its own minimum
+P2c,record,NU6,normal,0.145,0.4,0.35,0.0,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0004/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0004/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cloud"
+P2c,record,NY3,normal,0.5217,0.7168551728517274,0.8333333333333334,0.3333332454880247,"unbound nodes (no matching evidence file): ['TS1', 'TS2', 'P']"
+P2c,record,HA1,hard,0.925,1.0,0.75,1.0,"edge e_E: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0004/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0004/frequency/frequency.log')]; SOURCE endpoint evidence: ['.clou"
+P2c,record,HA6,hard,0.975,1.0,0.9166666666666666,1.0,edge e3: no evidence explicitly associated with TS TS_dis_EZ; declare its evidence_log or energy_hartree
+P2c,record,HA8,hard,0.925,1.0,0.75,0.9999607349456135,"edge disrotatory_closure_helicity_P: IRC proof TS candidates (anchor, frequency witness): [('qm/chA/ts_comb_optfreq.log', 'qm/chA/ts_comb_optfreq.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/c6baa3206ffb8eb7_R_t"
+P2c,record,HB10,hard,0.8044,0.999010950737346,0.35,0.9992256887944724,"edge e_exo: IRC proof TS candidates (anchor, frequency witness): [('chan_A_endostart/ts_A.log', 'chan_A_endostart/ts_A.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/f53c33f74b98aad0_complex_min_A.log', 'chan_A_en"
+P2c,record,HB1,hard,0.97,0.7,1.0,1.0,qualitative selectivity: favored channel 'endo' matches the reference; scored 1
+P2c,record,HD2,hard,0.595,1.0,0.25,0.7,"edge e-anti: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0006/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0006/frequency/frequency.log')]; SOURCE endpoint evidence: ['.c"
+P2c,record,HF1,hard,0.9072,0.8217276975908953,0.75,1.0,"edge e_syn: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log', '.cloudra/evidence/6691b4057efec5a7_frequency.log')]; SOURCE endpoint evidence: ['.cloudra/evidence"
+P2c,record,HH1,hard,0.7888,1.0,0.35,0.973065737978206,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log', '.cloudra/evidence/04e8890702249c21_frequency.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/8c"
+P2c,record,HI1,hard,0.935,0.9995878961405608,0.7833333333333333,0.9999980756277926,partial-credit binds (protonation/charge-state variants): ['sp_regio_ts']
+P2c,record,IA1,impossible,0.1717,0.6666666666666667,0.35,0.0,"edge e1: IRC proof TS candidates (anchor, frequency witness): ['sqc2/cbd_square_constr.log']; SOURCE endpoint evidence: ['.cloudra/evidence/88eb49f2ef70fb53_cbd_rect_opt.log', 'min/.cloudra/execution-1099/results/cbd_rec"
+P2c,record,IA5,impossible,0.4,1.0,1.0,0.0,edge e_dis: no first-order saddle log bound to TS TS_dis; barrier not derivable from evidence
+P2c,record,IA7,impossible,0.2583,0.3333333333333333,0.75,0.0,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,record,IA9,impossible,0.3667,0.6666666666666667,1.0,0.0,"edge e1: several saddle logs ['ts/ts_0001/jobs/declaration_0002/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log']; using ts/ts_0001/jobs/declaration_0002/frequency/frequency.log (determinist"
+P2c,record,IB9,impossible,0.545,0.1999999999999999,0.75,0.5,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,record,HL1,hard,0.8972,0.7222222222222222,0.75,0.9999946936762856,"edge e_exo: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0002/jobs/declaration_0003/frequency/frequency.log', 'ts/ts_0002/jobs/declaration_0003/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cl"
+P2c,record,IC3,impossible,-1.0,0.3333333333333333,0.0,0.0,"unbound nodes (no matching evidence file): ['PHN_T', 'PHN_S_CS']"
+P2c,record,ID2,impossible,-1.0,0.0,0.0,0.0,"unbound nodes (no matching evidence file): ['FOOF', 'PROD_F_FOO']"
+P2c,record,IE2,impossible,-1.0,0.0,0.0,0.0,"unbound nodes (no matching evidence file): ['RC', 'P']"
+P2c,record,IF3,impossible,-1.0,0.0,0.0,0.0,"unbound nodes (no matching evidence file): ['T1_triangulene', 'S0_triangulene']"
+P2c,record,IG8,impossible,-1.0,0.0,0.0,0.0,"unbound nodes (no matching evidence file): ['Cr2', 'Cr_atoms']"
+P2c,standard,D1,easy,0.8291,0.7916666666666666,0.5,0.9999598507797454,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log', '.cloudra/evidence/51428d30fb2b5df4_frequency.log')]; SOURCE endpoint evidence: ['rc/.cloudra/executio"
+P2c,standard,E1,easy,0.7828,0.7777777777777778,0.35,0.9999726333638552,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0001/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0001/frequency/frequency.log')]; SOURCE endpoint evidence: ['rc/.cl"
+P2c,standard,D4,easy,0.85,1.0,0.5,0.9999819079029708,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log', 'ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log')]; SOURCE endpoint evidence: ['rc_complex/rc_endo"
+P2c,standard,F1,easy,-1.0,0.0,0.0,0.0,mechanism_graph.json not found in sandbox
+P2c,standard,F4,easy,0.2583,0.3333333333333333,0.75,0.0,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,standard,G2,easy,0.7769,1.0,0.5,0.8781594087350141,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('work/concerted/TS1b_optfreq.log', 'work/concerted/TS1b_optfreq.log')]; SOURCE endpoint evidence: ['work/stepwise/.cloudra/execution-125/results/RC2_optfreq"
+P2c,standard,G3,easy,0.1417,0.6666666666666667,0.25,0.0,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,standard,L2,easy,0.67,1.0,0.5,0.7,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0001/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0001/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cloud"
+P2c,standard,M1,easy,0.7526,1.0,0.35,0.9126387965477356,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts_anti_v2.log', 'ts_anti_v2.log')]; SOURCE endpoint evidence: ['p_min_fwd.log', 'p_min_fwd_v2.log', 'rc_min.log', 'rc_min_v2.log']; TARGET endpoint eviden"
+P2c,standard,L1,easy,0.9749,1.0,0.9166666666666666,0.9999001065595352,"edge e3_sigma_only_description: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0007/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0007/frequency/frequency.log')]; SOURCE endp"
+P2c,standard,M14,easy,0.805,1.0,0.35,0.9999999991002304,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts_rotation.log', 'ts_rotation.log')]; SOURCE endpoint evidence: ['.cloudra/execution-228/results/s_cis_min.log', 'conf_s_trans_min.log', 's_cis_min.log'];"
+P2c,standard,M15,easy,1.0,1.0,1.0,0.9999986288035796,gold edge M15_E1 matched delivered step e1 by endpoint species
+P2c,standard,M17,easy,-1.0,0.0,0.0,0.0,mechanism_graph.json not found in sandbox
+P2c,standard,M3,easy,1.0,1.0,1.0,0.9999959201307967,gold edge M3_E1 matched delivered step e1 by endpoint species
+P2c,standard,M16,easy,0.9998,1.0,1.0,0.9996917591769238,gold edge M16_E1 matched delivered step e1 by endpoint species
+P2c,standard,M8,easy,0.9996,1.0,1.0,0.9993386409383996,gold edge M8_E1 matched delivered step e1 by endpoint species
+P2c,standard,P3,easy,-1.0,0.0,0.0,0.0,mechanism_graph.json not found in sandbox
+P2c,standard,X1,easy,0.9999,1.0,1.0,0.9999144624281334,gold edge X1_E1 matched delivered step e1 by endpoint species
+P2c,standard,P2,easy,0.9833,0.8333333333333334,1.0,0.9999470327587684,gold edge P2_E1 matched delivered step e1 by endpoint species
+P2c,standard,NI1,normal,0.6196,0.9461194477513294,0.35,0.7,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('calc/ts1_opt.log', 'calc/ts1_opt.log')]; SOURCE endpoint evidence: ['calc/.cloudra/execution-390/results/rc_opt2.log', 'calc/rc_opt2.log']; TARGET endpoint"
+P2c,standard,NB1,normal,0.9128,0.6285714285714286,0.8333333333333334,0.9999702499375034,"edge e3: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0002/jobs/declaration_0001/ts_opt/refine.log', 'ts/ts_0002/jobs/declaration_0001/ts_opt/refine.log')]; SOURCE endpoint evidence: ['work/.cloudra/exec"
+P2c,standard,NI5,normal,0.3136,0.5714285714285714,0.675,0.0898776103637772,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('runs/ts1a/ts1_optfreq.log', 'runs/ts1a/ts1_optfreq.log')]; SOURCE endpoint evidence: ['runs/rc/.cloudra/execution-421/results/rc_optfreq.log', 'runs/rc/rc_"
+P2c,standard,NQ5,normal,0.751,0.92,0.55,0.8233688726938634,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('step1_oxycope/ts1_opt_freq.log', 'step1_oxycope/ts1_opt_freq.log')]; SOURCE endpoint evidence: ['step1_oxycope/.cloudra/execution-470/results/rc_conf02_opt"
+P2c,standard,NR1,normal,-1.0,0.0,0.0,0.0,mechanism_graph.json not found in sandbox
+P2c,standard,NU3,normal,0.3479,0.4285714285714286,0.35,0.3333296541501646,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,standard,NQ1,normal,0.904,0.797979797979798,0.75,0.9986911732328884,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0002/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0002/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cloud"
+P2c,standard,NU6,normal,0.6892,0.8166666666666667,0.625,0.7,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('stepwise/ts1b_n5c2.log', 'stepwise/ts1b_n5c2.log')]; SOURCE endpoint evidence: ['sp/.cloudra/execution-598/results/rc_optfreq.log', 'sp/rc_optfreq.log', 's"
+P2c,standard,NY3,normal,0.7485,0.8571428571428572,0.6166666666666667,0.7962393756020586,species PC: verified minima do not cover every declared species; a complex needs its own minimum
+P2c,standard,HA1,hard,-1.0,0.0,0.0,0.0,mechanism_graph.json not found in sandbox
+P2c,standard,HA6,hard,0.9625,1.0,0.875,1.0,edge e_dis: no evidence explicitly associated with TS TS_dis; declare its evidence_log or energy_hartree
+P2c,standard,HA8,hard,0.625,1.0,0.35,0.7,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0003/jobs/declaration_0004/ts_opt/refine.log', 'ts/ts_0003/jobs/declaration_0004/ts_opt/refine.log')]; SOURCE endpoint evidence: ['pop/.cloudra/execu"
+P2c,standard,NU5,normal,0.2654,0.9047619047619048,0.1166666666666666,0.2331359645415329,unbound nodes (no matching evidence file): ['TS3']
+P2c,standard,HB1,hard,0.825,0.75,0.5,1.0,"edge e_endo: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0003/jobs/declaration_0001/frequency/frequency.log', 'ts/ts_0003/jobs/declaration_0001/frequency/frequency.log')]; SOURCE endpoint evidence: ['qm"
+P2c,standard,HB10,hard,0.9928,0.9323442840706796,1.0,0.999217118669171,gold edge HB10_E1 matched delivered step e_endo by endpoint species
+P2c,standard,HD2,hard,0.6977,0.6666666666666667,0.35,0.8767954435203171,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts_trans_smd2_freq.log', 'ts_trans_smd2_freq.log')]; SOURCE endpoint evidence: ['.cloudra/execution-790/results/rc_c1_opt_freq.log', 'checks/.cloudra/execu"
+P2c,standard,HH1,hard,0.8338,1.0,0.5,0.973064097049228,"edge e_anti: IRC proof TS candidates (anchor, frequency witness): [('qm/g16/TS_syn_optfreq.log', 'qm/g16/TS_syn_optfreq.log')]; SOURCE endpoint evidence: ['qm/g16/.cloudra/execution-854/results/M_min_optfreq.log', 'qm/g1"
+P2c,standard,HI1,hard,0.7032,0.3325091256144551,0.2333333333333333,0.9999979970395418,"partial-credit binds (protonation/charge-state variants): ['TS_threo', 'TS_erythro']"
+P2c,standard,HL1,hard,0.805,1.0,0.35,0.9999989393629972,"edge e_anti: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0007/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0007/frequency/frequency.log')]; SOURCE endpoint evidence: ['jo"
+P2c,standard,IA1,impossible,-1.0,0.0,0.35,0.0,"unbound nodes (no matching evidence file): ['RC', 'TS1', 'P']"
+P2c,standard,HF1,hard,-1.0,0.0,0.0,0.0,mechanism_graph.json not found in sandbox
+P2c,standard,IA5,impossible,0.1417,0.6666666666666667,0.25,0.0,"edge e1: IRC proof TS candidates (anchor, frequency witness): ['sv_opt_p1.log']; SOURCE endpoint evidence: ['.cloudra/execution-985/results/rc_pm7_optfreq.log', 'rc_pm7_optfreq.log']; TARGET endpoint evidence: ['.cloudra"
+P2c,standard,IA9,impossible,-1.0,0.0,0.0,0.0,mechanism_graph.json not found in sandbox
+P2c,standard,IB9,impossible,0.18,0.75,0.35,0.0,species RC: verified minima do not cover every declared species; a complex needs its own minimum
+P2c,standard,IC3,impossible,-1.0,0.0,0.0,0.0,"unbound nodes (no matching evidence file): ['PN_T', 'PN_S1', 'PN_S_CS']"
+P2c,standard,ID2,impossible,0.0,0.0,0.0,0.0,"unbound nodes (no matching evidence file): ['F_OF', 'FO_2']"
+P2c,standard,IE2,impossible,-1.0,0.0,0.0,0.0,"unbound nodes (no matching evidence file): ['N2', 'P_2N', 'N_atom']"
+P2c,standard,IF3,impossible,-1.0,0.3333333333333333,0.0,0.0,"unbound nodes (no matching evidence file): ['RC', 'S0']"
+P2c,standard,IG8,impossible,-1.0,0.0,1.0,0.0,"unbound nodes (no matching evidence file): ['RC', 'P', 'P_septet']"
+P2c,standard,IA7,impossible,0.1383,0.3333333333333333,0.35,0.0,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,brief-errors,D1,easy,0.745,1.0,0.75,0.7,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0007/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0007/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cloud"
+P2c,brief-errors,D4,easy,0.9049,0.9444444444444444,0.75,0.9756975540144937,"edge endo_cycloaddition: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0010/ts_opt/refine.log', 'ts/ts_0001/jobs/declaration_0010/ts_opt/refine.log')]; SOURCE endpoint evidence: ['.c"
+P2c,brief-errors,D3,easy,0.7283,0.8333333333333334,0.75,0.7,"edge e_endo: IRC proof TS candidates (anchor, frequency witness): [('mine/ts_endo_t2.log', 'mine/ts_endo_t2.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/e3ee07e044726325_rc_endo_optfreq.log', 'endo/.cloudra/exec"
+P2c,brief-errors,F1,easy,0.9117,0.9166666666666666,0.75,0.9916540279900236,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0014/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0014/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cloud"
+P2c,brief-errors,F4,easy,0.3601,0.6009018553609635,1.0,0.0,gold edge F4_E1 carries a reference barrier but no delivered step matches its endpoint species; scored 0
+P2c,brief-errors,E1,easy,1.0,1.0,1.0,0.9999731066753338,gold edge E1_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,G2,easy,0.85,1.0,0.5,0.999986433969758,species P: verified minima do not cover every declared species; a complex needs its own minimum
+P2c,brief-errors,L1,easy,0.9999,1.0,1.0,0.9998992236370234,gold edge L1_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,G3,easy,0.9749,0.75,1.0,0.9998327311515594,gold edge G3_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,L2,easy,0.8799,1.0,0.8333333333333334,0.8832390700297313,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('qm/ts_opt2.log', 'qm/ts_opt2.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/184e930779136290_rc_min.log', 'qm/.cloudra/execution-306/results/rc_min."
+P2c,brief-errors,M14,easy,1.0,1.0,1.0,0.999999999152682,gold edge M14_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,M15,easy,1.0,1.0,1.0,0.999998652256838,gold edge M15_E1 matched delivered step cis-trans-isomerization by endpoint species
+P2c,brief-errors,M1,easy,0.9476,1.0,1.0,0.9126376537935588,gold edge M1_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,M16,easy,0.9998,1.0,1.0,0.9996923093137752,gold edge M16_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,M3,easy,1.0,1.0,1.0,0.9999959122759114,gold edge M3_E1 matched delivered step umbrella inversion by endpoint species
+P2c,brief-errors,M17,easy,0.9999,1.0,1.0,0.999914413659124,gold edge M17_E1 matched delivered step step1_methyl_1_2_shift by endpoint species
+P2c,brief-errors,P2,easy,0.975,1.0,0.9166666666666666,0.9999470370641868,"edge e3: IRC proof TS candidates (anchor, frequency witness): [('runs/ts2_optfreq.log', 'runs/ts2_optfreq.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/e87f1020a0737ffb_reactant_optfreq.log', 'runs/.cloudra/execu"
+P2c,brief-errors,M8,easy,0.9996,1.0,1.0,0.9992941829286228,gold edge M8_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,X1,easy,0.9999,1.0,1.0,0.999914125609204,gold edge X1_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,P3,easy,0.8309,1.0,1.0,0.7181089167649742,gold edge P3_E1 matched delivered step step1_claisen_33 by endpoint species
+P2c,brief-errors,NI1,normal,0.9889,1.0,1.0,0.9814803706000866,gold edge NI1_E1 matched delivered step e1 by endpoint species
+P2c,brief-errors,NB1,normal,0.99,0.9,1.0,0.999971629937794,edge e2_step2_enol_keto_tautomerization: no transition-state node (`via`)
+P2c,brief-errors,NQ1,normal,0.1731,0.6808080808080808,0.35,0.0,"unbound nodes (no matching evidence file): ['TS1', 'TS2']"
+P2c,brief-errors,NI5,normal,0.286,0.4598272493495215,0.8,0.0,unbound nodes (no matching evidence file): ['RC']
+P2c,brief-errors,NQ5,normal,0.781,1.0,0.625,0.8225021805298813,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('work/ts1b/ts/ts1_opt_b.log', 'work/ts1b/ts/ts1_opt_b.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/4ebfdaebea27c5bb_rc_2.log', 'work/minima/.cloudr"
+P2c,brief-errors,NU3,normal,0.4571,0.5714285714285714,0.6666666666666666,0.3333295914803582,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,brief-errors,NR1,normal,0.6142,0.6666666666666667,0.875,0.4749999340196755,"edge tautomerization_formamide_to_formimidic_acid: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0008/ts_opt/refine.log', '.cloudra/evidence/fb3fa2e82394e7ed_frequency.log')]; SOURCE"
+P2c,brief-errors,NU6,normal,0.34,0.4,1.0,0.0,gold edge NU6_E1 carries a reference barrier but no delivered step matches its endpoint species; scored 0
+P2c,brief-errors,NU5,normal,0.1983,0.6625462141591716,0.44,0.0,species INT1 Nitrilium Formate: verified minima do not cover every declared species; a complex needs its own minimum
+P2c,brief-errors,NY3,normal,0.7312,0.7619047619047619,0.7833333333333333,0.7,"edge Carbamic acid conformational isomerisation: IRC proof TS candidates (anchor, frequency witness): [('qm/tsconf_ts.log', 'qm/tsconf_ts.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/96d8423f27179515_ca_min.log'"
+P2c,brief-errors,HA6,hard,0.975,1.0,0.9166666666666666,1.0,"edge e_EZ: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0003/jobs/declaration_0003/ts_opt/refine.log', 'ts/ts_0003/jobs/declaration_0003/frequency/.cloudra/execution-1285/results/frequency.log')]; SOURCE"
+P2c,brief-errors,HA1,hard,0.925,1.0,0.75,1.0,"edge e_E: IRC proof TS candidates (anchor, frequency witness): [('dft/ep_E/TS_optfreq.log', 'dft/ep_E/TS_optfreq.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/c732c13485bfcb54_RC_min.log', 'dft/.cloudra/execution"
+P2c,brief-errors,HA8,hard,0.745,1.0,0.75,0.7,"edge e1: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log', 'ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/"
+P2c,brief-errors,HB1,hard,0.98,0.8,1.0,1.0,qualitative selectivity: favored channel 'endo' matches the reference; scored 1
+P2c,brief-errors,HB10,hard,0.7845,0.8,0.35,0.9992389213741152,"edge e_endo: IRC proof TS candidates (anchor, frequency witness): [('endo/endo_ts_c.log', 'endo/endo_ts_c.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/4acf364beacd3036_rc_cand6.log', '.cloudra/execution-1402/res"
+P2c,brief-errors,HD2,hard,0.6699,0.9991757922811216,0.5,0.7,"edge step_e263c467: IRC proof TS candidates (anchor, frequency witness): ['work/syn/scan/point_th80d245.log']; SOURCE endpoint evidence: ['.cloudra/evidence/b50e874e4b31fb5f_rc_probe_frontside.log', 'work/syn/rc/.cloudra"
+P2c,brief-errors,HF1,hard,0.2937,0.687405314994908,0.75,0.0,"edge e_anti: IRC proof TS candidates (anchor, frequency witness): [('work/anti/jobs4/ts_anti_b3lyp_seed.log', 'work/anti/jobs4/ts_anti_b3lyp_seed.log')]; SOURCE endpoint evidence: ['.cloudra/evidence/af9885bfea76991a_rcA"
+P2c,brief-errors,HI1,hard,0.9999,0.9991757922811216,1.0,0.9999980788332216,gold edge HI1_e1_erythro_syn matched delivered step e_ery_syn by endpoint species
+P2c,brief-errors,HH1,hard,0.9838,1.0,1.0,0.9730655952903436,gold edge HH1_E1 matched delivered step Racemization via cisoid planar rotational TS by endpoint species
+P2c,brief-errors,IA1,impossible,1.0,1.0,1.0,1.0,edge e1: no first-order saddle log bound to TS TS1; barrier not derivable from evidence
+P2c,brief-errors,IA5,impossible,0.3667,0.6666666666666667,1.0,0.0,edge e2: no transition-state node (`via`)
+P2c,brief-errors,IA7,impossible,0.2583,0.3333333333333333,0.75,0.0,partial-credit binds (protonation/charge-state variants): ['TS1']
+P2c,brief-errors,IA9,impossible,0.9333,0.3333333333333333,1.0,1.0,unbound nodes (no matching evidence file): ['P']
+P2c,brief-errors,IB9,impossible,0.65,1.0,0.8333333333333334,0.5,unbound nodes (no matching evidence file): ['SEP']
+P2c,brief-errors,IC3,impossible,-1.0,0.3333333333333333,0.5,0.0,"unbound nodes (no matching evidence file): ['T1_3A2', 'S1_1A1']"
+P2c,brief-errors,HL1,hard,0.925,1.0,0.75,0.9999988364502967,"edge e_exo: IRC proof TS candidates (anchor, frequency witness): [('ts/ts_0001/jobs/declaration_0006/frequency/frequency.log', 'ts/ts_0001/jobs/declaration_0006/frequency/frequency.log')]; SOURCE endpoint evidence: ['.cl"
+P2c,brief-errors,ID2,impossible,0.15,0.0,0.5,0.0,"unbound nodes (no matching evidence file): ['F_atom_FOO_radical', 'OF_radical_pair']"
+P2c,brief-errors,IF3,impossible,-1.0,0.0,0.5,0.0,"unbound nodes (no matching evidence file): ['T', 'S1_CS', 'S1_OS']"
+P2c,brief-errors,IG8,impossible,-1.0,0.3393287366540305,1.0,0.0,unbound nodes (no matching evidence file): ['2Cr_atoms']
+P2c,brief-errors,IE2,impossible,0.0333,0.3333333333333333,0.0,0.0,"unbound nodes (no matching evidence file): ['P', 'P_septet']"

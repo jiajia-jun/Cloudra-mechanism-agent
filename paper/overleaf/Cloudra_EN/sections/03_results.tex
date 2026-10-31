@@ -1,43 +1,30 @@
-\section{Results and Discussion}
+\input{sections/03_benchmark_results}
 
-This chapter first presents the overall outcomes of 48 independent repeated runs and 200 full-benchmark ablation sandboxes. It then draws questions from research trajectories and uses paired local comparisons and internal-state interventions to examine the origins of performance differences.
 
-\subsection{End-to-end benchmark evaluation}
 
-End-to-end evaluation combines a repeated four-task study with a full-task four-configuration experiment, examining repeatability and coverage across tasks, respectively. We present these evaluations first and then use specific research trajectories to examine the origins of configuration differences.
 
-\subsubsection{The 48-run experiment with three repeats on four tasks}
 
-The repeated-task study compares four configurations on E1, NB1, HA1, and IA1 with three independent runs per combination, yielding 48 runs. The tasks concern elimination-reaction preorganization, multistep decarboxylation, stereochemical ring opening, and electronic-structure method limits. Runs used DeepSeek-v4-flash, with conversations, tool calls, calculation ledgers, and native quantum-chemical outputs archived. Repeats test whether a configuration difference depends on a single exploration trajectory, while retaining the sequence from the initial hypothesis to final delivery.
 
-\discussionSpace
 
-\subsubsection{The 200-sandbox four-configuration ablation across all 50 tasks}
 
-The full-benchmark experiment places each of the 50 tasks in all four configurations, with one independent sandbox per task–configuration combination, yielding 200 sandboxes. It examines whether configuration differences extend across chemical families and research requirements, complementing the stability information from the repeated-task experiment.
 
-\discussionSpace
 
-\subsubsection{Overall patterns and mechanistic analysis}
 
-The overall results show differences among the configurations. Guided achieves the strongest overall performance, whereas Standard is weaker particularly on Impossible and other tasks. On Easy tasks, the other configurations perform similarly. We next use research trajectories to examine how these differences relate to geometry operations, evidence organization, and decisions to end a study.
 
-\discussionSpace
 
-The following analysis draws specific problems from archived research trajectories and uses Qwen3.8:27b for local paired diagnostics that vary molecular representation, option order, geometric information, evidence references, or reasoning mode. Original trajectories locate how problems arose; paired inputs test which information affects judgments; internal-state interventions trace the contribution of measured facts to selection. These analyses connect chemical intent to geometric operations and local calculations to scientific evidence.
 
 \subsection{From chemical intent to reliable geometric operations}
 
+
+The following sections use archived research trajectories and Qwen3.8:27b local diagnostics to examine the interfaces implicated by these results: chemical identity, target-specific geometric operations, evidence associations, and the decision to end a study. The original trajectories locate concrete research problems; paired local inputs and internal-state interventions examine how particular information changes judgments and actions.
+
 \subsubsection{Molecular identity provides a persistent reference for operations}
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=\textwidth]{figures/fig06.pdf}
-\caption{Molecular-identity judgments under changes in molecular representation and option order. Each of the 16 molecular pairs has four input conditions. Circles and diamonds indicate correct and incorrect judgments, respectively; the letters retain the model's actual answers. Shaded regions denote identical-string conditions. The right panel shows the two C\textsubscript{5}H\textsubscript{8} connectivities in pair 14 and the meanings of the answer options.}
-\label{fig:06}
-\end{figure*}
+
 
 
 A geometric modification first requires identifying the molecule, atoms, and reaction center to which it applies. A molecule can be represented by different SMILES traversals, while a molecular formula can describe different connectivities. To examine how the model handles these distinctions, we constructed 16 molecular-identity pairs covering identical identities, connectivity changes within the same molecular formula, changes in connectivity and charge location, double-bond stereochemistry, and protonation changes. Each pair was presented using the original strings or equivalent rewritings and with two answer orders, yielding 64 judgments.
+
+
 
 The model answered 58 correctly. Equivalent rewriting changed the semantic judgment in 4 of 32 matched representation comparisons; reversing answer order changed the judgment in 6 of 32 matched option-order comparisons. All six of the latter cases involved repeated selection of the letter A. One C\textsubscript{5}H\textsubscript{8} pair in Figure~\ref{fig:06} illustrates this behavior directly: an endocyclic and an exocyclic double bond define different connectivities, yet the model answered A under all four conditions, although A meant “same” in one order and “different” in the other. This result locates representation sensitivity in judgments about the chemical objects themselves and indicates the need for stable identity references throughout a research process.
 
@@ -45,65 +32,34 @@ Cloudra assigns this role to molecular topology, atom mapping, and reaction cent
 
 
 
+
+
 \subsubsection{Geometric measurements reduce repeated numerical reasoning}
 
 After identifying the research objects, the model must extract spatial relationships relevant to an operation from their coordinates. We selected four actual structures from the NB1 trajectories and asked the model to compare two specified interatomic distances. Each structure was presented with both answer orders and with either a complete XYZ geometry or program-measured distances. These two information conditions were further crossed with direct-answer and thinking modes, producing 32 native chat calls (Figure~\ref{fig:07}).
 
-In direct-answer mode, all eight responses to XYZ inputs selected A, with four correct answers. Providing measured distances produced eight correct answers and preserved the semantic answer when option order was reversed. With thinking enabled, the XYZ condition produced seven correct answers; the remaining response reached the output limit of 1,024 generated tokens. Increasing the budget for that input alone yielded a correct answer within 1,353 generated tokens. All eight answers in the measured-distance condition were correct. Across the eight paired comparisons with thinking enabled, the median generated token counts were 807.5 for XYZ inputs and 86 for measured distances.
+In direct-answer mode, all eight responses to XYZ inputs selected A, with four correct answers. Providing measured distances produced eight correct answers and preserved the semantic answer when option order was reversed. With thinking enabled, the XYZ condition produced seven correct answers; the remaining response reached the output limit of 1,024 generated tokens. Increasing the budget for that input alone yielded a correct answer within 1,353 generated tokens. 
+
+All eight answers in the measured-distance condition were correct. Across the eight paired comparisons with thinking enabled, the median generated token counts were 807.5 for XYZ inputs and 86 for measured distances.
 
 These results suggest that geometric judgment combines atom identification, numerical calculation, and relational comparison. Additional reasoning can perform these local calculations, while program measurements directly supply the relational quantities needed for the subsequent decision. Cloudra therefore allows the model to express objectives through bond lengths, bond angles, dihedral angles, and fragment relationships, and uses deterministic operators to change the coordinates. This division of work assigns repeated numerical operations to the program and makes the resulting changes directly inspectable, consistent with the allocation of responsibilities in program-aided language models.\citep{ref15} Descriptions of steric crowding, reactant preorganization, and local fragment rotation build on this foundation to use spatial relationships in selecting and constructing candidate configurations.
 
 
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=.64\textwidth]{figures/fig07.pdf}
-\caption{Geometry judgments under coordinate inputs and measured-distance inputs. Four source structures are compared under direct response and reasoning-enabled conditions, each with original (F) and reversed (R) option order. Circles indicate correct judgments, diamonds incorrect judgments, and the triangle a response that reached the output budget. Letters retain the actual answers.}
-\label{fig:07}
-\end{figure*}
 
-
-
-\begin{figure}[tbp]
-\centering
-\includegraphics[width=\linewidth]{figures/fig08.pdf}
-\caption{Generated-token counts with reasoning enabled. Each line connects Cartesian-coordinate input and measured-distance input for the same source structure and option order; eight paired comparisons are shown. The dashed line marks the output limit.}
-\label{fig:08}
-\end{figure}
 
 
 \subsubsection{Feedback must match the specified atoms and geometric objective}
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=.9\textwidth]{figures/fig09.pdf}
-\caption{Target-specific geometry operations in E1. Newman projections retain the directions of the original candidate coordinates viewed down C2\(\to\)C3. H7 is the specified transferring atom. Candidate A and candidate B give target angles of 59.4° and 179.4°, respectively. The operation sequence is shown alongside the projections.}
-\label{fig:09}
-\end{figure*}
+
 
 
 Deterministic execution must remain aligned with chemical intent. An actual E1 trajectory provides a complete example. The model sought to bring the dihedral angle defined by the transferring hydrogen H7, C2, C3, and leaving atom Cl4 close to 180°. It rotated the fragment on the C3 side about the C2–C3 axis by +120° and \( - \)120°, producing candidates A and B, and set the C3–Cl4 distance to 2.35 Å. The representative dihedral in the default structure report involved H5, whereas the current objective involved H7. The model then explicitly measured H7–C2–C3–Cl4 in both candidates, obtaining approximately 59.4° and 179.4°, and used candidate B in its next actual submission.
 
-Figure~\ref{fig:09} shows Newman projections along C2\(\to\)C3 drawn directly from the saved candidate coordinates, and Figure~\ref{fig:10} summarizes the corresponding target-angle residuals. Candidate B places the H7 target angle within 0.6° of 180°, compared with a residual of 120.6° for A. The corresponding residuals for the H5 comparison were 124.2° and 115.8° in A and B, respectively. These measurements reveal the object dependence of feedback: a reading acquires its chemical meaning through its correspondence to the currently specified atoms and operational objective.
+Figure~\ref{fig:09} shows Newman projections along C2\(\to\)C3 drawn directly from the saved candidate coordinates, and Figure~\ref{fig:10} summarizes the corresponding target-angle residuals. Candidate B places the H7 target angle within 0.6° of 180°, compared with a residual of 120.6° for A. 
+
+The corresponding residuals for the H5 comparison were 124.2° and 115.8° in A and B, respectively. These measurements reveal the object dependence of feedback: a reading acquires its chemical meaning through its correspondence to the currently specified atoms and operational objective.
 
 Local comparisons using the same measurements further connect information to action. When only H5 measurements were provided, the model requested an additional H7 measurement under all three cyclic option permutations. Adding H7 measurements led it to select B under all three permutations. Two further paired tests of information sufficiency also shifted from requesting additional measurements to judging the information sufficient when the target quantity was added. Atom mapping, internal coordinates, fragment operations, and feedback can therefore be understood as one sequence of research actions: identify the target object, make the geometric change, measure the target quantity, and select the next candidate. Preorganization, rigid-body alignment, and path preparation use the same correspondence to carry reaction intent into subsequent exploration of the potential energy surface.
 
-
-
-
-\begin{figure*}[tbp]
-\centering
-\begin{minipage}[t]{.48\textwidth}
-\vspace{0pt}\centering
-\includegraphics[width=\linewidth]{figures/fig10.pdf}
-\caption{Circular angular residuals from the specified 180° target for candidates A and B. H7 is the specified target atom; H5 is the comparator.}
-\label{fig:10}
-\end{minipage}\hfill
-\begin{minipage}[t]{.48\textwidth}
-\vspace{0pt}\centering
-\includegraphics[width=\linewidth]{figures/fig11.pdf}
-\caption{Next-action choices under three local option permutations. When only H5 measurements are supplied, the model requests H7 measurements; with H7 supplied, it selects candidate B.}
-\label{fig:11}
-\end{minipage}
-\end{figure*}
 
 
 
@@ -112,38 +68,15 @@ Local comparisons using the same measurements further connect information to act
 
 To examine how the model uses supplied measurements, we performed activation replacement at a single token position in the same local quantized model.\citep{ref16} One distance in the input was changed from 2.029 Å to 1.029 Å, while the other remained at 1.248 Å, reversing the correct comparison answer. We then transferred the residual-stream state at the numeric token position from the original input into the modified input at layers 7, 15, 31, and 47, and read the full-vocabulary probability assigned to the answer supported by the original fact.
 
-The effect varied with layer and option order (Figure~\ref{fig:13}). With reversed options, the probability of A, the original-fact answer, increased from 0.074 for the modified input to 0.956 and 0.718 after replacement at layers 7 and 15, respectively. Replacements at layers 31 and 47 yielded 0.072 and 0.070. With the original option order, the probability of answer B changed from 0.009 to 0.029 and 0.015 after replacement at the first two tested layers, while the last two remained close to the modified-input baseline. Self-replacement controls and control replacements at an unchanged prefix position produced zero logit differences across the full vocabulary.
+The effect varied with layer and option order (Figure~\ref{fig:13}). With reversed options, the probability of A, the original-fact answer, increased from 0.074 for the modified input to 0.956 and 0.718 after replacement at layers 7 and 15, respectively. Replacements at layers 31 and 47 yielded 0.072 and 0.070. With the original option order, the probability of answer B changed from 0.009 to 0.029 and 0.015 after replacement at the first two tested layers, while the last two remained close to the modified-input baseline. 
+
+Self-replacement controls and control replacements at an unchanged prefix position produced zero logit differences across the full vocabulary.
 
 This internal intervention extends the analysis from supplying measurements to examining the causal mechanisms governing how measurement information shapes decisions: under reversed options, intermediate-layer state replacements dramatically flipped model predictions, demonstrating that localized numerical representations directly participate in downstream choices. Under the original option order, however, the patch produced only a minor shift, aligning closely with the behavioral positional bias identified in Section 3.2.1—when the target answer occupies the non-preferred option B, deep attention may be influenced by the shallow positional prior. This asymmetry suggests at the representation level that injecting ungrounded numerical facts into free-form text prompts may be vulnerable to attentional attenuation and prior biases; by coupling deterministic structural operators that explicitly bind geometric measurements, chemical entities, and operational semantics a stable scientific decision loop can be established. Cloudra's structured measurements thus serve not only as the outputs of geometric calculation, but as physical anchors for subsequent mechanistic reasoning.
 
 
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=.9\textwidth]{figures/fig12.pdf}
-\caption{Intervention on a single reported distance. A one-digit edit changes the C2–C4 distance from 2.029 to 1.029 Å while O3–H8 remains 1.248 Å. The original-input residual state at token position 53 is inserted into the changed-input run at a specified layer. Token positions are zero-based.}
-\label{fig:12}
-\end{figure*}
-
-
-
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=.9\textwidth]{figures/fig13.pdf}
-\caption{Original-fact answer probability after state replacement. Curves show full-vocabulary probability mass for the original-fact answer under forward (B) and swapped (A) option order, including bare and leading-space token spellings. Horizontal lines show original-input and changed-input baselines. Layer indices are zero-based.}
-\label{fig:13}
-\end{figure*}
-
-
-
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=.75\textwidth]{figures/fig14.pdf}
-\caption{Control substitutions for the state-intervention experiment. Same-state self replacement at p53 and replacement of the unchanged prefix at p0 preserve all vocabulary logits in both option orders. The table reports the maximum absolute logit difference. Token positions are zero-based.}
-\label{fig:14}
-\end{figure*}
-
-
 \subsection{From local computational results to evidence-supported scientific delivery}
+
 
 \subsubsection{The DAG preserves scientific support relationships among results}
 
@@ -151,23 +84,9 @@ Once geometric objects enter computation, optimized structures, energies, freque
 
 We extracted four source evidence chains from the archive and constructed versions that preserved the links or changed a single reference. Crossing these with flat and linked representations and two answer orders yielded 32 inputs. The altered references concerned the frequency geometry, IRC starting geometry, endpoint-optimization input, or target species; local termination, convergence, energy, and frequency values were held constant. Figure~\ref{fig:15} illustrates the E1 case: changing the frequency geometry reference from the saddle point to an existing endpoint changes how that frequency result supports the current step.
 
-All 16 judgments with linked representations were correct, compared with 14 of 16 with flat representations. Both errors occurred when a reference had been changed and the options reversed, in E1 and the second NB1 step. In subsequent native follow-up calls on two selected source chains, enabling thinking yielded correct judgments for all 16 judgments of the evidence relationships, including the two previously incorrect cases. This result suggests that explicit links reduce the model's work in locating and assembling computational relationships, consistent with observations that graph encoding affects relational reasoning in language models.\citep{ref17} In Cloudra, this representation is further bound to actual computational artifacts, allowing scientific facts to accumulate continuously for the same species, step, and attempt.
+All 16 judgments with linked representations were correct, compared with 14 of 16 with flat representations. Both errors occurred when a reference had been changed and the options reversed, in E1 and the second NB1 step. In subsequent native follow-up calls on two selected source chains, enabling thinking yielded correct judgments for all 16 judgments of the evidence relationships, including the two previously incorrect cases. 
 
-\begin{figure*}[tbp]
-\centering
-\begin{minipage}[t]{.48\textwidth}
-\vspace{0pt}\centering
-\includegraphics[width=\linewidth]{figures/fig15.pdf}
-\caption{Evidence–geometry association in the E1 source chain. The controlled input changes the frequency geometry reference from g\_63 to g\_42 while retaining local termination, convergence, energy, and frequency values. The diagram preserves the links from TS optimization through bidirectional IRC to endpoint optimization and frequency calculations.}
-\label{fig:15}
-\end{minipage}\hfill
-\begin{minipage}[t]{.48\textwidth}
-\vspace{0pt}\centering
-\includegraphics[width=\linewidth]{figures/fig16.pdf}
-\caption{Association judgments for 32 inputs across four source chains, crossed by coherent or altered association, flat or linked presentation, and forward (F) or swapped (S) answer order. Letters retain the saved A/B responses; circles indicate correct associations and diamonds incorrect associations.}
-\label{fig:16}
-\end{minipage}
-\end{figure*}
+This result suggests that explicit links reduce the model's work in locating and assembling computational relationships, consistent with observations that graph encoding affects relational reasoning in language models.\citep{ref17} In Cloudra, this representation is further bound to actual computational artifacts, allowing scientific facts to accumulate continuously for the same species, step, and attempt.
 
 \subsubsection{Diagnostics turn evidence gaps into concrete research actions}
 
@@ -175,35 +94,25 @@ Broken evidence chains must be translated into targeted, physically grounded fee
 
 Autonomous exploration trajectories highlight the important influence of diagnostic granularity on recovery. In a Brief-errors HA1 trial, where specific diagnostic feedback on IRC-endpoint linkage was ablated in favor of compact error codes, the Computational Agent succumbed to blind retries—mechanically substituting source-minimum references while leaving the underlying geometric disconnection unresolved. Conversely, in a Guided NB1 trial, the underlying verification detected zero imaginary frequencies and categorized the failure as a normal-mode error; the Coordinator immediately formulated a targeted retry plan, directing the Computational Agent to revise transition-state guess parameters and optimization constraints, which were faithfully incorporated into the rescheduled calculation. This case comparison can demonstrate that recovery in long-horizon mechanism elucidation depends not merely on detecting setbacks, but on bridging evidence defects directly to the specific chemical entities and computational parameters requiring revision.\citep{ref18}
 
+
+
+
+
+
+
 This mechanism substantiates the empirical efficacy of Cloudra's multi-agent division of responsibilities: Computational Agents iteratively refine specific geometries and paths using localized feedback, the Coordinator oversees branching hypotheses and route selection across the reaction network, and the Supervisor audits cumulative support against immutable task rubrics. Supported by central asynchronous execution and durable ledgers, each role can maintain continuous context around shared chemical entities, reducing communicative drift across extended exploration horizons.
 
-\begin{figure*}[tbp]
-\centering
-\includegraphics[width=.96\textwidth]{figures/fig17.pdf}
-\caption{Completion requests and DAG feedback in the original IA1 trajectory. A report with unresolved evidence is followed by a completion request, a response identifying missing short\_irc proof, feedback to the model, and a revised partial-completion request.}
-\label{fig:17}
-\end{figure*}
+
 
 \subsubsection{Outstanding requirements must remain part of completion decisions}
 
 The final stage of scientific delivery requires a global determination: whether the accumulated computational artifacts genuinely satisfy rigorous physicochemical acceptance contracts. An autonomous IA1 trajectory reveals an inherent vulnerability of large language models during scientific research: premature completion hallucination. In this case, the reaction step lacked mandatory bidirectional short\_irc verification, with an empty waiver list; however, because the Supervisor had previously offered affirmative comments on intermediate optimization convergence, the model suffered cognitive drift and attempted to declare the exploration complete. In an unconstrained or purely conversational architecture, such unsupported mechanistic claims would escape scrutiny and produce false deliverables.
 
-Here, the delivery graph's deterministic physical gate intervened decisively. The harness rejected the premature completion request and injected the unresolved short\_irc requirement as a hard constraint back into the context. Confronted with this unyielding physical reality, the model immediately rectified its claim in the subsequent submission, correctly downgrading its status to partial completion (Figure~\ref{fig:17}).
+Here, the delivery graph's deterministic physical gate intervened decisively. 
+
+
+The harness rejected the premature completion request and injected the unresolved short\_irc requirement as a hard constraint back into the context. Confronted with this unyielding physical reality, the model immediately rectified its claim in the subsequent submission, correctly downgrading its status to partial completion (Figure~\ref{fig:17}).
 
 When physical state is explicitly recorded in an immutable ledger, the model reliably anchors its reasoning to this authoritative source. Across 12 judgments (six pairs with reversed answer-option order) evaluating IA1 under both minimal summary and extended 12-message history contexts, the model achieved 100\% accuracy in identifying unsatisfied scientific requirements across all state queries and reversed option orders. The delivery DAG thus provides an immutable coordinate system for subsequent reasoning: demarcating verified entities, pinpointing existing deficits, and determining whether to pursue additional calculations or submit partial deliverables reflecting physical reality.
 
-\subsection{Workflow guidance, limitations, and outlook}
-
-Guided achieved the strongest overall benchmark performance, although it did not clearly separate from the other non-Standard configurations on Easy tasks. Its advantage became more apparent as tasks required sustained pathway exploration, evidence assembly, and recovery from unsuccessful calculations. This pattern suggests that the value of Cloudra's workflow guidance depends on the research demands: basic tasks can often be handled through several routes, whereas more demanding tasks benefit from keeping geometric operations, computational evidence, and completion decisions connected throughout the exploration.
-
-Record provides an informative contrast. It retains access to the tools and diagnostic capabilities available to Guided, but removes mandatory scientific acceptance. Nevertheless, its performance fell behind Guided on Normal and Hard tasks. In the observed trajectories, the model did not consistently invoke the available capabilities or follow the recommended workflow, instead choosing ad hoc workarounds. Tool availability therefore does not ensure that the model will use those tools to build a complete scientific argument. The comparison supports coupling useful capabilities to explicit research requirements and feedback that directs the model back to unresolved evidence.
-
-Brief-errors offers a related lesson. Compressing diagnostics made some trajectories more prone to repeated computational attempts without resolving the underlying defect, as illustrated by the HA1 endpoint-linkage case above. With less specific guidance to return to the intended workflow, retries could accumulate substantial computational expenditure while the scientific gap persisted. Its lower performance than Guided is consistent with the importance of actionable diagnostics: feedback should identify both the failed requirement and the research action needed to address it. Together, Record and Brief-errors support Cloudra's design philosophy of connecting chemical intent to deterministic operations and using persistent evidence requirements to guide subsequent research.
-
-Standard had the shortest observed runtime, but its speed did not translate into comparable benchmark scores. Incomplete delivery was a pronounced and recurring problem in Standard: it frequently failed to produce delivery graphs during the formal benchmark runs. We reconstructed the missing delivery graphs during offline organization using only records and computational artifacts already present in the corresponding runs. This reconstruction added no calculations or new scientific conclusions. Even after the missing graphs were reconstructed, the scores remained low, indicating that the missing delivery format alone did not explain the performance gap. The contrast also shows why elapsed runtime should be interpreted alongside the amount of scientifically supported work delivered.
-
-The benchmark has resource-related limitations. Limited computational resources led us to run many sandboxes concurrently, and queueing for CPU resources may have delayed individual calculations. Such delays could reduce the calculations and evidence completed within a run's available budget and thereby affect its score. The present results consequently reflect both research behavior and the shared computational environment; CPU queueing remains a possible contributor to score differences rather than an established explanation for any particular configuration. Separating queueing time from active calculation time would help clarify this contribution in subsequent evaluations.
-
-Cloudra alleviates the difficulties of direct geometric reasoning and manipulation by language models, and its conformational sampling has improved substantially over earlier versions. Highly flexible systems nevertheless remain challenging. As conformational diversity grows, identifying relevant reactant arrangements, intermediates, and pathways can require substantially more sampling and quantum-chemical evaluation. The present system cannot yet be expected to handle much more complex, highly flexible systems autonomously within a small computational budget. More efficient conformational exploration and better allocation of calculations among competing candidates are therefore important directions for further development.
-
-Our longer-term goal extends beyond small-molecule mechanism calculations to a broader range of computational chemistry. The current support for multiple computational engines, shared execution infrastructure, and persistent scientific records already provides a basis for that expansion. Extending coverage will require appropriate representations, methods, and validation criteria for each new class of problem. We aim for Cloudra to become a powerful research tool for computational chemists and a computational specialist for experimental teams. Cloudra will be released as open-source software under the GNU Affero General Public License (AGPL), supporting inspection, reuse, and community development of the system.
+\input{sections/03_benchmark_discussion}
