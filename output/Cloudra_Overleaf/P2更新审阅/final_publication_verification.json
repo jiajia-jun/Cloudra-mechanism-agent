@@ -7,17 +7,19 @@
   "main_figure_groups": 7,
   "languages": {
     "EN": {
-      "pages": 22,
+      "pages": 23,
       "unknown_references": 0,
       "bibliography_entries": 43,
       "all_bib_keys_actually_cited": true,
       "all_24_figures_present": true,
       "text_outside_page": [],
-      "source_files": 35,
+      "source_files": 36,
       "online_source_matches_local": true,
-      "pdf_sha256": "47dac9e4453fe401660628fd9e48189abf3fb2a8298d8ecd9adb0f1dc787dfc0",
-      "source_zip_sha256": "6eab56b3ccdeeef9a2a8c44c06b117a8b9db8600bc71d625db734c9cddaf2b93",
-      "visual_review": "all pages inspected as contact sheets; EN7,8,17 and bibliography checked at readable scale; all original annotated blank regions resolved"
+      "pdf_sha256": "86705250b9d640b980aab24003767cb3caedd5c331f7be151e04fd76804bd0ff",
+      "source_zip_sha256": "db973f1a539988415ebddd7163adc19da8f1eee5067cf5ead8e101d4e0f7f917",
+      "visual_review": "all pages rendered; abstract first pages checked at readable scale; no text outside pages, missing figures, or unknown references",
+      "abstract_included": true,
+      "abstract_source_sha256": "4c7db79ccd0a90ee7b65d2fdf15e66a66427e106d3e88d55773e3839b954dd4e"
     },
     "ZH": {
       "pages": 19,
@@ -26,12 +28,15 @@
       "all_bib_keys_actually_cited": true,
       "all_24_figures_present": true,
       "text_outside_page": [],
-      "source_files": 35,
+      "source_files": 36,
       "online_source_matches_local": true,
-      "pdf_sha256": "e3d1eef501726cdd7f36043c6c350b6cb859bcca9c44e689c649ae12f43e4d94",
-      "source_zip_sha256": "480520e9f668fc9729f87f213a639fa0351d877cb1a9d47eb458e04027d9d261",
-      "visual_review": "all pages inspected as contact sheets; EN7,8,17 and bibliography checked at readable scale; all original annotated blank regions resolved"
+      "pdf_sha256": "781214cda5777e7374ca111a4d6449cd867e782faeeea2ca700f419d639f3089",
+      "source_zip_sha256": "6f19ad63bb3054afc058525304007039d6803a98cee49a2936e541c9ff118b4d",
+      "visual_review": "all pages rendered; abstract first pages checked at readable scale; no text outside pages, missing figures, or unknown references",
+      "abstract_included": true,
+      "abstract_source_sha256": "c60d6fc46a14765eae39fc3bb26ed28313c3b0554fe826f5937ff004f30ffff1"
     }
   },
-  "max_score_rounding_difference": 4.971078517046479e-05
+  "max_score_rounding_difference": 4.971078517046479e-05,
+  "abstract_update": "English abstract supplied by the user retained verbatim; faithful Chinese translation added. Both abstracts appear below the title and before the two-column introduction."
 }

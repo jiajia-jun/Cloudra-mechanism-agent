@@ -5,6 +5,7 @@
 两版正式排版源文件分别位于 [Cloudra_EN](Cloudra_EN/) 和 [Cloudra_ZH](Cloudra_ZH/)。各项目独立完整，在 Overleaf 中以 `main.tex` 为主文件，使用 **XeLaTeX、TeX Live 2026** 编译。
 
 - `main.tex`：全文入口、版式和文末参考文献。
+- `sections/00_abstract.tex`：首页摘要，英文原文与中文对应译文。
 - `sections/`：引言、方法、结果与讨论的正文，后续直接编辑这些 TeX 文件。
 - `references.bib`：参考文献条目，正文通过引用键关联来源。
 - `figures/`：独立图件 PDF，图号、图注和正文引用由 LaTeX 管理。

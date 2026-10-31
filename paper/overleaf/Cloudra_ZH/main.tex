@@ -49,12 +49,18 @@
 \raggedbottom
 \title{Cloudra：自主机理探索中的几何推理与科学证据}
 \author{}
-\date{\small 工作审阅稿 --- 2026年10月29日}
+\date{\small 工作审阅稿 --- 2026年10月31日}
 \makeatletter
 \renewcommand{\maketitle}{%
-  \twocolumn[{\centering
-    {\LARGE\bfseries\@title\par}\vspace{0.6em}
-    {\small\@date\par}\vspace{1.2em}}]%
+  \twocolumn[{%
+    {\centering
+      {\LARGE\bfseries\@title\par}\vspace{0.6em}
+      {\small\@date\par}\vspace{1.2em}}
+    \begin{minipage}{\textwidth}
+    \small
+    \noindent\textbf{摘要}\par\smallskip
+    \input{sections/00_abstract}
+    \end{minipage}\par\vspace{1.2em}}]%
 }
 \makeatother
 \renewcommand{\bibfont}{\footnotesize}

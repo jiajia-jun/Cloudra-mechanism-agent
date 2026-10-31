@@ -46,9 +46,15 @@
 \date{\small Working Draft --- 31 October 2026}
 \makeatletter
 \renewcommand{\maketitle}{%
-  \twocolumn[{\centering
-    {\LARGE\bfseries\@title\par}\vspace{0.6em}
-    {\small\@date\par}\vspace{1.2em}}]%
+  \twocolumn[{%
+    {\centering
+      {\LARGE\bfseries\@title\par}\vspace{0.6em}
+      {\small\@date\par}\vspace{1.2em}}
+    \begin{minipage}{\textwidth}
+    \small
+    \noindent\textbf{Abstract}\par\smallskip
+    \input{sections/00_abstract}
+    \end{minipage}\par\vspace{1.2em}}]%
 }
 \makeatother
 \renewcommand{\bibfont}{\footnotesize}
