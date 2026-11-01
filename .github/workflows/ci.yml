@@ -11,8 +11,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    # 任何测试挂起时 15 分钟快速失败，而不是空烧默认 6 小时
-    timeout-minutes: 15
+    # RDKit 与 JS 场景启用后，全套测试实测约 19 分钟；保留有限运行预算。
+    # 单测超过 300 秒仍由 faulthandler 输出堆栈，不跳过测试或降低覆盖率门槛。
+    timeout-minutes: 30
     strategy:
       # 一格挂掉不许取消其余格：fail-fast 会把 3.12/3.13 判成 cancelled，
       # 那样"3.11 挂了"和"三个版本都挂了"在结果页上无法区分。
