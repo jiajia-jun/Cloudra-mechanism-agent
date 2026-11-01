@@ -26,17 +26,17 @@ We first report the final organized composite scores and then examine their grap
 
 \subsubsection{Cloudra improves research delivery relative to the same backbone}
 
-Guided obtained a mean composite score of 0.7803, compared with 0.5940 for Standard. Across the 50 task pairs, the mean improvement was 0.1863, with a 95\% task-bootstrap interval of [0.1003, 0.2759]. Guided scored higher on 35 tasks, lower on eight, and equally on seven; the median paired difference was 0.1080 (Figure~\ref{fig:bench-overview}). The improvement therefore appears across many research questions rather than arising solely from a small increase in the highest-scoring runs.
+Guided obtained a mean composite score of 0.7930, compared with 0.5814 for Standard. Across the 50 task pairs, the mean improvement was 0.2116, with a 95\% task-bootstrap interval of [0.1290, 0.2985]. Guided scored higher on 36 tasks, lower on seven, and equally on seven; the median paired difference was 0.1142 (Figure~\ref{fig:bench-overview}). The improvement therefore appears across many research questions rather than arising solely from a small increase in the highest-scoring runs.
 
 
 
-Guided's mean over its ten lowest-scoring tasks was 0.3181, compared with 0.0930 for Standard.
+Guided's mean over its ten lowest-scoring tasks was 0.3221, compared with 0.0930 for Standard.
 
 
 
 The most consistent difference occurred in the Hard stereochemistry tasks. Guided averaged 0.9577 and Standard 0.6888, a paired increase of 0.2689 [0.1213, 0.4459], with Guided scoring higher on all ten tasks. These tasks require the system to maintain the identity of competing configurations or channels, compare the relevant barriers, and attach evidence to the corresponding conclusion. The observed improvement thus concerns the completion of a comparative chemical study, including the organization of the evidence supporting its stereochemical outcome.
 
-On Normal tasks, Guided averaged 0.7370 versus 0.5731, an increase of 0.1640 [0.0365, 0.2922], with seven wins and three losses. Easy-task means were 0.8809 and 0.7305, respectively; the paired median difference was 0.0209, showing a different pattern from the broadly positive Hard comparison. Impossible-task means were 0.4451 and 0.2473. Their interpretation depends on whether the run addressed the requested method-limited negative target, so these tasks are examined separately below.
+On Normal tasks, Guided averaged 0.7370 versus 0.5731, an increase of 0.1640 [0.0365, 0.2922], with seven wins and three losses. Easy-task means were 0.9125 and 0.6989, respectively; the paired median difference was 0.0500, showing a different pattern from the broadly positive Hard comparison. Impossible-task means were 0.4451 and 0.2473. Their interpretation depends on whether the run addressed the requested method-limited negative target, so these tasks are examined separately below.
 
 
 
@@ -46,7 +46,7 @@ On Normal tasks, Guided averaged 0.7370 versus 0.5731, an increase of 0.1640 [0.
 
 Separating the three score components locates where the workflows diverged (Figure~\ref{fig:bench-components}). Graph measures the delivered coverage and identities of the requested species and steps. Self-consistency measures the support linking saddle points, frequencies, IRC starts, and endpoint optimization/frequency calculations. Accuracy measures agreement with the task's numerical or negative target. A run can therefore give a close numerical answer while leaving its supporting path incomplete, or establish a coherent local calculation that does not answer the requested research question.
 
-Across all 50 Guided--Standard task pairs, the weighted graph contribution to the mean improvement was +0.0095, self-consistency contributed +0.1179, and accuracy +0.0589, accounting together for the composite gain of 0.1863. For the 20 Normal and Hard tasks, the mean gain was 0.2164, with contributions of +0.0080 from graph, +0.1247 from self-consistency, and +0.0837 from accuracy. Within the ten Normal tasks, the corresponding contributions were +0.0098, +0.1141, and +0.0400; within the ten Hard tasks they were +0.0063, +0.1353, and +0.1274.
+Across all 50 Guided--Standard task pairs, the weighted graph contribution to the mean improvement was +0.0108, self-consistency contributed +0.1179, and accuracy +0.0829, accounting together for the composite gain of 0.2116. For the 20 Normal and Hard tasks, the mean gain was 0.2164, with contributions of +0.0080 from graph, +0.1247 from self-consistency, and +0.0837 from accuracy. Within the ten Normal tasks, the corresponding contributions were +0.0098, +0.1141, and +0.0400; within the ten Hard tasks they were +0.0063, +0.1353, and +0.1274.
 
 
 
@@ -64,7 +64,7 @@ HH1 provides a direct example. Guided and Standard both reported a binaphthyl ra
 
 The root delivery graph and the evidence carried by that graph describe different parts of the research process (Figure~\ref{fig:bench-delivery}). During the original runs, Standard delivered root graphs for 43 of 50 tasks, while Guided, Record, and Brief-errors each delivered 50. The seven Standard tasks without runtime root graphs were F1, HA1, HF1, IA9, M17, NR1, and P3. Offline organization assembled their graphs from the corresponding runs' existing materials, producing a complete 50-task set for every configuration.
 
-The seven Standard studies averaged 0.1537 after organization, compared with 0.8285 for Guided on the same tasks, and contributed 50.7\% of the total Guided--Standard difference. Their individual scores ranged from 0.0333 to 0.3425. The contrast connects the runtime completion decision to the amount of research ultimately available for delivery: computations and candidate descriptions could remain in a run's records while the requested pathway or comparative conclusion had not yet been completed. The organized graph preserves that research state for evaluation.
+The seven Standard studies averaged 0.1537 after organization, compared with 0.8285 for Guided on the same tasks, and contributed 44.7\% of the total Guided--Standard difference. Their individual scores ranged from 0.0333 to 0.3425. The contrast connects the runtime completion decision to the amount of research ultimately available for delivery: computations and candidate descriptions could remain in a run's records while the requested pathway or comparative conclusion had not yet been completed. The organized graph preserves that research state for evaluation.
 
 
 
@@ -72,7 +72,7 @@ The graded self-consistency distribution reveals a further difference among the 
 
 \subsubsection{Ablations separate available capabilities from persistent guidance}
 
-Record averaged 0.7044 and Brief-errors 0.7415 across all 50 tasks. Guided exceeded Record by 0.0759 [0.0121, 0.1438], with 27 wins, eight losses, and 15 ties. On all 20 Normal and Hard tasks together, the mean Guided--Record difference was 0.1468: graph contributed +0.0083, self-consistency +0.0919, and accuracy +0.0466. Keeping the tools and a place to record results therefore produced a different outcome from keeping unresolved scientific requirements active throughout the study.
+Record averaged 0.6918 and Brief-errors 0.7541 across all 50 tasks. Guided exceeded Record by 0.1012 [0.0396, 0.1695], with 28 wins, seven losses, and 15 ties. On all 20 Normal and Hard tasks together, the mean Guided--Record difference was 0.1468: graph contributed +0.0083, self-consistency +0.0919, and accuracy +0.0466. Keeping the tools and a place to record results therefore produced a different outcome from keeping unresolved scientific requirements active throughout the study.
 
 
 
@@ -116,11 +116,11 @@ The former identifies the structures reached by a particular path; the latter de
 
 NU6 exposes a related issue in path identity. Guided's recorded concerted saddle had an energy of $-247.030042392$ Ha and the betaine minimum $-247.060060699$ Ha, giving a difference of 18.836772 kcal/mol. Guided described this as an energy cost involving the concerted saddle region while retaining the target betaine-to-product ring-closure saddle as unresolved. Standard delivered 18.837 kcal/mol as the second-step ring-closure barrier. The numerical fingerprint thus locates the divergence in what scientific step an energy difference was taken to represent. Guided's attempts from interpolated betaine structures and constrained scan peaks repeatedly relaxed toward the direct reactant-to-product saddle region. The requested path identity had to be checked again after optimization, rather than being inherited from the name of its initial guess.
 
-These cases complement the HH1 evidence comparison: the same research state must preserve which conformer defines the reference, which stationary point was actually found, which endpoints it connects, and which claim those results support. The Easy-tier comparisons resolve additional differences between the physical evidence and its reference matching or structured delivery. In F4, Guided scored 0.3601 and Standard 0.9083. Guided delivered a log-supported hydride-transfer barrier of 16.016 kcal/mol with graded self-consistency 1. Its accuracy of 0 arose from the historical reference encoding separated reactant fragments while the delivered pathway and reference barrier concerned the Lewis adduct.
+These cases complement the HH1 evidence comparison: the same research state must preserve which conformer defines the reference, which stationary point was actually found, which endpoints it connects, and which claim those results support. The Easy-tier comparisons further distinguish the chemical identities declared in the final mechanism graph from the physical calculations and numerical quantities retained in the run.
 
 In G2, Guided scored 0.2389 and Standard 0.7769. Guided's native logs supported an approximately 0.845-kcal/mol double-H-transfer barrier. After three rejections of numerical barrier declarations on a companion edge, the agent removed the numerical fields. Supervisor feedback prompted restoration, but a fourth rejection and a subsequent saddle-evidence check preceded their final removal, together with the saddle energy/log bindings. The final graph retained the values in text and received accuracy 0. Brief-errors retained the corresponding numerical result and scored 0.8500.
 
-For Guided--Record, the F4 and G2 composite deficits were 0.5566 and 0.5380. Their sum, 1.0946, accounts for 86.3\% of the total Easy-tier net deficit of 1.2679. The accuracy values of 0.7 in D1, D3, and L2 followed the specified cap on numerical-deviation penalties. D1's barrier difference from Standard traced to the reactant-conformer reference; D3's mainly reflected different saddle energies. L2 distinguished reactive cZc and lower tZt references. Standard delivered both associated barriers, 18.99 and 28.28 kcal/mol, but reference matching selected the former. The Supplementary Information provides the workflow-level components, native evidence, and event chronology for these five tasks; all released scores are retained.
+The accuracy values of 0.7 in D1, D3, and L2 followed the specified cap on numerical-deviation penalties. D1's barrier difference from Standard traced to the reactant-conformer reference; D3's mainly reflected different saddle energies. L2 distinguished reactive cZc and lower tZt references. Standard delivered both associated barriers, 18.99 and 28.28 kcal/mol, but reference matching selected the former. The Supplementary Information provides the final workflow-level components, native evidence, and delivery records for these five tasks.
 
 
 
@@ -136,7 +136,7 @@ In IA1, concerning cyclobutadiene's square-geometry automerization target, Brief
 
 Across all 40 Impossible runs, four had accuracy 1 and 14 combined self-consistency 1 with accuracy 0. This separation is visible directly in the component matrices. For example, both Guided and Brief-errors obtained self-consistency 1 in IA5, IC3, and IF3 without receiving accuracy credit for the requested negative target. Guided and Brief-errors both received partial accuracy of 0.7 in IB9, whose requested network contains positive and negative components. These outcomes retain the distinction between local computational support and the target claim.
 
-The saved Brief-errors IC3 graph provides a concrete example of this distinction in scientific reporting. It marks the lowest open-shell singlet and its state-change edge inaccessible and withholds the requested singlet--triplet gap. The computed closed-shell singlet remains as a separate characterized branch, and the two method-dependent relative energies are explicitly excluded from the requested gap. The run therefore retained useful exploratory results while declining to promote them into an answer about a different electronic state. Its final accuracy score remained 0. The claim and its score are both retained here, with the score-mapping issue considered in the Discussion. This behavior complements the IA1, IA9, and IG8 score reversals by showing precisely which result was accepted as computable and which target claim remained unsupported.
+The saved Brief-errors IC3 graph provides a concrete example of this distinction in scientific reporting. It marks the lowest open-shell singlet and its state-change edge inaccessible and withholds the requested singlet--triplet gap. The computed closed-shell singlet remains as a separate characterized branch, and the two method-dependent relative energies are explicitly excluded from the requested gap. The run therefore retained useful exploratory results while declining to promote them into an answer about a different electronic state. Its final accuracy score remained 0. The claim and its final score are both reported here, with target-object assignment considered in the Discussion. This behavior complements the IA1, IA9, and IG8 score reversals by showing precisely which result was accepted as computable and which target claim remained unsupported.
 
 
 

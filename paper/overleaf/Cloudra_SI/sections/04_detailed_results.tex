@@ -14,15 +14,15 @@ The publication dataset contains 200 task runs: one retained run for each of 50 
 \toprule
 Tier & Workflow & $n$ & Composite & Graph & SC & Accuracy \\
 \midrule
-All & Guided & 50 & 0.7803 & 0.8788 & 0.9233 & 0.6924 \\
- & Standard & 50 & 0.5940 & 0.7837 & 0.5303 & 0.5943 \\
- & Record & 50 & 0.7044 & 0.7876 & 0.7177 & 0.6839 \\
- & Brief & 50 & 0.7415 & 0.8430 & 0.8468 & 0.6720 \\
+All & Guided & 50 & 0.7930 & 0.8851 & 0.9233 & 0.7124 \\
+ & Standard & 50 & 0.5814 & 0.7774 & 0.5303 & 0.5743 \\
+ & Record & 50 & 0.6918 & 0.7813 & 0.7177 & 0.6639 \\
+ & Brief & 50 & 0.7541 & 0.8493 & 0.8468 & 0.6920 \\
 \addlinespace
-Easy & Guided & 20 & 0.8809 & 0.9620 & 0.9250 & 0.8454 \\
- & Standard & 20 & 0.7305 & 0.9007 & 0.5858 & 0.7744 \\
- & Record & 20 & 0.9443 & 0.9576 & 0.9050 & 0.9618 \\
- & Brief & 20 & 0.9054 & 0.9523 & 0.9125 & 0.8940 \\
+Easy & Guided & 20 & 0.9125 & 0.9778 & 0.9250 & 0.8954 \\
+ & Standard & 20 & 0.6989 & 0.8849 & 0.5858 & 0.7244 \\
+ & Record & 20 & 0.9128 & 0.9419 & 0.9050 & 0.9118 \\
+ & Brief & 20 & 0.9370 & 0.9681 & 0.9125 & 0.9440 \\
 \addlinespace
 Normal & Guided & 10 & 0.7370 & 0.8589 & 0.9021 & 0.6342 \\
  & Standard & 10 & 0.5731 & 0.7607 & 0.5217 & 0.5675 \\
@@ -44,7 +44,7 @@ Impossible & Guided & 10 & 0.4451 & 0.7006 & 0.9100 & 0.1700 \\
 \end{table}
 
 
-Table~\ref{tab:si-pairwise} gives all six pairwise comparisons on the same 50 tasks. Guided--Standard has a mean difference of 0.186302, a median difference of 0.107950, and 35 task wins, eight losses, and seven ties. The 95\% task-bootstrap interval is [0.100268, 0.275854]. Within the Normal tier, the means are 0.737020 and 0.573050, with a difference of 0.163970 [0.036520, 0.292230] and seven wins in ten tasks. Within Hard, the means are 0.957650 and 0.688750; the difference is 0.268900 [0.121300, 0.445930], with Guided higher in all ten task pairs. Easy has means of 0.880940 and 0.730485, with 11 wins, five losses, and four ties; its paired median difference is 0.020850. Impossible has means of 0.445060 and 0.247330 and is examined at the level of the requested target below.
+Table~\ref{tab:si-pairwise} gives all six pairwise comparisons on the same 50 tasks. Guided--Standard has a mean difference of 0.211564, a median difference of 0.114200, and 36 task wins, seven losses, and seven ties. The 95\% task-bootstrap interval is [0.128988, 0.298537]. Within the Normal tier, the means are 0.737020 and 0.573050, with a difference of 0.163970 [0.036520, 0.292230] and seven wins in ten tasks. Within Hard, the means are 0.957650 and 0.688750; the difference is 0.268900 [0.121300, 0.445930], with Guided higher in all ten task pairs. Easy has means of 0.912520 and 0.698910, with 12 wins, four losses, and four ties; its paired median difference is 0.050000. Impossible has means of 0.445060 and 0.247330 and is examined at the level of the requested target below.
 
 \begin{table}[!htbp]
 \centering
@@ -55,19 +55,19 @@ Table~\ref{tab:si-pairwise} gives all six pairwise comparisons on the same 50 ta
 \toprule
 Comparison & Mean difference & 95\% interval & W/L/T \\
 \midrule
-Guided--Record & +0.0759 & [+0.0121, +0.1438] & 27/8/15 \\
-Guided--Standard & +0.1863 & [+0.1003, +0.2759] & 35/8/7 \\
+Guided--Record & +0.1012 & [+0.0396, +0.1695] & 28/7/15 \\
+Guided--Standard & +0.2116 & [+0.1290, +0.2985] & 36/7/7 \\
 Guided--Brief & +0.0388 & [-0.0317, +0.1076] & 26/10/14 \\
 Record--Standard & +0.1104 & [+0.0167, +0.2062] & 28/13/9 \\
-Record--Brief & -0.0371 & [-0.0999, +0.0258] & 15/23/12 \\
-Standard--Brief & -0.1475 & [-0.2474, -0.0494] & 12/33/5 \\
+Record--Brief & -0.0623 & [-0.1271, +0.0001] & 14/24/12 \\
+Standard--Brief & -0.1727 & [-0.2713, -0.0762] & 11/34/5 \\
 \bottomrule
 \end{tabular}
 \par\smallskip\begin{minipage}{\linewidth}\footnotesize The difference is the first workflow minus the second. W/L/T gives the first workflow's task wins, losses, and ties. Percentile task-bootstrap intervals use 100,000 resamples and seed 20261031; the four configurations of each sampled task remain together.\end{minipage}
 \end{table}
 
 
-The component decomposition in Table~\ref{tab:si-weighted-gain} expresses each contribution in composite-score units. Across all tasks, the self-consistency contribution is +0.117875 and the accuracy contribution +0.058916. In Normal and Hard together, the composite difference is +0.216435, including +0.124688 from self-consistency and +0.083712 from accuracy. Hard's accuracy contribution, +0.127391, accompanies a +0.135250 self-consistency contribution. These quantities describe the requested comparative study at two levels: the answer reached and the evidence supporting its attribution.
+The component decomposition in Table~\ref{tab:si-weighted-gain} expresses each contribution in composite-score units. Across all tasks, the self-consistency contribution is +0.117875 and the accuracy contribution +0.082916. In Normal and Hard together, the composite difference is +0.216435, including +0.124688 from self-consistency and +0.083712 from accuracy. Hard's accuracy contribution, +0.127391, accompanies a +0.135250 self-consistency contribution. These quantities describe the requested comparative study at two levels: the answer reached and the evidence supporting its attribution.
 
 \begin{table}[!htbp]
 \centering
@@ -78,25 +78,25 @@ The component decomposition in Table~\ref{tab:si-weighted-gain} expresses each c
 \toprule
 Scope & $n$ & Composite & $0.1\Delta G$ & $0.3\Delta SC$ & $0.6\Delta A$ \\
 \midrule
-All & 50 & +0.186302 & +0.009513 & +0.117875 & +0.058916 \\
-Easy & 20 & +0.150455 & +0.006130 & +0.101750 & +0.042579 \\
+All & 50 & +0.211564 & +0.010776 & +0.117875 & +0.082916 \\
+Easy & 20 & +0.213610 & +0.009287 & +0.101750 & +0.102579 \\
 Normal & 10 & +0.163970 & +0.009823 & +0.114125 & +0.040033 \\
 Hard & 10 & +0.268900 & +0.006259 & +0.135250 & +0.127391 \\
 Impossible & 10 & +0.197730 & +0.019226 & +0.136500 & +0.042000 \\
 Normal + Hard & 20 & +0.216435 & +0.008041 & +0.124688 & +0.083712 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize Component contributions are calculated from the recorded unrounded components. Composite differences retain released composite scores, so the final displayed digits can differ by score rounding.\end{minipage}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize Component contributions are calculated from the unrounded final components. Composite differences use the four-decimal final scores, so the last displayed digits can differ by score rounding.\end{minipage}
 \end{table}
 
 
-The ablations give additional resolution. Guided--Record averages +0.075892 [0.012134, 0.143818] across all tasks. In Normal and Hard together, its +0.146845 composite difference decomposes into +0.008338 from graph, +0.091938 from self-consistency, and +0.046574 from accuracy. Guided--Brief averages +0.038816 [$-0.031704$, 0.107648], with mean differences of +0.151350 on Normal and +0.129470 on Hard. The task-level records retain both the general patterns and the crossed outcomes: NB1 has composite scores of 0.9628, 0.9128, and 0.9900 for Guided, Standard, and Brief; Guided and Brief both have self-consistency 1. NI1 has Guided and Standard composites of 0.9958 and 0.6196, with self-consistency 1 and 0.35. NQ5 favors Record over Guided, while NU3 favors Brief. Multistep performance is therefore resolved through the individual pathways and their evidence relationships.
+The ablations give additional resolution. Guided--Record averages +0.101156 [0.039606, 0.169478] across all tasks. In Normal and Hard together, its +0.146845 composite difference decomposes into +0.008338 from graph, +0.091938 from self-consistency, and +0.046574 from accuracy. Guided--Brief averages +0.038816 [$-0.031704$, 0.107648], with mean differences of +0.151350 on Normal and +0.129470 on Hard. The task-level records retain both the general patterns and the crossed outcomes: NB1 has composite scores of 0.9628, 0.9128, and 0.9900 for Guided, Standard, and Brief; Guided and Brief both have self-consistency 1. NI1 has Guided and Standard composites of 0.9958 and 0.6196, with self-consistency 1 and 0.35. NQ5 favors Record over Guided, while NU3 favors Brief. Multistep performance is therefore resolved through the individual pathways and their evidence relationships.
 
 \subsection{Runtime delivery and the organized scientific record}
 
 During execution, Guided, Record, and Brief each produced 50 root mechanism graphs. Standard produced 43. Its remaining seven studies---F1, HA1, HF1, IA9, M17, NR1, and P3---were organized offline from their own conversations, reports, tool results, and calculation artifacts. The resulting analysis contains 50 organized graphs per workflow and 200 complete score profiles. Offline organization follows the evaluation procedure described in the methods and retains the source of each recovered field.
 
-The seven Standard studies have a mean organized composite of 0.153743, compared with 0.828529 for Guided on the same tasks. Their contribution is 50.7\% of the total Guided--Standard score difference. The scientific content retained in a run and the production of its final root artifact are both visible in these records. The self-consistency distribution in Table~\ref{tab:si-sc-distribution} further resolves how much evidence was assembled for the 40 non-Impossible tasks. Guided has 24 full-score and 16 partial-score records; Standard has seven full-score, 29 partial-score, and four zero-score records.
+The seven Standard studies have a mean organized composite of 0.153743, compared with 0.828529 for Guided on the same tasks. Their contribution is 44.7\% of the total Guided--Standard score difference. The scientific content retained in a run and the production of its final root artifact are both visible in these records. The self-consistency distribution in Table~\ref{tab:si-sc-distribution} further resolves how much evidence was assembled for the 40 non-Impossible tasks. Guided has 24 full-score and 16 partial-score records; Standard has seven full-score, 29 partial-score, and four zero-score records.
 
 \begin{table}[!htbp]
 \centering
@@ -238,7 +238,7 @@ IG8 & 1.0000 & 0.3339 & -0.6661 & 1.0 & 0.0 \\
 
 Brief reaches accuracy 1 for IA1, the square-geometry cyclobutadiene automerization target, and IA9, dioxetane thermolysis. Guided reaches accuracy 1 for IG8, the chromium-dimer target. Both have accuracy 0.7 in IB9, which contains positive and negative target components. Across all 40 Impossible runs, four records have accuracy 1 and 14 have self-consistency 1 with accuracy 0. These component combinations are reported together with the identity of the requested state, channel, or property.
 
-The preserved Brief/IC3 graph identifies the requested lowest open-shell singlet $^1A_2$ as inaccessible under the permitted route, marks its state-change edge accordingly, and withholds the requested singlet--triplet gap. It retains a separately characterized closed-shell $^1A_1$ branch. The PM7 value of +45.9 kcal/mol and GFN2-xTB value of $-1.7$ kcal/mol are described as method-dependent exploratory relative energies and are explicitly excluded from the requested gap. The graph records that the restricted calculation with a mixed initial guess does not test the requested unrestricted electronic state. The released profile remains Graph/SC/Accuracy = 1/1/0 and composite 0.4.
+The preserved Brief/IC3 graph identifies the requested lowest open-shell singlet $^1A_2$ as inaccessible under the permitted route, marks its state-change edge accordingly, and withholds the requested singlet--triplet gap. It retains a separately characterized closed-shell $^1A_1$ branch. The PM7 value of +45.9 kcal/mol and GFN2-xTB value of $-1.7$ kcal/mol are described as method-dependent exploratory relative energies and are explicitly excluded from the requested gap. The graph records that the restricted calculation with a mixed initial guess does not test the requested unrestricted electronic state. The final profile is Graph/SC/Accuracy = 1/1/0 and composite 0.4.
 
 The Record/IA5 archive similarly distinguishes the requested disrotatory ring opening from an allowed conrotatory path. It marks the requested disrotatory edge inaccessible and records the positive conrotatory path separately at 33.57 kcal/mol. The archived adjudication documents that the matcher selected the positive path sharing the endpoints, leaving the accuracy component at 0. These records preserve both the delivered scientific claims and the values used in the publication analysis.
 
@@ -249,7 +249,7 @@ The Record/IA5 archive similarly distinguishes the requested disrotatory ring op
 
 The Normal and Hard comparisons resolve the framework's contribution through relations that must survive across many local decisions: species and conformer identity, reaction-channel identity, the reference defining a reported energy, and the association of each result with the claim it supports. Generating a plausible next action from a current language context does not itself maintain this global state. A persistent evidence graph makes these accumulated relations available for subsequent reasoning and revision, complementing work on external planning and tool feedback.\citep{valmeekam2023planning,ref18,huang2024selfcorrect} The task cases further distinguish repairing an incomplete local proof from reconsidering which scientific question the current calculation can answer.
 
-P2 contains one retained run per task and configuration. Its task-cluster bootstrap intervals describe variation across the sampled task mix, not stochastic variation from independent runs of the same task. The separate P1b study supplies three repeats on each of four tasks under each configuration; these 48 runs do not provide repeated measurements for every task in the 50-task P2 study. The complete organized P2 table covers all 200 runs and their three score components. Some Hard-task accuracy targets concern qualitative channel identity, so the reported gain includes pathway identification and evidence completion as well as numerical barriers. Repeating the full task set would characterize run-to-run variability and the frequency with which each research route is selected. The Impossible rubric targets the specified allowed-method contract; its negative-target self-consistency convention is distinct from a positive TS--IRC--endpoint chain. IA5 and IC3 show why score interpretation also requires channel and electronic-state identities. Their released scores remain unchanged. The Brief comparison is consistent with task-dependent effects of diagnostic content, while the final outcomes alone do not identify a causal effect of diagnostic length. The NU6 energy fingerprint identifies an assignment question; native geometry and pathway evidence are the independent basis for establishing whether two optimized structures represent the same saddle. Timing results retain their measured units: pilot batch elapsed time and P2 accumulated job-hours. Separating queueing, agent-active time, and end-to-end P2 latency is a further experimental question.
+P2 contains one retained run per task and configuration. Its task-cluster bootstrap intervals describe variation across the sampled task mix, not stochastic variation from independent runs of the same task. The separate P1b study supplies three repeats on each of four tasks under each configuration; these 48 runs do not provide repeated measurements for every task in the 50-task P2 study. The complete organized P2 table covers all 200 runs and their three score components. Some Hard-task accuracy targets concern qualitative channel identity, so the reported gain includes pathway identification and evidence completion as well as numerical barriers. Repeating the full task set would characterize run-to-run variability and the frequency with which each research route is selected. The Impossible rubric targets the specified allowed-method contract; its negative-target self-consistency convention is distinct from a positive TS--IRC--endpoint chain. IA5 and IC3 show why score interpretation also requires channel and electronic-state identities. Their final scores are interpreted alongside these object distinctions. The Brief comparison is consistent with task-dependent effects of diagnostic content, while the final outcomes alone do not identify a causal effect of diagnostic length. The NU6 energy fingerprint identifies an assignment question; native geometry and pathway evidence are the independent basis for establishing whether two optimized structures represent the same saddle. Timing results retain their measured units: pilot batch elapsed time and P2 accumulated job-hours. Separating queueing, agent-active time, and end-to-end P2 latency is a further experimental question.
 
 
 Cloudra's default preorganization samples 32 rigid relative placements, applies local MMFF94 relaxation, and selects candidates by energy and clustering. This is a tractable candidate-generation procedure, not an exhaustive search for the global minimum of every reactant arrangement or intermediate. CREST is available through a separate optional backend; the 200-run study does not establish uniform CREST coverage. Highly flexible systems may require broader sampling and more quantum-chemical calculations. Further work should measure conformer coverage and improve the allocation of calculations among competing candidates.
@@ -259,4 +259,4 @@ The benchmark compares electronic energy differences. It does not add zero-point
 The atom-mapping coefficients and ambiguity window, and the decay, depth, and congestion settings in the branch-crowding descriptor, were fixed across the workflow comparisons. We did not vary them in a parameter sweep or measure each setting's separate contribution. The imaginary-mode alignment ratio of 0.5 is advisory; the stationary-point and IRC/endpoint evidence determine scientific acceptance. All P2 configurations used DeepSeek-v4.1-flash (1017), with the API alias \texttt{deepseek-v4-flash} and the recorded request settings. Comparisons with additional backbones would test how the workflow gains carry across models.
 
 
-The Easy-tier trajectories distinguish reference identity from delivery policy. F4 preserves a physically checked adduct pathway but loses reference-matching credit. G2 preserves computed values in prose after validation feedback prompts removal of their structured fields. Preserving a provisional quantity and its source separately from its acceptance status would allow scientific review to restrict its interpretation without erasing the observation. The conditional IA5/IC3 analysis likewise changes target assignment while retaining the scientific-acceptance rules and the original publication dataset.
+The Easy-tier trajectories distinguish final chemical identity declarations from delivery policy. In F4, the final graphs differ in whether they identify the bonded adduct, despite supporting calculations for essentially the same pathway. G2 preserves computed values in prose after validation feedback prompts removal of their structured fields. Preserving a provisional quantity and its source separately from its acceptance status would allow scientific review to restrict its interpretation without erasing the observation. The conditional IA5/IC3 analysis likewise changes target assignment while retaining the scientific-acceptance rules and the final publication dataset.

@@ -1,26 +1,26 @@
 \subsection{Sensitivity to target-object assignment in Impossible tasks}
 \label{sec:matcher-sensitivity}
 
-We examined two cases in which distinct scientific objects share the same molecular-connectivity endpoints. The analysis uses the original final mechanism graphs and process records for Record/IA5 and Brief/IC3. It asks how the Impossible-tier means change if the existing negative-credit rule is applied to the object requested by the task. The 200 published scores remain unchanged. For this conditional calculation, we hold Graph and Self-consistency fixed in both cases and retain all scores and components for the other 198 runs.
+We examined two cases in which distinct scientific objects share the same molecular-connectivity endpoints. The analysis uses the original final mechanism graphs and process records for Record/IA5 and Brief/IC3. It asks how the Impossible-tier means change if the existing negative-credit rule is applied to the object requested by the task. The conditional scenarios leave the 200-run final evaluation table unchanged. For this conditional calculation, we hold Graph and Self-consistency fixed in both cases and retain all scores and components for the other 198 runs.
 
 IA5 requests the thermal disrotatory ring opening of cyclobutene. Record's final graph marks the disrotatory edge \texttt{e\_dis} and its transition-state node inaccessible and declares no barrier for that pathway. A separate conrotatory edge, \texttt{e\_con}, carries a barrier of 33.57 kcal/mol. The final process record explicitly distinguishes the requested disrotatory target from this computed alternative. Both edges have the same connectivity endpoints and bond-change signature, so these features alone do not identify which pathway answers the task.
 
-IC3 requests the lowest singlet state of phenylnitrene and its singlet--triplet gap. Brief's original graph distinguishes the closed-shell singlet \texttt{S1\_1A1} from the open-shell target \texttt{S2\_1A2}. It marks the latter node and its state-change edge inaccessible, withholds the requested numerical gap, and explicitly excludes the closed-shell branch's relative energies from that gap. The two state-change edges again have identical endpoint SMILES and bond-change signatures. The published baseline for Brief/IC3 is 0.4 after the documented evidence-reference formatting repair; its raw diagnostic score of $-1$ is not used here.
+IC3 requests the lowest singlet state of phenylnitrene and its singlet--triplet gap. Brief's original graph distinguishes the closed-shell singlet \texttt{S1\_1A1} from the open-shell target \texttt{S2\_1A2}. It marks the latter node and its state-change edge inaccessible, withholds the requested numerical gap, and explicitly excludes the closed-shell branch's relative energies from that gap. The two state-change edges again have identical endpoint SMILES and bond-change signatures. The final baseline for Brief/IC3 has Graph $=1$, Self-consistency $=1$, Accuracy $=0$, and composite $=0.4$.
 
 In both original graphs, the current matcher selects the positive alternative object. The intended negative target passes the unchanged negative-claim predicate when assigned to the corresponding reference target. A correction must therefore resolve pathway or electronic-state identity before evaluating the final claim. Simply preferring a negative edge would allow a refusal to conceal a contradictory positive claim about the same object. The positive alternative should be excluded only when the run's own final statements establish that it is a different scientific object.
 
-Both published cases have Graph $=1$, Self-consistency $=1$, Accuracy $=0$, and composite $=0.4$. Assigning Accuracy $=1$ to either intended negative target changes that case's conditional composite by $0.6$, following the fixed Accuracy weight. Its configuration's ten-task Impossible mean therefore increases by $0.06000$. Table~\ref{tab:matcher-sensitivity} reports the four scenarios; the accompanying \texttt{matcher\_sensitivity\_scenarios.csv} retains their configuration-level means and ranks.
+Both cases in the final evaluation have Graph $=1$, Self-consistency $=1$, Accuracy $=0$, and composite $=0.4$. Assigning Accuracy $=1$ to either intended negative target changes that case's conditional composite by $0.6$, following the fixed Accuracy weight. Its configuration's ten-task Impossible mean therefore increases by $0.06000$. Table~\ref{tab:matcher-sensitivity} reports the four scenarios; the accompanying \texttt{matcher\_sensitivity\_scenarios.csv} retains their configuration-level means and ranks.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Impossible-tier mean composite scores under two conditional target-assignment corrections. Only the indicated Accuracy values change; Graph, Self-consistency, and the other 198 runs remain fixed. The original row is the published baseline.}
+\caption{Impossible-tier mean composite scores under two conditional target-assignment corrections. Only the indicated Accuracy values change; Graph, Self-consistency, and the other 198 runs remain fixed. The baseline row gives the final evaluation values.}
 \label{tab:matcher-sensitivity}
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
 Scenario & Guided & Standard & Record & Brief \\
 \midrule
-Original published values & 0.44506 & 0.24733 & 0.23250 & 0.48294 \\
+Final evaluation values & 0.44506 & 0.24733 & 0.23250 & 0.48294 \\
 Record/IA5 target credit & 0.44506 & 0.24733 & 0.29250 & 0.48294 \\
 Brief/IC3 target credit & 0.44506 & 0.24733 & 0.23250 & 0.54294 \\
 Both target credits & 0.44506 & 0.24733 & 0.29250 & 0.54294 \\
@@ -28,4 +28,4 @@ Both target credits & 0.44506 & 0.24733 & 0.29250 & 0.54294 \\
 \end{tabular}
 \end{table}
 
-Across these scenarios, the Impossible-tier ordering Brief $>$ Guided $>$ Record is stable. Record moves above Standard when its IA5 target receives negative credit; Brief remains first when its IC3 target receives credit. Thus the two assignments can reverse the Record--Standard ordering, while leaving every Guided--Standard score, paired difference, and primary comparison unchanged. These are conditional arithmetic results for the two identified assignments, not an adopted revision of the publication scores or a full rerun of scientific validation.
+Across these scenarios, the Impossible-tier ordering Brief $>$ Guided $>$ Record is stable. Record moves above Standard when its IA5 target receives negative credit; Brief remains first when its IC3 target receives credit. Thus the two assignments can reverse the Record--Standard ordering, while leaving every Guided--Standard score, paired difference, and primary comparison unchanged. These are conditional arithmetic results for the two identified assignments, not part of the final evaluation scores or a full rerun of scientific validation.

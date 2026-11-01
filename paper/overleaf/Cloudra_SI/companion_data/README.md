@@ -1,29 +1,19 @@
 # Cloudra SI machine-readable task and score tables
 
-- `cloudrabench_50_task_catalogue.csv`: unchanged original task catalogue, including reactant/product SMILES, charge, multiplicity, conditions, and allowed methods.
-- `task_definitions/`: byte-identical copies of the 50 formal JSON task definitions; these preserve complete prompts, method policies, Gold reference graphs, and rubrics.
-- `cloudrabench_200_run_scores.csv`: all 200 task/configuration combinations; the four score fields retain their original numeric strings from the publication source. `configuration` adds the readable arm label while `arm` retains the original recorded key.
-- `catalogue_score_provenance.json`: source hashes, row counts, and display precision.
+`cloudrabench_200_run_scores.csv` is the final evaluation table for all 200 task/configuration pairs. It supplies the 200 composite scores and 600 components used in the manuscript, SI tables, and final figures. Composite scores are displayed to four decimal places; the CSV retains the source precision of the components.
 
-PDF tables display composite scores to four decimal places and the three components to six decimal places. The CSV retains full source precision, including exact zero and one values. No scores have been imputed, replaced by missing-value markers, or recomputed for this SI table.
+`task_definitions/` contains the 50 final task definitions, including the molecular inputs, conditions, Gold references, and scoring settings. `cloudrabench_50_task_catalogue.csv` is the task catalogue. `evaluation_manifest.json` records the fixed scorer, reference-file hashes, final score table, and per-run sources. The final F4 evidence records and a read-only reproduction helper are in `evaluation_records/`.
 
-## Package inventory
+The scorer uses weights 0.1 for Graph, 0.3 for Self-consistency, and 0.6 for Accuracy. Run artifacts and native calculation logs are preserved. The four F4 deliveries were evaluated against the same final reference definition; the other 196 final evaluations have unchanged task definitions and scoring rules. No new quantum-chemical calculations or Agent experiments were run for this final evaluation.
 
-| Directory | Files | Contents |
-|---|---:|---|
-| `task_definitions/` | 50 | Original formal task JSON files |
-| `behavioral/` | 347 | Frozen inputs, saved responses, activation records, provenance, and results |
-| `behavioral_scripts/` | 12 | Scripts for the archived behavioral experiments |
-| `literature/` | 7 | Source register, screening records, and citation checks |
-| `publication_reproduction/` | 57 | Standalone publication source tables and preparation/plotting scripts |
-| `revision_20261031/` | 5 | Safe model metadata, Easy-case evidence audit, matcher audit, methods audit, and conditional sensitivity CSV |
+To reproduce the four F4 records, use the Cloudra checkout recorded in the manifest and run:
 
-The root contains this README, the two task/score CSVs, provenance JSON, and `file_manifest.json`. The manifest lists every payload file except itself, with its byte count and SHA-256; its `count` and `total_bytes` use that same scope.
+```bash
+python evaluation_records/reproduce_f4.py --campaign-root /path/to/cloudra-p2c-20261025 --output /path/to/separate-output
+```
 
-## Revision evidence and conditional sensitivity
+The full study archive supplies the preserved sandboxes. The output directory must be outside the preserved campaign directory.
 
-`revision_20261031/p2_model_metadata.json` separates the author-reported deployment **deepseek-v4.1-flash, version 1017** from the archive-recorded API alias **deepseek-v4-flash**. It contains only selected public experiment settings and source locators, without configurations, databases, credentials, or private sharing links. The three audit reports use archive-relative and repository-relative source references.
+`publication_reproduction/` contains the final publication source tables and preparation/plotting scripts. `behavioral/`, `behavioral_scripts/`, and `literature/` retain the separate diagnostic experiments and literature evidence. The dated `revision_20261031/` reports are historical audit records; the current formal scores are the final table identified above.
 
-`matcher_sensitivity_scenarios.csv` retains the original publication track as P0 and labels S1/S2/S3 as conditional Accuracy-only calculations. Assigning target credit to one specified case changes its composite by +0.6, that configuration's ten-task Impossible mean by +0.06, and its 50-task mean by +0.012. Graph and self-consistency remain fixed at their released values. These scenario rows do not overwrite any of the 200 formal scores.
-
-All pre-existing payload files other than this README remain byte-identical to the prior package, including original CSV line endings, the 200-run/800-value score table, source snapshots, task definitions, and provenance.
+The conditional matcher-sensitivity scenarios preserve the final Impossible-tier baseline and describe hypothetical Accuracy-only target assignments; they do not change the formal scores. The root `file_manifest.json` lists every payload file except itself, with its byte count and SHA-256.

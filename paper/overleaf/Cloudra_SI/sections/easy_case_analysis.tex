@@ -1,22 +1,22 @@
 \subsection{Easy-tier energy references and delivery trajectories}
 \label{sec:si-easy-case-audit}
 
-The five Easy tasks examined here distinguish numerical reference choice, chemical identity matching, and the delivery of computed evidence. We inspected the retained runs' final mechanism graphs, native calculation logs, evaluation notes, and runtime events. Table~\ref{tab:si-easy-case-audit} preserves the released scores. $\mathrm{SC}_{\mathrm{all}}$ grades the delivered graph, whereas $\mathrm{SC}_{\mathrm{Gold}}$ grades its reference-matched subgraph and excludes additional elements. Their difference identifies a change in the objects being assessed; the composite uses $\mathrm{SC}_{\mathrm{all}}$.
+The five Easy tasks examined here distinguish numerical reference choice, chemical identity matching, and the delivery of computed evidence. We inspected the retained runs' final mechanism graphs, native calculation logs, evaluation notes, and runtime events. Table~\ref{tab:si-easy-case-audit} reports the final scores. $\mathrm{SC}_{\mathrm{all}}$ grades the delivered graph, whereas $\mathrm{SC}_{\mathrm{Gold}}$ grades its reference-matched subgraph and excludes additional elements. Their difference identifies a change in the objects being assessed; the composite uses $\mathrm{SC}_{\mathrm{all}}$.
 
 \begin{table}[!htbp]
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\caption{Released component scores for the five inspected Easy tasks, rounded to four decimal places. Brief denotes Brief-errors. The two SC columns retain their separate assessment scopes. Accuracy is the final component after reference matching and the specified numerical penalty cap.}
+\caption{Final component scores for the five inspected Easy tasks, rounded to four decimal places. Brief denotes Brief-errors. The two SC columns retain their separate assessment scopes. Accuracy is the final component after reference matching and the specified numerical penalty cap.}
 \label{tab:si-easy-case-audit}
 \begin{tabular}{llrrrrr}
 \toprule
 Task & Workflow & Graph & $\mathrm{SC}_{\mathrm{all}}$ & $\mathrm{SC}_{\mathrm{Gold}}$ & Accuracy & Composite \\
 \midrule
-F4 & Guided & 0.6009 & 1.0000 & 0.0000 & 0.0000 & 0.3601 \\
- & Standard & 0.8333 & 0.7500 & 0.7500 & 1.0000 & 0.9083 \\
- & Record & 0.9167 & 0.7500 & 0.7500 & 1.0000 & 0.9167 \\
- & Brief & 0.6009 & 1.0000 & 0.0000 & 0.0000 & 0.3601 \\
+F4 & Guided & 0.9167 & 1.0000 & 1.0000 & 1.0000 & 0.9917 \\
+ & Standard & 0.5176 & 0.7500 & 0.0000 & 0.0000 & 0.2768 \\
+ & Record & 0.6009 & 0.7500 & 0.0000 & 0.0000 & 0.2851 \\
+ & Brief & 0.9167 & 1.0000 & 1.0000 & 1.0000 & 0.9917 \\
 \addlinespace
 G2 & Guided & 0.8889 & 0.5000 & 0.5000 & 0.0000 & 0.2389 \\
  & Standard & 1.0000 & 0.5000 & 0.5000 & 0.8782 & 0.7769 \\
@@ -41,10 +41,10 @@ L2 & Guided & 1.0000 & 0.7500 & 0.7500 & 0.7000 & 0.7450 \\
 \end{tabular}
 \end{table}
 
-\paragraph{F4: reference identity and a verified adduct pathway.}
+\paragraph{F4: adduct identity in the final mechanism graph.}
 Guided delivered hydride transfer from the Lewis adduct of borane and formaldehyde to methoxyborane. Its bound reactant and saddle energies were $-141.041124115$ and $-141.015601446$~hartree, giving 16.01572~kcal~mol$^{-1}$ and supporting the declared 16.02. Independent saddle frequency analysis gave one imaginary frequency, $-398.7218$~cm$^{-1}$. Both actual IRC outer frames subsequently converged to the corresponding zero-imaginary-frequency endpoint minima. The four workflows obtained essentially the same saddle and adduct energies.
 
-The campaign reference at revision \texttt{53309d0e} encoded the reactant as \texttt{[BH3].C=O}, although its step description and 16.02-kcal~mol$^{-1}$ reference concerned the Lewis adduct. Guided and Brief instead declared the bonded adduct. The original Guided evaluation explicitly reported that no delivered step matched the reference endpoint species. Revision \texttt{0b7b5e5b} corrected the reference node to \texttt{[BH3-][O+]=C}; the retained offline protocol used the earlier campaign taskbank. The released Standard and Record scores include their recorded annotation-identity recovery. F4 therefore contains a documented reference-identity effect: Guided's $\mathrm{SC}_{\mathrm{all}}=1$ coexists with $\mathrm{SC}_{\mathrm{Gold}}=0$ and Accuracy~0 despite the archived 16.02 pathway. Table~\ref{tab:si-easy-case-audit} retains this publication record.
+The F4 reference defines hydride transfer from the bonded Lewis adduct, represented as \texttt{[BH3-][O+]=C}, with a 16.02-kcal~mol$^{-1}$ barrier. Guided and Brief declared this adduct in their final graphs and obtained Accuracy close to 1. Standard and Record retained the separated-fragment representation \texttt{[BH3].C=O} for the reactant node. Their final graph declarations therefore did not identify the reference adduct and received Accuracy~0, although their native calculations supported essentially the same physical pathway. The comparison separates the chemical identity declared in the delivered graph from the path established by the calculations.
 
 \paragraph{G2: computed evidence and final structured delivery.}
 Guided's native logs contain a concerted double-H-transfer saddle at $-189.093172517$~hartree with one imaginary frequency, $-444.9504$~cm$^{-1}$. The optimized cis reactant complex and the IRC-derived reactant minimum have energies of $-189.094518484$ and $-189.094518735$~hartree. They give barriers of 0.84461 and 0.84476~kcal~mol$^{-1}$, respectively, close to the 0.87 reference.

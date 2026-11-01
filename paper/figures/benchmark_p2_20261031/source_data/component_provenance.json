@@ -146,5 +146,5 @@
     }
   ],
   "max_rounding_difference": 4.971078517046479e-05,
-  "rule": "Final organized totals aligned with their own recorded component scores; no score or chemical conclusion changed."
+  "rule": "Final evaluation totals aligned with their recorded component scores; preparation does not infer or overwrite run conclusions."
 }

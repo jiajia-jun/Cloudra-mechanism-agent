@@ -24,12 +24,12 @@
   },
   "sources": [
     {
-      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/benchmark_p2_20261031/source_data/speed_delivery/p1b_batch_elapsed.csv",
-      "sha256": "82baefca921344e5f581b4eac3d760ebd2fe4bf6045b2b4f2728a1bf4211e562"
+      "path": "/Users/cloudrayyy/Documents/Codex/2026-11-01/task/cloudra_gold_final_20261101/staged_repo/paper/figures/benchmark_p2_20261031/source_data/speed_delivery/p1b_batch_elapsed.csv",
+      "sha256": "e1127c80d00fd5cc7ba204f7e2a55dcda35c4d83ab85cd08da611ce7f17c7ecc"
     },
     {
-      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/benchmark_p2_20261031/source_data/speed_delivery/p2_effort_common15.csv",
-      "sha256": "5dbd0c8f170428ed762b09dcf4dd5ae0dbeaec2d7b61bb5b4db32f758639f543"
+      "path": "/Users/cloudrayyy/Documents/Codex/2026-11-01/task/cloudra_gold_final_20261101/staged_repo/paper/figures/benchmark_p2_20261031/source_data/speed_delivery/p2_effort_common15.csv",
+      "sha256": "22288e8153380d2b7de2e2592e98606f2a3ffd11c9568279b23520ca7994c559"
     }
   ],
   "pilot_batch_elapsed": [

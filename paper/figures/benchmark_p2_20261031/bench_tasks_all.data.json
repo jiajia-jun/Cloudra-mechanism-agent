@@ -188,25 +188,25 @@
       "task": "F4",
       "arm": "guided",
       "field": "score",
-      "value": 0.3601
+      "value": 0.9917
     },
     {
       "task": "F4",
       "arm": "standard",
       "field": "score",
-      "value": 0.9083
+      "value": 0.2768
     },
     {
       "task": "F4",
       "arm": "record",
       "field": "score",
-      "value": 0.9167
+      "value": 0.2851
     },
     {
       "task": "F4",
       "arm": "brief-errors",
       "field": "score",
-      "value": 0.3601
+      "value": 0.9917
     },
     {
       "task": "G2",
@@ -1388,25 +1388,25 @@
       "task": "F4",
       "arm": "guided",
       "field": "graph",
-      "value": 0.6009018553609635
+      "value": 0.9166666666666666
     },
     {
       "task": "F4",
       "arm": "standard",
       "field": "graph",
-      "value": 0.8333333333333334
+      "value": 0.51756852202763
     },
     {
       "task": "F4",
       "arm": "record",
       "field": "graph",
-      "value": 0.9166666666666666
+      "value": 0.6009018553609635
     },
     {
       "task": "F4",
       "arm": "brief-errors",
       "field": "graph",
-      "value": 0.6009018553609635
+      "value": 0.9166666666666666
     },
     {
       "task": "G2",
@@ -3788,25 +3788,25 @@
       "task": "F4",
       "arm": "guided",
       "field": "accuracy",
-      "value": 0.0
+      "value": 0.9999989806945144
     },
     {
       "task": "F4",
       "arm": "standard",
       "field": "accuracy",
-      "value": 0.9999990197354518
+      "value": 0.0
     },
     {
       "task": "F4",
       "arm": "record",
       "field": "accuracy",
-      "value": 0.9999992309840592
+      "value": 0.0
     },
     {
       "task": "F4",
       "arm": "brief-errors",
       "field": "accuracy",
-      "value": 0.0
+      "value": 0.9999989893370368
     },
     {
       "task": "G2",

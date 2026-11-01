@@ -1,7 +1,7 @@
 [
   {
     "file": "component_groups.csv",
-    "sha256": "f1c4f12fec8b5d05193445c5b556c489413ecddabdd5ae26f87a4b1cc296b6b7"
+    "sha256": "279477f3db184f3056fb6fc0b3f34d78bcacb82b8018bfd112ee9853953c8531"
   },
   {
     "file": "nu6_energy_fingerprint.json",
@@ -9,27 +9,27 @@
   },
   {
     "file": "tier_pairwise.csv",
-    "sha256": "1f81dfc35acabd2370f0971a63ec97bd1c0136efa0aaf20e00c3dcf39643abb7"
+    "sha256": "9ea99346bf305d4ec5304025ff6c9efe1ac6a0eac52c4b369f1758ce2e4f55dc"
   },
   {
     "file": "task_structure_and_final_scores.csv",
-    "sha256": "85596cf1d6fb2fd772eed0afd3277629e3d256a34a076dfe04904172714545a5"
+    "sha256": "294ee7cb63914bbba2312d789d308b53af0a47e3bf18cf77e907f3185fd74918"
   },
   {
     "file": "per_task_official.csv",
-    "sha256": "3d7c2cf009af2cbaed7526f6a9a7933b90f1743121849d756c2bc5e461c4196d"
+    "sha256": "df1ea1b589f17a68ae1a4273df7fcb3f3d02bd070e5dae6b7f87264215644355"
   },
   {
     "file": "pairwise.csv",
-    "sha256": "f4d0c7c6a041c0f3b525a4129b3af2745c5f838f365f80e1a545a0f8afe6c79b"
+    "sha256": "5d62d293a2eab727906ea9c701876981abdc0f284a4f9c45e3bde77f42f88a24"
   },
   {
     "file": "source_final_scores_per_run.csv",
-    "sha256": "d0c9105dac124031f87882d31c06b925f5aa9ed3c19c865929873c58ddaabf99"
+    "sha256": "100c3cddf7a14fe8585d170444a0f5ba6369c8a4fd9333195715a2e9f8c37b93"
   },
   {
     "file": "baseline_comparison.csv",
-    "sha256": "905168ee1bee513a65df77badf99a77fb6b78c6a758981af6792f23977bfed95"
+    "sha256": "a190f95b0632f587e01ae56a30fc929717712a818acd6c2f413ee98781bd939a"
   },
   {
     "file": "speed_delivery/p1b_archive_extract_manifest.json",
@@ -37,15 +37,15 @@
   },
   {
     "file": "speed_delivery/p1b_batch_elapsed_arm_summary.csv",
-    "sha256": "eea90aeb5614593797c6028a113a3fee896c71c2c09525b484febf8292886fdf"
+    "sha256": "438810bd7d6d85d2f317b486f885583f2c213a687b046976a3c127790ec297d3"
   },
   {
     "file": "speed_delivery/p2_effort_arm_summary_common15.csv",
-    "sha256": "b76baa1eb7e1874d9bb7afdb86164c2af0650ae401bfdedef3973620c445fcd6"
+    "sha256": "3e2d38ed44ef95d369faf4c6ded9d968c1ff4b462bdff7c600ed274309dd714e"
   },
   {
     "file": "speed_delivery/p2_effort_paired_deltas.csv",
-    "sha256": "5b0ac3aa32f203f48c81a62a3dd14de38954a6dd0d7076d266ae9874b4212e92"
+    "sha256": "4d0d394f5940842b79e62ad41825a4453482799d7cc0926faa80bd9cc36e8a02"
   },
   {
     "file": "speed_delivery/p1b_batch_time_summary.json",
@@ -57,11 +57,11 @@
   },
   {
     "file": "speed_delivery/reproduce_output.json",
-    "sha256": "c31a157dbd1fe07df9260146c0b2f073319168cafb449ab4eac9873aebe81f28"
+    "sha256": "ab8840bb0597a31d471639a0044ac8f026cf54cd935b122e0fea7ac12e392831"
   },
   {
     "file": "speed_delivery/p2_delivery_run_data.csv",
-    "sha256": "d723fabd25e27c835f472efb9d5be86e24ec0c668e80d04e27ff270a40e21294"
+    "sha256": "40856e12c22a2cb04a640d6b45b8d67d6e4fdcb40afb5a39f61951f67b8d4034"
   },
   {
     "file": "speed_delivery/extract_pilot_sources.py",
@@ -69,7 +69,7 @@
   },
   {
     "file": "speed_delivery/p2_effort_common15.csv",
-    "sha256": "5dbd0c8f170428ed762b09dcf4dd5ae0dbeaec2d7b61bb5b4db32f758639f543"
+    "sha256": "22288e8153380d2b7de2e2592e98606f2a3ffd11c9568279b23520ca7994c559"
   },
   {
     "file": "speed_delivery/reproduce_p1b_batch_time.py",
@@ -77,11 +77,11 @@
   },
   {
     "file": "speed_delivery/p1b_batch_elapsed.csv",
-    "sha256": "82baefca921344e5f581b4eac3d760ebd2fe4bf6045b2b4f2728a1bf4211e562"
+    "sha256": "e1127c80d00fd5cc7ba204f7e2a55dcda35c4d83ab85cd08da611ce7f17c7ecc"
   },
   {
     "file": "speed_delivery/p1b_batch_time_paired_deltas.csv",
-    "sha256": "835d8091cb90343da5adf9a4be88518ca2fcb3a22abf91ca350c86397855d5de"
+    "sha256": "173313f7068e42d3bb76f4332b41bbb2fed62c569b8ac55db4e1beb0eb83e58c"
   },
   {
     "file": "speed_delivery/ANALYSIS_NOTES.md",
@@ -89,7 +89,7 @@
   },
   {
     "file": "speed_delivery/p2_raw_note_coverage.csv",
-    "sha256": "16d4679e6568707d16adcaef111ea8d8e9ddb726109490df36236d1246b744e8"
+    "sha256": "344e634dfc0e994fea0af103656b23254658efc097dcbc62f1f2cd6b5b7ef802"
   },
   {
     "file": "speed_delivery/p1b_source_SUMMARY.md",
@@ -97,19 +97,19 @@
   },
   {
     "file": "speed_delivery/p2_old_marker_audit.csv",
-    "sha256": "4338ca6e27489f4a8f2074d7d162aca3cff8726f9a1fcac1dee9972b67d59a84"
+    "sha256": "89e96e90582cbe8e6212c221891602285cceb6eb98931ed3a20edcd58b8e360a"
   },
   {
     "file": "speed_delivery/p2_delivery_arm_summary.csv",
-    "sha256": "96fa056b4f3aec4ac339a88e508c861f2baa81133a9024eb1dbe916bfdb0cd18"
+    "sha256": "c5c05d02cd4ec0dc28116e2ad792d0df7375d032b2720375d9abeca80241d235"
   },
   {
     "file": "speed_delivery/analysis_summary.json",
-    "sha256": "16212e5c4b7a9e3bff8522a3e391b2bbce3d3072c97ecd051274122846d9a3f4"
+    "sha256": "535a984857826f74caa802c5432c946a119bd0f1fb13f2c8520c88ef1306c3e8"
   },
   {
     "file": "speed_delivery/p2_delivery_scoped_summary.csv",
-    "sha256": "d7890a8bf41b16719d8939d06d49d3ab4e020f13f7b686d677c869153cb7736e"
+    "sha256": "3d06992c23576d3b2ad2e702488a4f021ce24859e70e7dfc6da41391ea1bc052"
   },
   {
     "file": "speed_delivery/p1b_source_runs.csv",
@@ -117,7 +117,7 @@
   },
   {
     "file": "brief_imp/imp_brief_minus_guided.csv",
-    "sha256": "d82c31579ba3b983b3a32ca245d5eb750dd5ff525300491a1691beb8ec2a4a0f"
+    "sha256": "b00017385dc1d55ac19fb0e142d874042b89c84923b23bda77f1e6a06c1c50da"
   },
   {
     "file": "brief_imp/manuscript_en.md",
@@ -129,15 +129,15 @@
   },
   {
     "file": "brief_imp/imp_40_matrix.csv",
-    "sha256": "37b80aba3ccc82ac79b68bea4ac73cb0c455898ad098a3f156358bf02fbdca59"
+    "sha256": "fd402915133d285167c989154926352c8e10e1c617bceae251d209e35a21485f"
   },
   {
     "file": "brief_imp/imp_components_long.csv",
-    "sha256": "919cdeb51d61e89cfc7528578171255b118ed0d9b782aeae28d1ebe237a0cc1e"
+    "sha256": "ae031e8886611923a31e0610ee4241e8ef71692549bd278ebd6bacee35ff0330"
   },
   {
     "file": "brief_imp/imp_selfc_score_distribution.csv",
-    "sha256": "0ccc88fdce776864033f6f43743502bb34414694cf49fcdbf631c7d4571516bf"
+    "sha256": "33c3b3cd61d1138fe22c122be61c49a461b20f00d90e465e5d5476dcc07fe70a"
   },
   {
     "file": "brief_imp/source_sha256.json",
@@ -153,7 +153,7 @@
   },
   {
     "file": "brief_imp/imp_arm_summary.csv",
-    "sha256": "8dba5ae9d16ec8ed647d4a423c12252c73bf41c79322ef418f101ae6b60d2177"
+    "sha256": "ad14117657b489a7a9d89ec2f25d611c5c419d70c57ed1bf7b53cccee5aa7026"
   },
   {
     "file": "brief_imp/NOTES.md",

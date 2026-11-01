@@ -1,0 +1,19 @@
+{
+  "task_id": "F4",
+  "sandbox": "cloudra-p2c-20261025/guided/r1/sandboxes/F4/batch_94084d85d0634ca0",
+  "graph_score": 0.9166666666666666,
+  "selfconsistency_passed": true,
+  "selfconsistency_score": 1.0,
+  "selfconsistency_gold_score": 1.0,
+  "undelivered": false,
+  "accuracy_score": 0.9999989806945145,
+  "final_score": 0.9917,
+  "notes": [
+    "gold edge F4_E1 matched delivered step hydride_transfer_RC_to_P by endpoint species",
+    "edge F4_E1: log-derived 16.016 vs gold 16.020 (sigma 3.0) -> 1.0000 (weight 1.0)"
+  ],
+  "batch_id": "",
+  "orchestration_mode": "dag_guided",
+  "scorer_commit": "0961d9abc35b22618683b456d6a0b72ac8f003bb",
+  "reference_task": "task_definitions/easy/F4.json"
+}

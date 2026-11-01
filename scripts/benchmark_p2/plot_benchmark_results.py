@@ -130,7 +130,14 @@ def overview():
     ax.set(xlim=(-0.03, 1.04), ylim=(-0.03, 1.04), xlabel="Backbone composite", ylabel="Guided composite")
     clean_axis(ax)
     ax.legend(frameon=False, ncol=2, loc="lower right", fontsize=7, handletextpad=0.3, columnspacing=0.6)
-    ax.text(0.0, 1.07, "35 higher / 8 lower / 7 tied", transform=ax.transAxes, va="bottom", fontsize=7.4)
+    paired_stats = pair[
+        (pair.track == "official_repaired") & (pair.arm_a == "guided") & (pair.arm_b == "standard")
+    ].iloc[0]
+    outcome_counts = {key: int(paired_stats[key]) for key in ["a_wins", "b_wins", "ties"]}
+    outcome_label = (
+        f"{outcome_counts['a_wins']} higher / {outcome_counts['b_wins']} lower / {outcome_counts['ties']} tied"
+    )
+    ax.text(0.0, 1.07, outcome_label, transform=ax.transAxes, va="bottom", fontsize=7.4)
     panel(fig, "b", "Every task retained", 0.035, 0.51)
     ax = fig.add_axes([0.62, 0.12, 0.34, 0.30])
     rows = []
@@ -168,7 +175,12 @@ def overview():
         fig,
         "bench_overview",
         "P2 benchmark outcomes under the offline-organized track. (a) Guided and the same-backbone Standard baseline across all 50 tasks and each tier. (b) All 50 paired task outcomes. (c) Mean paired score differences with 95% percentile intervals from 100,000 task-level bootstrap resamples. Each task has one run per configuration; Easy contains 20 tasks and the other tiers contain 10 each.",
-        {"grouped_means": vals, "paired_differences": rows, "paired_tasks": p.reset_index().to_dict("records")},
+        {
+            "grouped_means": vals,
+            "paired_differences": rows,
+            "paired_tasks": p.reset_index().to_dict("records"),
+            "paired_outcome_counts": outcome_counts,
+        },
     )
 
 

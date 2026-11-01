@@ -1,5 +1,5 @@
 {
-  "source_data_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/benchmark_p2_20261031/source_data",
+  "source_data_dir": "/Users/cloudrayyy/Documents/Codex/2026-11-01/task/cloudra_gold_final_20261101/staged_repo/paper/figures/benchmark_p2_20261031/source_data",
   "figure_mm": [
     180,
     120
@@ -34,7 +34,7 @@
     "IF3",
     "IG8"
   ],
-  "score_source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv",
+  "score_source": "/Users/cloudrayyy/Documents/Codex/2026-11-01/task/cloudra_gold_final_20261101/staged_repo/paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv",
   "score_track": "Common complete offline organization and scoring track for totals and components.",
   "heatmap_metrics": [
     "score",

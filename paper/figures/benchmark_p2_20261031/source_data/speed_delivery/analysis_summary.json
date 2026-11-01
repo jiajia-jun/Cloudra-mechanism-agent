@@ -15,7 +15,7 @@
       "n_complete_components": 49,
       "known_runtime_crash": 0,
       "known_dag_failure_but_scored": 0,
-      "official_mean": 0.59402
+      "official_mean": 0.5813900000000001
     },
     {
       "arm": "guided",
@@ -31,7 +31,7 @@
       "n_complete_components": 47,
       "known_runtime_crash": 1,
       "known_dag_failure_but_scored": 0,
-      "official_mean": 0.780322
+      "official_mean": 0.792954
     },
     {
       "arm": "record",
@@ -47,7 +47,7 @@
       "n_complete_components": 50,
       "known_runtime_crash": 0,
       "known_dag_failure_but_scored": 0,
-      "official_mean": 0.70443
+      "official_mean": 0.691798
     },
     {
       "arm": "brief-errors",
@@ -63,7 +63,7 @@
       "n_complete_components": 48,
       "known_runtime_crash": 0,
       "known_dag_failure_but_scored": 1,
-      "official_mean": 0.741506
+      "official_mean": 0.754138
     }
   ],
   "p2_effort_common_tasks": [

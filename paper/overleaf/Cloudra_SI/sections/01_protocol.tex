@@ -71,7 +71,7 @@ These requirements apply to the objects requested by the task. An explicitly neg
 \subsection{Offline organization and publication records}
 Formal evaluation is conducted after the run artifacts are organized into the common mechanism-graph representation. Organization uses that run's conversations, tool records, reports, geometries, and native calculation outputs to recover graph objects, repair file references, and convert quantities already present in the run. Human organization and field-level sources are recorded, and the same organizational rules apply across configurations. The resulting graph expresses the scientific content of the run; Gold is used for evaluation rather than as a source of additional run conclusions or computational evidence.
 
-The full-benchmark publication table contains 200 runs and all 600 Graph, Self-consistency, and Accuracy component values. Each published composite is aligned with its own existing component records. The 200 released composite scores are retained; the weighted components reproduce them to their four-decimal reporting precision. The publication tables separately preserve whether the run itself generated a root mechanism graph and whether the graph was subsequently organized offline. Thus, the original delivery behavior and the organized scientific score remain separately inspectable quantities.
+The full-benchmark publication table contains 200 runs and all 600 Graph, Self-consistency, and Accuracy component values. Each final composite is recorded with its Graph, Self-consistency, and Accuracy components and their evaluation provenance. The weighted components reproduce the final totals to their four-decimal reporting precision; the reference definitions and evaluator revision are specified in Section~S7. The publication tables separately preserve whether the run itself generated a root mechanism graph and whether the graph was subsequently organized offline. Thus, the original delivery behavior and the organized scientific score remain separately inspectable quantities.
 
 The repeated-task study retains its historical four-configuration snapshots. The subsequent Standard offline organization is a separately identified update to those records; it is not labelled as a new uniform rescore of all 48 runs. Analyses using the repeated-task archive specify which record supplies the result.
 
@@ -82,7 +82,7 @@ For a task $i$ and configuration $a$, let $S_{ia}$ denote its composite score. C
 \left(S_{i,\mathrm{Guided}}-S_{i,\mathrm{Standard}}\right).
 \label{eq:si-paired-difference}
 \end{equation}
-The same calculation is used within each tier and for the combined Normal/Hard subset. Weighted component contributions are the mean paired component differences multiplied by 0.1, 0.3, and 0.6, respectively. They add to the composite difference up to the reporting precision of the released scores.
+The same calculation is used within each tier and for the combined Normal/Hard subset. Weighted component contributions are the mean paired component differences multiplied by 0.1, 0.3, and 0.6, respectively. They add to the composite difference up to the reporting precision of the final scores.
 
 The 95\% percentile intervals use 100,000 task-cluster bootstrap samples with seed 20261031. Each resampled task carries its four configuration records together, preserving the paired comparison. The bootstrap unit is a task, not an elementary edge or an individual quantum-chemical calculation.
 

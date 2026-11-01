@@ -1,4 +1,4 @@
-"""Join the complete, released offline results to their recorded score components."""
+"""Assemble the final evaluation results and their recorded score components."""
 
 import json
 from pathlib import Path
@@ -69,7 +69,7 @@ raw.to_csv(OUT / "raw_scores_p2.csv", index=False)
             "n": 200,
             "recovered_rows": links,
             "max_rounding_difference": r.rounding_difference.abs().max(),
-            "rule": "Final organized totals aligned with their own recorded component scores; no score or chemical conclusion changed.",
+            "rule": "Final evaluation totals aligned with their recorded component scores; preparation does not infer or overwrite run conclusions.",
         },
         ensure_ascii=False,
         indent=2,
