@@ -1,0 +1,199 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180mm" height="111.9375mm" viewBox="0 0 1600 995" role="img" aria-labelledby="title description">
+<title id="title">Cloudra architecture: reaction-specific evidence</title><desc id="description">Editable vector architecture. Short dashed links connect corresponding reactant/product atoms on two offset schematic drawing planes, not physical three-dimensional molecular coordinates. A separate bracketed pair of butadiene conformations shows a sampled set within one molecular graph, without a directional conversion or equilibrium arrow. No correspondence links connect those two conformers. This four-carbon illustration is not claimed to execute the large-search-space MCS-seeding branch. Watched pairs combine bond edits and endpoint distance variations; highlighted pair 3-4 is one member of W, not necessarily the whole set. The eta formula defines a mode-alignment diagnostic without an acceptance threshold. Geometry preparation retains atom identities while sampling conformations. Computational artifacts support reaction-centre mode diagnostics and a provenance-linked, same-transition-state bidirectional IRC chain. Endpoint optimization and frequency analysis precede comparison against the R and P identity graphs. Evidence is bound to the corresponding elementary step between species occurrences. The qualitative mode-pair arrows and partial-bond sketch are diagnostic illustrations, not computed eigenvectors or an optimized transition-state geometry. Molecular drawings in the graph encode identity, not direct IRC endpoint conformations.</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L10,5 L0,9 Z" fill="#27332D"/></marker><marker id="arrow-muted" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,1 L10,5 L0,9 Z" fill="#5D6861"/></marker></defs>
+<rect x="0" y="0" width="1600" height="995" fill="#FCFCF9" stroke="none" stroke-width="1"/>
+<rect x="320" y="45" width="1240" height="435" fill="#EEF0EC" stroke="none" stroke-width="1"/>
+<rect x="320" y="540" width="1240" height="420" fill="#E9EFE3" stroke="none" stroke-width="1"/>
+<text xml:space="preserve" x="40" y="89" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="29" font-weight="700" text-anchor="start" >Coordinator</text>
+<text xml:space="preserve" x="40" y="131" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >Mechanistic hypotheses</text>
+<path d="M142,153 L142,182" fill="none" stroke="#5D6861" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-muted)"/>
+<text xml:space="preserve" x="40" y="220" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="27" font-weight="700" text-anchor="start" >Computational</text>
+<text xml:space="preserve" x="40" y="251" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="27" font-weight="700" text-anchor="start" >agents</text>
+<text xml:space="preserve" x="40" y="293" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >Select / inspect / revise</text>
+<path d="M250,237 L306,237" fill="none" stroke="#27332D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text xml:space="preserve" x="350" y="89" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="29" font-weight="700" text-anchor="start" >Geometry preparation</text>
+<text xml:space="preserve" x="350" y="131" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="start" >R ↔ P atom mapping</text>
+<text xml:space="preserve" x="800" y="89" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="29" font-weight="700" text-anchor="start" >Computation</text>
+<path d="M672,79 L767,79" fill="none" stroke="#27332D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text xml:space="preserve" x="720" y="113" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="middle" >seed</text>
+<g id="reactant-product-atom-correspondence">
+<path d="M498,139 L604,166 L548,217 L442,190 Z" fill="#F6F7F3" stroke="none" stroke-width="0" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M468,219 L574,246 L518,297 L412,270 Z" fill="#E4E9DF" stroke="none" stroke-width="0" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M474.9157281822375,221.8913915140334 L495.0842718177625,168.1086084859666" fill="none" stroke="#89958C" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 4"/>
+<path d="M554.9157281822374,241.8913915140334 L575.0842718177626,188.1086084859666" fill="none" stroke="#89958C" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 4"/>
+<path d="M519.9157281822374,266.8913915140334 L540.0842718177626,213.1086084859666" fill="none" stroke="#89958C" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 4"/>
+<path d="M439.9157281822375,246.8913915140334 L460.0842718177625,193.1086084859666" fill="none" stroke="#89958C" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="3 4"/>
+<g id="mapping-P-butadiene">
+<path d="M467.0343336780168,182.84806714922357 L502.0343336780168,157.84806714922357" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M462.9656663219832,177.15193285077643 L497.9656663219832,152.15193285077643" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M500,155 L580,175" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M577.9656663219831,172.15193285077643 L542.9656663219831,197.15193285077643" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M582.0343336780169,177.84806714922357 L547.0343336780169,202.84806714922357" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="500" cy="155" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="500" y="162.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >1</text>
+<circle cx="580" cy="175" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="580" y="182.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >2</text>
+<circle cx="545" cy="200" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="545" y="207.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >3</text>
+<circle cx="465" cy="180" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="465" y="187.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >4</text>
+</g>
+<g id="mapping-R-cyclobutene">
+<path d="M469.1511253123728,238.39549875050866 L549.1511253123729,258.39549875050864" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M470.8488746876272,231.60450124949134 L550.8488746876271,251.60450124949134" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M550,255 L515,280" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M515,280 L435,260" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M435,260 L470,235" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="470" cy="235" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="470" y="242.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >1</text>
+<circle cx="550" cy="255" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="550" y="262.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >2</text>
+<circle cx="515" cy="280" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="515" y="287.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >3</text>
+<circle cx="435" cy="260" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="435" y="267.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >4</text>
+</g>
+<text xml:space="preserve" x="390" y="278" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="600" text-anchor="middle" >R</text>
+<text xml:space="preserve" x="625" y="183" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="600" text-anchor="middle" >P</text>
+<text xml:space="preserve" x="350" y="320" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >Enumerate / MCS seeds</text>
+</g>
+<text xml:space="preserve" x="350" y="354" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="500" text-anchor="start" >Conformer sampling · C1–C2</text>
+<g id="conformer-sampling">
+<g id="sampling-s-trans">
+<path d="M367.47487373415294,428.47487373415294 L407.47487373415294,388.47487373415294" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M362.52512626584706,423.52512626584706 L402.52512626584706,383.52512626584706" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M405,386 L445,426" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M447.47487373415294,428.47487373415294 L487.47487373415294,388.47487373415294" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M442.52512626584706,423.52512626584706 L482.52512626584706,383.52512626584706" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="365" cy="426" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="365" y="433.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >4</text>
+<circle cx="405" cy="386" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="405" y="393.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >1</text>
+<circle cx="445" cy="426" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="445" y="433.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >2</text>
+<circle cx="485" cy="386" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="485" y="393.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >3</text>
+</g>
+<g id="sampling-s-cis">
+<path d="M567.634018431474,428.30476612753984 L602.634018431474,388.30476612753984" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M562.365981568526,423.69523387246016 L597.365981568526,383.69523387246016" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M600,386 L640,386" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M637.365981568526,388.30476612753984 L672.365981568526,428.30476612753984" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M642.634018431474,383.69523387246016 L677.634018431474,423.69523387246016" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="565" cy="426" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="565" y="433.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >4</text>
+<circle cx="600" cy="386" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="600" y="393.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >1</text>
+<circle cx="640" cy="386" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="640" y="393.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >2</text>
+<circle cx="675" cy="426" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="675" y="433.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >3</text>
+</g>
+<path d="M346,373 H338 V439 H346" fill="none" stroke="#5D6861" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M697,373 H705 V439 H697" fill="none" stroke="#5D6861" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+<text xml:space="preserve" x="425" y="459" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="600" text-anchor="middle" >s-trans</text>
+<text xml:space="preserve" x="620" y="459" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="600" text-anchor="middle" >s-cis</text>
+</g>
+<text xml:space="preserve" x="800" y="220" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="25" font-weight="600" text-anchor="start" >ComputeDB</text>
+<path d="M955,212 L976,212" fill="none" stroke="#27332D" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text xml:space="preserve" x="991" y="220" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="25" font-weight="600" text-anchor="start" >Scheduler</text>
+<text xml:space="preserve" x="800" y="259" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >Durable jobs · resource quotas</text>
+<text xml:space="preserve" x="800" y="320" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="600" text-anchor="start" >ORCA / Gaussian / xTB</text>
+<text xml:space="preserve" x="800" y="354" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >Native calculation artifacts</text>
+<text xml:space="preserve" x="1200" y="89" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="29" font-weight="700" text-anchor="start" >Mode diagnostic</text>
+<path d="M1060,79 L1168,79" fill="none" stroke="#27332D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text xml:space="preserve" x="1114" y="113" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="middle" >inspect</text>
+<text xml:space="preserve" x="1200" y="131" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="500" text-anchor="start" >Bond edits / Δd → W</text>
+<g id="qualitative-mode-pair-diagnostic">
+<rect x="1235" y="222" width="215" height="36" fill="#C4CFA5" stroke="none" stroke-width="1"/>
+<path d="M1285,173 L1400,173" fill="none" stroke="#27332D" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1295,182 L1390,182" fill="none" stroke="#5D6861" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 5"/>
+<path d="M1285,173 L1265,240" fill="none" stroke="#27332D" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1293,180 L1274,238" fill="none" stroke="#5D6861" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 5"/>
+<path d="M1400,173 L1420,240" fill="none" stroke="#27332D" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1392,180 L1411,238" fill="none" stroke="#5D6861" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="5 5"/>
+<path d="M1265,240 L1420,240" fill="none" stroke="#5B6E4C" stroke-width="2.8" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6 5"/>
+<circle cx="1285" cy="173" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="1285" y="180.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >1</text>
+<circle cx="1400" cy="173" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="1400" y="180.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >2</text>
+<circle cx="1265" cy="240" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="1265" y="247.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >4</text>
+<circle cx="1420" cy="240" r="13" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="1420" y="247.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >3</text>
+<path d="M1323,281 L1274,281" fill="none" stroke="#5D6861" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-muted)"/>
+<path d="M1362,281 L1411,281" fill="none" stroke="#5D6861" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-muted)"/>
+<text xml:space="preserve" x="1343" y="320" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="400" text-anchor="middle" >(3,4) ∈ W</text>
+</g>
+<g id="mode-pair-ratio" aria-label="eta equals maximum relative displacement over watched pairs divided by maximum over all atom pairs"><text xml:space="preserve" x="1200" y="403" font-family="Liberation Serif, Times New Roman, serif" font-size="30" fill="#27332D">η =</text>
+<text xml:space="preserve" x="1392" y="379" text-anchor="middle" font-family="Liberation Serif, Times New Roman, serif" font-size="27" fill="#27332D"><tspan>max</tspan><tspan baseline-shift="sub" font-size="19">(i,j)∈W</tspan><tspan dx="3"> ‖</tspan><tspan font-style="italic" font-weight="700">u</tspan><tspan baseline-shift="sub" font-size="19" font-style="italic">i</tspan><tspan> − </tspan><tspan font-style="italic" font-weight="700">u</tspan><tspan baseline-shift="sub" font-size="19" font-style="italic">j</tspan><tspan>‖</tspan></text>
+<path d="M1258,395 H1525" fill="none" stroke="#27332D" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round"/>
+<text xml:space="preserve" x="1392" y="429" text-anchor="middle" font-family="Liberation Serif, Times New Roman, serif" font-size="27" fill="#27332D"><tspan>max</tspan><tspan baseline-shift="sub" font-size="19">i&lt;j</tspan><tspan dx="3"> ‖</tspan><tspan font-style="italic" font-weight="700">u</tspan><tspan baseline-shift="sub" font-size="19" font-style="italic">i</tspan><tspan> − </tspan><tspan font-style="italic" font-weight="700">u</tspan><tspan baseline-shift="sub" font-size="19" font-style="italic">j</tspan><tspan>‖</tspan></text></g>
+<path d="M950,482 L950,550" fill="none" stroke="#27332D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text xml:space="preserve" x="972" y="524" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >Opt / Freq</text>
+<g id="delivery-evidence" transform="translate(0,135)">
+<text xml:space="preserve" x="350" y="449" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="31" font-weight="700" text-anchor="start" >Delivery DAG</text>
+<text xml:space="preserve" x="350" y="481" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="400" text-anchor="start" >Species occurrences</text>
+<rect x="824" y="420" width="252" height="49" fill="#FCFCF9" stroke="#CBD1C8" stroke-width="1.4"/>
+<text xml:space="preserve" x="950" y="453" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="25" font-weight="700" text-anchor="middle" >Same TS artifact</text>
+<path d="M950,471 V500 H540 V520" fill="none" stroke="#27332D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<path d="M950,500 H1340 V520" fill="none" stroke="#27332D" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<text xml:space="preserve" x="740" y="488" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="600" text-anchor="middle" >−IRC</text>
+<text xml:space="preserve" x="1160" y="488" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="600" text-anchor="middle" >+IRC</text>
+<rect x="467" y="526" width="146" height="41" fill="#FCFCF9" stroke="#CBD1C8" stroke-width="1.2"/>
+<text xml:space="preserve" x="540" y="555" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >Opt / Freq</text>
+<rect x="1267" y="526" width="146" height="41" fill="#FCFCF9" stroke="#CBD1C8" stroke-width="1.2"/>
+<text xml:space="preserve" x="1340" y="555" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >Opt / Freq</text>
+<path d="M540,569 L540,584" fill="none" stroke="#5D6861" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-muted)"/>
+<path d="M1340,569 L1340,584" fill="none" stroke="#5D6861" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-muted)"/>
+<text xml:space="preserve" x="562" y="585" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >match</text>
+<text xml:space="preserve" x="1362" y="585" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >match</text>
+<g id="R-identity-cyclobutene">
+<path d="M504.0,609.5 L576.0,609.5" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M504.0,602.5 L576.0,602.5" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M576,606 L576,670" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M576,670 L504,670" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M504,670 L504,606" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="504" cy="606" r="14" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="504" y="613.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >1</text>
+<circle cx="576" cy="606" r="14" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="576" y="613.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >2</text>
+<circle cx="576" cy="670" r="14" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="576" y="677.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >3</text>
+<circle cx="504" cy="670" r="14" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="504" y="677.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >4</text>
+</g>
+<g id="P-identity-butadiene">
+<path d="M1279.9261676879298,671.9202975452039 L1321.9261676879298,607.9202975452039" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1274.0738323120702,668.0797024547961 L1316.0738323120702,604.0797024547961" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1319,606 L1361,670" fill="none" stroke="#27332D" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1363.9261676879298,671.9202975452039 L1405.9261676879298,607.9202975452039" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<path d="M1358.0738323120702,668.0797024547961 L1400.0738323120702,604.0797024547961" fill="none" stroke="#27332D" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="1277" cy="670" r="14" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="1277" y="677.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >4</text>
+<circle cx="1319" cy="606" r="14" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="1319" y="613.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >1</text>
+<circle cx="1361" cy="670" r="14" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="1361" y="677.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >2</text>
+<circle cx="1403" cy="606" r="14" fill="#FCFCF9" stroke="#27332D" stroke-width="1.8"/>
+<text xml:space="preserve" x="1403" y="613.5" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="500" text-anchor="middle" >3</text>
+</g>
+<text xml:space="preserve" x="540" y="711" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="25" font-weight="600" text-anchor="middle" >R identity</text>
+<text xml:space="preserve" x="540" y="743" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="middle" >cyclobutene</text>
+<text xml:space="preserve" x="1340" y="711" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="25" font-weight="600" text-anchor="middle" >P identity</text>
+<text xml:space="preserve" x="1340" y="743" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="middle" >1,3-butadiene</text>
+<path d="M627,636 L1225,636" fill="none" stroke="#27332D" stroke-width="2.7" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<rect x="825" y="590" width="250" height="35" fill="#C4CFA5" stroke="none" stroke-width="1"/>
+<text xml:space="preserve" x="950" y="615" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="24" font-weight="600" text-anchor="middle" >e₁ / elementary step</text>
+<text xml:space="preserve" x="950" y="675" fill="#5B6E4C" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="500" text-anchor="middle" >Bound evidence</text>
+<path d="M625,660 L742,786 H1008" fill="none" stroke="#5D6861" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6 6" marker-end="url(#arrow-muted)"/>
+<circle cx="1037" cy="786" r="20" fill="#FCFCF9" stroke="#5D6861" stroke-width="1.8"/>
+<text xml:space="preserve" x="1037" y="794" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="25" font-weight="500" text-anchor="middle" >?</text>
+<text xml:space="preserve" x="1074" y="794" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="400" text-anchor="start" >Pending requirements</text>
+</g>
+<text xml:space="preserve" x="40" y="722" fill="#27332D" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="29" font-weight="700" text-anchor="start" >Supervisor</text>
+<text xml:space="preserve" x="40" y="764" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="23" font-weight="400" text-anchor="start" >Audit delivery</text>
+<path d="M308,712 L213,712" fill="none" stroke="#27332D" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow)"/>
+<path d="M142,684 V327" fill="none" stroke="#5D6861" stroke-width="2.3" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arrow-muted)"/>
+<text xml:space="preserve" x="164" y="514" fill="#5D6861" font-family="Arial, Liberation Sans, Helvetica, sans-serif" font-size="22" font-weight="400" text-anchor="start" >revise</text>
+</svg>
