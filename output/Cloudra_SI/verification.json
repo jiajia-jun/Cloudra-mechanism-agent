@@ -30,12 +30,12 @@
   "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
   "files": {
     "Cloudra_SI_EN_Draft.pdf": {
-      "bytes": 309109,
-      "sha256": "d65e4835f41563c7514b863abaf87c5ea6457c2e2c1d134aa6ad5d0eedc69774"
+      "bytes": 309407,
+      "sha256": "771c945e8ebe6072fd50642a780b290e899de56a6a73257e3d3006bb19394313"
     },
     "Cloudra_SI_Overleaf.zip": {
-      "bytes": 151036,
-      "sha256": "ba877a24a88119083395c1e67a3efb84050079a26d6bf2fea03feb640d8f1010"
+      "bytes": 151248,
+      "sha256": "2d14e2cf9107299511ee01859f6780ed3cb82a8e2853f7830f36ec10ed04c9ef"
     },
     "Cloudra_SI_Data.zip": {
       "bytes": 16830359,
@@ -48,8 +48,8 @@
     "mismatches": 0,
     "new_model_or_qm_calculations": 0
   },
-  "pdf_sha256": "d65e4835f41563c7514b863abaf87c5ea6457c2e2c1d134aa6ad5d0eedc69774",
-  "source_zip_sha256": "ba877a24a88119083395c1e67a3efb84050079a26d6bf2fea03feb640d8f1010",
+  "pdf_sha256": "771c945e8ebe6072fd50642a780b290e899de56a6a73257e3d3006bb19394313",
+  "source_zip_sha256": "2d14e2cf9107299511ee01859f6780ed3cb82a8e2853f7830f36ec10ed04c9ef",
   "bibliography_entries": 38,
   "authorship_verified": true,
   "deployment": "DeepSeek-v4.1-flash (1017)",
@@ -101,5 +101,32 @@
         "source_zip_matches_editable_sources": true
       }
     }
+  },
+  "evaluation_protocol_clarification": {
+    "date": "2026-11-01",
+    "outputs": {
+      "EN": {
+        "pages": 23,
+        "pdf_sha256": "805a9fd6391ce7857dc840800182b542f5c29c595436ad1233df30d8b0f6b219",
+        "source_zip_sha256": "2693e3122ad87a9780902baf14c74a5ddb3d7b170225bd7baa16df806aaba462",
+        "source_files": 39
+      },
+      "ZH": {
+        "pages": 19,
+        "pdf_sha256": "aaeb820c999e39a3d2da9186876ffd92a71eea13f4167744ef9d48d6a3194e88",
+        "source_zip_sha256": "ada626f73c3238882702a9dadf1fa89147d658f9b70ff7d85552e09925d5540d",
+        "source_files": 39
+      },
+      "SI": {
+        "pages": 31,
+        "pdf_sha256": "771c945e8ebe6072fd50642a780b290e899de56a6a73257e3d3006bb19394313",
+        "source_zip_sha256": "2d14e2cf9107299511ee01859f6780ed3cb82a8e2853f7830f36ec10ed04c9ef",
+        "source_files": 26
+      }
+    },
+    "arxiv_package": "/Users/cloudrayyy/Desktop/Cloudra_arXiv_提交准备包_20261101",
+    "arxiv_zip": "/Users/cloudrayyy/Desktop/Cloudra_arXiv_提交准备包_20261101.zip",
+    "scores_and_data_unchanged": true,
+    "critical_warnings": []
   }
 }

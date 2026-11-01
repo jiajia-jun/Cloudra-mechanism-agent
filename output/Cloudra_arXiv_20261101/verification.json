@@ -5,8 +5,8 @@
     "EN": {
       "pages": 23,
       "source_files": 39,
-      "pdf_sha256": "96d29623aecd5d2b4f5604a3e16f18f8064cd979318c4ead93e73159d9c52bbf",
-      "source_zip_sha256": "12ae4c23d6826a68e1343a7d9e7fffca1d6b373cd474e0a6a891a0b3c755af8a",
+      "pdf_sha256": "805a9fd6391ce7857dc840800182b542f5c29c595436ad1233df30d8b0f6b219",
+      "source_zip_sha256": "2693e3122ad87a9780902baf14c74a5ddb3d7b170225bd7baa16df806aaba462",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -16,8 +16,8 @@
     "ZH": {
       "pages": 19,
       "source_files": 39,
-      "pdf_sha256": "3798beecabe8a23a83655f5592fb25aed0442d49b4a38c05a442461c0b21b73d",
-      "source_zip_sha256": "14f86cca948da7966b4770f084233ea372f3e77fbb2fd5fbd827c9169042087a",
+      "pdf_sha256": "aaeb820c999e39a3d2da9186876ffd92a71eea13f4167744ef9d48d6a3194e88",
+      "source_zip_sha256": "ada626f73c3238882702a9dadf1fa89147d658f9b70ff7d85552e09925d5540d",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -27,8 +27,8 @@
     "SI": {
       "pages": 31,
       "source_files": 26,
-      "pdf_sha256": "d65e4835f41563c7514b863abaf87c5ea6457c2e2c1d134aa6ad5d0eedc69774",
-      "source_zip_sha256": "ba877a24a88119083395c1e67a3efb84050079a26d6bf2fea03feb640d8f1010",
+      "pdf_sha256": "771c945e8ebe6072fd50642a780b290e899de56a6a73257e3d3006bb19394313",
+      "source_zip_sha256": "2d14e2cf9107299511ee01859f6780ed3cb82a8e2853f7830f36ec10ed04c9ef",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -82,5 +82,32 @@
         "source_zip_matches_editable_sources": true
       }
     }
+  },
+  "evaluation_protocol_clarification": {
+    "date": "2026-11-01",
+    "outputs": {
+      "EN": {
+        "pages": 23,
+        "pdf_sha256": "805a9fd6391ce7857dc840800182b542f5c29c595436ad1233df30d8b0f6b219",
+        "source_zip_sha256": "2693e3122ad87a9780902baf14c74a5ddb3d7b170225bd7baa16df806aaba462",
+        "source_files": 39
+      },
+      "ZH": {
+        "pages": 19,
+        "pdf_sha256": "aaeb820c999e39a3d2da9186876ffd92a71eea13f4167744ef9d48d6a3194e88",
+        "source_zip_sha256": "ada626f73c3238882702a9dadf1fa89147d658f9b70ff7d85552e09925d5540d",
+        "source_files": 39
+      },
+      "SI": {
+        "pages": 31,
+        "pdf_sha256": "771c945e8ebe6072fd50642a780b290e899de56a6a73257e3d3006bb19394313",
+        "source_zip_sha256": "2d14e2cf9107299511ee01859f6780ed3cb82a8e2853f7830f36ec10ed04c9ef",
+        "source_files": 26
+      }
+    },
+    "arxiv_package": "/Users/cloudrayyy/Desktop/Cloudra_arXiv_提交准备包_20261101",
+    "arxiv_zip": "/Users/cloudrayyy/Desktop/Cloudra_arXiv_提交准备包_20261101.zip",
+    "scores_and_data_unchanged": true,
+    "critical_warnings": []
   }
 }

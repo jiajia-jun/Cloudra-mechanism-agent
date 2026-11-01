@@ -15,7 +15,7 @@ The graph component measures coverage of the reference mechanism by the delivere
 The tier-specific graph comparison ignores stereochemistry for Easy and Normal tasks and retains it for Hard tasks. Bound native evidence determines the evidence association of a delivered species. The graph score is not multiplied by the binary self-consistency pass flag: graph coverage and physical self-consistency remain distinct components.
 
 \subsection{Graded physical self-consistency}
-The self-consistency assessment operates on delivered species and steps, independently of numerical agreement with Gold. A transition-state step receives graded credit for the evidence stages in Table~\ref{tab:si-self-consistency}. A complete verified chain receives 1.0. When necessary, evaluation searches the same run's native artifacts for the corresponding chain; recovery of a file association retains the same physical acceptance criteria.
+The self-consistency assessment operates on the species and steps represented in the organized graph, independently of numerical agreement with Gold. A transition-state step receives graded credit for the evidence stages in Table~\ref{tab:si-self-consistency}. A complete verified chain receives 1.0. The evaluator searches the same run's sandbox for the corresponding native artifacts and evidence chain, including when an explicit file association needs recovery. Credit is determined by that computational evidence under the common physical acceptance criteria.
 
 \begin{table}[htbp]
 \centering
