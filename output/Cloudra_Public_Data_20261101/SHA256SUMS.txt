@@ -1,3 +1,3 @@
 dfd3fe8f71f236b8bc463ad1753d05bdf89aee44be9b11dbe9a2bce43b9c3155  Cloudra-P2-final-20261031-FULL.tar.gz
 c7367703ca38dc3577c89ad409988294ec9594faedcee70e375e50ae4412a820  cloudra-benchmark-evidence-20261018-d10056e7-drive1.zip
-361d6577bceac73d0e291bfec04905a2a7d74c90d030ab0fa57e6ca624d9d3ec  Cloudra_SI_Data.zip
+e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5  Cloudra_SI_Data.zip

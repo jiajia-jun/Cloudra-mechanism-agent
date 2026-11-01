@@ -1,0 +1,36 @@
+{
+  "status": "local_sync_complete",
+  "date": "2026-11-02 Asia/Singapore",
+  "note": "Point SI companion Drive link at Accuracy-overlay data zip (new Drive file id); refresh SHA256SUMS/drive_publication; rebuild SI Overleaf zip. EN/ZH zips unchanged (folder-level link only).",
+  "overall_composite_mean": 0.7176,
+  "si_drive_file_id": "1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf",
+  "si_drive_url": "https://drive.google.com/file/d/1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf/view?usp=drivesdk",
+  "si_data_zip_sha256": "e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5",
+  "si_data_zip_bytes": 17795154,
+  "zips": {
+    "EN": "ac1924144307c68cc268806a5eeac7fc52fffb2acfcaa397304422697a9e1c0a",
+    "ZH": "4fdee3ec5fcaa656c7db50b4c1f4963e5ae58c5d6b686352e61e6d9fbece93be",
+    "SI_overleaf": "6a06a7471c41d16870c8fa6e4cd63b6a8134d4dcb219fb6d123495f493175e85",
+    "SI_data": "e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5"
+  },
+  "zip_details": {
+    "EN": {
+      "path": "output/Cloudra_Overleaf/Cloudra_Manuscript_EN.zip",
+      "files": 42,
+      "bytes": 1877670,
+      "sha256": "ac1924144307c68cc268806a5eeac7fc52fffb2acfcaa397304422697a9e1c0a"
+    },
+    "ZH": {
+      "path": "output/Cloudra_Overleaf/Cloudra_Manuscript_ZH.zip",
+      "files": 42,
+      "bytes": 1896323,
+      "sha256": "4fdee3ec5fcaa656c7db50b4c1f4963e5ae58c5d6b686352e61e6d9fbece93be"
+    },
+    "SI_overleaf": {
+      "path": "output/Cloudra_SI/Cloudra_SI_Overleaf.zip",
+      "files": 28,
+      "bytes": 153128,
+      "sha256": "6a06a7471c41d16870c8fa6e4cd63b6a8134d4dcb219fb6d123495f493175e85"
+    }
+  }
+}

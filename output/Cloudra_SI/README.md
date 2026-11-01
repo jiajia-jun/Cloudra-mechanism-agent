@@ -10,8 +10,8 @@
 
 - [SI初稿PDF](Cloudra_SI_EN_Draft.pdf)
 - [Overleaf可编辑项目包](Cloudra_SI_Overleaf.zip)
-- [配套数据与复现材料](Cloudra_SI_Data.zip)，约16.8MB，解压得到 companion_data/。
-- [公开下载配套数据](https://drive.google.com/file/d/1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL/view?usp=drivesdk)；[研究数据总目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)同时提供P2完整实验包、48次P1b实验和Gold参考证据。
+- [配套数据与复现材料](Cloudra_SI_Data.zip)，约17.8MB，解压得到 companion_data/。
+- [公开下载配套数据](https://drive.google.com/file/d/1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf/view?usp=drivesdk)；[研究数据总目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)同时提供P2完整实验包、48次P1b实验和Gold参考证据。
 - [第三章完整行为与激活原始档案](https://drive.google.com/drive/folders/1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K)，三个ZIP共164.7MB，附源数据库、事件轨迹、绘图材料、历史稿件索引及校验表。
 - [在线Overleaf项目](https://www.overleaf.com/project/6ae5e126e8645869834e129f)
 

@@ -32,7 +32,7 @@
 
 ## SI 配套复现包
 
-[公开下载 `Cloudra_SI_Data.zip`](https://drive.google.com/file/d/1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL/view?usp=drivesdk)，约16.8 MB。该包保存50题任务定义、200次正式运行的完整精度评分表、行为实验与激活记录、文献登记，以及出版表格和配图的独立复现脚本；解压得到 `companion_data/`。包内 `file_manifest.json` 提供逐文件大小与 SHA256。
+[公开下载 `Cloudra_SI_Data.zip`](https://drive.google.com/file/d/1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf/view?usp=drivesdk)，约17.8 MB。该包保存50题任务定义、200次正式运行的完整精度评分表、行为实验与激活记录、文献登记，以及出版表格和配图的独立复现脚本；解压得到 `companion_data/`。包内 `file_manifest.json` 提供逐文件大小与 SHA256。
 
 ## 行为实验与激活原始档案
 

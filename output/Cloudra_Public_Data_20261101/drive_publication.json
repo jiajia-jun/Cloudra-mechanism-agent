@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-01",
+  "date": "2026-11-02",
   "public_access": "Anyone with the link can view and download; public read-only permissions verified through Drive metadata.",
   "p2_upload_complete": true,
   "p2_cloud_size_matches_source": true,
@@ -60,17 +60,19 @@
       ]
     },
     {
-      "id": "1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL",
+      "id": "1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf",
       "name": "Cloudra_SI_Data.zip",
-      "url": "https://drive.google.com/file/d/1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL/view?usp=drivesdk",
-      "size_bytes": 16818721,
+      "url": "https://drive.google.com/file/d/1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf/view?usp=drivesdk",
+      "size_bytes": 17795154,
       "permissions": [
         {
           "type": "anyone",
           "role": "reader",
           "allowFileDiscovery": false
         }
-      ]
+      ],
+      "sha256": "e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5",
+      "revision": "20261102"
     },
     {
       "id": "1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K",
@@ -85,5 +87,7 @@
         }
       ]
     }
-  ]
+  ],
+  "si_data_revision": "20261102_target_matching_accuracy_overlay",
+  "si_data_source_sha256": "e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5"
 }

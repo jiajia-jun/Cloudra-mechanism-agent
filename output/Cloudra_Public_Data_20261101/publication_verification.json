@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-01",
+  "date": "2026-11-02",
   "scope": "Public data-availability links in bilingual manuscript and SI; Overleaf exports match canonical sources.",
   "languages": {
     "EN": {
@@ -35,7 +35,10 @@
     }
   },
   "scientific_data_unchanged": true,
-  "si_data_zip_sha256": "361d6577bceac73d0e291bfec04905a2a7d74c90d030ab0fa57e6ca624d9d3ec",
+  "si_data_zip_sha256": "e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5",
   "all_five_data_categories_public": true,
-  "drive_verification_record": "drive_publication.json"
+  "drive_verification_record": "drive_publication.json",
+  "si_data_zip_bytes": 17795154,
+  "si_drive_file_id": "1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf",
+  "note": "SI companion Drive link pointed at Accuracy-overlay revision_20261102 package (~17.8 MB)."
 }

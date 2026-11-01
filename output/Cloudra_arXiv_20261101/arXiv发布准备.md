@@ -18,7 +18,7 @@
 
 | 事项 | 当前状态和最小动作 |
 | --- | --- |
-| 数据包获取入口 | 已完成：[公开研究数据目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)提供14.9GB P2完整包、48次P1b实验、Gold证据、完整行为/激活档案和16.8MB SI配套包。公开只读权限和P2云端大小已核实；正文、SI S7、项目README及交付文档已加入链接。 |
+| 数据包获取入口 | 已完成：[公开研究数据目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)提供14.9GB P2完整包、48次P1b实验、Gold证据、完整行为/激活档案和17.8MB SI配套包。公开只读权限和P2云端大小已核实；正文、SI S7、项目README及交付文档已加入链接。 |
 | 编译环境 | arXiv现支持XeLaTeX；默认TeX Live2025，另可选2023。当前Overleaf用2026，应在正式上传前用2025试编译并检查实际生成PDF。字体已用.otf文件名加载，符合官方字体查找方式。 |
 | 源包精简 | 保留英文主稿所需.tex、.bib和25张实际引用的矢量图。bench_tasks.pdf与bench_tasks_hi.pdf在当前主稿未用，不纳入上传包；不放历史稿、审稿回复、中文稿或中间文件。 |
 | SI与数据布局 | 现有桌面准备包已采用两套源文件分别置于manuscript/与supplement/，根目录main.tex和supplement.tex独立编译；数据ZIP位于外层补充数据目录，不混入arXiv源码ZIP。此布局已本地复编，尚未实际上传。 |

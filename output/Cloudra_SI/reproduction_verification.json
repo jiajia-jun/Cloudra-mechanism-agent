@@ -73,8 +73,8 @@
     "package": {
       "path": "output/Cloudra_SI/Cloudra_SI_Data.zip",
       "files_including_manifest": 483,
-      "bytes": 16818721,
-      "sha256": "361d6577bceac73d0e291bfec04905a2a7d74c90d030ab0fa57e6ca624d9d3ec",
+      "bytes": 17795154,
+      "sha256": "e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5",
       "zip_crc_errors": 0,
       "zip_payload_hash_mismatches": 0
     },

@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-01",
+  "date": "2026-11-02",
   "pages": 32,
   "source_files": 28,
   "sections": 7,
@@ -34,12 +34,12 @@
       "sha256": "fcc3cb764ec0e5802b95dae833790cc27f2ae436893d02bc9362cd6a71fd6cef"
     },
     "Cloudra_SI_Overleaf.zip": {
-      "bytes": 153480,
-      "sha256": "6eeefd77965e1be47262a0a185d13e7d7e40f125d612b15775abc15cad004489"
+      "bytes": 153128,
+      "sha256": "6a06a7471c41d16870c8fa6e4cd63b6a8134d4dcb219fb6d123495f493175e85"
     },
     "Cloudra_SI_Data.zip": {
-      "bytes": 17035905,
-      "sha256": "4d2a6a92dc49c47abed147ee2b491ede8e66e20e6d9e17c5fdf797028f99faf4"
+      "bytes": 17795154,
+      "sha256": "e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5"
     }
   },
   "standalone_reproduction": {
@@ -49,7 +49,7 @@
     "new_model_or_qm_calculations": 0
   },
   "pdf_sha256": "fcc3cb764ec0e5802b95dae833790cc27f2ae436893d02bc9362cd6a71fd6cef",
-  "source_zip_sha256": "6eeefd77965e1be47262a0a185d13e7d7e40f125d612b15775abc15cad004489",
+  "source_zip_sha256": "6a06a7471c41d16870c8fa6e4cd63b6a8134d4dcb219fb6d123495f493175e85",
   "bibliography_entries": 48,
   "authorship_verified": true,
   "deployment": "DeepSeek-v4.1-flash (1017)",
@@ -315,5 +315,7 @@
         "source_zip_matches_editable_sources": true
       }
     }
-  }
+  },
+  "si_drive_file_id": "1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf",
+  "si_drive_url": "https://drive.google.com/file/d/1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf/view?usp=drivesdk"
 }
