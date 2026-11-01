@@ -2,9 +2,9 @@
 \label{sec:si-scoring}
 
 \subsection{Composite and reporting layers}
-For a formally organized run, the reported composite combines graph structure $G$, physical self-consistency $C$, and accuracy $A$:
+For a formally organized run, the reported composite combines graph structure $G$, physical self-consistency $\mathrm{SC}$, and accuracy $A$:
 \begin{equation}
-S=0.1G+0.3C+0.6A.
+S=0.1G+0.3\mathrm{SC}+0.6A.
 \label{eq:si-composite}
 \end{equation}
 The three components are reported separately, alongside execution status, original graph delivery, and completion of the requested steps. Complete scientific validation additionally requires every requested species and step to meet its physical criteria.
@@ -33,9 +33,9 @@ Native outer-frame--optimization--frequency lineage to both declared endpoint mi
 \end{tabular}
 \end{table}
 
-For graphs containing reaction edges, $C$ is the mean of the delivered edge scores. An edge represented by its endpoints alone requires coverage of both endpoint species. For a species-only graph, $C$ is the mean species-coverage score. Explicit inaccessible targets are exempt from requirements for stationary points or paths judged physically nonexistent under the task's permitted methods and receive the corresponding self-consistency credit.
+For graphs containing reaction edges, $\mathrm{SC}$ is the mean of the delivered edge scores. An edge represented by its endpoints alone requires coverage of both endpoint species. For a species-only graph, $\mathrm{SC}$ is the mean species-coverage score. Explicit inaccessible targets are exempt from requirements for stationary points or paths judged physically nonexistent under the task's permitted methods and receive the corresponding self-consistency credit.
 
-The archived binary self-consistency indicator requires coverage of all physical checks created for the delivered species and steps, including minimum characterization and transition-state/IRC associations. Its scope follows the delivered graph. Task-wide scientific completion additionally requires checking this scope against every species and step requested by the task. Counts of $C=1$ in the main text and score tables refer to full graded component scores for the delivered objects. Fractional scores indicate which calculation stages have been supported.
+The archived binary self-consistency indicator requires coverage of all physical checks created for the delivered species and steps, including minimum characterization and transition-state/IRC associations. Its scope follows the delivered graph. Task-wide scientific completion additionally requires checking this scope against every species and step requested by the task. Counts of $\mathrm{SC}=1$ in the main text and score tables refer to full graded component scores for the delivered objects. Fractional scores indicate which calculation stages have been supported.
 
 \subsection{Electronic barriers and numerical accuracy}
 For a step with a numerical reference, the evaluator checks the declared barrier against the transition-state and starting-species energies in the native outputs. If the barrier field is empty, it can calculate the difference from those energies when both are reported and supported by their native records. The conversion factor from hartree to kcal~mol$^{-1}$ is 627.509474.

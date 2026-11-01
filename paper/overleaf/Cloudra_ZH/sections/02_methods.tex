@@ -90,7 +90,7 @@ S(\mathbf{X})=\max_{(i,j)\in W}\{&0,\,l_{ij}-d_{ij}(\mathbf{X}),\\
 低惩罚构型进行带谐性距离约束的 MMFF94 力场优化\citep{mmff941996}，使指定原子对的距离进入目标窗口，同时松弛非键接触。只保留力场优化收敛、距离落入窗口、立体构型得到保留且片段接触满足 $d_{i^*j^*}\le 1.7(r_{i^*}+r_{j^*})$ 的构型。随后按无约束力场单点能排序，并采用 0.5 Å 的重原子 Kabsch RMSD 阈值聚类去重，得到后续计算的初始构型。
 
 \subsubsection{端点刚体对齐与 IDPP 路径插值}
-将产物原子排成反应物的原子顺序后，两端构型分别中心化。令 $\mathbf{P}$ 与 $\mathbf{R}$ 为中心化后的产物与反应物坐标矩阵，Kabsch 最小二乘刚体旋转\citep{ref07}求解：
+将产物原子排成反应物的原子顺序后，两端构型分别中心化。令 $\mathbf{P}$ 与 $\mathbf{R}$ 为中心化后的产物与反应物坐标矩阵，Kabsch 最小二乘刚体旋转\citep{ref07}\ 求解：
 
 \begin{equation}\label{eq:methods-07}
 \begin{gathered}
@@ -102,7 +102,7 @@ S(\mathbf{X})=\max_{(i,j)\in W}\{&0,\,l_{ij}-d_{ij}(\mathbf{X}),\\
 
 矩阵 $\mathbf{Q}$ 给出两端构型之间的刚体旋转。行列式因子 $\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})$ 使 $\det\mathbf{Q}=+1$，排除镜像反射，保留原有手性构型。
 
-对于包含端点在内的 $M$ 个路径帧，定义进度参数 $\lambda_k=k/(M-1)$，并初始化坐标 $\mathbf{X}_k=(1-\lambda_k)\mathbf{R}+\lambda_k\mathbf{P}\mathbf{Q}$。IDPP 算法\citep{ref08}在两端之间插值各帧的目标原子对距离，并按下式优化坐标：
+对于包含端点在内的 $M$ 个路径帧，定义进度参数 $\lambda_k=k/(M-1)$，并初始化坐标 $\mathbf{X}_k=(1-\lambda_k)\mathbf{R}+\lambda_k\mathbf{P}\mathbf{Q}$。IDPP 算法\citep{ref08}\ 在两端之间插值各帧的目标原子对距离，并按下式优化坐标：
 
 \begin{equation}\label{eq:methods-08}
 \begin{aligned}
@@ -234,13 +234,13 @@ U=\{(t,k):t\in T,\, k\in K_t,\, P_{t,k}=0\}.
 依赖失败阶段的计算重新排队，先前尝试及原始输出予以保留。系统重排原子编号，将各项计算结果记录到相应物种或反应步，并更新图中状态。模型为下一次尝试修改化学约束、二面角或电子结构方法。
 
 \subsection{实施默认参数}
-本文描述的系统实现基于 Cloudra 提交版本 70daa5a。\citep{ref14}数值数组与线性代数运算使用 NumPy\citep{numpy2020}；量子化学数值提取由 cclib 与各引擎的原生日志读取逻辑共同完成\citep{cclib2008}；Benchmark 图表示与匹配使用 NetworkX\citep{networkx2008}。反应物预组织中多组分球面采样取 32 个刚体旋转方向，保留至多 8 个引导对接构型，组分间最小初始间距 1.0 Å，分子接触截断乘子 1.7，重原子 RMSD 聚类阈值 0.5 Å。MMFF94 距离约束力场松弛每阶段上限 2000 步，距离谐振子力常数设为 100.0。路径插值中标准 IDPP 默认采用 10 个图像帧，使用 MDMin 算法松弛（上限 100 步，受力容差 $f_{\max}=0.1$，NEB 弹簧系数 $k=0.1$）；轻量 IDPP 采用 Adam 优化器（上限 4000 步，步长 0.02，梯度容差 $10^{-7}$）。路径收敛性由中间镜像帧的最大受力残差判定。\par
+本文描述的系统实现基于 Cloudra 提交版本 70daa5a。\citep{ref14}\ 数值数组与线性代数运算使用 NumPy\citep{numpy2020}；量子化学数值提取由 cclib 与各引擎的原生日志读取逻辑共同完成\citep{cclib2008}；Benchmark 图表示与匹配使用 NetworkX\citep{networkx2008}。反应物预组织中多组分球面采样取 32 个刚体旋转方向，保留至多 8 个引导对接构型，组分间最小初始间距 1.0 Å，分子接触截断乘子 1.7，重原子 RMSD 聚类阈值 0.5 Å。MMFF94 距离约束力场松弛每阶段上限 2000 步，距离谐振子力常数设为 100.0。路径插值中标准 IDPP 默认采用 10 个图像帧，使用 MDMin 算法松弛（上限 100 步，受力容差 $f_{\max}=0.1$，NEB 弹簧系数 $k=0.1$）；轻量 IDPP 采用 Adam 优化器（上限 4000 步，步长 0.02，梯度容差 $10^{-7}$）。路径收敛性由中间镜像帧的最大受力残差判定。\par
 
 \begin{figure*}[!tbp]
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=\textwidth]{figures/fig05.pdf}
-\caption{CloudraBench 的任务组成与研究主题。a，四档任务的数量及评估重点。b，50 道原始任务名称的 BAAI/bge-m3 嵌入\citep{bgem32024}使用 scikit-learn\citep{sklearn2011}进行主成分分析得到的二维投影，E1、NB1、HA1 和 IA1 为重复实验采用的四题。颜色和点形表示预先规定的任务类别。}
+\caption{CloudraBench 的任务组成与研究主题。a，四档任务的数量及评估重点。b，50 道原始任务名称的 BAAI/bge-m3 嵌入\citep{bgem32024}\ 使用 scikit-learn\citep{sklearn2011}\ 进行主成分分析得到的二维投影，E1、NB1、HA1 和 IA1 为重复实验采用的四题。颜色和点形表示预先规定的任务类别。}
 \label{fig:05}
 \end{minipage}
 \end{figure*}
@@ -259,7 +259,7 @@ CloudraBench 用 50 题评估端到端机理计算能力：Easy 20 题检验基�
 
 \subsubsection{参考答案与评价口径}
 
-每题固定化学条件、电荷、自旋、交付目标和方法范围。Easy、Normal 和 Hard 任务允许 xTB\citep{gfn2xtb2019}、PM7\citep{pm72013} 与 B3LYP-D3(BJ)/def2-SVP\citep{becke1993,lyp1988,stephens1994,d32010,d3bj2011,def22005}，Impossible 任务限于 xTB 与 PM7；计算证据读取 ORCA、Gaussian 或 MOPAC 原生日志。\citep{orca2025,gaussian16,mopac2026,ref11}参考答案包含物种、基元步、立体身份及适用的数值或否定目标。数值参考按同一方法下的纯电子能差登记，稳定极小值参照与真实 IRC 连接分别核验。对要求验证的可达反应步，TS 频率、双向 IRC、末帧来源和端点优化/频率构成证据链；物种性质和电子态问题则按其指定目标核验。
+每题固定化学条件、电荷、自旋、交付目标和方法范围。Easy、Normal 和 Hard 任务允许 xTB\citep{gfn2xtb2019}、PM7\citep{pm72013} 与 B3LYP-D3(BJ)/def2-SVP\citep{becke1993,lyp1988,stephens1994,d32010,d3bj2011,def22005}，Impossible 任务限于 xTB 与 PM7；计算证据读取 ORCA、Gaussian 或 MOPAC 原生日志。\citep{orca2025,gaussian16,mopac2026,ref11}\ 参考答案包含物种、基元步、立体身份及适用的数值或否定目标。数值参考按同一方法下的纯电子能差登记，稳定极小值参照与真实 IRC 连接分别核验。对要求验证的可达反应步，TS 频率、双向 IRC、末帧来源和端点优化/频率构成证据链；物种性质和电子态问题则按其指定目标核验。
 
 
 
@@ -279,5 +279,5 @@ Standard 隐藏显式 DAG 工具、取消物理检验约束并提供中性计算
 
 
 
-评分前，将各次运行已有的研究记录转换为统一机理图。人工整理依据 Agent 在对话、工具记录、报告和计算文件中表达的机理意图与结论，还原物种和反应步、恢复文件引用，并记录每个图字段的来源。评分器在同一次运行的沙箱中搜索原生计算证据，应用统一评分规则。整理仅使用该次运行已有的计算和科学结论，Gold 用于提供评价目标。最终数据包含全部200次运行，每项综合分均列出对应的 Graph、自洽性和 Accuracy。逐题配对差及95\%百分位区间采用100,000次任务簇 bootstrap，同一任务的四配置始终一起抽样，随机种子为20261031。计算投入取四配置均有记录的15道选定任务，报告量子化学作业数和累计 job-hours，并与先导实验的批次实际耗时分别呈现。
+评分前，将各次运行已有的研究记录转换为统一机理图。人工整理依据 Agent 在对话、工具记录、报告和计算文件中表达的机理意图与结论，还原物种和反应步、恢复文件引用，并记录每个图字段的来源。评分器在同一次运行的沙箱中搜索原生计算证据，应用统一评分规则。整理仅使用该次运行已有的计算和科学结论，Gold 用于提供评价目标。最终数据包含全部200次运行，每项综合分均列出对应的图结构、自洽性和准确度。逐题配对差及95\%百分位区间采用100,000次任务簇 bootstrap，同一任务的四配置始终一起抽样，随机种子为20261031。计算投入取四配置均有记录的15道选定任务，报告量子化学作业数和累计 job-hours，并与先导实验的批次实际耗时分别呈现。
 
