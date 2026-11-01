@@ -58,11 +58,41 @@ def _chiral_geometry(smiles="C[C@H](O)C(=O)O"):
     ("C[C@H](O)C(=O)O", "C[C@@H](O)C(=O)O", False),
     ("C[C@@H](O)C(=O)O", "C[C@H](O)C(=O)O", False),
 ], ids=["unspecified-a", "unspecified-b", "matching-a", "matching-b", "wrong-a", "wrong-b"])
-def test_species_geometry_enforces_only_declared_stereochemistry(monkeypatch, actual, declared, want):
+@pytest.mark.parametrize("perception", ["bond-orders", "connectivity-fallback"])
+@pytest.mark.parametrize("reverse_atoms", [False, True], ids=["original-order", "reversed-order"])
+def test_species_geometry_enforces_only_declared_stereochemistry(
+        monkeypatch, actual, declared, want, perception, reverse_atoms):
     geometry = _chiral_geometry(actual)
+    if reverse_atoms:
+        geometry = (geometry[0][::-1], geometry[1][::-1])
     monkeypatch.setattr("cloudra.dag.file_science._final_geometry", lambda _path: geometry)
+    if perception == "connectivity-fallback":
+        def fail_bond_orders(*_args, **_kwargs):
+            raise ValueError("could not find valid bond ordering")
+
+        monkeypatch.setattr("rdkit.Chem.rdDetermineBonds.DetermineBonds", fail_bond_orders)
 
     assert _geometry_species("unused.log", declared) is want
+
+
+def test_wrong_stereochemistry_does_not_enumerate_equivalent_hydrogen_orders(monkeypatch):
+    from cloudra.tools.core.preorganization import geometry_stereochemistry_errors
+
+    geometry = _chiral_geometry("CCCC[C@H](O)C(=O)O")
+    monkeypatch.setattr("cloudra.dag.file_science._final_geometry", lambda _path: geometry)
+    comparisons = []
+
+    def compare_stereochemistry(graph, positions):
+        comparisons.append(None)
+        return geometry_stereochemistry_errors(graph, positions)
+
+    monkeypatch.setattr(
+        "cloudra.tools.core.preorganization.geometry_stereochemistry_errors", compare_stereochemistry)
+    diagnostics = []
+
+    assert not _geometry_species("unused.log", "CCCC[C@@H](O)C(=O)O", diagnostics=diagnostics)
+    assert len(comparisons) == 1
+    assert "connectivity or declared stereochemistry mismatch" in diagnostics[-1]
 
 
 @pytest.mark.parametrize("change", ["rigid-motion", "atom-order", "distortion", "reflection"])

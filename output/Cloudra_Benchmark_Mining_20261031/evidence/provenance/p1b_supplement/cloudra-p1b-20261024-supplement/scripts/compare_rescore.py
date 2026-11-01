@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-import csv, statistics, collections
+import csv
+import statistics
 
 rows = list(csv.DictReader(open("/home/ly/cloudra-p1b-rescore/results.csv")))
 ARMS = ("guided", "record", "standard", "brief-errors")

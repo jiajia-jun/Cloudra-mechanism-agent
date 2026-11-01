@@ -13,8 +13,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import spearmanr, pearsonr
-
+from scipy.stats import pearsonr, spearmanr
 
 ARMS = ["guided", "record", "standard", "brief-errors"]
 TIERS = ["easy", "normal", "hard", "impossible"]
@@ -245,7 +244,8 @@ def main():
                 sensitivity_subsets=sensitivities,hindsight_oracles=routes,
                 score_change_sums=df.groupby("arm")[["fair_minus_raw","official_minus_fair"]].sum().to_dict("index"))
     def native(x):
-        if isinstance(x,np.generic): return x.item()
+        if isinstance(x,np.generic):
+            return x.item()
         raise TypeError(type(x).__name__)
     (out/"results.json").write_text(json.dumps(report,indent=2,ensure_ascii=False,default=native))
     print(pd.DataFrame(summary_rows).query("track=='official_repaired'").to_string(index=False))

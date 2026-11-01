@@ -3,6 +3,7 @@ import csv
 import json
 from collections import Counter
 from pathlib import Path
+
 p=Path(__file__).resolve().parent
 rows=json.loads((p/'systems.json').read_text())
 summary=json.loads((p/'counts.json').read_text())

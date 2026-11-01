@@ -1,6 +1,10 @@
 """Recompute the observed, uncapped statistics; changes no frozen score records."""
+import csv
+import json
+import math
+import statistics
 from pathlib import Path
-import csv,json,math,statistics
+
 root=Path(__file__).resolve().parent
 rows=list(csv.DictReader((root/'uncapped_barrier_observations.csv').open()))
 expected=list(csv.DictReader((root/'uncapped_barrier_summary.csv').open()))

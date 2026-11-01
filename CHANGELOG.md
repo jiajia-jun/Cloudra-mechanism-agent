@@ -3,6 +3,16 @@
 All notable changes to the Cloudra project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.1] - 2026-11-01
+
+### 修复
+- 更新前端 E2E 以验证默认 Acid 外观及显式展开的新建项目表单，恢复完整浏览器回归。
+- 整理研究辅助脚本的 Python 格式，保留其计算内容与现有全库 Ruff 检查。
+- 将可达性来源诊断保留在报告中，避免写入版本化 Benchmark 图；同步 F4 生成器与已提交的 Lewis 加合物参考起点。
+- 在几何连通性回退路径复用现有立体化学检查，拒绝与声明构型不符的几何。
+- 隔离测试节点容量与缺失 xTB 的 PATH 条件；数值 fixture 使用机器舍入级容差并保留端点精确比较。
+- 恢复中英文默认调用协议说明，并让传统协议全链测试通过真实工具交付机制图。
+
 ## [0.1.0] - 2026-11-01
 
 ### 正式发布

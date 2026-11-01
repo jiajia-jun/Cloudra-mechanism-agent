@@ -262,8 +262,7 @@ test.describe('composer hijack', () => {
 test.describe('token bootstrap', () => {
   test('#token= is scrubbed from the address bar', async ({ page }) => {
     await installApiMocks(page, { jobs: [] });
-    await page.goto('/#token=sekrit-e2e');
-    await page.getByPlaceholder('新建项目名…').waitFor({ state: 'visible' });
+    await openSpa(page, '#token=sekrit-e2e');
     await expect.poll(() => new URL(page.url()).hash).toBe('');
     const stored = await page.evaluate(() => sessionStorage.getItem('cloudra.api_token'));
     expect(stored).toBe('sekrit-e2e');
@@ -275,11 +274,13 @@ test('language switch preserves the new project entry and persists English', asy
   await installApiMocks(page, { jobs: [] });
   await openSpa(page);
   await expect(page.locator('html')).toHaveAttribute('lang', 'zh-CN');
+  await page.getByRole('button', { name: '新建项目', exact: true }).click();
   await page.getByPlaceholder('新建项目名…').fill('reaction draft');
   await page.getByRole('button', { name: 'EN', exact: true }).click();
   await expect(page.getByPlaceholder('New project name…')).toHaveValue('reaction draft');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.reload();
+  await page.getByRole('button', { name: 'New project', exact: true }).click();
   await expect(page.getByPlaceholder('New project name…')).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.getByText('Archived Projects (1)', { exact: true }).click();

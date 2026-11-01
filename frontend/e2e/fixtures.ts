@@ -185,7 +185,8 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
 
 export async function openSpa(page: Page, hash = '') {
   await page.goto(`/${hash}`);
-  await page.getByPlaceholder('新建项目名…').waitFor({
+  // Acid keeps project creation collapsed until the user asks for it.
+  await page.locator('.left-sidebar-title').waitFor({
     state: 'visible',
     timeout: 15_000,
   });

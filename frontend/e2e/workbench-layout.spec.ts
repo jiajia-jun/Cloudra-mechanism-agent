@@ -7,6 +7,8 @@ test('workbench keeps explicit project creation and global controls in its persi
   await expect(page.locator('.view-mode-switcher').getByRole('button', { name: '控制台', exact: true })).toBeVisible();
   const sidebar = page.locator('aside.left-sidebar');
   await expect(sidebar.getByRole('button', { name: '全局设置', exact: true })).toBeVisible({ timeout: 1500 });
+  await expect(sidebar.getByPlaceholder('新建项目名…')).toBeHidden();
+  await sidebar.getByRole('button', { name: '新建项目', exact: true }).click();
   await expect(sidebar.getByPlaceholder('新建项目名…')).toBeVisible();
   await expect(sidebar.getByPlaceholder('项目地址 (留空使用默认工作区)…')).toBeVisible();
   await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
@@ -67,6 +69,7 @@ test('a project starts through the explicit sidebar form without automatically l
   });
   await openSpa(page);
   await expect(page.getByTestId('composer-input')).toBeDisabled();
+  await page.getByRole('button', { name: '新建项目', exact: true }).click();
   await page.getByPlaceholder('新建项目名…').fill(' 显式研究项目 ');
   await page.getByPlaceholder('项目地址 (留空使用默认工作区)…').fill('/tmp/mechanism-workbench');
   expect(creations).toEqual([]);

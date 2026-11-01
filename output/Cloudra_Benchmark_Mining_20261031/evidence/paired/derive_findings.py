@@ -3,9 +3,7 @@
 import json
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-
 
 p = Path(__file__).parent
 d = pd.read_csv(p / "per_task_official.csv")

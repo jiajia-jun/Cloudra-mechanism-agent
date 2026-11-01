@@ -2,6 +2,7 @@
 import json
 from collections import Counter
 from pathlib import Path
+
 ROOT = Path(__file__).resolve().parent
 # T: structure construction/editing; E: energy/electronic properties; O: relaxation;
 # F: vibrations/thermochemistry; R: reaction paths/TS; D: dynamics/sampling.
@@ -14,7 +15,9 @@ def add(name, date, group, target, boundary, tasks, url, locator, evidence, fami
       sources=[dict(url=url, locator=locator, evidence_paraphrase=evidence)],
       family=family or name, aliases=list(aliases), limitations=limits,
       include_main=True, reviewed_on='2026-10-26'))
-M='extended_materials_surfaces'; Q='finite_molecules_complexes'; S='soft_biomolecular'
+M='extended_materials_surfaces'
+Q='finite_molecules_complexes'
+S='soft_biomolecular'
 add('LLaMP','2024-01-30',M,'Si crystal/interstitial and crystal annealing MD','crystalline supercells demonstrated; PBC not separately audited','TD','https://arxiv.org/html/2401.17244v3','§5.3 Language-driven simulation; Table 5','Fetches a crystal, constructs a supercell, runs temperature-cycling ML-potential MD and analyzes its trajectory.')
 add('ChemReasoner','2024-02-15',M,'heterogeneous catalyst slabs and adsorbates','slab cells and vacuum explicitly reported','EOT','https://arxiv.org/html/2402.10980v3','§3.3; §5.4; Appendix A','LLM-guided catalyst search uses GNN structure relaxation and adsorption-energy feedback; selected slabs are checked by DFT.')
 add('AtomAgents','2024-07-13',M,'metallic alloys, dislocations and fracture','explicit periodic boundaries; dislocation cells also have a free direction','TEOR','https://arxiv.org/html/2407.10022v1','Experiments I–IV; §4 Screw dislocation generation/NEB','Runs alloy property calculations, atomic relaxation and dislocation NEB; material-property experiments link simulation feedback to alloy hypotheses.', aliases=['PNAS 2025 journal version'])

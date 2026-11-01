@@ -49,7 +49,10 @@ test('appearance controls apply immediately and preserve the saved choice after 
   await page.getByRole('button', { name: '全局设置', exact: true }).click();
   const styles = page.getByRole('group', { name: '界面风格', exact: true });
   await expect(styles).toBeVisible({ timeout: 1500 });
-  await expect(styles.getByRole('button', { name: '现代主义', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(styles.getByRole('button', { name: 'Acid', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-appearance', 'acid');
+  await styles.getByRole('button', { name: '现代主义', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-appearance', 'modernism');
   const glass = await page.evaluate(() => {
     const sidebar = getComputedStyle(document.querySelector('.left-sidebar')!);
     const modal = getComputedStyle(document.querySelector('.modal')!);

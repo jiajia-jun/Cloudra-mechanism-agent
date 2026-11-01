@@ -748,7 +748,7 @@ async def test_web_full_chain_standard_js(tmp_path, monkeypatch, approve_workspa
 # ---------------------------------------------------------------------------
 
 @_REQUIRES_RDKIT
-def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
+def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch, approve_workspace_change):
     """traditional 协议等价补充用例：同一链路在传统线缆上跑通。
 
     协议由 ``AgentHost.effective_settings`` 冻结进 agent settings 快照
@@ -780,10 +780,16 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
         calls(1, [("subagent_launcher", {
             "role_id": "small_mol",
             "query": "traditional protocol equivalent chain",
-        })]),
-        text(2, "suspended"),
-        text(1, _BARRIER),
-        text(1, _BARRIER),
+        })], run=1),
+        text(2, "suspended", run=1),
+        calls(1, [("write", {
+            "path": "mechanism_graph.json",
+            "content": json.dumps({
+                "nodes": [{"id": "R", "role": "reactant", "smiles": ["O"]}],
+                "edges": [],
+            }),
+        })], run=2),
+        text(2, _BARRIER, run=2, expect=Receipt(tool="write", is_success=True)),
     ])
     llm.script("small_mol", [
         calls(1, [("qm_input_writer", {
@@ -824,6 +830,7 @@ def test_cli_full_chain_traditional_equivalent(tmp_path, monkeypatch):
     parent = next(a for a in core.agents.values() if a.role_id == "coordinator")
     assert child.state is AgentState.SUCCEEDED
     assert parent.state is AgentState.SUCCEEDED
+    assert json.loads((workspace / "mechanism_graph.json").read_text())["nodes"][0]["smiles"] == ["O"]
     # 传统线缆下子 agent 的工具回执照常闭合：query 用真实作业号读取同编号状态
     child_tools = [
         e.data.get("tool_name")

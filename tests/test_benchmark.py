@@ -77,6 +77,17 @@ def test_easy_generation_count_and_roundtrip(tmp_path):
         assert rt.task_id == t.task_id
 
 
+@pytest.mark.parametrize("source", ["top_level", "properties", "default"])
+def test_accessibility_diagnostics_do_not_change_the_graph_wire_format(source):
+    node = MechanismNode(id="R", role=NodeRole.REACTANT, smiles=["O"], accessible_source=source)
+    edge = MechanismEdge(id="E", **{"from": "R", "to": "R"}, accessible_source=source)
+    assert node.accessible_source == edge.accessible_source == source
+    for element in (node, edge):
+        dumped = element.model_dump(mode="json", by_alias=True)
+        assert "accessible_source" not in dumped
+        assert dumped["accessible"] is True
+
+
 def test_easy_charge_and_smiles():
     tasks = {t.task_id: t for t in gen_easy_tasks.parse_easy_md(gen_easy_tasks.DEFAULT_SRC)}
     assert tasks["E1"].system.charge == -1

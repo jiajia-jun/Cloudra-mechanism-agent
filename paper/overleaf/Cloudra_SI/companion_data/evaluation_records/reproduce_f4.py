@@ -1,7 +1,7 @@
 """Evaluate the four preserved F4 deliveries against the final reference task."""
 import argparse
-from dataclasses import asdict
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 from cloudra.benchmark.runner import BenchmarkRunner

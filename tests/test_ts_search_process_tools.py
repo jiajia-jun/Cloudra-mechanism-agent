@@ -173,11 +173,14 @@ async def test_resume_uses_authoritative_record_when_export_is_missing(tmp_path,
 
 @pytest.mark.asyncio
 @pytest.mark.usefixtures('rdkit_chemistry')
-async def test_replacing_conformer_accepts_invalidation_of_stale_atom_binding(tmp_path):
+async def test_replacing_conformer_accepts_invalidation_of_stale_atom_binding(tmp_path, monkeypatch):
     from cloudra.persistence.database import ComputeDB
     from cloudra.services.ts_pipeline_store import read_process_snapshot
     from cloudra.tools.core.ts_inputs import FileConformer
 
+    # Exercise real admission with a fixed test node, independent of host RAM.
+    monkeypatch.setattr('cloudra.services.nodes.default_resources',
+        lambda: {'max_concurrent': 2, 'cpus': 2, 'memory_mb': 8192})
     value = inputs()
     value.conformers.reactant = FileConformer(kind='file', xyz_path=str(tmp_path / 'missing.xyz'))
     first = await invoke(owned_tool(TsPrepare, workspace=tmp_path), TsPrepare_input_schema(input=value))

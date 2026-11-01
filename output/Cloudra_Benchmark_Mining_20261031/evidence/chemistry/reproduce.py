@@ -2,26 +2,38 @@
 """Read-only chemistry-oriented mining of the final P2 200-row archive.
 No re-scoring, no QM, no modification of source archive or repository.
 """
-import csv, io, json, statistics, subprocess, tarfile
+import csv
+import io
+import json
+import statistics
+import subprocess
+import tarfile
 from collections import Counter
 from pathlib import Path
+
 DATA=Path('/Users/cloudrayyy/Desktop/Cloudra实验数据/Cloudra-P2-final-20261031')
 REPO=Path('/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master')
 OUT=Path(__file__).resolve().parent
 SOURCE=OUT.parent/'source_publication_scores_per_run.csv'
 rows=list(csv.DictReader(SOURCE.open()))
 for row in rows:
- for key,publication in [('graph','graph_publication'),('selfc_all','selfc_all_publication'),('accuracy','accuracy_publication')]:row[key]=row[publication]
+ for key,publication in [('graph','graph_publication'),('selfc_all','selfc_all_publication'),('accuracy','accuracy_publication')]:
+     row[key]=row[publication]
 assert len(rows)==200 and len({(r['arm'],r['task']) for r in rows})==200
-for i,r in enumerate(rows,2):r['source_csv_line']=i
+for i,r in enumerate(rows,2):
+    r['source_csv_line']=i
 archive=subprocess.run(['git','archive','53309d0e','ideapool/tasks'],cwd=REPO,check=True,capture_output=True)
 tar=tarfile.open(fileobj=io.BytesIO(archive.stdout))
 tasks={}
 for member in tar.getmembers():
- if not member.name.endswith('.json'):continue
- d=json.load(tar.extractfile(member));g=d['gold']['mechanism_graph'];edges=g['edges']
+ if not member.name.endswith('.json'):
+     continue
+ d=json.load(tar.extractfile(member))
+ g=d['gold']['mechanism_graph']
+ edges=g['edges']
  def depth(node,seen=()):
-  if node in seen:raise ValueError('Gold graph cycle')
+  if node in seen:
+      raise ValueError('Gold graph cycle')
   return max([1+depth(e['to'],seen+(node,)) for e in edges if e['from']==node]+[0])
  tasks[d['task_id']]={'task':d['task_id'],'tier':d['tier'],'name':d['name'],'gold_edges':len(edges),
   'gold_sequential_depth':max([depth(n['id']) for n in g['nodes']]+[0]),
@@ -61,11 +73,16 @@ result['impossible']={'accuracy_histogram':dict(Counter(r['accuracy'] for r in i
  'caution':'accuracy=0 does not universally mean incorrect refusal: archived record/IA5 is a documented channel-matching under-score; brief/IC3 .4 appears in fair and repaired.'}
 result['hindsight_oracle']={}
 for tier in ['easy','normal','hard','impossible']:
- ts=[t for t in tasks if tasks[t]['tier']==tier];maxima=[];wins=Counter()
+ ts=[t for t in tasks if tasks[t]['tier']==tier]
+ maxima=[]
+ wins=Counter()
  for t in ts:
-  rr=[r for r in rows if r['task']==t];top=max(float(r['score']) for r in rr);maxima.append(top)
+  rr=[r for r in rows if r['task']==t]
+  top=max(float(r['score']) for r in rr)
+  maxima.append(top)
   winners=[r['arm'] for r in rr if float(r['score'])==top]
-  for arm in winners:wins[arm]+=1/len(winners)
+  for arm in winners:
+      wins[arm]+=1/len(winners)
  result['hindsight_oracle'][tier]={'score_mean':mean(maxima),'fractional_wins':dict(wins),'not_a_deployed_policy':'Uses all four runs plus outcome knowledge; merely a descriptive complementarity ceiling.'}
 result['hard_by_rubric']={}
 for qualitative in [True,False]:
@@ -82,24 +99,34 @@ result['offline_organization']={'runs':200,'components':600,'method':'Existing r
 (OUT/'metrics.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n')
 per=[]
 for t in sorted(tasks):
- d=dict(tasks[t]);rr=[r for r in rows if r['task']==t];d['best_score']=max(float(r['score']) for r in rr)
+ d=dict(tasks[t])
+ rr=[r for r in rows if r['task']==t]
+ d['best_score']=max(float(r['score']) for r in rr)
  d['best_score_arms']=';'.join(r['arm'] for r in rr if float(r['score'])==d['best_score'])
  d['max_available_accuracy']=max(float(r['accuracy']) for r in rr if r['accuracy'])
  d['missing_component_arms']=';'.join(r['arm'] for r in rr if r['accuracy']=='')
  for r in rr:
-  for k in ['score','fair_final','graph','selfc_all','accuracy','source_csv_line']:d[f"{r['arm']}_{k}"]=r[k]
+  for k in ['score','fair_final','graph','selfc_all','accuracy','source_csv_line']:
+      d[f"{r['arm']}_{k}"]=r[k]
  per.append(d)
 with (OUT/'task_structure_and_final_scores.csv').open('w') as f:
- w=csv.DictWriter(f,fieldnames=list(per[0]));w.writeheader();w.writerows(per)
+ w=csv.DictWriter(f,fieldnames=list(per[0]))
+ w.writeheader()
+ w.writerows(per)
 with (OUT/'impossible_final_runs.csv').open('w') as f:
  fields=['arm','task','score','raw_final','fair_final','graph','selfc_all','accuracy','repaired_final','flags','source_csv_line']
- w=csv.DictWriter(f,fieldnames=fields);w.writeheader();w.writerows({k:r[k] for k in fields} for r in imp)
+ w=csv.DictWriter(f,fieldnames=fields)
+ w.writeheader()
+ w.writerows({k:r[k] for k in fields} for r in imp)
 depth_rows=[]
 for dep,v in result['accessible_by_gold_sequential_depth'].items():
  d={'gold_sequential_depth':dep,'tasks_n':sum(t['tier']!='impossible' and t['gold_sequential_depth']==int(dep) for t in tasks.values()),'task_ids':';'.join(sorted(t for t in tasks if tasks[t]['tier']!='impossible' and tasks[t]['gold_sequential_depth']==int(dep))),'runs_n':v['n'],'score_negative_n':v['score_negative_n'],'score_mean_all':v['score_mean_all'],'score_mean_nonnegative':v['score_mean_nonnegative']}
  for k in ['graph','selfc_all','accuracy']:
-  d[k+'_n']=v[k]['n'];d[k+'_mean']=v[k]['mean']
+  d[k+'_n']=v[k]['n']
+  d[k+'_mean']=v[k]['mean']
  depth_rows.append(d)
 with (OUT/'sequential_depth_summary.csv').open('w') as f:
- w=csv.DictWriter(f,fieldnames=list(depth_rows[0]));w.writeheader();w.writerows(depth_rows)
+ w=csv.DictWriter(f,fieldnames=list(depth_rows[0]))
+ w.writeheader()
+ w.writerows(depth_rows)
 print(json.dumps({'output':str(OUT),'metrics':str(OUT/'metrics.json'),'depth':result['accessible_by_gold_sequential_depth'],'impossible':result['impossible'],'gap':result['normal_hard_complete_component_gap']},ensure_ascii=False,indent=2))

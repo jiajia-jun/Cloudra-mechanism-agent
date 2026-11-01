@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Offline rescore of the P1b sandboxes with the tolerant schema."""
-import sys, os, csv, json, time, sqlite3, glob
+import csv
+import glob
+import sqlite3
+import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, "/home/ly/cloudra-bench-20261019")

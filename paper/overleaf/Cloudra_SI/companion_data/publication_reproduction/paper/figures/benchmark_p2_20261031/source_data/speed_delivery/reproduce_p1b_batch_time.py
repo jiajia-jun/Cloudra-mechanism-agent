@@ -1,12 +1,12 @@
 """Extract real pilot batch elapsed times from copied, read-only benchmark DBs.
 Each batch contains four tasks at concurrency two. A batch is the analysis grain.
 """
-from pathlib import Path
-from datetime import datetime, timezone
-from statistics import mean, median, stdev
 import csv
 import json
 import sqlite3
+from datetime import datetime, timezone
+from pathlib import Path
+from statistics import mean, median, stdev
 
 OUT = Path(__file__).resolve().parent
 ARMS = ['standard', 'guided', 'record', 'brief-errors']

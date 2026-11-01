@@ -1,6 +1,8 @@
 """Insert the P2 evidence figures and bilingual results into the current Overleaf sources."""
+import json
+import shutil
 from pathlib import Path
-import json,shutil,zipfile
+
 ROOT=Path(__file__).resolve().parents[2]
 DRAFT=Path('/private/tmp/cloudra_paper_update/manuscript_map')
 FIG=ROOT/'paper/figures/benchmark_p2_20261031'
@@ -30,8 +32,11 @@ manifest={}
 for lang in ['EN','ZH']:
  project=ROOT/'paper/overleaf'/f'Cloudra_{lang}'
  for rel in ['main.tex','references.bib','sections/01_introduction.tex','sections/02_methods.tex','sections/03_results.tex']:
-  src=project/rel;dest=ARCH/lang/rel;dest.parent.mkdir(parents=True,exist_ok=True)
-  if not dest.exists():shutil.copy2(src,dest)
+  src=project/rel
+  dest=ARCH/lang/rel
+  dest.parent.mkdir(parents=True,exist_ok=True)
+  if not dest.exists():
+      shutil.copy2(src,dest)
  results=(DRAFT/f'benchmark_results_{lang.lower()}.tex').read_text()
  # Remove process-facing comments and one defensive restatement in Results.
  results='\n'.join(line for line in results.splitlines() if not line.startswith('%'))+'\n'
@@ -46,7 +51,8 @@ for lang in ['EN','ZH']:
   if i==6:
    marker='Three archived comparisons' if lang=='EN' else '三个归档'
    if marker in block:
-    pos=block.index(marker);block=block[:pos]+float_tex(*FIGURES[4],lang)+float_tex(*FIGURES[5],lang)+r'\FloatBarrier'+'\n\n'+block[pos:]
+    pos=block.index(marker)
+    block=block[:pos]+float_tex(*FIGURES[4],lang)+float_tex(*FIGURES[5],lang)+r'\FloatBarrier'+'\n\n'+block[pos:]
     additions=[FIGURES[6]]
   body+=block
   if additions:
@@ -63,7 +69,8 @@ for lang in ['EN','ZH']:
  retained=old[old.index(start):end]
  head='\\section{Results and Discussion}\n\nThis chapter reports the repeated-task study and the completed 200-run CloudraBench comparison, then connects the observed configuration differences to the research trajectories and local diagnostic experiments.\n\n' if lang=='EN' else '\\section{结果与讨论}\n\n本章报告四题重复实验与完整 200 次 CloudraBench 对照，随后结合研究轨迹与局部诊断实验，分析不同研究配置产生差异的具体环节。\n\n'
  (project/'sections/03_results.tex').write_text(head+r'\input{sections/03_benchmark_results}'+'\n\\FloatBarrier\n\n'+retained+'\n'+r'\input{sections/03_benchmark_discussion}'+'\n')
- discussion=(DRAFT/f'benchmark_discussion_{lang.lower()}.tex').read_text();discussion='\n'.join(x for x in discussion.splitlines() if not x.startswith('%'))+'\n'
+ discussion=(DRAFT/f'benchmark_discussion_{lang.lower()}.tex').read_text()
+ discussion='\n'.join(x for x in discussion.splitlines() if not x.startswith('%'))+'\n'
  if lang=='EN':
   discussion=discussion.replace('These are global relations among results accumulated at different times.','These are global relations among results accumulated at different times, consistent with the role of external planning and verification feedback in language-model workflows.\\citep{valmeekam2023planning}')
   discussion=discussion.replace('a chemically familiar description can remain coherent even when the numerical or path evidence has changed.','a chemically familiar description can remain coherent even when the numerical or path evidence has changed.\\citep{turpin2023unfaithful}')
@@ -72,14 +79,20 @@ for lang in ['EN','ZH']:
   # Three source links belong to Discussion, alongside the relevant mechanism explanation.
   paragraphs=discussion.split('\n\n')
   if len(paragraphs)>3:
-   paragraphs[2]+=r' 这一解释与语言模型研究中外部规划、检验及反馈的作用相呼应。\citep{valmeekam2023planning,huang2024selfcorrect}';paragraphs[3]+=r' 文本解释对既有判断的合理化也为这种语义与证据脱节提供了相关研究背景。\citep{turpin2023unfaithful}'
+   paragraphs[2]+=r' 这一解释与语言模型研究中外部规划、检验及反馈的作用相呼应。\citep{valmeekam2023planning,huang2024selfcorrect}'
+   paragraphs[3]+=r' 文本解释对既有判断的合理化也为这种语义与证据脱节提供了相关研究背景。\citep{turpin2023unfaithful}'
   discussion='\n\n'.join(paragraphs)
  (project/'sections/03_benchmark_discussion.tex').write_text(discussion)
- meth=project/'sections/02_methods.tex';text=meth.read_text();marker='\\subsubsection{Repeated-task experiment and full-benchmark ablation}' if lang=='EN' else '\\subsubsection{重复实验与全题库消融}'
+ meth=project/'sections/02_methods.tex'
+ text=meth.read_text()
+ marker='\\subsubsection{Repeated-task experiment and full-benchmark ablation}' if lang=='EN' else '\\subsubsection{重复实验与全题库消融}'
  if marker not in text:
-  headings=[x for x in text.splitlines() if x.startswith('\\subsubsection{')];marker=headings[-1]
- text=text[:text.index(marker)]+(DRAFT/f'experimental_design_{lang.lower()}.tex').read_text();meth.write_text(text)
- intro=project/'sections/01_introduction.tex';text=intro.read_text()
+  headings=[x for x in text.splitlines() if x.startswith('\\subsubsection{')]
+  marker=headings[-1]
+ text=text[:text.index(marker)]+(DRAFT/f'experimental_design_{lang.lower()}.tex').read_text()
+ meth.write_text(text)
+ intro=project/'sections/01_introduction.tex'
+ text=intro.read_text()
  if lang=='EN':
   oldp='Evaluation combines 48 independent runs with three repeats on four tasks and a full-benchmark, four-configuration experiment comprising 200 independent ablation sandboxes, examining repeatability and coverage across tasks, respectively.'
   newp='Evaluation combines 48 independent runs with three repeats on four tasks and a completed 200-run, four-configuration study across all 50 tasks. The primary comparison uses the same model backbone in Standard, while Record and Brief-errors locate the effects of evidence organization and diagnostic feedback.'
@@ -88,8 +101,11 @@ for lang in ['EN','ZH']:
   # Keep the existing introduction and add the observed experiment hierarchy to its final paragraph.
   text=text.rstrip()+'\n\n本研究以同一 backbone 的 Standard 运行为主要基线，并以 Record 与 Brief-errors 拆解证据组织和诊断反馈的作用；全题库实验共 50 题、四配置、200 次独立运行。\n'
  intro.write_text(text)
- main=project/'main.tex';text=main.read_text().replace('29 October 2026','31 October 2026').replace('2026年10月29日','2026年10月31日').replace('2026 年 10 月 29 日','2026 年 10 月 31 日');main.write_text(text)
- bib=project/'references.bib';text=bib.read_text()
+ main=project/'main.tex'
+ text=main.read_text().replace('29 October 2026','31 October 2026').replace('2026年10月29日','2026年10月31日').replace('2026 年 10 月 29 日','2026 年 10 月 31 日')
+ main.write_text(text)
+ bib=project/'references.bib'
+ text=bib.read_text()
  extra='''
 @inproceedings{valmeekam2023planning,
  title={On the Planning Abilities of Large Language Models: A Critical Investigation},
@@ -110,9 +126,11 @@ for lang in ['EN','ZH']:
  url={https://arxiv.org/abs/2305.04388}
 }
 '''
- if 'valmeekam2023planning' not in text:text+=extra
+ if 'valmeekam2023planning' not in text:
+     text+=extra
  bib.write_text(text)
- for stem,_ in FIGURES:shutil.copy2(FIG/f'{stem}.pdf',project/'figures'/f'{stem}.pdf')
+ for stem,_ in FIGURES:
+     shutil.copy2(FIG/f'{stem}.pdf',project/'figures'/f'{stem}.pdf')
  manifest[lang]=[{'file':f'figures/{stem}.pdf','label':f'fig:{label}','caption':caption_en(stem) if lang=='EN' else ZH[stem]} for stem,label in FIGURES]
  # Review files in the same project; avoids changing its online identity or class.
  (project/'README.md').write_text(f'Cloudra manuscript ({lang}), updated 31 October 2026.\n\nMain: main.tex; compiler: XeLaTeX, TeX Live 2026.\n\nThe completed P2 results are in sections/03_benchmark_results.tex; discussion is in sections/03_benchmark_discussion.tex. Eight new vector figures preserve the existing manuscript style. Existing local diagnostic experiments remain in sections/03_results.tex.\n')

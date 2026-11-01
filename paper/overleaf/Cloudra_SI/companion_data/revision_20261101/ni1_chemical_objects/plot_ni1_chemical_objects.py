@@ -15,11 +15,10 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
 import numpy as np
+from matplotlib.patches import Circle
 from rdkit import Chem
 from rdkit.Chem import rdDetermineBonds
-
 
 ROOT = Path(__file__).resolve().parent
 BLUE = "#275E86"

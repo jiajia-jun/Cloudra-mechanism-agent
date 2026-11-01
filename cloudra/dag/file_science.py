@@ -218,22 +218,51 @@ def _is_bond_order_perception_failure(exc: ValueError) -> bool:
 
 
 def _element_connectivity_isomorphic(expected, actual) -> bool:
-    """元素标记图同构（忽略键级/电荷；显式氢是普通节点，氢连接方式也要一致）。
+    """元素标记图同构，校验声明的四面体/键立体化学（忽略键级/电荷）。
 
     用 networkx（评分器硬依赖）直接对比原子索引图，不经过 RDKit 的芳香性/
-    价态语义，因此对开壳层、非 Kekulé、金属体系都稳定。"""
+    价态语义，因此对开壳层、非 Kekulé、金属体系都稳定。同位素相同的
+    末端氢按邻接原子计数，避免穷举 CH2/CH3 的等价氢排列；桥氢和 H2
+    保留为节点。四面体/键立体化学由同构映射后的实际坐标验证。"""
     import networkx as nx
 
+    from cloudra.tools.core.preorganization import geometry_stereochemistry_errors
+
     def build(mol):
+        hydrogens = {}
+        for atom in mol.GetAtoms():
+            if atom.GetAtomicNum() == 1 and atom.GetDegree() == 1:
+                parent = atom.GetNeighbors()[0]
+                if parent.GetAtomicNum() != 1:
+                    hydrogens.setdefault(parent.GetIdx(), {}).setdefault(
+                        atom.GetIsotope(), []).append(atom.GetIdx())
+        terminal = {index for groups in hydrogens.values() for indices in groups.values() for index in indices}
         graph = nx.Graph()
         for atom in mol.GetAtoms():
-            graph.add_node(atom.GetIdx(), element=atom.GetSymbol())
+            if atom.GetIdx() not in terminal:
+                groups = hydrogens.get(atom.GetIdx(), {})
+                graph.add_node(atom.GetIdx(), element=atom.GetSymbol(), isotope=atom.GetIsotope(),
+                               hydrogens=tuple(sorted((isotope, len(indices)) for isotope, indices in groups.items())))
         for bond in mol.GetBonds():
-            graph.add_edge(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
-        return graph
+            left, right = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+            if left not in terminal and right not in terminal:
+                graph.add_edge(left, right)
+        return graph, hydrogens
 
-    return nx.is_isomorphic(build(expected), build(actual),
-                            node_match=lambda a, b: a["element"] == b["element"])
+    expected_graph, expected_hydrogens = build(expected)
+    actual_graph, actual_hydrogens = build(actual)
+    matcher = nx.algorithms.isomorphism.GraphMatcher(
+        expected_graph, actual_graph, node_match=lambda a, b: a == b)
+    conformer = actual.GetConformer()
+    for mapping in matcher.isomorphisms_iter():
+        full_mapping = dict(mapping)
+        for parent, groups in expected_hydrogens.items():
+            for isotope, indices in groups.items():
+                full_mapping.update(zip(indices, actual_hydrogens[mapping[parent]][isotope], strict=True))
+        positions = [conformer.GetAtomPosition(full_mapping[index]) for index in range(expected.GetNumAtoms())]
+        if not geometry_stereochemistry_errors(expected, positions):
+            return True
+    return False
 
 
 def _geometry_connectivity_match(expected, symbols, positions, *, smiles="",
@@ -245,7 +274,8 @@ def _geometry_connectivity_match(expected, symbols, positions, *, smiles="",
     system).  Bond orders and formal charges are ignored because they are not
     recoverable from these geometries; composition, atom counts, bond counts and
     the element-labelled graph (including hydrogen attachment) are still
-    required to match exactly.
+    required to match exactly. Declared tetrahedral and bond stereochemistry is
+    checked against the actual coordinates under the same graph correspondence.
     """
     from rdkit import Chem
     from rdkit.Chem import rdDetermineBonds
@@ -275,8 +305,8 @@ def _geometry_connectivity_match(expected, symbols, positions, *, smiles="",
                 f'declared {smiles}; bond orders are not recoverable from this geometry.')
         else:
             diagnostics.append(
-                f'Connectivity fallback mismatch for declared {smiles}: element/'
-                'connectivity graph is not isomorphic.')
+                f'Connectivity fallback rejected declared {smiles}: '
+                'connectivity or declared stereochemistry mismatch.')
     return matched
 
 

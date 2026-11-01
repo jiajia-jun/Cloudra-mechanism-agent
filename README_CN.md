@@ -52,6 +52,8 @@ npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
 cloudra
 ```
 
+默认协议是 `javascript`；`traditional` 是 per-agent 可选设置。
+
 安装脚本会引导初始化配置。启动后打开终端显示的地址，默认是 `127.0.0.1:8000`。
 
 1. 在全局设置（Global Setting）中配置主 Agent 与协作 Agent 的模型。可使用 OpenAI 兼容接口，也可选择 ChatGPT / Codex 账号登录。同时，也可以选择您偏好的前端UI风格。

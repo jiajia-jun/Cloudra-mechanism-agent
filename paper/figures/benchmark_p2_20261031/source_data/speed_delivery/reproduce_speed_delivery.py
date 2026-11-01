@@ -1,10 +1,9 @@
 """Read copied source tables and extracted pilot DBs; write derivatives only.
 No scoring, remote access, quantum calculations, or original source writes.
 """
-from pathlib import Path
 import csv
 import json
-from collections import Counter
+from pathlib import Path
 from statistics import mean, median
 
 OUT = Path(__file__).resolve().parent

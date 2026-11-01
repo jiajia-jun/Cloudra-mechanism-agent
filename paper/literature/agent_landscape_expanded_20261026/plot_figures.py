@@ -6,6 +6,7 @@ import textwrap
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
@@ -41,7 +42,8 @@ def style(language):
 def canvas(height):
     fig = plt.figure(figsize=(86 / 25.4, height / 25.4), facecolor="white")
     ax = fig.add_axes([0, 0, 1, 1])
-    ax.set(xlim=(0, 86), ylim=(height, 0)); ax.axis("off")
+    ax.set(xlim=(0, 86), ylim=(height, 0))
+    ax.axis("off")
     return fig, ax
 
 
@@ -116,11 +118,13 @@ def matrices(language):
                 title += f" · {pi}/{len(pages)}"
             ax.text(2, 4, title, va="center", color=COLORS[group], weight="bold", fontsize=7.5)
             ax.text(2, 10, text["system"], va="center", weight="bold")
-            for x, task in zip(xs, TASKS): ax.text(x, 10, task, ha="center", va="center", weight="bold")
+            for x, task in zip(xs, TASKS):
+                ax.text(x, 10, task, ha="center", va="center", weight="bold")
             ax.plot([1.5, 84.5], [13.2, 13.2], color="#AAB5B3", lw=.6)
             y = 13.5
             for i, (record, label, rh) in enumerate(chunk):
-                if i % 2 == 0: ax.add_patch(Rectangle((1.5, y), 83, rh, color="#F1F4F2", ec="none"))
+                if i % 2 == 0:
+                    ax.add_patch(Rectangle((1.5, y), 83, rh, color="#F1F4F2", ec="none"))
                 ax.text(2.8, y + rh / 2, label, va="center", fontsize=7.8, linespacing=1.02)
                 for x, task in zip(xs, TASKS):
                     if task in record["demonstrated_tasks"]:
@@ -137,6 +141,8 @@ def matrices(language):
 if __name__ == "__main__":
     for language in ("en", "zh"):
         with plt.rc_context(style(language)):
-            targets(language); tasks(language); matrices(language)
+            targets(language)
+            tasks(language)
+            matrices(language)
     (OUT / "manifest.json").write_text(json.dumps(MANIFEST, ensure_ascii=False, indent=2) + "\n")
     print(f"Exported {len(MANIFEST)} column figures (SVG/PDF/400-dpi PNG) to {OUT}")

@@ -1,9 +1,9 @@
 """Read local release tables; writes audit derivatives only beside this script."""
-from pathlib import Path
 import csv
 import json
 import math
-from collections import Counter, defaultdict
+from collections import Counter
+from pathlib import Path
 from statistics import mean, median
 
 BASE = Path('/Users/cloudrayyy/Desktop/Cloudra实验数据')
@@ -72,7 +72,12 @@ def final_key(r):
 
 
 retained_raw_keys = {final_key(r) for r in runs}
-raw_key = lambda r:(r['batch'].lower(),r['arm'],r['task_id'])
+
+
+def raw_key(r):
+    return (r['batch'].lower(),r['arm'],r['task_id'])
+
+
 raw_index = {raw_key(r):r for r in raw}
 excluded_raw = [r for r in raw if raw_key(r) not in retained_raw_keys]
 raw_to_final_disagreement = []
@@ -109,7 +114,8 @@ effort=[]
 for scope,ts in [('snapshot63',tasks),('common15',common)]:
     for arm in ARMS:
         rr=[r for r in flex_joined if r['arm']==arm and r['task'] in ts]
-        n=len(rr); hours=sum(float(r['job_hours']) for r in rr)
+        n=len(rr)
+        hours=sum(float(r['job_hours']) for r in rr)
         done=sum(int(r['n_qm_done']) for r in rr)
         failed=sum(int(r['n_qm_failed']) for r in rr)
         cancelled=sum(int(r['n_qm_cancelled']) for r in rr)
@@ -160,7 +166,8 @@ variant=[]
 for lineno,r in enumerate(runs,2):
     if not r['selfc_gold'] or r['neg_class']=='missing_graph':
         continue
-    whole=float(r['selfc_all']); target=float(r['selfc_gold'])
+    whole=float(r['selfc_all'])
+    target=float(r['selfc_gold'])
     variant.append(dict(arm=r['arm'],task=r['task'],tier=r['tier'],selfc_all=whole,selfc_gold=target,
                         delta=target-whole,graph=float(r['graph']),accuracy=float(r['accuracy']),
                         score=float(r['score']),source_row=lineno))

@@ -233,9 +233,9 @@ def parse_delivered_graph(data: object) -> GoldMechanismGraph:
     nodes = [_DeliveredNode.model_validate(n) for n in data["nodes"]]
     edges = [_DeliveredEdge.model_validate(e) for e in data.get("edges", [])]
     return GoldMechanismGraph(
-        nodes=[MechanismNode(**n.model_dump()) for n in nodes],
+        nodes=nodes,
         edges=[
-            MechanismEdge(**(e.model_dump() | {"id": e.id or f"e{i}"}))
+            e.model_copy(update={"id": e.id or f"e{i}"})
             for i, e in enumerate(edges)
         ],
     )

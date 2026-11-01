@@ -52,6 +52,8 @@ npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
 cloudra
 ```
 
+The default protocol is `javascript`; `traditional` is a per-agent opt-in.
+
 The installer guides you through configuration initialization. Open the address printed at startup; the default is `127.0.0.1:8000`.
 
 1. Configure the coordinator and follower models in Global Settings. You can use an OpenAI-compatible endpoint or select ChatGPT / Codex account login. You can also choose your preferred UI style.

@@ -276,7 +276,10 @@ def _build_graph(
     reactant) still get distinct R/P node ids but identical SMILES. The single
     gold edge carries the whole-task reference barrier (from the source cell).
     """
-    r_node = MechanismNode(id=f"{task_id}_R", role=NodeRole.REACTANT, smiles=complex_smiles(reactants), label="reactant")
+    # F4's committed reference (0b7b5e5b) starts at the computed Lewis adduct;
+    # its 16.02 kcal/mol barrier is relative to that minimum, not separated BH3/C=O.
+    reference_reactants = ["[BH3-][O+]=C"] if task_id == "F4" else complex_smiles(reactants)
+    r_node = MechanismNode(id=f"{task_id}_R", role=NodeRole.REACTANT, smiles=reference_reactants, label="reactant")
     p_node = MechanismNode(
         id=f"{task_id}_P",
         role=NodeRole.PRODUCT,

@@ -410,7 +410,12 @@ def test_calculator_script_xtb_missing_binary(tmp_path, monkeypatch):
     """PATH 无 xtb：明确报错并非零退出。"""
     bindir = tmp_path / "bin"
     bindir.mkdir()
+    # Hide xTB without also removing the POSIX utilities used at script startup.
+    dirname = shutil.which("dirname")
+    assert dirname is not None
+    (bindir / "dirname").symlink_to(dirname)
     monkeypatch.setenv("PATH", str(bindir))
+    assert shutil.which("xtb") is None
 
     script_path = Path(__file__).parent.parent / "cloudra" / "calculator.sh"
     xyz = tmp_path / "water.xyz"
@@ -421,7 +426,8 @@ def test_calculator_script_xtb_missing_binary(tmp_path, monkeypatch):
         text=True,
     )
     assert result.returncode != 0
-    assert "xtb" in result.stderr
+    assert "系统 PATH 中未找到 xtb" in result.stderr
+    assert "command not found" not in result.stderr
 
 
 # 本机有真实 xtb 时顺手实测 calculator.sh 路径（无二进制即 skip）
