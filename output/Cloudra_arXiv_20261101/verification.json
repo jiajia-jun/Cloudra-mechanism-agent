@@ -5,8 +5,8 @@
     "EN": {
       "pages": 23,
       "source_files": 39,
-      "pdf_sha256": "2ea8cd87b8e7f004273a166152114096c0e7cef04dd8130e253defe1981718dd",
-      "source_zip_sha256": "beb143ab054cb0228f234e308349d42025082021880abfd3c0fa4c72e2c51b5d",
+      "pdf_sha256": "f3f89b7cbfd89d7f6f04101ec3dc89847d3552b1b0f3f2ee677e6ae3539b12d1",
+      "source_zip_sha256": "ca0ce431e9ff52aa769492452abc9fc6887f35a7a96ff7024a490007e41ab18b",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -16,8 +16,8 @@
     "ZH": {
       "pages": 19,
       "source_files": 39,
-      "pdf_sha256": "5f089c919fd536921fde0bbbb4e32d0c5881c9f80e4d52b174878fbb794ce1c6",
-      "source_zip_sha256": "e0c5ca4a6465151d6199c12dfa2db29b16b45d9b035e9f020016a6124fb1e499",
+      "pdf_sha256": "5302f6fc6a32d73d3af4346ace17335cf259c1ba2ac3e70feb35b9630bcbdf3d",
+      "source_zip_sha256": "0c7b7bec5ba768d69f9f0129bb5f40798eb0cd64ffa2ae61b21013dade52d312",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -146,5 +146,27 @@
     },
     "new_calculations": false,
     "scores_and_rules_changed": false
+  },
+  "abstract_problem_framing_revision": {
+    "date": "2026-11-01",
+    "scope": "Abstract opening presents geometric reasoning and mechanistic judgment as methodological challenges, without presupposing an existing physical-check framework.",
+    "abstract_ascii_characters": 1807,
+    "abstract_words": 213,
+    "outputs": {
+      "EN": {
+        "pages": 23,
+        "pdf_sha256": "f3f89b7cbfd89d7f6f04101ec3dc89847d3552b1b0f3f2ee677e6ae3539b12d1",
+        "source_zip_sha256": "ca0ce431e9ff52aa769492452abc9fc6887f35a7a96ff7024a490007e41ab18b",
+        "source_files": 39
+      },
+      "ZH": {
+        "pages": 19,
+        "pdf_sha256": "5302f6fc6a32d73d3af4346ace17335cf259c1ba2ac3e70feb35b9630bcbdf3d",
+        "source_zip_sha256": "0c7b7bec5ba768d69f9f0129bb5f40798eb0cd64ffa2ae61b21013dade52d312",
+        "source_files": 39
+      }
+    },
+    "new_calculations": false,
+    "scores_or_scientific_rules_changed": false
   }
 }
