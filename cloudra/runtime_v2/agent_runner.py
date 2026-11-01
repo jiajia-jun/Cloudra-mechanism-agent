@@ -181,13 +181,14 @@ class AgentRunner:
         A mailbox delivery can observe WAITING/RUNNING while the runner is in
         its final event flush.  ``schedule`` correctly refuses a second task
         while the old task is alive, so the done callback must retry after the
-        task is actually gone if the wake changed the projection to RUNNING.
+        task is actually gone if a wake changed the projection to RUNNING or
+        an explicit restart queued a fresh run during the old task's cleanup.
         """
         if self._tasks.get(session_id) is not task:
             return
         self._tasks.pop(session_id, None)
         agent = self.core.agents.get(session_id)
-        if agent is None or agent.state is not AgentState.RUNNING:
+        if agent is None or agent.state not in {AgentState.RUNNING, AgentState.QUEUED}:
             return
         if self._inbox_has_pending(agent):
             self.schedule(session_id)

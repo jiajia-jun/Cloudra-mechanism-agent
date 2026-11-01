@@ -28,10 +28,22 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: cloudra/runtime_v2/js_host/package-lock.json
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e .[dev]
+          # Species-evidence tests need RDKit in every supported Python version.
+          pip install -e .[dev] rdkit
+
+      - name: Install JS host dependencies
+        # Public JS scenario tests must execute their business tools in this matrix.
+        run: npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
 
       - name: Run ruff
         run: ruff check .
@@ -106,10 +118,9 @@ jobs:
         run: npm run build
 
   full-deps:
-    # 主 test 矩阵只装 `.[dev]`（pytest/ruff），于是整套化学工具链与 JS 宿主
-    # 用例全部走 skip 分支——CI 的绿是"跳过 148 例"的绿。这一格把可选依赖
-    # 装齐，让那些用例真的跑起来：化学栈（rdkit/molli/nmrglue/spectrochempy/
-    # chemcoord/pyscf）+ pymupdf，以及 JS 宿主（Node >= 22 + quickjs-emscripten）。
+    # 主 test 矩阵安装 RDKit 和 JS 宿主，覆盖各 Python 版本的物种证据与公开
+    # JS 调用链。这一格再补齐其它可选化学依赖（molli/nmrglue/spectrochempy/
+    # chemcoord/pyscf）和 pymupdf，让依赖这些工具的用例也实际执行。
     # 不含 visual(pymol-open-source)：需要系统级构建依赖，留给专门的验收环境。
     # 前端 Playwright Chromium 在 frontend job 里装（mocked API E2E），不在本格。
     runs-on: ubuntu-latest

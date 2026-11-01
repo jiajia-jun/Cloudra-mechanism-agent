@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [0.1.1] - 2026-11-01
 
 ### 修复
+- 为 Python 3.11–3.13 CI 矩阵安装物种证据与公开 JS 场景实际所需的 RDKit 和 JS 宿主依赖。
+- 修复旧运行收尾期间显式重启丢失调度的竞态，并用事件栅栏稳定覆盖该边界。
 - 更新前端 E2E 以验证默认 Acid 外观及显式展开的新建项目表单，恢复完整浏览器回归。
 - 整理研究辅助脚本的 Python 格式，保留其计算内容与现有全库 Ruff 检查。
 - 将可达性来源诊断保留在报告中，避免写入版本化 Benchmark 图；同步 F4 生成器与已提交的 Lewis 加合物参考起点。

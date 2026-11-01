@@ -1,4 +1,6 @@
 """Document preloading is a durable first-task phase, not a new agent."""
+import asyncio
+
 import pytest
 
 from cloudra.runtime_v2.schemas import Command
@@ -88,7 +90,7 @@ async def test_empty_agent_defers_selection_and_interrupted_selection_restores_w
 
 
 @pytest.mark.asyncio
-async def test_compacted_selection_restores_but_explicit_restart_selects_again(tmp_path):
+async def test_compacted_selection_restores_but_explicit_restart_selects_again(tmp_path, monkeypatch):
     provider = ChooseRead(default=[Step(stop=True)])
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
     agent = await harness.spawn('coordinator', query='Read first task')
@@ -101,21 +103,34 @@ async def test_compacted_selection_restores_but_explicit_restart_selects_again(t
     await harness.aclose()
     resumed_provider = ChooseRead(default=[Step(stop=True)])
     restored = await ScenarioHarness.restore(tmp_path, provider=resumed_provider)
+    finishing = asyncio.Event()
+    release_finished_run = asyncio.Event()
+    deliver_completion = restored.runner._deliver_completion
+
+    async def paused_completion(agent):
+        await deliver_completion(agent)
+        finishing.set()
+        await release_finished_run.wait()
+
+    monkeypatch.setattr(restored.runner, '_deliver_completion', paused_completion)
     try:
         resumed = restored.core.agents[agent.id]
         await restored.bus.execute(Command(type='agent.message', target={'session_id': resumed.id},
             payload={'content': 'Continue after compact'}))
         await restored.wait_for(lambda: resumed_provider.call_count() == 1, 'resumed main request')
         await restored.wait_terminal(resumed)
+        await restored.wait_for(finishing.is_set, 'previous run completion boundary')
         assert getattr(resumed_provider, 'selection_calls', []) == []
         assert restored.core.session_contexts[resumed.id].prefix_meta['tool_selection']['names'] == ['read']
         resumed_provider.script_default(Step(stop=True))
         await restored.bus.execute(Command(type='agent.restart', target={'session_id': resumed.id},
             payload={'message': 'Fresh context task'}))
+        release_finished_run.set()
         await restored.wait_for(lambda: resumed_provider.call_count() == 2, 'reset main request')
         await restored.wait_terminal(resumed)
         assert len(resumed_provider.selection_calls) == 1
     finally:
+        release_finished_run.set()
         await restored.aclose()
 
 
