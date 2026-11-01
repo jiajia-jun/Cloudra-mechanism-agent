@@ -1,0 +1,19 @@
+{
+  "analysis_date": "2026-11-01",
+  "campaign_archive": {
+    "path": "Cloudra-P2-final-20261031-FULL.tar.gz",
+    "bytes": 14915315627,
+    "sha256_from_existing_inventory": "dfd3fe8f71f236b8bc463ad1753d05bdf89aee44be9b11dbe9a2bce43b9c3155"
+  },
+  "inputs_sha256": {
+    "paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv": "0e118fb4a4e342f47806a487e4df5d706ff98edd29f15d441950a5b2001e3f6c",
+    "paper/overleaf/Cloudra_SI/companion_data/cloudrabench_200_run_scores.csv": "f0c6dc33eb4591e538aa8adb93a0323511cdf3498daa1e790623e11eedafd150",
+    "paper/overleaf/Cloudra_SI/companion_data/evaluation_manifest.json": "ef1372fc6a0cd2b3bc9ef6aaa2516e5ecf50fbe2aa639054a3ccae7243782054",
+    "gold_compute/evidence/MANIFEST.json": "87839ba8454d4da1a21ef5b1ebac27204b14ee7a1c1ac3e3174cad6ca07637bd"
+  },
+  "native_energy_logs": 306,
+  "native_energy_bytes": 161620449,
+  "frozen_scores_modified": false,
+  "scorer_modified": false,
+  "new_QM_or_LLM_runs": false
+}

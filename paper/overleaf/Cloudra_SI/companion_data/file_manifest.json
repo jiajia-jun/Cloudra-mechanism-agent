@@ -1,11 +1,11 @@
 {
-  "count": 488,
-  "total_bytes": 29758772,
+  "count": 513,
+  "total_bytes": 30843823,
   "files": [
     {
       "file": "README.md",
-      "bytes": 2212,
-      "sha256": "10b74b361f8ac3131d9fd81c7339c8eceac658a760f19c06d18eccd03368bc8b"
+      "bytes": 2513,
+      "sha256": "4a4f7ee471962f91485c0cc74d2e403ffaf58cd83cbc1eeaf53829e9d79897a2"
     },
     {
       "file": "behavioral/chemical_identity_controls/chemical_identity_provenance.json",
@@ -2191,6 +2191,131 @@
       "file": "revision_20261031/p2_model_metadata.json",
       "bytes": 15924,
       "sha256": "c4070fcdc66092b058b660d7cc27c880a385f6274162da127599e949a37996ca"
+    },
+    {
+      "file": "revision_20261101/metrics/README.md",
+      "bytes": 9638,
+      "sha256": "5e13d829731b5ad22c23ce617544a08a017bb877737105656ceeab6c3e3eba5f"
+    },
+    {
+      "file": "revision_20261101/metrics/archived_scientific_checks.json",
+      "bytes": 367255,
+      "sha256": "979a97edc09e3abd4c5f0ad831c0f8c6dfc42b089d7ea348465d50457a15fa04"
+    },
+    {
+      "file": "revision_20261101/metrics/dag_report_availability.csv",
+      "bytes": 46641,
+      "sha256": "dd07765f75e0060535023a7d3a53a0c246d578aee90796952a4a6222ed29968a"
+    },
+    {
+      "file": "revision_20261101/metrics/final_publication_record_relation.csv",
+      "bytes": 59797,
+      "sha256": "66f50c47eac3dca548b039d2149a3644733eadc32332122477eec8a8b7de9989"
+    },
+    {
+      "file": "revision_20261101/metrics/gold_selected_input_method_coverage.json",
+      "bytes": 5646,
+      "sha256": "6d02ef0e7a8246e8fa93d3cda8984cd13aefd8495bd482911d31f885e542cca6"
+    },
+    {
+      "file": "revision_20261101/metrics/gold_selected_input_method_lines.csv",
+      "bytes": 33777,
+      "sha256": "cd000696192a69c63eaaf4ef18f4f932273ba3f3d673c326c4ae04af4ff89af3"
+    },
+    {
+      "file": "revision_20261101/metrics/historical_binary_auxiliary.csv",
+      "bytes": 56075,
+      "sha256": "648aad9048e68cd0ddf5011bcd60494742a30539ac4c314b25055fa0be119aba"
+    },
+    {
+      "file": "revision_20261101/metrics/native_energy_source_facts.csv",
+      "bytes": 263812,
+      "sha256": "eed42f0d2ca157b82bda20288c6afe9d9b551327b9400dcb12437f9b32db6d8c"
+    },
+    {
+      "file": "revision_20261101/metrics/numerical_target_coverage.csv",
+      "bytes": 28236,
+      "sha256": "de9baa7d9d4b45ab337f47e8d0b0b5b5ad4ebcacbb1d8992a5c2e91d60169479"
+    },
+    {
+      "file": "revision_20261101/metrics/recompute_summaries.py",
+      "bytes": 1586,
+      "sha256": "5ed7e81f52be3c49831595cacdd88f5049c4d9f73573b9a69c5726f647068359"
+    },
+    {
+      "file": "revision_20261101/metrics/source_manifest.json",
+      "bytes": 987,
+      "sha256": "0d9d785971b6a37f9f45fa495e7c5a07b523ed4d4218b82caa05f0070e33f117"
+    },
+    {
+      "file": "revision_20261101/metrics/task_target_catalogue.csv",
+      "bytes": 2364,
+      "sha256": "43676bef9e6a953c694fd240f23ce3f1e9bd093ff5497cb21d68535d248a628b"
+    },
+    {
+      "file": "revision_20261101/metrics/uncapped_barrier_observations.csv",
+      "bytes": 177493,
+      "sha256": "ed9a4af84ebbd9de7cf49f27d26ea4e17d05c365b370f0d0a7a20d1ca680028f"
+    },
+    {
+      "file": "revision_20261101/metrics/uncapped_barrier_summary.csv",
+      "bytes": 1828,
+      "sha256": "875f3599e2d96144c220be7db1ac9f8b10facfd10aa137b39f4c2023c2fc0204"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/NI1_INT1_IRC2.xyz",
+      "bytes": 556,
+      "sha256": "1207bcb1c055ff55b612e3585a3c6e8d00d42a0921e33a1f45ec7dc168845b44"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/NI1_INT1_lowest.xyz",
+      "bytes": 558,
+      "sha256": "17f790046f8ad5815f4bbd2a10975183f5183c8db60a944fc24dae47c4a51726"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/NI1_P1_IRC2.xyz",
+      "bytes": 554,
+      "sha256": "2d49e76906b178dbef3083f084edb50a567dee2d8fa22907a032c62037cba80f"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/NI1_P1_lowest.xyz",
+      "bytes": 556,
+      "sha256": "05095c6fc4cb2292606ab945ef8c9fb639679e0e6ffd988f81de8c2a57752a8c"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/NI1_RC1.xyz",
+      "bytes": 550,
+      "sha256": "1977656d0368b121b564be0eaee02c01f13b43f4aa6fe6f326b09fada93dd8f7"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/NI1_TS1.xyz",
+      "bytes": 550,
+      "sha256": "fb7ad3b40d8f1aaafd33913ec900a1f1e674ff1bc7370bb2d4db9b6a1d9ffd3f"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/NI1_TS2.xyz",
+      "bytes": 550,
+      "sha256": "7877ffb0aeb7899f81d05c123d31d8fade50846d3fb950e0aaa2836f36228445"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/README.md",
+      "bytes": 2278,
+      "sha256": "398674b94aef0bb94e8948c5841776311a411e8a5aa69ffcb5b693b2e4453126"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/energies.csv",
+      "bytes": 614,
+      "sha256": "9bce31a8b06c769255079e9c4e77f7042b03e4473c1499fae13cbaebcb073ab5"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/plot_ni1_chemical_objects.py",
+      "bytes": 9586,
+      "sha256": "93ee1d37953bae6acd3c76b7aa8424bed33c78585c9ad67d382994168e61b7cc"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/provenance.json",
+      "bytes": 13263,
+      "sha256": "a0e9bc6d0a90be73c3083468b92dc4340c1071245fdfbf13af80188cd29890c8"
     },
     {
       "file": "task_definitions/easy/D1.json",

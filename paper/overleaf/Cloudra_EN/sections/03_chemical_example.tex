@@ -1,0 +1,9 @@
+\subsection{A two-step mechanism expressed through chemical objects}
+\label{sec:ni1-chemical-objects}
+
+The Guided NI1 run follows methylamine addition to formaldehyde and subsequent dehydration to an imine--water complex (Figure~\ref{fig:ni1-chemical-objects}). The species objects carry the optimized reactant complex, carbinolamine, and product complex. The two step objects connect them through distinct first-order saddles. All structures and electronic energies shown here come from this run's own B3LYP-D3(BJ)/def2-SVP gas-phase calculations, with charge zero and singlet multiplicity.
+
+The addition saddle has one imaginary frequency at $-1481.06$ cm$^{-1}$ and an electronic barrier of 28.12 kcal/mol relative to the reactant complex. Its two short IRC branches lead, after endpoint optimization and frequency analysis, to the reactant complex and carbinolamine, both with zero imaginary frequencies. The dehydration saddle has one imaginary frequency at $-1796.84$ cm$^{-1}$. Its two branches similarly yield carbinolamine and the imine--water complex. Each IRC followed 24 points in each direction before reaching the point limit; the endpoint calculations establish the resulting minima.
+
+The dehydration barrier also illustrates why a species object can carry several geometries. Its actual IRC-side carbinolamine minimum lies 0.71 kcal/mol above the lowest carbinolamine conformer found in the run. The corresponding barrier is 57.21 kcal/mol from the local IRC endpoint and 57.92 kcal/mol from the lowest conformer. The step therefore retains both its actual path endpoints and the stable conformer used as its energy reference. The conformational interconversion remains a separate, uncomputed path. Supplementary Information Section~S4 provides absolute energies, native calculation locations, and reproducible figure inputs.
+

@@ -3,10 +3,10 @@
   "scope": "Local synchronization of approved STACKED architecture, current bilingual author/contact metadata, final manuscript packages, and submission materials.",
   "languages": {
     "EN": {
-      "pages": 22,
-      "source_files": 39,
-      "pdf_sha256": "9d3102389b0a5b80cc9cc04ab93756131a7642d4ea5f857767bdb8a66ab64151",
-      "source_zip_sha256": "ad62c6c4c07f51a504bbc5be837f669cb1bde5e8f16f54fb5c58abfa339d5eb5",
+      "pages": 24,
+      "source_files": 41,
+      "pdf_sha256": "0b5e97679c9752caf232631aabef63de5f272730fc5073c17508df057e07a64a",
+      "source_zip_sha256": "1224446d156dd1d4fbb9a7bf0468c3c42746f3bdd7986dfbb4e8087110be6d75",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -14,10 +14,10 @@
       "correspondence_email": "202509240114@csust.edu.cn"
     },
     "ZH": {
-      "pages": 19,
-      "source_files": 39,
-      "pdf_sha256": "219547842325eecda414c44cb751646bc0a107a5d1e459e352b4766b2baa0f95",
-      "source_zip_sha256": "f968017285a814cdf710c97499b329db7a91be2cac03dbcbdab1801c46fdcb41",
+      "pages": 20,
+      "source_files": 41,
+      "pdf_sha256": "ac061c765c5b114222936fbf9e2614a59b67965e5d1872a7c45017f63142e283",
+      "source_zip_sha256": "ddc05695c5537fae1834d143215136e8f22360bbaad786fa4c241afc24435de4",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -25,10 +25,10 @@
       "correspondence_email": "202509240114@csust.edu.cn"
     },
     "SI": {
-      "pages": 30,
-      "source_files": 26,
-      "pdf_sha256": "96c17e52b13d509d7676a3770ed6e4cfe25e440f0e9e8946900a3a0e545d20e4",
-      "source_zip_sha256": "23887b81cbff40e30e59562e9f696990555cbe98481d63e1ec8d1cd8cf5ae851",
+      "pages": 32,
+      "source_files": 28,
+      "pdf_sha256": "fcc3cb764ec0e5802b95dae833790cc27f2ae436893d02bc9362cd6a71fd6cef",
+      "source_zip_sha256": "6eeefd77965e1be47262a0a185d13e7d7e40f125d612b15775abc15cad004489",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -279,5 +279,44 @@
     "overleaf_overfull_warnings": 0,
     "active_overleaf_sources_match_editable_sources": true,
     "numbered_formulas_unchanged": true
+  },
+  "review_adoption_20261101": {
+    "date": "2026-11-01",
+    "scope": "Journal comparison, original-run NI1 mechanism with native geometries and conformer references, and uncapped electronic-barrier errors on common numerical subsets.",
+    "formal_scores_unchanged": true,
+    "scoring_rules_and_matcher_unchanged": true,
+    "new_qm_or_llm_runs": 0,
+    "full_requested_task_completion_rate": "requires uniform offline native-evidence review; not inferred from historical booleans or SC=1",
+    "online_compile_errors": {
+      "EN": 0,
+      "ZH": 0,
+      "SI": 0
+    },
+    "overleaf_sources_match_editable_sources": true,
+    "data_files": 514,
+    "data_zip_sha256": "4d2a6a92dc49c47abed147ee2b491ede8e66e20e6d9e17c5fdf797028f99faf4",
+    "outputs": {
+      "EN": {
+        "pages": 24,
+        "pdf_sha256": "0b5e97679c9752caf232631aabef63de5f272730fc5073c17508df057e07a64a",
+        "source_zip_sha256": "1224446d156dd1d4fbb9a7bf0468c3c42746f3bdd7986dfbb4e8087110be6d75",
+        "source_files": 41,
+        "source_zip_matches_editable_sources": true
+      },
+      "ZH": {
+        "pages": 20,
+        "pdf_sha256": "ac061c765c5b114222936fbf9e2614a59b67965e5d1872a7c45017f63142e283",
+        "source_zip_sha256": "ddc05695c5537fae1834d143215136e8f22360bbaad786fa4c241afc24435de4",
+        "source_files": 41,
+        "source_zip_matches_editable_sources": true
+      },
+      "SI": {
+        "pages": 32,
+        "pdf_sha256": "fcc3cb764ec0e5802b95dae833790cc27f2ae436893d02bc9362cd6a71fd6cef",
+        "source_zip_sha256": "6eeefd77965e1be47262a0a185d13e7d7e40f125d612b15775abc15cad004489",
+        "source_files": 28,
+        "source_zip_matches_editable_sources": true
+      }
+    }
   }
 }

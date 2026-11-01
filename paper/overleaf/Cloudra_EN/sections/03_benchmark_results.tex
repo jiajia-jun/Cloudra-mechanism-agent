@@ -1,6 +1,7 @@
 \section{Results and Discussion}
 
 \input{sections/03_figures}
+\input{sections/03_chemical_example}
 
 
 
@@ -70,6 +71,8 @@ The seven Standard studies averaged 0.1537 after organization, compared with 0.8
 
 For the 40 non-Impossible tasks in each configuration, Guided had self-consistency exactly equal to 1 on 24 tasks (60.0\%) and partial positive credit on 16. Standard had seven full-score (17.5\%), 29 partial-score, and four zero-score tasks. Record had 16 full-score (40.0\%) and 24 partial-score tasks; Brief-errors had 20 full-score (50.0\%) and 20 partial-score tasks. Figure~\ref{fig:bench-delivery} presents these complete evidence-score distributions alongside the separate runtime graph-delivery counts.
 
+These percentages describe full self-consistency scores for the delivered objects. A task-wide scientific completion rate additionally requires physical support for every requested species and step. The archived runtime indicators cover delivered or agent-selected objects; a uniform check against all requested objects remains pending. Supplementary Information Section~S4 documents the scope of these records.
+
 \subsubsection{Guided outperforms Record with the same available tools}
 
 Record averaged 0.6918 and Brief-errors 0.7541 across all 50 tasks. Guided exceeded Record by 0.1012 [0.0396, 0.1695], with 28 wins, seven losses, and 15 ties. On all 20 Normal and Hard tasks together, the mean Guided--Record difference was 0.1468: graph contributed +0.0083, self-consistency +0.0919, and accuracy +0.0466. The largest contribution came from self-consistency, which scores the frequency, IRC, and endpoint calculations supporting the reported steps.
@@ -101,6 +104,28 @@ Guided exceeded Brief-errors by 0.0388 overall, with an interval of [$-0.0317$, 
 
 
 
+
+\subsubsection{Uncapped electronic-barrier errors in a common numerical subset}
+
+To express numerical deviations in chemical units, we recovered electronic barriers directly from archived native TS and reactant-reference energies. A common subset contains 26 reference edges from 23 positive tasks with recoverable values in all four configurations and components matching the final publication records. The original evaluator's edge assignments are retained. Table~\ref{tab:uncapped-barrier-errors} reports errors against the frozen task reference values, using each edge once per configuration and applying the energy conversion in Section~2.
+
+\begin{table}[tbp]
+\centering\small
+\caption{Uncapped electronic-barrier errors for the same 26 reference edges in all four configurations, in kcal/mol.}
+\label{tab:uncapped-barrier-errors}
+\begin{tabular}{lrrr}
+\toprule
+Workflow & MAE & RMSE & Median $|\Delta|$ \\
+\midrule
+Guided & 1.17 & 2.86 & 0.057 \\
+Standard & 1.90 & 5.09 & 0.057 \\
+Record & 1.58 & 5.71 & 0.073 \\
+Brief-errors & 1.13 & 2.31 & 0.099 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+These errors retain large deviations that the composite Accuracy component's penalty cap compresses. Guided has a lower MAE and RMSE than Standard in this subset, while Brief-errors has the lowest MAE and RMSE. The subset describes recoverable numerical answers; frequency and pathway support are evaluated separately by self-consistency. SI Section~S4 gives every included value, the coverage of the 53 positive numerical reference edges, and a smaller subset with additional Gold-input method and medium corroboration. The numerical ordering varies with that coverage.
 
 \subsubsection{Per-task comparisons of barriers, pathways, and calculation evidence}
 

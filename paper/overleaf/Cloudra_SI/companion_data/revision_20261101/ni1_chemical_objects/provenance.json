@@ -1,0 +1,306 @@
+{
+  "archive_filename": "Cloudra-P2-final-20261031-FULL.tar.gz",
+  "archive_sandbox_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/",
+  "source_graph_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/mechanism_graph.json",
+  "source_graph_sha256": "867e2a3fb784c00020747f4340612c69da05ef4c964ba11d2713b748004db418",
+  "scope": "The neutral e1/e2 target pathway from the original Guided P2c NI1 run. No Gold-derived structures, energies, edges or completion statuses. The original graph also retains a separate explicit-water e3 branch, outside this figure.",
+  "method": "B3LYP-D3(BJ)/def2-SVP; gas phase; charge 0; multiplicity 1; electronic energies only",
+  "hartree_to_kcal_mol": 627.509474,
+  "species": [
+    {
+      "id": "RC1",
+      "graph_node_id": "RC1",
+      "native_log_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/repair/e1_fix/rc1_side_optfreq.log",
+      "native_log_sha256": "29ca4979fec0bdd67633ce838bdba1005972abb14aa8622e03cea35789d8c297",
+      "final_scf_line": 11776,
+      "frequency_lines": [
+        12019,
+        12037,
+        12055,
+        12073,
+        12091,
+        12109,
+        12127,
+        12145,
+        12163
+      ],
+      "normal_termination_line": 12784,
+      "normal_termination": true,
+      "stationary_point_found": true,
+      "lowest_frequencies_cm1": [
+        57.315,
+        119.094,
+        142.9005,
+        176.1974
+      ],
+      "geometry_file": "NI1_RC1.xyz",
+      "geometry_sha256": "1977656d0368b121b564be0eaee02c01f13b43f4aa6fe6f326b09fada93dd8f7",
+      "geometry_extraction": "cclib final atomcoords from native Gaussian output, original atom order; no geometry optimization or embedding",
+      "canonical_smiles_from_native_geometry": "C=O.CN"
+    },
+    {
+      "id": "TS1",
+      "graph_node_id": "TS1",
+      "native_log_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+      "native_log_sha256": "ff406a690b3eba0bb2801f4749986ba9da1880a9bd2cd691279ec5132c4ed148",
+      "final_scf_line": 454,
+      "frequency_lines": [
+        698,
+        716,
+        734,
+        752,
+        770,
+        788,
+        806,
+        824,
+        842
+      ],
+      "normal_termination_line": 1382,
+      "normal_termination": true,
+      "stationary_point_found": true,
+      "lowest_frequencies_cm1": [
+        -1481.0579,
+        77.9507,
+        245.2827,
+        352.8729
+      ],
+      "geometry_file": "NI1_TS1.xyz",
+      "geometry_sha256": "fb7ad3b40d8f1aaafd33913ec900a1f1e674ff1bc7370bb2d4db9b6a1d9ffd3f",
+      "geometry_extraction": "cclib final atomcoords from native Gaussian output, original atom order; no geometry optimization or embedding",
+      "canonical_smiles_from_native_geometry": null
+    },
+    {
+      "id": "INT1_lowest",
+      "graph_node_id": "Carbinolamine",
+      "native_log_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/repair/e1_fix/int1_side_optfreq.log",
+      "native_log_sha256": "00762080a8fa45bdc1c207bd0e83d8066d4b1756433adc02a7d078742f6497ad",
+      "final_scf_line": 4998,
+      "frequency_lines": [
+        5241,
+        5259,
+        5277,
+        5295,
+        5313,
+        5331,
+        5349,
+        5367,
+        5385
+      ],
+      "normal_termination_line": 5997,
+      "normal_termination": true,
+      "stationary_point_found": true,
+      "lowest_frequencies_cm1": [
+        159.1571,
+        207.4463,
+        353.0177,
+        392.5288
+      ],
+      "geometry_file": "NI1_INT1_lowest.xyz",
+      "geometry_sha256": "17f790046f8ad5815f4bbd2a10975183f5183c8db60a944fc24dae47c4a51726",
+      "geometry_extraction": "cclib final atomcoords from native Gaussian output, original atom order; no geometry optimization or embedding",
+      "canonical_smiles_from_native_geometry": "CNCO"
+    },
+    {
+      "id": "INT1_IRC2",
+      "graph_node_id": "Carbinolamine",
+      "native_log_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/s2_fix/src_optfreq.log",
+      "native_log_sha256": "654eb0a11aa289bfbcd0c5eacd7a27d5c38ee7cab2dca453656ba584cddb33f4",
+      "final_scf_line": 6263,
+      "frequency_lines": [
+        6506,
+        6524,
+        6542,
+        6560,
+        6578,
+        6596,
+        6614,
+        6632,
+        6650
+      ],
+      "normal_termination_line": 7249,
+      "normal_termination": true,
+      "stationary_point_found": true,
+      "lowest_frequencies_cm1": [
+        160.9568,
+        189.7588,
+        220.1435,
+        352.5163
+      ],
+      "geometry_file": "NI1_INT1_IRC2.xyz",
+      "geometry_sha256": "1207bcb1c055ff55b612e3585a3c6e8d00d42a0921e33a1f45ec7dc168845b44",
+      "geometry_extraction": "cclib final atomcoords from native Gaussian output, original atom order; no geometry optimization or embedding",
+      "canonical_smiles_from_native_geometry": "CNCO"
+    },
+    {
+      "id": "TS2",
+      "graph_node_id": "TS2",
+      "native_log_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/ts_0004/jobs/declaration_0003/frequency/frequency.log",
+      "native_log_sha256": "ce3ebfb91ab3c45edec94c567e758d688f7d762bae5501a6f54ad0b17a120ade",
+      "final_scf_line": 441,
+      "frequency_lines": [
+        685,
+        703,
+        721,
+        739,
+        757,
+        775,
+        793,
+        811,
+        829
+      ],
+      "normal_termination_line": 1378,
+      "normal_termination": true,
+      "stationary_point_found": true,
+      "lowest_frequencies_cm1": [
+        -1796.8431,
+        74.4289,
+        154.2401,
+        203.5941
+      ],
+      "geometry_file": "NI1_TS2.xyz",
+      "geometry_sha256": "7877ffb0aeb7899f81d05c123d31d8fade50846d3fb950e0aaa2836f36228445",
+      "geometry_extraction": "cclib final atomcoords from native Gaussian output, original atom order; no geometry optimization or embedding",
+      "canonical_smiles_from_native_geometry": null
+    },
+    {
+      "id": "P1_lowest",
+      "graph_node_id": "Imine-water complex",
+      "native_log_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/p1/A/p1_A.log",
+      "native_log_sha256": "372f493cee7eba3c4f773f5cfd5e4800272bf8ee80d53745a74d99c406c23959",
+      "final_scf_line": 9411,
+      "frequency_lines": [
+        9654,
+        9672,
+        9690,
+        9708,
+        9726,
+        9744,
+        9762,
+        9780,
+        9798
+      ],
+      "normal_termination_line": 10564,
+      "normal_termination": true,
+      "stationary_point_found": true,
+      "lowest_frequencies_cm1": [
+        69.9968,
+        122.0495,
+        177.9988,
+        190.0313
+      ],
+      "geometry_file": "NI1_P1_lowest.xyz",
+      "geometry_sha256": "05095c6fc4cb2292606ab945ef8c9fb639679e0e6ffd988f81de8c2a57752a8c",
+      "geometry_extraction": "cclib final atomcoords from native Gaussian output, original atom order; no geometry optimization or embedding",
+      "canonical_smiles_from_native_geometry": "C=NC.O"
+    },
+    {
+      "id": "P1_IRC2",
+      "graph_node_id": "Imine-water complex",
+      "native_log_member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/s2_fix/tgt_optfreq.log",
+      "native_log_sha256": "08429df18cac9f429ae8b8f82b4005215fffce424ebb09ecdc89240e7839093b",
+      "final_scf_line": 10308,
+      "frequency_lines": [
+        10551,
+        10569,
+        10587,
+        10605,
+        10623,
+        10641,
+        10659,
+        10677,
+        10695
+      ],
+      "normal_termination_line": 11456,
+      "normal_termination": true,
+      "stationary_point_found": true,
+      "lowest_frequencies_cm1": [
+        69.8326,
+        122.3706,
+        178.0655,
+        190.1861
+      ],
+      "geometry_file": "NI1_P1_IRC2.xyz",
+      "geometry_sha256": "2d49e76906b178dbef3083f084edb50a567dee2d8fa22907a032c62037cba80f",
+      "geometry_extraction": "cclib final atomcoords from native Gaussian output, original atom order; no geometry optimization or embedding",
+      "canonical_smiles_from_native_geometry": "C=NC.O"
+    }
+  ],
+  "steps": [
+    {
+      "edge_id": "e1",
+      "source_smiles": "C=O.CN",
+      "target_smiles": "CNCO",
+      "evidence": {
+        "irc": {
+          "member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/ts_0001/jobs/declaration_0006/irc/irc.log",
+          "sha256": "3d6c8e52308d3d5920081a4aa92e681f954587bbce4edd4f407460022fe4b1ff"
+        },
+        "ts_frequency": {
+          "member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+          "sha256": "ff406a690b3eba0bb2801f4749986ba9da1880a9bd2cd691279ec5132c4ed148"
+        },
+        "source_optfreq": {
+          "member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/repair/e1_fix/rc1_side_optfreq.log",
+          "sha256": "29ca4979fec0bdd67633ce838bdba1005972abb14aa8622e03cea35789d8c297"
+        },
+        "target_optfreq": {
+          "member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/repair/e1_fix/int1_side_optfreq.log",
+          "sha256": "00762080a8fa45bdc1c207bd0e83d8066d4b1756433adc02a7d078742f6497ad"
+        }
+      },
+      "irc_points_per_direction": [
+        24,
+        24
+      ],
+      "irc_minimum_convergence_per_direction": [
+        false,
+        false
+      ],
+      "short_irc_native_normal_termination": true,
+      "verification": "Shared verify_short_irc_direction returned true: same-TS start, both actual native outer frames followed by unconstrained Opt/Freq to the declared zero-imaginary minima. Read-only replay, 1 November 2026.",
+      "endpoint_input_coordinate_check": "Both Opt/Freq input coordinates equal the corresponding saved native IRC outer-frame coordinates; rigid-alignment maximum atom displacement below 2e-14 angstrom."
+    },
+    {
+      "edge_id": "e2",
+      "source_smiles": "CNCO",
+      "target_smiles": "C=NC.O",
+      "evidence": {
+        "irc": {
+          "member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/ts_0004/jobs/declaration_0003/irc/irc.log",
+          "sha256": "6db049b6df55481bd80a2607d22be823bea241b6f6b12c2cd9f492b1d523b3e9"
+        },
+        "ts_frequency": {
+          "member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/ts/ts_0004/jobs/declaration_0003/frequency/frequency.log",
+          "sha256": "ce3ebfb91ab3c45edec94c567e758d688f7d762bae5501a6f54ad0b17a120ade"
+        },
+        "source_optfreq": {
+          "member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/s2_fix/src_optfreq.log",
+          "sha256": "654eb0a11aa289bfbcd0c5eacd7a27d5c38ee7cab2dca453656ba584cddb33f4"
+        },
+        "target_optfreq": {
+          "member": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/NI1/batch_94084d85d0634ca0/s2_fix/tgt_optfreq.log",
+          "sha256": "08429df18cac9f429ae8b8f82b4005215fffce424ebb09ecdc89240e7839093b"
+        }
+      },
+      "irc_points_per_direction": [
+        24,
+        24
+      ],
+      "irc_minimum_convergence_per_direction": [
+        false,
+        false
+      ],
+      "short_irc_native_normal_termination": true,
+      "verification": "Shared verify_short_irc_direction returned true: same-TS start, both actual native outer frames followed by unconstrained Opt/Freq to the declared zero-imaginary minima. Read-only replay, 1 November 2026.",
+      "endpoint_input_coordinate_check": "Both Opt/Freq input coordinates equal the corresponding saved native IRC outer-frame coordinates; rigid-alignment maximum atom displacement below 2e-14 angstrom."
+    }
+  ],
+  "derived_quantities": {
+    "barrier_e1_kcal_mol": 28.118191874765863,
+    "barrier_e2_lowest_reference_kcal_mol": 57.92307964242408,
+    "barrier_e2_local_IRC_reference_kcal_mol": 57.21423301790679,
+    "INT1_IRC2_offset_from_lowest_kcal_mol": 0.7088466245172846
+  },
+  "conformer_qualification": "I is the lowest verified carbinolamine minimum reached from e1. I prime is another carbinolamine conformer reached from the e2 IRC, 0.708846625 kcal/mol higher. Their interconversion path was not calculated. e2 is drawn only from I prime; its reported 57.923079642 kcal/mol barrier uses the lowest I reference.",
+  "product_qualification": "The e2 endpoint product energy is -210.223036529 Ha, differing by 1e-7 Ha (0.000062751 kcal/mol) from the graph-bound P1 minimum used in the diagram; both are the same imine-water identity and have zero imaginary frequencies."
+}

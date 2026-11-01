@@ -8,4 +8,6 @@ This is the English SI accompanying the current bilingual manuscript. It covers 
 
 Public study data: [Cloudra research-data directory](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7). Download [Cloudra_SI_Data.zip](https://drive.google.com/file/d/1rxeg3nLczQyiO6ZackLq-LeTxzcsxHrL/view?usp=drivesdk) and unpack it beside this project to obtain companion_data/. The same directory provides the P2 campaign archive, P1b repeated-task records, and Gold reference-calculation evidence.
 
-The [complete behavioral and activation-source archive (20261030)](https://drive.google.com/drive/folders/1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K) additionally provides the source databases, event traces, analysis/figure materials, and archived manuscript context for Sections 3.2–3.3.
+The [complete behavioral and activation-source archive (20261030)](https://drive.google.com/drive/folders/1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K) additionally provides the source databases, event traces, analysis/figure materials, and archived manuscript context for Sections 3.2–3.3 in the archived manuscript version.
+
+Revision, 1 November 2026: the current SI has 32 pages. Section S4 adds the original Guided/NI1 two-step mechanism and uncapped barrier errors with explicit common-subset coverage. Figure inputs and numerical sources are in companion_data/revision_20261101/. The formal 200-run scores and original calculations remain unchanged.

@@ -19,6 +19,7 @@
 We next examine whether the model distinguishes molecular identities, compares distances between specified atoms, detects mismatched calculation references, and identifies missing IRC calculations. Archived research trajectories supply the molecular structures and calculation records. Controlled local studies with Qwen3.8:27b vary the supplied information, answer order, and selected internal states to test their effects on each judgment.
 
 \subsubsection{Equivalent SMILES and answer order affect molecular-identity judgments}
+\label{sec:identity-judgments}
 
 
 
@@ -72,7 +73,7 @@ The effect varied with layer and option order (Figure~\ref{fig:13}). With revers
 
 Self-replacement controls and control replacements at an unchanged prefix position produced zero logit differences across the full vocabulary.
 
-With reversed options, replacing the early-layer state restored the original-fact answer as the preferred choice; with the original option order, the modified-fact answer remained preferred. Recovering the answer from the same numeric position therefore depended on option order, as did the identity judgments in Section 3.2.1.
+With reversed options, replacing the early-layer state restored the original-fact answer as the preferred choice; with the original option order, the modified-fact answer remained preferred. Recovering the answer from the same numeric position therefore depended on option order, as did the identity judgments in Section~\ref{sec:identity-judgments}.
 
 
 \subsection{Identifying the species and pathways established by calculations}

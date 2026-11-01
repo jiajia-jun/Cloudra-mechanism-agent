@@ -17,3 +17,5 @@ The full study archive supplies the preserved sandboxes. The output directory mu
 `publication_reproduction/` contains the final publication source tables and preparation/plotting scripts. `behavioral/`, `behavioral_scripts/`, and `literature/` retain the separate diagnostic experiments and literature evidence. The dated `revision_20261031/` reports are historical audit records; the current formal scores are the final table identified above.
 
 The conditional matcher-sensitivity scenarios preserve the final Impossible-tier baseline and describe hypothetical Accuracy-only target assignments; they do not change the formal scores. The root `file_manifest.json` lists every payload file except itself, with its byte count and SHA-256.
+
+`revision_20261101/` adds an original-run NI1 chemical-object figure and uncapped barrier-error statistics, with explicit common-subset coverage and archived completion-record inventories. These derived analyses preserve the formal score table, matcher assignments, and original scientific criteria.

@@ -1,0 +1,8 @@
+id,graph_node_id,energy_hartree,relative_energy_kcal_mol,n_imaginary,imaginary_frequency_cm1,geometry_file
+RC1,RC1,-210.218065844000,0.000000000,0,,NI1_RC1.xyz
+TS1,TS1,-210.173256653000,28.118191875,1,-1481.0579,NI1_TS1.xyz
+INT1_lowest,Carbinolamine,-210.237884930000,-12.436664231,0,,NI1_INT1_lowest.xyz
+INT1_IRC2,Carbinolamine,-210.236755311000,-11.727817607,0,,NI1_INT1_IRC2.xyz
+TS2,TS2,-210.145578627000,45.486415411,1,-1796.8431,NI1_TS2.xyz
+P1_lowest,Imine-water complex,-210.223036629000,-3.119214681,0,,NI1_P1_lowest.xyz
+P1_IRC2,Imine-water complex,-210.223036529000,-3.119151930,0,,NI1_P1_IRC2.xyz

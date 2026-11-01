@@ -1,6 +1,7 @@
 \section{结果与讨论}
 
 \input{sections/03_figures}
+\input{sections/03_chemical_example}
 
 
 
@@ -74,6 +75,8 @@ Standard这7题整理后均分为0.1537，Guided在相同任务上的均分为0.
 
 各配置40道非Impossible任务中，Guided有24题的自洽连续分恰好为1（60.0\%）、16题获得部分正分；Standard有7题满分（17.5\%）、29题部分正分、4题零分；Record为16题满分（40.0\%）、24题部分正分；Brief-errors有20题满分（50.0\%）及20题部分正分。图~\ref{fig:bench-delivery}并列展示完整证据分布与单独记录的运行期根图交付数。
 
+上述百分比表示已交付对象的自洽性分量满分比例。整道题的科学完成率还要求每个请求物种与步骤均有物理支持。归档运行指标覆盖已交付或智能体选定的对象；针对全部请求对象的统一核查仍待完成。SI 第S4节说明这些记录各自覆盖的范围。
+
 \subsubsection{工具相同时，Guided得分仍高于Record}
 
 Record的全50题均分为0.6918，Brief-errors为0.7541。Guided相对Record高0.1012 [0.0396, 0.1695]，28题更高、7题更低、15题持平。Normal与Hard全部20题均差为0.1468，其中图结构贡献+0.0083、自洽性+0.0919、准确度+0.0466。最大的分量差异来自自洽性，即支持所报告步骤的频率、IRC及端点计算。
@@ -101,6 +104,28 @@ Guided 相对 Brief-errors 的总体增益为0.0388，区间为[$-0.0317$, 0.107
 
 
 
+
+\subsubsection{共同数值子集中的未封顶电子能垒误差}
+
+为用化学单位表达数值偏差，我们从归档原生日志的过渡态与反应物参考电子能重新计算能垒。四组共有的数值子集包含23道正结论任务中的26条参考边：各组均可恢复相应数值，且已有分量与最终发表记录一致。分析保留原评分器的选边结果，逐边对比冻结的题目参考值，每条边在每组中计入一次，能量换算沿用第2节定义。表~\ref{tab:uncapped-barrier-errors}给出未封顶误差。
+
+\begin{table}[tbp]
+\centering\small
+\caption{四组共同26条参考边的未封顶电子能垒误差，单位为 kcal/mol。}
+\label{tab:uncapped-barrier-errors}
+\begin{tabular}{lrrr}
+\toprule
+组别 & MAE & RMSE & 绝对误差中位数 \\
+\midrule
+Guided & 1.17 & 2.86 & 0.057 \\
+Standard & 1.90 & 5.09 & 0.057 \\
+Record & 1.58 & 5.71 & 0.073 \\
+Brief-errors & 1.13 & 2.31 & 0.099 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+这些误差保留了综合评分中 Accuracy 惩罚封顶所压缩的较大偏差。在该子集中，Guided 的 MAE 和 RMSE 均低于 Standard，Brief-errors 的两项指标最低。该子集描述可恢复的数值答案，频率与反应路径的物理支持由自洽性分量另行衡量。SI 第S4节列出逐条数值、相对53条正结论数值参考边的覆盖情况，以及具有额外 Gold 输入方法与介质佐证的更小子集；数值排序随覆盖范围变化。
 
 \subsubsection{逐题比较能垒、路径与计算证据}
 
