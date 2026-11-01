@@ -66,7 +66,7 @@
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=\textwidth]{figures/bench_imp.pdf}
-\caption{Impossible层的逐题对照与Brief--Guided差异。a--c，全部10题、四配置的完整整理总分、自洽性和Accuracy，色标统一为0--1。d，Brief相对Guided的逐题总分差，均差+0.03788集中于IA1与IA9，IG8呈相反结果；Guided赢5题、Brief赢3题、2题持平。e，按既定权重分解均差，Accuracy贡献+0.06000、Graph贡献$-0.00661$、自洽性贡献$-0.01550$，细微加总差异来自保存总分的舍入；任务bootstrap的95\%区间为$-0.188$至+0.284，逐题科学声明见下文分析。}
+\caption{离线整理与评分后的Impossible层结果。a--c，全部10题、四配置的总分、自洽性（SC）和准确度，采用同一完整评分轨道，色标统一为0--1。Backbone表示同一主干模型下的Standard配置。Brief均分0.603，Guided均分0.505。d，Guided在5题更高，Brief在4题更高，1题持平。e，$+0.09788$的均差经加权后由准确度$+0.12000$、Graph $-0.00661$和自洽性$-0.01550$组成；细微加总差异来自保存总分的舍入。配对任务bootstrap的95\%区间为$-0.160$至$+0.361$。准确度为零并不普遍表示错误拒绝，分量或总分也不是科学验收率。}
 \label{fig:bench-imp}
 \end{minipage}
 \end{figure*}
