@@ -16,12 +16,12 @@
     {
       "name": "Qianxin Zhou",
       "affiliation": 2,
-      "position": "second author"
+      "position": "co-second author"
     },
     {
       "name": "Yang Li",
       "affiliation": 1,
-      "position": "third author"
+      "position": "co-second author"
     }
   ],
   "unknown_references": 0,
@@ -30,12 +30,12 @@
   "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
   "files": {
     "Cloudra_SI_EN_Draft.pdf": {
-      "bytes": 300884,
-      "sha256": "711132740c78325d0333284686288e4d5dfcd0d7c6615a0b38ed45bdc7d4e484"
+      "bytes": 301103,
+      "sha256": "a0369d00bd6ea869be29099742a2e1614a3cc80bde0de5fdcf3d62486dce4821"
     },
     "Cloudra_SI_Overleaf.zip": {
-      "bytes": 148295,
-      "sha256": "18163d6a0f2585a1b1f11b612c57781aee68e8f53f7c206211cc61820a2afd34"
+      "bytes": 148342,
+      "sha256": "1b3f7074b6bfe684a6a567ea40211a589f57d6521be3ad57e8372d8454e3a6df"
     },
     "Cloudra_SI_Data.zip": {
       "bytes": 16830359,
@@ -48,8 +48,8 @@
     "mismatches": 0,
     "new_model_or_qm_calculations": 0
   },
-  "pdf_sha256": "711132740c78325d0333284686288e4d5dfcd0d7c6615a0b38ed45bdc7d4e484",
-  "source_zip_sha256": "18163d6a0f2585a1b1f11b612c57781aee68e8f53f7c206211cc61820a2afd34",
+  "pdf_sha256": "a0369d00bd6ea869be29099742a2e1614a3cc80bde0de5fdcf3d62486dce4821",
+  "source_zip_sha256": "1b3f7074b6bfe684a6a567ea40211a589f57d6521be3ad57e8372d8454e3a6df",
   "bibliography_entries": 38,
   "authorship_verified": true,
   "deployment": "DeepSeek-v4.1-flash (1017)",
@@ -220,5 +220,38 @@
     "abstract_ascii_characters": 1714,
     "abstract_words": 220,
     "scientific_criteria_scores_and_data_unchanged": true
+  },
+  "co_second_authorship_revision": {
+    "date": "2026-11-01",
+    "co_second_authors": [
+      "Qianxin Zhou",
+      "Yang Li"
+    ],
+    "statement": "Qianxin Zhou and Yang Li contributed equally as second authors.",
+    "author_order": [
+      "Chengyi Yang",
+      "Qianxin Zhou",
+      "Yang Li"
+    ],
+    "outputs": {
+      "EN": {
+        "pages": 22,
+        "pdf_sha256": "dee4aff360353de992fb42c9f41f2840039b7abb0d64d80c6f5fc55e8a0a2bdf",
+        "source_zip_sha256": "120ebfefba84e697e6079dfcc42290766ac059f4e4b7b93b9007a9b062fe2cfd",
+        "source_files": 39
+      },
+      "ZH": {
+        "pages": 18,
+        "pdf_sha256": "82604461859854644d6a7bd25a8f14c84b142e5f00d272e12bee7701e44f054d",
+        "source_zip_sha256": "a1c59f34c7096be7ec4cf8577bd83eeb3bbc98509d4df9153437f8bfd3a16b5c",
+        "source_files": 39
+      },
+      "SI": {
+        "pages": 30,
+        "pdf_sha256": "a0369d00bd6ea869be29099742a2e1614a3cc80bde0de5fdcf3d62486dce4821",
+        "source_zip_sha256": "1b3f7074b6bfe684a6a567ea40211a589f57d6521be3ad57e8372d8454e3a6df",
+        "source_files": 26
+      }
+    }
   }
 }

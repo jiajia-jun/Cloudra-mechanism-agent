@@ -26,5 +26,9 @@
     "name": "Chengyi Yang",
     "email": "202509240114@csust.edu.cn"
   },
-  "local_architecture_source_commit": "e3ef316b36e4cef110ed789c7ceb0aceb32cc437"
+  "local_architecture_source_commit": "e3ef316b36e4cef110ed789c7ceb0aceb32cc437",
+  "co_second_authors": [
+    "Qianxin Zhou",
+    "Yang Li"
+  ]
 }

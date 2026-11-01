@@ -8,7 +8,7 @@
 
 - 正文、SI和完整数据包已在本地，三处小修已同步中英文正文与SI，在Overleaf编译并导出。
 - 摘要已另存可直接粘贴的ASCII单段文本，1714字符、220词，低于arXiv官方1920字符上限；无需再缩写。
-- 作者顺序为Chengyi Yang、Qianxin Zhou、Yang Li；PDF按该顺序署名，不加共同作者标记。arXiv作者字段只列姓名，身份角色不混入作者名称。
+- 作者顺序为Chengyi Yang、Qianxin Zhou、Yang Li；PDF按该顺序署名，Qianxin Zhou和Yang Li标注共同第二作者。arXiv作者字段只列姓名，身份角色不混入作者名称。
 - 实验模型与调用别名、P1b/P2、正式分数与条件性敏感性分开记录；本轮不改科学数据。
 - 元信息草案已存arxiv_metadata.json；未发表的文章不填journal-ref或期刊publication DOI。
 
@@ -24,7 +24,7 @@
 | SI与数据布局 | 现有桌面准备包已采用两套源文件分别置于manuscript/与supplement/，根目录main.tex和supplement.tex独立编译；数据ZIP位于外层补充数据目录，不混入arXiv源码ZIP。此布局已本地复编，尚未实际上传。 |
 | 参考文献 | 当前.bib齐全。arXiv已支持BibTeX自动处理，缺.bbl并非当前阻断项；也可以附与主文件同名且由同一环境生成的.bbl。 |
 | 版本标识 | 正文首页仍为Working Draft，SI为Draft。正式发布时清理为统一预印本版本/日期属于成稿整理；本轮三处小修不擅自改变它。 |
-| 作者与联系信息 | 当前稿已明确杨程驿（Chengyi Yang）为第一及通讯作者，学校邮箱为202509240114@csust.edu.cn；Qianxin Zhou列第二、Yang Li列第三，不加共同作者标记。ORCID未提供。作者已确认全体作者同意公开；实际作者账号为yyywaa（Chengyi Yang），账户通讯邮箱已验证为202509240114@csust.edu.cn。 |
+| 作者与联系信息 | 当前稿已明确杨程驿（Chengyi Yang）为第一及通讯作者，学校邮箱为202509240114@csust.edu.cn；Qianxin Zhou列第二、Yang Li列第三，Qianxin Zhou和Yang Li标注共同第二作者。ORCID未提供。作者已确认全体作者同意公开；实际作者账号为yyywaa（Chengyi Yang），账户通讯邮箱已验证为202509240114@csust.edu.cn。 |
 | 分类 | 作者已确认主分类为cs.MA（Multiagent Systems，多智能体系统）；未选择交叉分类。沿用提交草稿8312079，账户资格以arXiv实际检查为准。 |
 | 账号与endorsement | 使用实际作者账号yyywaa（Chengyi Yang），学校邮箱202509240114@csust.edu.cn已验证。邮箱变更后需重新登录；新主分类cs.MA的背书资格待在线检查。 |
 | 论文许可 | 作者已明确选择arXiv永久非独占许可，并授权接受提交协议；已在网站接受该协议。论文许可与软件AGPL是不同事项。 |
