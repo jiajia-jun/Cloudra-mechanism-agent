@@ -12,7 +12,7 @@ A proposed intermediate must optimize to a minimum. A candidate transition state
 
 \subsection{Cloudra: autonomous mechanism exploration through chemical objects}
 
-We introduce Cloudra, a multi-agent system for exploring reaction mechanisms involving small organic molecules. Language models propose candidate pathways, choose calculations, and revise hypotheses from the returned structures and energies. The software maps atoms, moves molecular fragments, and runs geometry optimizations, frequency calculations, and IRCs. The results identify minima and saddle points and determine which species each saddle connects.
+Workflow graphs represent tool calls or computational tasks as nodes and their execution dependencies as edges. They specify how calculations are arranged. Cloudra, a multi-agent system for small-molecule mechanism exploration, requires agents to express the delivered mechanism through species objects and elementary-step objects in a Delivery DAG. The agents propose hypotheses and choose candidate steps and subsequent calculations from the current structures and energies.
 
 Figure~\ref{fig:01} summarizes a structured literature sample of 85 chemical AI agent systems: 39 concern materials or surfaces, 23 concern finite molecules or complexes, 12 concern soft matter or biomolecules, and 11 cover multiple categories of objects. Figures~\ref{fig:02} and \ref{fig:03} show the documented tasks in the finite-molecule/complex category and compare Cloudra's capabilities with those of the existing systems. The accompanying literature materials contain the complete matrix and the sources for each entry.
 
@@ -32,7 +32,7 @@ Following intelligent restraint, Cloudra assigns coordinate calculations to dete
 \label{fig:02}
 \end{figure}
 
-The Delivery DAG represents chemical species as nodes and elementary reaction steps as edges. Nodes link to optimized geometries, energies, and frequencies; edges link to transition states and their IRC paths. A transition state must have exactly one imaginary frequency. The program checks that its frequency calculation and both IRC directions refer to the same saddle, and that optimizations from the IRC terminal frames reach the declared reactant and product species. The Supervisor reviews the resulting mechanism against the task and identifies calculations still needed and steps requiring further investigation.
+The Delivery DAG represents the mechanism as a graph of chemical objects. Each species node carries molecular geometries, bonding topology, stereochemistry, and associated calculation results. Each elementary-step edge carries the transition state and the reaction path connecting adjacent species. Topology and stereochemistry comparisons identify species, while atom mapping tracks corresponding atoms across reactant and product structures. Frequency calculations characterize the stationary points, and IRC endpoint calculations determine their reaction connections. The program checks that the frequency calculation and both IRC directions refer to the same first-order saddle, and that optimizations from the IRC terminal frames reach the declared reactant and product species. The Supervisor reviews these objects against the task and identifies calculations still needed and steps requiring further investigation.
 
 \begin{figure}[tbp]
 \centering
@@ -43,7 +43,7 @@ The Delivery DAG represents chemical species as nodes and elementary reaction st
 
 \subsection{Contributions}
 
-Cloudra combines a DAG of species and elementary steps with algorithms for atom mapping, geometry construction, and stationary-point and pathway analysis. Atom mappings keep reactant and product atoms in a common order. Fragment operations generate candidate geometries, and frequency and IRC calculations determine which stationary points were found and which species they connect. The agents use these results to compare proposed steps, revise the mechanism, and select further calculations.
+Cloudra's central design couples constraints on the delivered mechanism with cheminformatics algorithms that define and manipulate its chemical objects. Molecular topology and stereochemistry identify species; atom mappings track atoms across structures. Geometry operations construct candidates, and frequency and IRC calculations assign the resulting stationary points and reaction connections. The agents use these objects to extend and revise the mechanism as the study progresses.
 
 The geometric procedures include MCS-based fragment selection, graph traversal to select the atoms that move, and transition-state fragment assembly. They allow the agents to rotate selected groups, adjust fragment positions, measure the resulting structures, and prepare new guesses after an unsuccessful transition-state search.
 

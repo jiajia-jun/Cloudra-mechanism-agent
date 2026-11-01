@@ -30,12 +30,12 @@
   "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
   "files": {
     "Cloudra_SI_EN_Draft.pdf": {
-      "bytes": 301103,
-      "sha256": "a0369d00bd6ea869be29099742a2e1614a3cc80bde0de5fdcf3d62486dce4821"
+      "bytes": 301268,
+      "sha256": "35106a24607af0fa154a6eb421705315634bbed78d08647eae508c86a6f78ec7"
     },
     "Cloudra_SI_Overleaf.zip": {
-      "bytes": 148342,
-      "sha256": "1b3f7074b6bfe684a6a567ea40211a589f57d6521be3ad57e8372d8454e3a6df"
+      "bytes": 148408,
+      "sha256": "23887b81cbff40e30e59562e9f696990555cbe98481d63e1ec8d1cd8cf5ae851"
     },
     "Cloudra_SI_Data.zip": {
       "bytes": 16830359,
@@ -48,8 +48,8 @@
     "mismatches": 0,
     "new_model_or_qm_calculations": 0
   },
-  "pdf_sha256": "a0369d00bd6ea869be29099742a2e1614a3cc80bde0de5fdcf3d62486dce4821",
-  "source_zip_sha256": "1b3f7074b6bfe684a6a567ea40211a589f57d6521be3ad57e8372d8454e3a6df",
+  "pdf_sha256": "35106a24607af0fa154a6eb421705315634bbed78d08647eae508c86a6f78ec7",
+  "source_zip_sha256": "23887b81cbff40e30e59562e9f696990555cbe98481d63e1ec8d1cd8cf5ae851",
   "bibliography_entries": 38,
   "authorship_verified": true,
   "deployment": "DeepSeek-v4.1-flash (1017)",
@@ -253,5 +253,11 @@
         "source_files": 26
       }
     }
+  },
+  "chemical_object_framing_revision": {
+    "date": "2026-11-01",
+    "scope": "Delivery DAG constrains the delivered mechanism through species and elementary-step chemical objects; cheminformatics establishes structural identities and atom correspondences, while frequency and IRC calculations determine stationary points and reaction connections.",
+    "abstract_ascii_characters": 1743,
+    "abstract_words": 223
   }
 }
