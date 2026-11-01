@@ -3,7 +3,7 @@
 All notable changes to the Cloudra project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [0.1.1] - 2026-11-01
+## [0.1.0] - 2026-11-01
 
 ### 修复
 - 为 Python 3.11–3.13 CI 矩阵安装物种证据与公开 JS 场景实际所需的 RDKit 和 JS 宿主依赖。
@@ -14,8 +14,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - 在几何连通性回退路径复用现有立体化学检查，拒绝与声明构型不符的几何。
 - 隔离测试节点容量与缺失 xTB 的 PATH 条件；数值 fixture 使用机器舍入级容差并保留端点精确比较。
 - 恢复中英文默认调用协议说明，并让传统协议全链测试通过真实工具交付机制图。
-
-## [0.1.0] - 2026-11-01
 
 ### 正式发布
 - 版本从 `0.1.0rc1` 更新为 `0.1.0`。
