@@ -30,12 +30,12 @@
   "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
   "files": {
     "Cloudra_SI_EN_Draft.pdf": {
-      "bytes": 309596,
-      "sha256": "97879a056d6c1c58834c00b8eea6d431e6e2fa8f3b8e61269de0463441d9f5d1"
+      "bytes": 309513,
+      "sha256": "4c862fc9f49532d194ea2ce6fd9f3c68553baa1e95b27e5fb09df3bc02f843ae"
     },
     "Cloudra_SI_Overleaf.zip": {
-      "bytes": 151337,
-      "sha256": "f7befd022ae802651eae8b56f4430da67f1211e9ff3b7d2d0f0ea9ef5005697c"
+      "bytes": 151325,
+      "sha256": "14491627ca2eb9a165f263a45f4b829e2e092cd0ccbfe3d8c6563c3854cc4cff"
     },
     "Cloudra_SI_Data.zip": {
       "bytes": 16830359,
@@ -48,8 +48,8 @@
     "mismatches": 0,
     "new_model_or_qm_calculations": 0
   },
-  "pdf_sha256": "97879a056d6c1c58834c00b8eea6d431e6e2fa8f3b8e61269de0463441d9f5d1",
-  "source_zip_sha256": "f7befd022ae802651eae8b56f4430da67f1211e9ff3b7d2d0f0ea9ef5005697c",
+  "pdf_sha256": "4c862fc9f49532d194ea2ce6fd9f3c68553baa1e95b27e5fb09df3bc02f843ae",
+  "source_zip_sha256": "14491627ca2eb9a165f263a45f4b829e2e092cd0ccbfe3d8c6563c3854cc4cff",
   "bibliography_entries": 38,
   "authorship_verified": true,
   "deployment": "DeepSeek-v4.1-flash (1017)",
@@ -165,5 +165,33 @@
     },
     "new_calculations": false,
     "scores_and_rules_changed": false
+  },
+  "scientific_terminology_revision": {
+    "date": "2026-11-01",
+    "scope": "Scientific judgment and physical validation replace acceptance terminology; the research problem does not presuppose a prior validation framework.",
+    "outputs": {
+      "EN": {
+        "pages": 23,
+        "pdf_sha256": "8de1dc42c4e91e15e692f2540f89885ffcb1c93f9fc99968b09125b021063b82",
+        "source_zip_sha256": "26146dcddd9af8445e3014466e5ec75a63abc8d1e32bd5bfdb99a11ba6ebcacd",
+        "source_files": 39
+      },
+      "ZH": {
+        "pages": 19,
+        "pdf_sha256": "a66a4795604892c7ce6d2297acef4d658b301aac15720f9e177bc045f8507b86",
+        "source_zip_sha256": "f57b3b9e1c01765ba108bd599a5c95cc41bac0b0fdb54f9262e3c82b95dd9de0",
+        "source_files": 39
+      },
+      "SI": {
+        "pages": 31,
+        "pdf_sha256": "4c862fc9f49532d194ea2ce6fd9f3c68553baa1e95b27e5fb09df3bc02f843ae",
+        "source_zip_sha256": "14491627ca2eb9a165f263a45f4b829e2e092cd0ccbfe3d8c6563c3854cc4cff",
+        "source_files": 26
+      }
+    },
+    "abstract_ascii_characters": 1827,
+    "abstract_words": 215,
+    "criteria_and_scoring_unchanged": true,
+    "new_calculations": false
   }
 }

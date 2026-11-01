@@ -3,7 +3,7 @@
 
 \subsection{Complete workflow and tier comparisons}
 
-The publication dataset contains 200 task runs: one retained run for each of 50 tasks under Guided, Standard, Record, and Brief. Each run has a composite score and all three component scores. Table~\ref{tab:si-arm-tier} reports the means without pooling away the task tiers. Standard is the actual comparison branch using the same model backbone. Record and Brief vary the workflow's persistent acceptance requirements and diagnostic feedback, respectively.
+The publication dataset contains 200 task runs: one retained run for each of 50 tasks under Guided, Standard, Record, and Brief. Each run has a composite score and all three component scores. Table~\ref{tab:si-arm-tier} reports the means without pooling away the task tiers. Standard is the actual comparison branch using the same model backbone. Record and Brief vary the requirement for physical validation and diagnostic feedback, respectively.
 
 \begin{table}[!htbp]
 \centering
@@ -113,7 +113,7 @@ Record & 16 & 24 & 0 & 0.7633 \\
 Brief & 20 & 20 & 0 & 0.8439 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize This table describes the graded component for the positive-chemistry tiers. The separate scientific-acceptance record is evaluated from the complete task contract.\end{minipage}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize This table describes the graded component for the positive-chemistry tiers. The separate scientific-validation record is evaluated from the complete task contract.\end{minipage}
 \end{table}
 
 
@@ -157,7 +157,7 @@ Record & 118.16 & 7.877 & 431 & 62 & 38 & 0.7360 \\
 Brief & 233.85 & 15.590 & 883 & 167 & 120 & 0.7273 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize Each workflow contributes 15 task runs. Job-hours sum recorded process durations. Failed and cancelled jobs are separate terminal categories; job counts do not measure scientific acceptance.\end{minipage}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize Each workflow contributes 15 task runs. Job-hours sum recorded process durations. Failed and cancelled jobs are separate terminal categories; job counts do not measure scientific validation.\end{minipage}
 \end{table}
 
 
@@ -256,7 +256,7 @@ Cloudra's default preorganization samples 32 rigid relative placements, applies 
 
 The benchmark compares electronic energy differences. It does not add zero-point, thermal/entropic, or standard-state corrections, and it does not quantify the free-energy contribution of solvation. This scope matters for NI5, specified in weakly acidic aqueous solution, and NU5, specified in dichloromethane at high concentration. Their scores assess the prescribed electronic-energy references rather than experimental solution-phase free-energy barriers. No solvent-sensitivity comparison was performed, so the present results do not determine the magnitude or direction of a solvent effect.
 
-The atom-mapping coefficients and ambiguity window, and the decay, depth, and congestion settings in the branch-crowding descriptor, were fixed across the workflow comparisons. We did not vary them in a parameter sweep or measure each setting's separate contribution. The imaginary-mode alignment ratio of 0.5 is advisory; the stationary-point and IRC/endpoint evidence determine scientific acceptance. All P2 configurations used DeepSeek-v4.1-flash (1017), with the API alias \texttt{deepseek-v4-flash} and the recorded request settings. Comparisons with additional backbones would test how the workflow gains carry across models.
+The atom-mapping coefficients and ambiguity window, and the decay, depth, and congestion settings in the branch-crowding descriptor, were fixed across the workflow comparisons. We did not vary them in a parameter sweep or measure each setting's separate contribution. The imaginary-mode alignment ratio of 0.5 is advisory; the stationary-point and IRC/endpoint evidence determine scientific validation. All P2 configurations used DeepSeek-v4.1-flash (1017), with the API alias \texttt{deepseek-v4-flash} and the recorded request settings. Comparisons with additional backbones would test how the workflow gains carry across models.
 
 
-The Easy-tier trajectories distinguish final chemical identity declarations from delivery policy. In F4, the final graphs differ in whether they identify the bonded adduct, despite supporting calculations for essentially the same pathway. G2 preserves computed values in prose after validation feedback prompts removal of their structured fields. Preserving a provisional quantity and its source separately from its acceptance status would allow scientific review to restrict its interpretation without erasing the observation. The conditional IA5/IC3 analysis likewise changes target assignment while retaining the scientific-acceptance rules and the final publication dataset.
+The Easy-tier trajectories distinguish final chemical identity declarations from delivery policy. In F4, the final graphs differ in whether they identify the bonded adduct, despite supporting calculations for essentially the same pathway. G2 preserves computed values in prose after validation feedback prompts removal of their structured fields. Preserving a provisional quantity and its source separately from its validation status would allow scientific review to restrict its interpretation without erasing the observation. The conditional IA5/IC3 analysis likewise changes target assignment while retaining the scientific-validation rules and the final publication dataset.

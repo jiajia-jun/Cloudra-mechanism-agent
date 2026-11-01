@@ -120,7 +120,7 @@ The delivery evidence graph is $G=(V,E)$, where vertices $v\in V$ represent chem
 
 Each graph element carries a declarative stage requirement set $K$. Standard elementary steps require the sequence $K=\{\text{ts\_opt}, \text{frequency}, \text{short\_irc}\}$, supplemented by thermochemical corrections when mandated by the task rubric. Calculation outputs are archived as content-digested immutable records. Parsed facts take the form $f=(c,o,r,d)$, where $c$ is the check item, $o\in\{+,-,?\}$ denotes support, contradiction, or uncertainty, $r$ is the artifact provenance reference, and $d$ encapsulates quantitative metrics.
 
-For tasks declaring explicit property checks $R$ and optional checks $O$, the scientific evidence acceptance criterion over target-associated facts $F_t$ evaluates as
+For tasks declaring explicit property checks $R$ and optional checks $O$, the physical validation criterion over target-associated facts $F_t$ evaluates as
 
 \begin{equation}\label{eq:methods-09}
 \begin{aligned}
@@ -152,7 +152,7 @@ For a first-order saddle point with imaginary normal-mode displacement vector $\
 \eta=\frac{\max_{(i,j)\in W}\|\mathbf{u}_i-\mathbf{u}_j\|}{\max_{i<j}\|\mathbf{u}_i-\mathbf{u}_j\|}.
 \end{equation}
 
-The diagnostic $\eta\in[0,1]$ measures reaction-center participation relative to the largest pair displacement, using a comparison ratio of 0.5. It can identify spectator motion such as methyl wagging or solvent libration. The resulting alignment flag is advisory; scientific acceptance uses the first-order-saddle requirement and the same-TS bidirectional IRC and endpoint optimization/frequency chain.
+The diagnostic $\eta\in[0,1]$ measures reaction-center participation relative to the largest pair displacement, using a comparison ratio of 0.5. It can identify spectator motion such as methyl wagging or solvent libration. The resulting alignment flag is advisory; scientific validation uses the first-order-saddle requirement and the same-TS bidirectional IRC and endpoint optimization/frequency chain.
 
 \subsubsection{IRC Direction and Endpoint Consistency}
 Intrinsic reaction coordinate (IRC) trajectories evolve from the saddle point along the steepest-descent path in mass-weighted coordinates $\mathbf{q}=\mathbf{M}^{1/2}\mathbf{x}$ \citep{ref09,ref10}:
@@ -169,7 +169,7 @@ Cloudra validates that the IRC path originates at the verified saddle point and 
 For elementary steps yielding dissociated molecular components, each dissociated product must independently converge to a verified minimum. Directional alignment is validated through the reactant-side distance interval predicate. Over the monitored pair set $W$, let $\mathbf{q}_{\mathrm{TS}}$, $\mathbf{q}_{\mathrm{E}}$, and $\mathbf{q}_{\mathrm{R}}$ denote distance vectors at the transition state, terminal IRC frame, and reactant reference. With covalent cutoffs $c_{ij}=1.25(r_i+r_j)$ and tolerance $\tau=0.10$ Å, define $W_{\mathrm{c}}=\{(i,j)\in W:d_{ij}^{\mathrm{R}}\le c_{ij}\}$ and interval $[a_p,b_p]=[\min(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})-\tau, \max(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})+\tau]$. The Boolean predicate $\operatorname{is\_between}$ is satisfied when $\|\mathbf{q}_{\mathrm{E}}-\mathbf{q}_{\mathrm{R}}\|_2<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2$ and $a_p\le d_p^{\mathrm{E}}\le b_p$ for all $p\in W_{\mathrm{c}}$. Dissociated product pathways require satisfaction of $\operatorname{is\_between}$ alongside verified component minima to certify reaction continuity.
 
 \subsubsection{Evidence Aggregation and Energies}
-For elementary step $e$, let $K_e$ denote the set of mandatory scientific stages. The stage verification predicate $P_{e,k}=1$ indicates that stage $k$ possesses bound computational evidence satisfying its physical acceptance criteria ($P_{e,k}=0$ otherwise). Stage-chain completion is defined by
+For elementary step $e$, let $K_e$ denote the set of mandatory scientific stages. The stage verification predicate $P_{e,k}=1$ indicates that stage $k$ possesses bound computational evidence satisfying its physical criteria ($P_{e,k}=0$ otherwise). Stage-chain completion is defined by
 
 \begin{equation}\label{eq:methods-13}
 A_e=\bigwedge_{k\in K_e}P_{e,k}.
@@ -203,7 +203,7 @@ Recovery preserves historical attempts and raw calculation outputs while resched
 \subsection{Implementation Defaults}
 The implementation described here corresponds to Cloudra revision 70daa5a.\citep{ref14} Numerical arrays and linear algebra use NumPy\citep{numpy2020}; quantum-chemical quantities are extracted with cclib alongside engine-specific native-log readers\citep{cclib2008}; and benchmark graph representation and matching use NetworkX\citep{networkx2008}. Preorganization uses 32 rigid orientations, up to 8 guided placements, minimum interfragment separation 1.0 Å, fragment-contact multiplier 1.7, and heavy-atom RMSD clustering threshold 0.5 Å. MMFF94 relaxation uses up to 2000 iterations per phase with a distance restraint force constant of 100.0. Standard IDPP employs 10 images optimized via MDMin (100 steps, force tolerance $f_{\max}=0.1$, NEB spring constant $k=0.1$); lightweight IDPP uses Adam optimization (4000 steps, step size 0.02, gradient tolerance $10^{-7}$). Path convergence criteria evaluate the maximum force residual on intermediate path images.\par
 
-The mapping coefficients and the $J_{\min}+2$ ambiguity window are fixed ranking heuristics. Charge and radical mismatches carry larger costs than hydrogen-count and bond-edit mismatches. Branch crowding uses the fixed decay $\rho=0.5$, traversal through depth five, and congestion flag $B_{\mathrm{axis}}\geq9.0$. The mode-participation diagnostic uses the comparison ratio 0.5 as an advisory flag. These values rank or annotate candidates; stationary-point and pathway evidence determine scientific acceptance.
+The mapping coefficients and the $J_{\min}+2$ ambiguity window are fixed ranking heuristics. Charge and radical mismatches carry larger costs than hydrogen-count and bond-edit mismatches. Branch crowding uses the fixed decay $\rho=0.5$, traversal through depth five, and congestion flag $B_{\mathrm{axis}}\geq9.0$. The mode-participation diagnostic uses the comparison ratio 0.5 as an advisory flag. These values rank or annotate candidates; stationary-point and pathway evidence determine scientific validation.
 
 Cloudra also provides a conformer-search tool with RDKit and external CREST backends.\citep{crest2020} The default preorganization described above uses rigid placements, guided MMFF94 relaxation, and clustering. CREST can be requested for additional conformer or noncovalent-complex sampling, followed by quantum-chemical optimization and physical validation.
 
@@ -230,7 +230,7 @@ Each task fixes the chemical conditions, charge, spin, deliverables, and allowed
 
 \subsubsection{Scoring and study configurations}
 
-Graph structure, self-consistency, and accuracy are evaluated separately and combined with weights of 0.1, 0.3, and 0.6. Graded physical support and runtime delivery completeness are reported separately. Correct recognition of a method limitation does not require an invented barrier. Reference-evidence completeness, special treatment, and unresolved qualifications are documented per task; the presence of a reference graph and complete scientific acceptance are assessed separately.
+Graph structure, self-consistency, and accuracy are evaluated separately and combined with weights of 0.1, 0.3, and 0.6. Graded physical support and runtime delivery completeness are reported separately. Correct recognition of a method limitation does not require an invented barrier. Reference-evidence completeness, special treatment, and unresolved qualifications are documented per task; the presence of a reference graph and complete scientific validation are assessed separately.
 
 \subsubsection{Repeated-task study, primary comparison, and workflow ablations}
 
@@ -238,7 +238,7 @@ The repeated-task study (P1b) compares Guided, Standard, Record, and Brief-error
 
 
 
-Standard hides explicit DAG tools, removes scientific acceptance interception, and supplies neutral computational feedback. Guided retains the research graph, scientific checks, and detailed diagnostics. Record preserves available tools and records while removing mandatory acceptance; Brief-errors retains guidance while shortening diagnostics. Common task statements and method restrictions apply across configurations; run versions, budgets, stopping reasons, and artifact provenance are retained in the archive.
+Standard hides explicit DAG tools, removes enforcement of physical checks, and supplies neutral computational feedback. Guided retains the research graph, scientific checks, and detailed diagnostics. Record preserves available tools and records while removing the requirement for physical validation; Brief-errors retains guidance while shortening diagnostics. Common task statements and method restrictions apply across configurations; run versions, budgets, stopping reasons, and artifact provenance are retained in the archive.
 
 
 

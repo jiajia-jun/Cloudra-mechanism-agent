@@ -7,7 +7,7 @@ For a formally organized run, the reported composite combines graph structure $G
 S=0.1G+0.3C+0.6A.
 \label{eq:si-composite}
 \end{equation}
-The three components are retained separately. The reporting distinguishes execution status, original graph delivery, completion of requested steps, and graded physical evidence. Complete scientific acceptance is a separate all-required-elements criterion. A completed process or a partial score does not substitute for the evidence required by a particular scientific claim.
+The three components are retained separately. The reporting distinguishes execution status, original graph delivery, completion of requested steps, and graded physical evidence. Complete scientific validation is a separate all-required-elements criterion. A completed process or a partial score does not substitute for the evidence required by a particular scientific claim.
 
 \subsection{Graph structure and chemical correspondence}
 The graph component measures coverage of the reference mechanism by the delivered mechanism. Transition-state nodes are folded into their elementary-step edges for graph comparison. Species are matched chemically and reaction steps are compared through their endpoints and atom-mapped bond changes. RDKit supplies chemical representations and NetworkX supplies graph representation and matching.\citep{ref13,networkx2008} Missing reference elements, incorrect chemical identities, or mismatched accessibility declarations contribute edit costs. Additional delivered nodes or edges are not penalized merely for being additional in this component.
@@ -15,7 +15,7 @@ The graph component measures coverage of the reference mechanism by the delivere
 The tier-specific graph comparison ignores stereochemistry for Easy and Normal tasks and retains it for Hard tasks. Bound native evidence determines the evidence association of a delivered species. The graph score is not multiplied by the binary self-consistency pass flag: graph coverage and physical self-consistency remain distinct components.
 
 \subsection{Graded physical self-consistency}
-The self-consistency assessment operates on the species and steps represented in the organized graph, independently of numerical agreement with Gold. A transition-state step receives graded credit for the evidence stages in Table~\ref{tab:si-self-consistency}. A complete verified chain receives 1.0. The evaluator searches the same run's sandbox for the corresponding native artifacts and evidence chain, including when an explicit file association needs recovery. Credit is determined by that computational evidence under the common physical acceptance criteria.
+The self-consistency assessment operates on the species and steps represented in the organized graph, independently of numerical agreement with Gold. A transition-state step receives graded credit for the evidence stages in Table~\ref{tab:si-self-consistency}. A complete verified chain receives 1.0. The evaluator searches the same run's sandbox for the corresponding native artifacts and evidence chain, including when an explicit file association needs recovery. Credit is determined by that computational evidence under the common physical criteria.
 
 \begin{table}[htbp]
 \centering
@@ -35,7 +35,7 @@ Native outer-frame--optimization--frequency lineage to both declared endpoint mi
 
 For graphs containing reaction edges, $C$ is the mean of the delivered edge scores. An edge without a transition-state node requires both endpoint species to be covered. For a species-only graph, $C$ is the mean species-coverage score. Explicit inaccessible targets are exempt from requirements for stationary points or paths judged physically nonexistent under the task's permitted methods and receive the corresponding self-consistency credit.
 
-The complete self-consistency pass is a separate all-required-elements condition. It checks the required species and steps, including minimum evidence and the full transition-state/IRC chain. Consequently, the graded component is distinct from this binary acceptance criterion. Counts of $C=1$ in the main text and supplementary score tables refer to full component scores; they are not renamed as counts of fully accepted complete mechanisms. Fractional scores identify the attained stages of physical support.
+The complete self-consistency pass is a separate all-required-elements condition. It checks the required species and steps, including minimum evidence and the full transition-state/IRC chain. Consequently, the graded component is distinct from this binary validation criterion. Counts of $C=1$ in the main text and supplementary score tables refer to full component scores; they are not renamed as counts of fully validated complete mechanisms. Fractional scores identify the attained stages of physical support.
 
 \subsection{Electronic barriers and numerical accuracy}
 For a numerical reference step, the declared barrier is checked against an energy difference derived from its native calculation evidence. An omitted edge barrier can be obtained from the delivered transition-state and starting-species energies when those quantities and their native records support the conversion. The energy difference is converted from hartree to kcal~mol$^{-1}$ using the common conversion factor 627.509474.
