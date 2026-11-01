@@ -113,7 +113,14 @@ V_k&=\sum_{i<j}\frac{(d_{ij,k}-d_{ij,k}^*)^2}{d_{ij,k}^4}.
 
 该泛函的分母引入距离负四次方权重 $d_{ij,k}^{-4}$，使短程成键区域具有较高的刚性恢复力，优先保持化学键尺度，同时允许长程非键相互作用松弛。标准模式将中间镜像帧通过改进切线法弹性带（NEB）弹簧耦合，并利用 MDMin 算法执行能量最小化，以移动原子受力的最大残差评估收敛性\citep{neb2000,ase2017}；轻量模式则将分母设定为 $\max(d_{ij,k}^*,0.1\,\text{Å})^4$，使用 Adam 优化器对各个中间镜像帧独立进行几何松弛。\citep{adam2015}
 
-动态监控原子对集合 $W$ 自动提取反应映射中的成断键对、两端成键但键长变化 $|\Delta d|\ge 0.15$ Å 的键对，以及两端距离变化最大的前 5 对原子。在集合 $W$ 中，算法选取距离变化最大的主反应坐标 $p^*\in\operatorname{argmax}_{p\in W}|d_p^{\mathrm{P}}-d_p^{\mathrm{R}}|$，计算中点距离 $m=(d_{p^*}^{\mathrm{R}}+d_{p^*}^{\mathrm{P}})/2$。初始过渡态初猜选取首个跨越中点的镜像帧 $k$（满足 $(d_{p^*,k}-m)(d_{p^*}^{\mathrm{R}}-m)\le 0$），或与中点距离偏差最小的帧。提取出的三维构型直接作为后续一阶鞍点优化的输入种子。
+动态监控原子对集合 $W$ 自动提取反应映射中的成断键对、两端成键但键长变化 $|\Delta d|\ge 0.15$ Å 的键对，以及两端距离变化最大的前 5 对原子。在集合 $W$ 中，主反应坐标及其中点距离为：
+\[
+\begin{aligned}
+p^*&\in\operatorname{argmax}_{p\in W}|d_p^{\mathrm{P}}-d_p^{\mathrm{R}}|,\\
+m&=(d_{p^*}^{\mathrm{R}}+d_{p^*}^{\mathrm{P}})/2.
+\end{aligned}
+\]
+初始过渡态初猜选取首个跨越中点的镜像帧 $k$（满足 $(d_{p^*,k}-m)(d_{p^*}^{\mathrm{R}}-m)\le 0$），或与中点距离偏差最小的帧。提取出的三维构型直接作为后续一阶鞍点优化的输入种子。
 
 \subsection{交付 DAG 中的化学物种与反应步骤}
 
@@ -148,7 +155,15 @@ S_t={}&\mathbf{1}[R\ne\emptyset]\\
 
 在消除平动与转动自由度的振动子空间内，负本征值 $\lambda_k<0$ 对应虚频 $\nu_k<0$。虚频总数统计为 $n_{\mathrm{imag}}=\sum_k \mathbf{1}[\nu_k<0]$。基态反应中间体要求 $n_{\mathrm{imag}}=0$；一阶鞍点要求 $n_{\mathrm{imag}}=1$。
 
-系统比较频率计算所用的几何与驻点优化得到的几何。对于中心化后的坐标矩阵 $\mathbf{X}$ 与 $\mathbf{Y}$，几何匹配要求满足 $\delta_\pi(\mathbf{X},\mathbf{Y})=\max_i\|\mathbf{Y}_{\pi(i)}\mathbf{Q}_\pi-\mathbf{X}_i\|\le 3\times 10^{-6}\text{ Å}$，在保持元素种类的原子置换 $\pi$ 与最佳 Kabsch 旋转 $\mathbf{Q}_\pi$ 下进行比较。
+系统比较频率计算所用的几何与驻点优化得到的几何。对于中心化后的坐标矩阵 $\mathbf{X}$ 与 $\mathbf{Y}$，几何匹配要求满足：
+\[
+\begin{aligned}
+\delta_\pi(\mathbf{X},\mathbf{Y})
+&=\max_i\|\mathbf{Y}_{\pi(i)}\mathbf{Q}_\pi-\mathbf{X}_i\|\\
+&\le 3\times 10^{-6}\text{ Å},
+\end{aligned}
+\]
+在保持元素种类的原子置换 $\pi$ 与最佳 Kabsch 旋转 $\mathbf{Q}_\pi$ 下进行比较。
 
 对于满足一阶鞍点且具有唯一虚频位移向量 $\mathbf{u}$ 的过渡态，振动模式对齐诊断比较监控反应中心原子对 $W$ 中最大的相对位移幅度与所有原子对中的最大值：
 
@@ -170,7 +185,23 @@ S_t={}&\mathbf{1}[R\ne\emptyset]\\
 
 Cloudra 检查两个 IRC 方向是否从已确认的同一鞍点出发，并提取各方向的末端帧。对于两端均为分子极小值的路径，以每侧末端帧启动无约束几何优化。所得驻点必须为零虚频（$n_{\mathrm{imag}}=0$），其规范异构 SMILES 必须与声明的反应物或产物相同，包括拓扑和立体构型。
 
-对于产物发生解离的多组分反应步，各产物分子分别独立优化至零虚频极小值。在监控原子对集合 $W$ 上，设过渡态、IRC 外侧末端帧及反应物参考构型的距离向量分别为 $\mathbf{q}_{\mathrm{TS}}$、$\mathbf{q}_{\mathrm{E}}$ 与 $\mathbf{q}_{\mathrm{R}}$。取共价截断半径 $c_{ij}=1.25(r_i+r_j)$ 及容差 $\tau=0.10$ Å，定义共价集合 $W_{\mathrm{c}}=\{(i,j)\in W:d_{ij}^{\mathrm{R}}\le c_{ij}\}$ 以及边界区间 $[a_p,b_p]=[\min(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})-\tau, \max(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})+\tau]$。布尔断言 $\operatorname{is\_between}$ 要求满足 $\|\mathbf{q}_{\mathrm{E}}-\mathbf{q}_{\mathrm{R}}\|_2<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2$ 且 $a_p\le d_p^{\mathrm{E}}\le b_p$ 对所有 $p\in W_{\mathrm{c}}$ 均成立。解离型产物通道需同时满足上述极小值条件和 $\operatorname{is\_between}$ 判定。
+对于产物发生解离的多组分反应步，各产物分子分别独立优化至零虚频极小值。在监控原子对集合 $W$ 上，设过渡态、IRC 外侧末端帧及反应物参考构型的距离向量分别为 $\mathbf{q}_{\mathrm{TS}}$、$\mathbf{q}_{\mathrm{E}}$ 与 $\mathbf{q}_{\mathrm{R}}$。取共价截断半径 $c_{ij}=1.25(r_i+r_j)$ 及容差 $\tau=0.10$ Å，定义共价集合 $W_{\mathrm{c}}=\{(i,j)\in W:d_{ij}^{\mathrm{R}}\le c_{ij}\}$。边界区间 $[a_p,b_p]$ 的两端为：
+\[
+\begin{aligned}
+a_p&=\min(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})-\tau,\\
+b_p&=\max(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})+\tau.
+\end{aligned}
+\]
+布尔断言 $\operatorname{is\_between}$ 要求以下条件同时成立：
+\[
+\begin{aligned}
+\|\mathbf{q}_{\mathrm{E}}-\mathbf{q}_{\mathrm{R}}\|_2
+&<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2,\\
+a_p&\le d_p^{\mathrm{E}}\le b_p
+\quad(\forall p\in W_{\mathrm{c}}).
+\end{aligned}
+\]
+解离型产物通道需同时满足上述极小值条件和 $\operatorname{is\_between}$ 判定。
 
 \subsubsection{证据汇总与定量能垒}
 对于基元反应步 $e$，$K_e$ 列出所要求的计算阶段。当阶段 $k$ 所用的计算结果满足其物理条件时，令 $P_{e,k}=1$，否则为 $P_{e,k}=0$。所有必需阶段均须通过：

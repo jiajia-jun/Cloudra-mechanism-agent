@@ -30,8 +30,8 @@
   "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
   "files": {
     "Cloudra_SI_EN_Draft.pdf": {
-      "bytes": 301268,
-      "sha256": "35106a24607af0fa154a6eb421705315634bbed78d08647eae508c86a6f78ec7"
+      "bytes": 311576,
+      "sha256": "96c17e52b13d509d7676a3770ed6e4cfe25e440f0e9e8946900a3a0e545d20e4"
     },
     "Cloudra_SI_Overleaf.zip": {
       "bytes": 148408,
@@ -48,7 +48,7 @@
     "mismatches": 0,
     "new_model_or_qm_calculations": 0
   },
-  "pdf_sha256": "35106a24607af0fa154a6eb421705315634bbed78d08647eae508c86a6f78ec7",
+  "pdf_sha256": "96c17e52b13d509d7676a3770ed6e4cfe25e440f0e9e8946900a3a0e545d20e4",
   "source_zip_sha256": "23887b81cbff40e30e59562e9f696990555cbe98481d63e1ec8d1cd8cf5ae851",
   "bibliography_entries": 38,
   "authorship_verified": true,
@@ -259,5 +259,22 @@
     "scope": "Delivery DAG constrains the delivered mechanism through species and elementary-step chemical objects; cheminformatics establishes structural identities and atom correspondences, while frequency and IRC calculations determine stationary points and reaction connections.",
     "abstract_ascii_characters": 1743,
     "abstract_words": 223
+  },
+  "formula_layout_revision": {
+    "date": "2026-11-01",
+    "scope": "Long inline coordinate, geometric-match, and dissociation formulas moved to unnumbered aligned displays; existing equation numbers and mathematical meaning retained. PDFs exported from the synchronized existing Overleaf projects.",
+    "overleaf_projects": {
+      "EN": "https://www.overleaf.com/project/6ae36f82f45648027f73ed76",
+      "ZH": "https://www.overleaf.com/project/6ae37adfaf331ac2323b4c3f",
+      "SI": "https://www.overleaf.com/project/6ae5e126e8645869834e129f"
+    },
+    "overleaf_compile_errors": {
+      "EN": 0,
+      "ZH": 0,
+      "SI": 0
+    },
+    "overleaf_overfull_warnings": 0,
+    "active_overleaf_sources_match_editable_sources": true,
+    "numbered_formulas_unchanged": true
   }
 }

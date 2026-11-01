@@ -113,7 +113,14 @@ V_k&=\sum_{i<j}\frac{(d_{ij,k}-d_{ij,k}^*)^2}{d_{ij,k}^4}.
 
 The inverse-fourth-power weighting $d_{ij,k}^{-4}$ imparts stiffness to short covalent bonds, prioritizing the preservation of basic covalent distances while allowing long-range nonbonded contacts to relax. Standard mode couples intermediate images with improved-tangent nudged elastic band (NEB) springs and optimizes with MDMin, evaluating convergence by the maximum force residual across movable atoms.\citep{neb2000,ase2017} Lightweight mode evaluates target distances with an objective denominator $\max(d_{ij,k}^*,0.1\,\text{Å})^4$ and relaxes intermediate images independently using Adam optimization.\citep{adam2015}
 
-Active monitoring pairs $W$ incorporate bond-state changes, pairs bonded at both endpoints with $|\Delta d|\ge 0.15$ Å, and the five atom pairs exhibiting the largest endpoint distance variations. Within the monitoring set $W$, the primary reaction coordinate is selected by $p^*\in\operatorname{argmax}_{p\in W}|d_p^{\mathrm{P}}-d_p^{\mathrm{R}}|$, setting $m=(d_{p^*}^{\mathrm{R}}+d_{p^*}^{\mathrm{P}})/2$. The initial transition-state guess is extracted from the first image $k$ satisfying $(d_{p^*,k}-m)(d_{p^*}^{\mathrm{R}}-m)\le 0$, or the image minimizing $|d_{p^*,k}-m|$. The selected configuration serves as the initial seed for saddle-point optimization.
+Active monitoring pairs $W$ incorporate bond-state changes, pairs bonded at both endpoints with $|\Delta d|\ge 0.15$ Å, and the five atom pairs exhibiting the largest endpoint distance variations. Within the monitoring set $W$, the primary reaction coordinate and its midpoint distance are
+\[
+\begin{aligned}
+p^*&\in\operatorname{argmax}_{p\in W}|d_p^{\mathrm{P}}-d_p^{\mathrm{R}}|,\\
+m&=(d_{p^*}^{\mathrm{R}}+d_{p^*}^{\mathrm{P}})/2.
+\end{aligned}
+\]
+The initial transition-state guess is extracted from the first image $k$ satisfying $(d_{p^*,k}-m)(d_{p^*}^{\mathrm{R}}-m)\le 0$, or the image minimizing $|d_{p^*,k}-m|$. The selected configuration serves as the initial seed for saddle-point optimization.
 
 \subsection{Chemical Species and Reaction Steps in the Delivery DAG}
 
@@ -148,7 +155,15 @@ Stationary-point curvature is evaluated from the mass-weighted Hessian:
 
 In the vibrational subspace orthogonal to translational and rotational degrees of freedom, negative eigenvalues $\lambda_k<0$ correspond to imaginary harmonic frequencies $\nu_k<0$. The number of imaginary frequencies is $n_{\mathrm{imag}}=\sum_k \mathbf{1}[\nu_k<0]$. Ground-state reaction intermediates require $n_{\mathrm{imag}}=0$, whereas transition states require strictly $n_{\mathrm{imag}}=1$.
 
-The geometry used for the frequency calculation is compared with the optimized stationary-point geometry. For coordinate matrices $\mathbf{X}$ and $\mathbf{Y}$ centered at the origin, the geometry match requires $\delta_\pi(\mathbf{X},\mathbf{Y})=\max_i\|\mathbf{Y}_{\pi(i)}\mathbf{Q}_\pi-\mathbf{X}_i\|\le 3\times 10^{-6}\text{ Å}$, evaluated across element-conserving permutation mappings $\pi$ and optimal Kabsch rotations $\mathbf{Q}_\pi$.
+The geometry used for the frequency calculation is compared with the optimized stationary-point geometry. For coordinate matrices $\mathbf{X}$ and $\mathbf{Y}$ centered at the origin, the geometry match requires
+\[
+\begin{aligned}
+\delta_\pi(\mathbf{X},\mathbf{Y})
+&=\max_i\|\mathbf{Y}_{\pi(i)}\mathbf{Q}_\pi-\mathbf{X}_i\|\\
+&\le 3\times 10^{-6}\text{ Å},
+\end{aligned}
+\]
+evaluated across element-conserving permutation mappings $\pi$ and optimal Kabsch rotations $\mathbf{Q}_\pi$.
 
 For a first-order saddle point with imaginary normal-mode displacement vector $\mathbf{u}$, the mode-alignment diagnostic compares the largest relative-displacement magnitude among monitored reaction-center pairs $W$ with the largest among all atom pairs:
 
@@ -170,7 +185,23 @@ Intrinsic reaction coordinate (IRC) trajectories evolve from the saddle point al
 
 Cloudra checks that both IRC directions start from the verified saddle point and extracts the terminal frame from each direction. For paths between endpoint minima, each terminal frame is used to start an unconstrained geometry optimization. The resulting stationary point must have zero imaginary frequencies ($n_{\mathrm{imag}}=0$), and its canonical isomeric SMILES must equal that of the declared reactant or product, including topology and stereochemistry.
 
-For elementary steps yielding dissociated molecular components, each dissociated product must independently converge to a verified minimum. Over the monitored pair set $W$, let $\mathbf{q}_{\mathrm{TS}}$, $\mathbf{q}_{\mathrm{E}}$, and $\mathbf{q}_{\mathrm{R}}$ denote distance vectors at the transition state, terminal IRC frame, and reactant reference. With covalent cutoffs $c_{ij}=1.25(r_i+r_j)$ and tolerance $\tau=0.10$ Å, define $W_{\mathrm{c}}=\{(i,j)\in W:d_{ij}^{\mathrm{R}}\le c_{ij}\}$ and interval $[a_p,b_p]=[\min(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})-\tau, \max(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})+\tau]$. The Boolean predicate $\operatorname{is\_between}$ is satisfied when $\|\mathbf{q}_{\mathrm{E}}-\mathbf{q}_{\mathrm{R}}\|_2<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2$ and $a_p\le d_p^{\mathrm{E}}\le b_p$ for all $p\in W_{\mathrm{c}}$. Dissociated-product paths must satisfy both the component-minimum checks and $\operatorname{is\_between}$.
+For elementary steps yielding dissociated molecular components, each dissociated product must independently converge to a verified minimum. Over the monitored pair set $W$, let $\mathbf{q}_{\mathrm{TS}}$, $\mathbf{q}_{\mathrm{E}}$, and $\mathbf{q}_{\mathrm{R}}$ denote distance vectors at the transition state, terminal IRC frame, and reactant reference. With covalent cutoffs $c_{ij}=1.25(r_i+r_j)$ and tolerance $\tau=0.10$ Å, define $W_{\mathrm{c}}=\{(i,j)\in W:d_{ij}^{\mathrm{R}}\le c_{ij}\}$. The interval $[a_p,b_p]$ has endpoints
+\[
+\begin{aligned}
+a_p&=\min(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})-\tau,\\
+b_p&=\max(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})+\tau.
+\end{aligned}
+\]
+The Boolean predicate $\operatorname{is\_between}$ is satisfied when both conditions hold:
+\[
+\begin{aligned}
+\|\mathbf{q}_{\mathrm{E}}-\mathbf{q}_{\mathrm{R}}\|_2
+&<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2,\\
+a_p&\le d_p^{\mathrm{E}}\le b_p
+\quad\text{for all }p\in W_{\mathrm{c}}.
+\end{aligned}
+\]
+Dissociated-product paths must satisfy both the component-minimum checks and $\operatorname{is\_between}$.
 
 \subsubsection{Evidence Aggregation and Energies}
 For elementary step $e$, let $K_e$ list its required calculation stages. Set $P_{e,k}=1$ when the calculation results assigned to stage $k$ satisfy its physical criteria, and $P_{e,k}=0$ otherwise. All required stages must pass:

@@ -5,8 +5,8 @@
     "EN": {
       "pages": 22,
       "source_files": 39,
-      "pdf_sha256": "b988e95ee049e30939a742371b10420ce076f79c5dbf9b861b745c6da8b4ff6e",
-      "source_zip_sha256": "17be9f363d1d73eaf1e840a08be17fae4f666a2939ec2159584c1ab975d8d1d1",
+      "pdf_sha256": "9d3102389b0a5b80cc9cc04ab93756131a7642d4ea5f857767bdb8a66ab64151",
+      "source_zip_sha256": "ad62c6c4c07f51a504bbc5be837f669cb1bde5e8f16f54fb5c58abfa339d5eb5",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -16,8 +16,8 @@
     "ZH": {
       "pages": 19,
       "source_files": 39,
-      "pdf_sha256": "48d6be44fdbca490a778c832d0a4539b2f38213a864e284881e973a43c7a5b13",
-      "source_zip_sha256": "1623b5b2a7cea12993867f47200f15fa51cfa98ed7a57ca7d7b029b647c641e5",
+      "pdf_sha256": "219547842325eecda414c44cb751646bc0a107a5d1e459e352b4766b2baa0f95",
+      "source_zip_sha256": "f968017285a814cdf710c97499b329db7a91be2cac03dbcbdab1801c46fdcb41",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -27,7 +27,7 @@
     "SI": {
       "pages": 30,
       "source_files": 26,
-      "pdf_sha256": "35106a24607af0fa154a6eb421705315634bbed78d08647eae508c86a6f78ec7",
+      "pdf_sha256": "96c17e52b13d509d7676a3770ed6e4cfe25e440f0e9e8946900a3a0e545d20e4",
       "source_zip_sha256": "23887b81cbff40e30e59562e9f696990555cbe98481d63e1ec8d1cd8cf5ae851",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
@@ -46,7 +46,7 @@
   "data_availability_update": "Public data links added to bilingual manuscript and SI S7; Overleaf exports match the editable sources.",
   "latest_publication_verification": "../Cloudra_Public_Data_20261101/publication_verification.json",
   "si_data_contents_unchanged_from_current_final_companion_sources": true,
-  "local_only": true,
+  "local_only": false,
   "architecture_version": "STACKED",
   "latest_local_verification": "../Cloudra_Overleaf/local_sync_20261101.json",
   "author_correction": {
@@ -262,5 +262,22 @@
     "scope": "Delivery DAG constrains the delivered mechanism through species and elementary-step chemical objects; cheminformatics establishes structural identities and atom correspondences, while frequency and IRC calculations determine stationary points and reaction connections.",
     "abstract_ascii_characters": 1743,
     "abstract_words": 223
+  },
+  "formula_layout_revision": {
+    "date": "2026-11-01",
+    "scope": "Long inline coordinate, geometric-match, and dissociation formulas moved to unnumbered aligned displays; existing equation numbers and mathematical meaning retained. PDFs exported from the synchronized existing Overleaf projects.",
+    "overleaf_projects": {
+      "EN": "https://www.overleaf.com/project/6ae36f82f45648027f73ed76",
+      "ZH": "https://www.overleaf.com/project/6ae37adfaf331ac2323b4c3f",
+      "SI": "https://www.overleaf.com/project/6ae5e126e8645869834e129f"
+    },
+    "overleaf_compile_errors": {
+      "EN": 0,
+      "ZH": 0,
+      "SI": 0
+    },
+    "overleaf_overfull_warnings": 0,
+    "active_overleaf_sources_match_editable_sources": true,
+    "numbered_formulas_unchanged": true
   }
 }
