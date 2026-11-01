@@ -11,17 +11,17 @@
     {
       "name": "Chengyi Yang",
       "affiliation": 1,
-      "position": "first author"
+      "position": "first and corresponding author"
     },
     {
       "name": "Qianxin Zhou",
       "affiliation": 2,
-      "position": "co-second author, first-listed"
+      "position": "second author"
     },
     {
       "name": "Yang Li",
       "affiliation": 1,
-      "position": "co-second author"
+      "position": "third author"
     }
   ],
   "unknown_references": 0,
@@ -30,16 +30,16 @@
   "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
   "files": {
     "Cloudra_SI_EN_Draft.pdf": {
-      "bytes": 316627,
-      "sha256": "c1ca4e233e89f5b8e5e47f9d6aa728e65fdb9c3bf9996ca2f170865bfbaa6db1"
+      "bytes": 309109,
+      "sha256": "d65e4835f41563c7514b863abaf87c5ea6457c2e2c1d134aa6ad5d0eedc69774"
     },
     "Cloudra_SI_Overleaf.zip": {
-      "bytes": 156556,
-      "sha256": "347466c1cbc5408aa708a7d5b1f074e38aac91f3a3870ae0e596982e91f0afbd"
+      "bytes": 151036,
+      "sha256": "ba877a24a88119083395c1e67a3efb84050079a26d6bf2fea03feb640d8f1010"
     },
     "Cloudra_SI_Data.zip": {
-      "bytes": 16818721,
-      "sha256": "361d6577bceac73d0e291bfec04905a2a7d74c90d030ab0fa57e6ca624d9d3ec"
+      "bytes": 16830359,
+      "sha256": "37a736aba0ad15c58fd0e0c9142bcea92737632a4eebfc0e7b1e312d9b078169"
     }
   },
   "standalone_reproduction": {
@@ -48,8 +48,8 @@
     "mismatches": 0,
     "new_model_or_qm_calculations": 0
   },
-  "pdf_sha256": "c1ca4e233e89f5b8e5e47f9d6aa728e65fdb9c3bf9996ca2f170865bfbaa6db1",
-  "source_zip_sha256": "347466c1cbc5408aa708a7d5b1f074e38aac91f3a3870ae0e596982e91f0afbd",
+  "pdf_sha256": "d65e4835f41563c7514b863abaf87c5ea6457c2e2c1d134aa6ad5d0eedc69774",
+  "source_zip_sha256": "ba877a24a88119083395c1e67a3efb84050079a26d6bf2fea03feb640d8f1010",
   "bibliography_entries": 38,
   "authorship_verified": true,
   "deployment": "DeepSeek-v4.1-flash (1017)",
@@ -59,5 +59,47 @@
   "minor_revision": "Astra-authorized Mean S header, relative-displacement wording, and distinct B_axis total; numbered formulas, thresholds, scores, and data archive unchanged.",
   "public_data_link_present": true,
   "public_data_directory": "https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7",
-  "complete_behavioral_source_link_present": true
+  "complete_behavioral_source_link_present": true,
+  "correspondence_email": "202509240114@csust.edu.cn",
+  "local_archive_refresh": {
+    "source_and_pdf_unchanged": true,
+    "data_version": "CloudraBench-P2-final-20261101",
+    "data_zip_entries": 489,
+    "data_zip_matches_current_companion_sources": true,
+    "arxiv_si_rebuild_matches_existing_preview_on_all_31_pages": true
+  },
+  "author_correction": {
+    "date": "2026-11-01",
+    "authors": [
+      "Chengyi Yang",
+      "Qianxin Zhou",
+      "Yang Li"
+    ],
+    "correspondence_email": "202509240114@csust.edu.cn",
+    "equal_contribution_marker_present": false,
+    "other_manuscript_sources_unchanged": true,
+    "languages": {
+      "EN": {
+        "pages": 23,
+        "source_files": 39,
+        "pdf_sha256": "96d29623aecd5d2b4f5604a3e16f18f8064cd979318c4ead93e73159d9c52bbf",
+        "source_zip_sha256": "12ae4c23d6826a68e1343a7d9e7fffca1d6b373cd474e0a6a891a0b3c755af8a",
+        "source_zip_matches_editable_sources": true
+      },
+      "ZH": {
+        "pages": 19,
+        "source_files": 39,
+        "pdf_sha256": "3798beecabe8a23a83655f5592fb25aed0442d49b4a38c05a442461c0b21b73d",
+        "source_zip_sha256": "14f86cca948da7966b4770f084233ea372f3e77fbb2fd5fbd827c9169042087a",
+        "source_zip_matches_editable_sources": true
+      },
+      "SI": {
+        "pages": 31,
+        "source_files": 26,
+        "pdf_sha256": "d65e4835f41563c7514b863abaf87c5ea6457c2e2c1d134aa6ad5d0eedc69774",
+        "source_zip_sha256": "ba877a24a88119083395c1e67a3efb84050079a26d6bf2fea03feb640d8f1010",
+        "source_zip_matches_editable_sources": true
+      }
+    }
+  }
 }

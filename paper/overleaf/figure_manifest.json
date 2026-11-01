@@ -29,13 +29,15 @@
     },
     {
       "number": 4,
-      "file": "figures/fig04.pdf",
-      "caption": "Cloudra multi-agent system architecture: coupling mechanistic hypothesis generation (Coordinator), deterministic geometric manipulation (Operators), asynchronous computational execution (ComputeDB), and physical evidence validation gates.",
-      "source": "paper/figures/box_diagrams_20261030/architecture.pdf",
-      "width_pt": 1125.751220703125,
-      "height_pt": 1013.2440795898438,
-      "raster_images": 5,
-      "design": "2026-10-30: layered evidence cards; top accents inset within rounded frames"
+      "file": "figures/Cloudra_Architecture_Stacked.pdf",
+      "caption": "The Cloudra workflow from mechanistic hypotheses to evidence-linked elementary steps. Geometry preparation maps reactant and product atoms and samples conformers; ComputeDB and the scheduler manage calculations. Mode diagnostics assist inspection of motion on watched atom pairs. Bidirectional IRCs from the same transition-state artifact, endpoint optimization/frequency analysis, and identity matching supply evidence for the Delivery DAG. The Supervisor audits the graph and returns unresolved requirements for revision.",
+      "source": "paper/overleaf/Cloudra_EN/figures/Cloudra_Architecture_Stacked.pdf",
+      "width_pt": 510.2362060546875,
+      "height_pt": 317.30316162109375,
+      "raster_images": 0,
+      "design": "2026-11-01: approved STACKED architecture, original aspect ratio, full text width",
+      "editable_svg": "paper/overleaf/Cloudra_EN/figures/Cloudra_Architecture_Stacked.svg",
+      "sha256": "23c8c6caec4a443a20c25eab1172b69bbaa6229a93a62f1f33a61b04ba383e5f"
     },
     {
       "number": 5,
@@ -188,13 +190,15 @@
     },
     {
       "number": 4,
-      "file": "figures/fig04.pdf",
-      "caption": "Cloudra 多智能体系统架构：机理假设推演（协调智能体）、确定性空间几何算子、异步计算调度账本（ComputeDB）以及物理证据校验门禁的协同闭环。",
-      "source": "paper/figures/box_diagrams_20261030/architecture.pdf",
-      "width_pt": 1125.751220703125,
-      "height_pt": 1013.2440795898438,
-      "raster_images": 5,
-      "design": "2026-10-30: layered evidence cards; top accents inset within rounded frames"
+      "file": "figures/Cloudra_Architecture_Stacked.pdf",
+      "caption": "Cloudra 的机理探索与证据组织流程。几何准备建立反应物与产物的原子映射并采样构象，ComputeDB 与调度器管理计算。振动模式诊断辅助检查监测原子对的运动。同一过渡态计算产物的双向 IRC、端点优化与频率分析以及身份匹配，为交付 DAG 提供证据。监督智能体审查图并反馈未满足的要求以供修订。",
+      "source": "paper/overleaf/Cloudra_ZH/figures/Cloudra_Architecture_Stacked.pdf",
+      "width_pt": 510.2362060546875,
+      "height_pt": 317.30316162109375,
+      "raster_images": 0,
+      "design": "2026-11-01: approved STACKED architecture, original aspect ratio, full text width",
+      "editable_svg": "paper/overleaf/Cloudra_ZH/figures/Cloudra_Architecture_Stacked.svg",
+      "sha256": "23c8c6caec4a443a20c25eab1172b69bbaa6229a93a62f1f33a61b04ba383e5f"
     },
     {
       "number": 5,

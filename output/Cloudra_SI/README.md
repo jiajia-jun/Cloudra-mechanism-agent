@@ -2,6 +2,8 @@
 
 日期：2026年10月31日。英文 SI 共31页，已在 Overleaf 使用 XeLaTeX、TeX Live 2026 编译。
 
+2026年11月1日本地同步：SI正文和当前正式PDF未改；已将落后的Overleaf源码ZIP和数据ZIP同步为当前正式源稿及 CloudraBench-P2-final-20261101 配套材料。源码包26文件，数据包489文件；通讯邮箱为 `202509240114@csust.edu.cn`。桌面旧SI副本已换为当前31页正式PDF，提交准备包内已核验正确的SI预览保持。
+
 - [SI初稿PDF](Cloudra_SI_EN_Draft.pdf)
 - [Overleaf可编辑项目包](Cloudra_SI_Overleaf.zip)
 - [配套数据与复现材料](Cloudra_SI_Data.zip)，约16.8MB，解压得到 companion_data/。
@@ -13,7 +15,7 @@ SI包含7节、50题完整定义、200次运行的800个总分与评分分项、
 
 数据包保留50个原任务JSON、完整精度分数CSV、原始请求与响应、目标几何与证据案例、完整激活读出、文献来源与文件级哈希。模型权重不包含在内。排版项目与数据包分开，便于编辑正文。
 
-作者顺序：杨程驿（Chengyi Yang）；Qianxin Zhou；李洋（Yang Li）。Qianxin Zhou与李洋标为共同第二作者，其中Zhou排列在前。杨程驿和李洋的单位为长沙理工大学化学与医药工程学院；Zhou为图片所示福州大学单位。
+作者顺序：杨程驿（Chengyi Yang）；Qianxin Zhou；李洋（Yang Li）。Qianxin Zhou列第二，李洋列第三，不加共同作者标记。杨程驿和李洋的单位为长沙理工大学化学与医药工程学院；Zhou为图片所示福州大学单位。
 
 可编辑源稿见 paper/overleaf/Cloudra_SI/。首页署名已同步至中英文正文。
 
