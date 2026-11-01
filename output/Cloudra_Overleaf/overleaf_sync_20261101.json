@@ -1,0 +1,335 @@
+{
+  "date": "2026-11-01",
+  "manuscript_revision": "fdcef5bc",
+  "method": "Overleaf UI uploads, recompilation, downloaded-source byte comparison",
+  "projects": [
+    {
+      "language": "EN",
+      "project_url": "https://www.overleaf.com/project/6ae36f82f45648027f73ed76",
+      "source_files_matched": 37,
+      "source_files": [
+        {
+          "path": "README.md",
+          "sha256": "90d0876ffad70a458a75563652e2e5f1ade92eecaf8752b79283aafb3c1d5553"
+        },
+        {
+          "path": "figures/bench_cases.pdf",
+          "sha256": "5f8307ec80f3b5f4988e77696d2b8bed1bf5be3f647a7cb8f5a70e54767867c1"
+        },
+        {
+          "path": "figures/bench_components.pdf",
+          "sha256": "d3008ea52b9d6a8c879523200b3295742dee954837aa3a24af5d5b1f25d80c78"
+        },
+        {
+          "path": "figures/bench_delivery.pdf",
+          "sha256": "856e3917e7e8b290673e6b9954dad2e8c61e878e3e3d73040bfa89aae27e0e11"
+        },
+        {
+          "path": "figures/bench_imp.pdf",
+          "sha256": "9fdb313d3457b6ae4210568aed460572be991cf580417186c09e03985761d6e1"
+        },
+        {
+          "path": "figures/bench_overview.pdf",
+          "sha256": "453d8bc19f9f6909f19c7f545a81f14c3662001fe8b39c115b1b0c901d8317ea"
+        },
+        {
+          "path": "figures/bench_speed.pdf",
+          "sha256": "71c518efe74561e799ce4c76e41d2f029c8fbab28d4bd4030c12f57cac1a7466"
+        },
+        {
+          "path": "figures/bench_tasks.pdf",
+          "sha256": "429a2090ad8c0a7548e14d6ad5c6a19dc66e0e3a013cf922f18b73926dfd555c"
+        },
+        {
+          "path": "figures/bench_tasks_all.pdf",
+          "sha256": "c1e2dd3d36b5ea3809e14fca4d4dc636701d89ce93161d12abf2ba2ac2a6f75d"
+        },
+        {
+          "path": "figures/bench_tasks_hi.pdf",
+          "sha256": "73dffad32c354991b815584ff89aeae88444f19276f41a05b7e297289b18589b"
+        },
+        {
+          "path": "figures/fig01.pdf",
+          "sha256": "669edd15c46ee1db198ba18c41363a9473e5ddaac5f8a955d63849a5a5979836"
+        },
+        {
+          "path": "figures/fig02.pdf",
+          "sha256": "32f4cdf511b3bcdae77f2637b6d44c8c10920bfe6bba8d2010f5781cfc84fd76"
+        },
+        {
+          "path": "figures/fig03.pdf",
+          "sha256": "c9ec81b25baded24c3128643798f7a7c8458b8ee12534a46adc049c79f64959f"
+        },
+        {
+          "path": "figures/fig04.pdf",
+          "sha256": "d161081cf0dc711b5a9ba4873c63781658bb83acee954718395c96f164b0d044"
+        },
+        {
+          "path": "figures/fig05.pdf",
+          "sha256": "5a115ec7922bef321c267c79a5e3b5b8ce1512405685fa347292eb107af574d7"
+        },
+        {
+          "path": "figures/fig06.pdf",
+          "sha256": "9384eb285ffcc1b857e2e3c23ecefcc4978706a1d449ae91e3abd032db7b85c0"
+        },
+        {
+          "path": "figures/fig07.pdf",
+          "sha256": "afb050dfefca93140cbc32db443bb9f5b48201867dbe20243b745ccfbc501eca"
+        },
+        {
+          "path": "figures/fig08.pdf",
+          "sha256": "af7d1e1f9df9c90dbac6f234e8a0ea1701cf61fbfb68d76574ef33bcd75d8e44"
+        },
+        {
+          "path": "figures/fig09.pdf",
+          "sha256": "86bd2a417d9c843ecc7e40dd519c2d47c722fc5afa5f93d0a7a4d114b49dbc65"
+        },
+        {
+          "path": "figures/fig10.pdf",
+          "sha256": "a50dbb913e2a0428622a05f99110886f174098b9559360009644f39ea1e7c160"
+        },
+        {
+          "path": "figures/fig11.pdf",
+          "sha256": "652f2d33a58916d6fcf1a7625533c210ffcaa611d5ddf8e32bdf1da6766687d5"
+        },
+        {
+          "path": "figures/fig12.pdf",
+          "sha256": "50b1098e71ed47927b5f3972af7e7203c229cea5e256798d8716b1b3d40d9243"
+        },
+        {
+          "path": "figures/fig13.pdf",
+          "sha256": "1f38280a34651aaeb33142f62b71215d124188f1671f838e1cadeba631fda433"
+        },
+        {
+          "path": "figures/fig14.pdf",
+          "sha256": "e6cda9a90e13cc4dbf1766537e3f48ed662431ca8073a465ce925afc00338df0"
+        },
+        {
+          "path": "figures/fig15.pdf",
+          "sha256": "14097ebb4b4f3413c9b89a6438ab8691c3e1878e2a47ada8858be4d4930bac27"
+        },
+        {
+          "path": "figures/fig16.pdf",
+          "sha256": "ff26216b5e2d49c0b207aa5cb079093e8de6fb759c560236207ce02f2890ce94"
+        },
+        {
+          "path": "figures/fig17.pdf",
+          "sha256": "3cab2ebf86d201a8dd41b3c9dba858ae31a10d7a30934449f60de92d44dac905"
+        },
+        {
+          "path": "main.tex",
+          "sha256": "bc88fd067196aa5023c561a4279879349d014fdea83e157d7416bccad2a5b9da"
+        },
+        {
+          "path": "references.bib",
+          "sha256": "1554d59cfcbe7f2463eaf96513f42425567c1468af670cc2cbd9295d90036f6b"
+        },
+        {
+          "path": "sections/00_abstract.tex",
+          "sha256": "338c7b4ab4d20a582b4cd07492f20d71eb04f6e6bd1aae84343a50e6b8fe9cad"
+        },
+        {
+          "path": "sections/00_authors.tex",
+          "sha256": "16e2c5ad3b83bb730644973c70980042e2b60c6895fdab2d0ab95aae1ba08e8e"
+        },
+        {
+          "path": "sections/01_introduction.tex",
+          "sha256": "793f08c22d87b8e5562fe8b70d26461c3e6aa3c345c60d36bb87330d3bbb4ccf"
+        },
+        {
+          "path": "sections/02_methods.tex",
+          "sha256": "bca5517123e8efff96e8fb4c4d5c44b7d29c8dc287f270ce8d4d7a3d26640a13"
+        },
+        {
+          "path": "sections/03_benchmark_discussion.tex",
+          "sha256": "69602f19f8d9818ef04251388efec7486845714158fd0ff5c9e573b4f7d20acf"
+        },
+        {
+          "path": "sections/03_benchmark_results.tex",
+          "sha256": "ddef3954ed511411ae4cfb89be8af2d03412221de7f0818d217cfae3176cf429"
+        },
+        {
+          "path": "sections/03_figures.tex",
+          "sha256": "4d51fe7b9bc4c5d20990818222cf180b8d10407eb83d49a8de8981e467a28021"
+        },
+        {
+          "path": "sections/03_results.tex",
+          "sha256": "6bf03d9cc502ade6a2ec6db95516d0c4a46db642005505b1bedf09d6b912571c"
+        }
+      ],
+      "additional_online_files": [
+        "Cloudra_Manuscript_EN.zip"
+      ],
+      "pdf": "Cloudra_Manuscript_EN.pdf",
+      "pdf_pages": 23,
+      "pdf_sha256": "0faa8b471cce1a0ea96b039c607c204d22b302ada77a9b8c5ed9b081fd84cfa1",
+      "compile_errors": 0,
+      "compile_warnings": [
+        "fixltx2e is not required with releases after 2015; all fixes are in the LaTeX kernel."
+      ]
+    },
+    {
+      "language": "ZH",
+      "project_url": "https://www.overleaf.com/project/6ae37adfaf331ac2323b4c3f",
+      "source_files_matched": 37,
+      "source_files": [
+        {
+          "path": "README.md",
+          "sha256": "e134708ed739e1f41edba59df3309fcb1df37efb0513b5a6eacd3342aef379d7"
+        },
+        {
+          "path": "figures/bench_cases.pdf",
+          "sha256": "5f8307ec80f3b5f4988e77696d2b8bed1bf5be3f647a7cb8f5a70e54767867c1"
+        },
+        {
+          "path": "figures/bench_components.pdf",
+          "sha256": "d3008ea52b9d6a8c879523200b3295742dee954837aa3a24af5d5b1f25d80c78"
+        },
+        {
+          "path": "figures/bench_delivery.pdf",
+          "sha256": "856e3917e7e8b290673e6b9954dad2e8c61e878e3e3d73040bfa89aae27e0e11"
+        },
+        {
+          "path": "figures/bench_imp.pdf",
+          "sha256": "9fdb313d3457b6ae4210568aed460572be991cf580417186c09e03985761d6e1"
+        },
+        {
+          "path": "figures/bench_overview.pdf",
+          "sha256": "453d8bc19f9f6909f19c7f545a81f14c3662001fe8b39c115b1b0c901d8317ea"
+        },
+        {
+          "path": "figures/bench_speed.pdf",
+          "sha256": "71c518efe74561e799ce4c76e41d2f029c8fbab28d4bd4030c12f57cac1a7466"
+        },
+        {
+          "path": "figures/bench_tasks.pdf",
+          "sha256": "429a2090ad8c0a7548e14d6ad5c6a19dc66e0e3a013cf922f18b73926dfd555c"
+        },
+        {
+          "path": "figures/bench_tasks_all.pdf",
+          "sha256": "c1e2dd3d36b5ea3809e14fca4d4dc636701d89ce93161d12abf2ba2ac2a6f75d"
+        },
+        {
+          "path": "figures/bench_tasks_hi.pdf",
+          "sha256": "73dffad32c354991b815584ff89aeae88444f19276f41a05b7e297289b18589b"
+        },
+        {
+          "path": "figures/fig01.pdf",
+          "sha256": "5be217feb105a2b7115415e4a61df323723e4a08a5fe97056b0167e685a750ae"
+        },
+        {
+          "path": "figures/fig02.pdf",
+          "sha256": "062876f10fe22fef06a9600d7351aee6370fc48e26827eb5b79eccba582121ef"
+        },
+        {
+          "path": "figures/fig03.pdf",
+          "sha256": "438f7f18093b28be1da82efe9064491e3ab7f80b540ec3a45a86992c245cb565"
+        },
+        {
+          "path": "figures/fig04.pdf",
+          "sha256": "d161081cf0dc711b5a9ba4873c63781658bb83acee954718395c96f164b0d044"
+        },
+        {
+          "path": "figures/fig05.pdf",
+          "sha256": "0b49675f12dc7204de5d947c8259102536dc13449aacc208f2928e3dee5c8f07"
+        },
+        {
+          "path": "figures/fig06.pdf",
+          "sha256": "9384eb285ffcc1b857e2e3c23ecefcc4978706a1d449ae91e3abd032db7b85c0"
+        },
+        {
+          "path": "figures/fig07.pdf",
+          "sha256": "afb050dfefca93140cbc32db443bb9f5b48201867dbe20243b745ccfbc501eca"
+        },
+        {
+          "path": "figures/fig08.pdf",
+          "sha256": "af7d1e1f9df9c90dbac6f234e8a0ea1701cf61fbfb68d76574ef33bcd75d8e44"
+        },
+        {
+          "path": "figures/fig09.pdf",
+          "sha256": "86bd2a417d9c843ecc7e40dd519c2d47c722fc5afa5f93d0a7a4d114b49dbc65"
+        },
+        {
+          "path": "figures/fig10.pdf",
+          "sha256": "a50dbb913e2a0428622a05f99110886f174098b9559360009644f39ea1e7c160"
+        },
+        {
+          "path": "figures/fig11.pdf",
+          "sha256": "652f2d33a58916d6fcf1a7625533c210ffcaa611d5ddf8e32bdf1da6766687d5"
+        },
+        {
+          "path": "figures/fig12.pdf",
+          "sha256": "50b1098e71ed47927b5f3972af7e7203c229cea5e256798d8716b1b3d40d9243"
+        },
+        {
+          "path": "figures/fig13.pdf",
+          "sha256": "1f38280a34651aaeb33142f62b71215d124188f1671f838e1cadeba631fda433"
+        },
+        {
+          "path": "figures/fig14.pdf",
+          "sha256": "e6cda9a90e13cc4dbf1766537e3f48ed662431ca8073a465ce925afc00338df0"
+        },
+        {
+          "path": "figures/fig15.pdf",
+          "sha256": "14097ebb4b4f3413c9b89a6438ab8691c3e1878e2a47ada8858be4d4930bac27"
+        },
+        {
+          "path": "figures/fig16.pdf",
+          "sha256": "ff26216b5e2d49c0b207aa5cb079093e8de6fb759c560236207ce02f2890ce94"
+        },
+        {
+          "path": "figures/fig17.pdf",
+          "sha256": "3cab2ebf86d201a8dd41b3c9dba858ae31a10d7a30934449f60de92d44dac905"
+        },
+        {
+          "path": "main.tex",
+          "sha256": "336f0c0a95f7fdf3639de0c81257acf8c2fbc1f3a1f02c3de31b65be4700fbcd"
+        },
+        {
+          "path": "references.bib",
+          "sha256": "1554d59cfcbe7f2463eaf96513f42425567c1468af670cc2cbd9295d90036f6b"
+        },
+        {
+          "path": "sections/00_abstract.tex",
+          "sha256": "46426a84fef31b303a4bdc757a8ece7422ec2bf705f708bbdeed26d606195526"
+        },
+        {
+          "path": "sections/00_authors.tex",
+          "sha256": "a03985bdaff460af6494b195aecf9816cb1c3cb046a86893a9fa3641feb7b22e"
+        },
+        {
+          "path": "sections/01_introduction.tex",
+          "sha256": "90cbebaa19f9548498a2aaebc3793ed903a5bc68a2e8bdf3224526f1a7595593"
+        },
+        {
+          "path": "sections/02_methods.tex",
+          "sha256": "683f0b38e9b74259b72c095784bf36a58f4fd55e2487bc25f9078143d29a8d94"
+        },
+        {
+          "path": "sections/03_benchmark_discussion.tex",
+          "sha256": "b79934ed39d78a0f40643517636a03ca69ecae0fa91cf7ac70e41c6a638d9e15"
+        },
+        {
+          "path": "sections/03_benchmark_results.tex",
+          "sha256": "4793f3d1ca230d9592fdf79490dacdee23cf467b777f01bce60f8b00a2e4a5ff"
+        },
+        {
+          "path": "sections/03_figures.tex",
+          "sha256": "91b5afa8ca2e501a0c81dc557bf548768decc77864401851f8414325d765a7bc"
+        },
+        {
+          "path": "sections/03_results.tex",
+          "sha256": "f5f0a16e892928adfec3a67a88424cf9afba286e7affdf27d5719df325848f2f"
+        }
+      ],
+      "additional_online_files": [],
+      "pdf": "Cloudra_Manuscript_ZH.pdf",
+      "pdf_pages": 19,
+      "pdf_sha256": "51e633222cafb6a2d4f7ce622d53ccbf1019de38e9118911adf13cdd431768b0",
+      "compile_errors": 0,
+      "compile_warnings": [
+        "fixltx2e is not required with releases after 2015; all fixes are in the LaTeX kernel."
+      ]
+    }
+  ]
+}
