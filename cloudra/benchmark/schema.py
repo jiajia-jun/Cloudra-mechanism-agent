@@ -23,7 +23,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
 
 from cloudra.runtime_v2.schemas import MethodPolicy, OrchestrationMode
 
@@ -141,6 +141,15 @@ class MechanismEdge(BaseModel):
     weight: float = 1.0
     channel: Optional[str] = None
     favored: Optional[bool] = None
+    # Gold-only energy-reference requirement; deliveries supply native energies.
+    barrier_reference_policy: Literal["lowest_verified_minimum"] | None = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_reference(self, handler):
+        data = handler(self)
+        if self.barrier_reference_policy is None:
+            data.pop("barrier_reference_policy", None)
+        return data
 
 
 class GoldMechanismGraph(BaseModel):
@@ -250,6 +259,14 @@ class GoldSpec(BaseModel):
     reference_properties: dict[str, float | str] = Field(default_factory=dict)
     # hard 档选择性锚点（ΔΔ，仅作定性记录）
     selectivity: Optional[SelectivityReference] = None
+
+    @model_serializer(mode="wrap")
+    def _serialize_gold(self, handler):
+        data = handler(self)
+        graph = data["mechanism_graph"]
+        for element in graph["nodes"] + graph["edges"]:
+            element.pop("accessible_source", None)
+        return data
 
 
 # ---------------------------------------------------------------------------

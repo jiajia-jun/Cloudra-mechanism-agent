@@ -1,0 +1,134 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C=CC#N"
+      ],
+      "properties": {
+        "energy_hartree": -364.698789158,
+        "evidence_log": "verify/rc_low_freq.log",
+        "description": "common pre-reaction complex of cyclopentadiene + acrylonitrile (1:1 van der Waals/pi-stacked dimer), the lowest verified minimum of this complex found in the evidence (three connected conformer minima were located: -364.698789158, -364.698325728, -364.698081670 Ha, all within 0.45 kcal/mol). Minimum, no imaginary frequency; shared barrier reference for both stereochemical channels.",
+        "note_other_conformers": [
+          "work/exo/rc/rc_b3lyp.log E=-364.698325728",
+          "work/endo/rc/rc_optfreq.log E=-364.698081670"
+        ]
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -364.67605225,
+        "evidence_log": "verify/ts_endo_freq.log",
+        "description": "endo concerted transition state; nitrile carbon C8 tucked under the diene pi system (C8...C5 = 3.02 A, C8...C1 = 3.54 A) and remote from the forming one-carbon bridge (C8...C3 = 3.80 A); forming bonds C2-C6 = 2.38 A, C4-C7 = 2.73 A; exactly one imaginary frequency, -457.50 cm-1 (concerted forming mode). IRC in ts/ts_0002/jobs/declaration_0003/irc/irc.log."
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -364.676423598,
+        "evidence_log": "verify/ts_exo_freq.log",
+        "description": "exo concerted transition state; nitrile rotated outward towards the future one-carbon bridge (C8...C3 = 3.08 A) and away from the diene pi system (C8...C1 = 4.28 A); forming bonds C2-C6 = 2.10 A, C4-C7 = 2.39 A; exactly one imaginary frequency, -456.61 cm-1 (pair projections C2-C6 = 0.996, C4-C7 = 0.771). IRC in ts/ts_0001/jobs/declaration_0003/irc/irc.log."
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "N#C[C@@H]1C[C@@H]2C=C[C@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -364.735927811,
+        "evidence_log": "work/endo/prod/prod_optfreq.log",
+        "description": "endo-2-cyanobicyclo[2.2.1]hept-5-ene: nitrile cis to the norbornene C=C (C8...C5 = 3.00 A) and anti to the one-carbon bridge (C8...C3 = 3.78 A); minimum, lowest frequency 107.27 cm-1, no imaginary frequency."
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "N#C[C@H]1C[C@@H]2C=C[C@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -364.735703482,
+        "evidence_log": "verify/prod_exo_freq.log",
+        "description": "exo-2-cyanobicyclo[2.2.1]hept-5-ene: nitrile cis to the one-carbon bridge (C8...C3 = 3.09 A) and anti to the norbornene C=C (C8...C1 = 4.23 A); minimum, lowest frequency 108.00 cm-1, no imaginary frequency."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_endo",
+      "from": "RC",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.268,
+      "channel": "endo"
+    },
+    {
+      "id": "e_exo",
+      "from": "RC",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.035,
+      "channel": "exo"
+    }
+  ]
+}

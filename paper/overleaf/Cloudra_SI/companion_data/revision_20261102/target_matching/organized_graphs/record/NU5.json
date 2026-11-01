@@ -1,0 +1,175 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.O=CO.C[N+]#[C-]"
+      ],
+      "properties": {
+        "energy_hartree": -436.70614243,
+        "evidence_log": "rc/b/rc_optfreq.log",
+        "comment": "H-bonded pre-reaction complex: HCOOH OH donates to the formaldehyde O, methyl isocyanide C contacts the aldehyde C (C...C 2.96 A). B3LYP-D3(BJ)/def2-SVP, PCM(DCM), 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=O.O=CO.C[N+]#[C-]"
+      ],
+      "properties": {
+        "energy_hartree": -436.69198548,
+        "evidence_log": "ts1/ts1.log",
+        "comment": "Concerted C1-C9 bond formation + acid H6 -> aldehyde O2 proton transfer; 1 imaginary frequency -341.7 cm-1."
+      }
+    },
+    {
+      "id": "IM1",
+      "role": "intermediate",
+      "smiles": [
+        "C[N+]#CCO.O=C[O-]"
+      ],
+      "properties": {
+        "energy_hartree": -436.70105448,
+        "evidence_log": "im1/sp/im1_sp.log",
+        "comment": "Nitrilium/formate contact ion pair reached at the end of the forward IRC branch; a shoulder rather than a clean minimum at this level (unconstrained relaxation slides to IM2). Energy is a single-point energy of the delivered IRC-frame geometry."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "C[N+]#CCO.O=C[O-]"
+      ],
+      "properties": {
+        "energy_hartree": -436.70105448,
+        "evidence_log": "im1/sp/im1_sp.log",
+        "comment": "No distinct saddle found: the relaxed B3LYP/PCM scan along the forming C-O coordinate is monotonically downhill from the contact pair to the imidate, so the barrier of this elementary step is 0.0 kcal/mol (barrierless). The ion-pair geometry is used as the transition region reference."
+      }
+    },
+    {
+      "id": "IM2",
+      "role": "intermediate",
+      "smiles": [
+        "CN=C(CO)OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -436.73848678,
+        "evidence_log": "im2b/im2_optfreq.log",
+        "comment": "O-formyl imidate CH3N=C(OCHO)CH2OH, 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS3",
+      "role": "transition_state",
+      "smiles": [
+        "CN=C(CO)OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -436.73618861,
+        "evidence_log": "ts3/ts3.log",
+        "comment": "First-order saddle on the IM2 -> P path: 1 imaginary frequency -65.4 cm-1 (CH2/methyl dominated low-frequency mode), DeltaE = +1.44 kcal/mol above the IM2 minimum. Acyl transfer is therefore a very facile (nearly barrierless) step at this level; the imaginary mode does not have dominant O2-C3/H6-N8 character, so the exact coupled proton-transfer coordinate could not be resolved."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CNC(=O)COC=O"
+      ],
+      "properties": {
+        "energy_hartree": -436.78218832,
+        "evidence_log": "p/p_optfreq.log",
+        "comment": "N-methyl-alpha-formyloxyacetamide, 0 imaginary frequencies."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "IM1",
+      "via": "TS1",
+      "bond_changes": {
+        "form": [
+          [
+            1,
+            9
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        "break": [
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 8.88,
+      "channel": "addition-proton-transfer",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "IM1",
+      "to": "IM2",
+      "via": "TS2",
+      "bond_changes": {
+        "form": [
+          [
+            4,
+            9
+          ]
+        ],
+        "break": [
+          [
+            8,
+            9
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0,
+      "channel": "formate-addition",
+      "favored": true
+    },
+    {
+      "id": "e3",
+      "from": "IM2",
+      "to": "P",
+      "via": "TS3",
+      "bond_changes": {
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            8,
+            6
+          ],
+          [
+            9,
+            4
+          ]
+        ],
+        "break": [
+          [
+            4,
+            3
+          ],
+          [
+            2,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 1.44,
+      "channel": "acyl-transfer",
+      "favored": true
+    }
+  ]
+}

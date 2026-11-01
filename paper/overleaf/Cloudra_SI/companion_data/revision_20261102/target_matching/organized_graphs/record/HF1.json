@@ -1,0 +1,222 @@
+{
+ "nodes": [
+  {
+   "id": "RC",
+   "role": "reactant",
+   "smiles": [
+    "OC1C=CCCC1.O=COO"
+   ],
+   "properties": {
+    "description": "Pre-reaction (Henbest) complex: cyclohex-2-en-1-ol hydrogen-bonded through its allylic OH to the performic-acid carbonyl oxygen, with the peracid on the same face as the allylic OH. Lowest-energy verified minimum of the reactant complex and the common zero-energy reference for both stereochemical channels.",
+    "evidence_log": "g16/rc_syn_optfreq.log",
+    "energy_hartree": -574.382123,
+    "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, CPCM(CH2Cl2)"
+   }
+  },
+  {
+   "id": "TS_cis",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "description": "Concerted 'butterfly' epoxidation transition structure on the OH face; O11 bonds C3 and C4 while O10-O11 breaks and the peroxy proton migrates to O9. One imaginary frequency -396.2 cm-1 whose mode is the epoxidation coordinate.",
+    "evidence_log": "ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log",
+    "frequency_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+    "irc_log": "ts/ts_0002/jobs/declaration_0003/irc/irc.log",
+    "energy_hartree": -574.356973,
+    "imaginary_frequency_cm1": -396.2
+   }
+  },
+  {
+   "id": "P_cis",
+   "role": "product",
+   "smiles": [
+    "O[C@@H]1CCC[C@@H]2O[C@H]12.O=CO"
+   ],
+   "properties": {
+    "description": "Product complex of the syn channel: cis-1,2-epoxycyclohexan-1-ol (epoxide oxygen cis to the hydroxyl) hydrogen-bonded to formic acid. 0 imaginary frequencies.",
+    "evidence_log": "ts/ts_0002/jobs/declaration_0003/product_frequency/product_frequency.log",
+    "energy_hartree": -574.472248
+   }
+  },
+  {
+   "id": "TS_trans",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "description": "Concerted epoxidation transition structure with the peracid on the face opposite the allylic OH, so the OH...peracid hydrogen bond is lost. One imaginary frequency -441.1 cm-1.",
+    "evidence_log": "ts/ts_0001/jobs/declaration_0011/ts_opt/refine.log",
+    "frequency_log": "ts/ts_0001/jobs/declaration_0011/frequency/frequency.log",
+    "irc_log": "ts/ts_0001/jobs/declaration_0012/irc/irc.log",
+    "energy_hartree": -574.347378,
+    "imaginary_frequency_cm1": -441.1
+   }
+  },
+  {
+   "id": "P_trans",
+   "role": "product",
+   "smiles": [
+    "O[C@@H]1CCC[C@H]2O[C@@H]12.O=CO"
+   ],
+   "properties": {
+    "description": "Product complex of the anti channel: trans-1,2-epoxycyclohexan-1-ol (epoxide oxygen anti to the hydroxyl) hydrogen-bonded to formic acid. 0 imaginary frequencies.",
+    "evidence_log": "ts/ts_0001/jobs/declaration_0012/product_frequency/product_frequency.log",
+    "energy_hartree": -574.462816
+   }
+  },
+  {
+   "id": "RC_anti",
+   "role": "reactant",
+   "smiles": [
+    "OC1C=CCCC1.O=COO"
+   ],
+   "properties": {
+    "description": "Channel-specific conformer of the same reactant complex with the peracid on the anti face (no hydrogen bond to the allylic OH); 0 imaginary frequencies, 7.5 kcal/mol above RC. This is the conformer actually reached by the anti-channel IRC (energy at the IRC outer frame -574.369513 Ha).",
+    "evidence_log": "g16/rc_anti_optfreq.log",
+    "energy_hartree": -574.370127
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e_syn",
+   "from": "RC",
+   "to": "P_cis",
+   "via": "TS_cis",
+   "bond_changes": {
+    "break": [
+     [
+      10,
+      11
+     ],
+     [
+      11,
+      12
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      8,
+      9
+     ]
+    ],
+    "form": [
+     [
+      11,
+      3
+     ],
+     [
+      11,
+      4
+     ],
+     [
+      9,
+      12
+     ],
+     [
+      8,
+      10
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 15.8,
+   "channel": "syn/Henbest (H-bonded peracid; epoxide cis to OH)",
+   "favored": true
+  },
+  {
+   "id": "e_anti",
+   "from": "RC",
+   "to": "P_trans",
+   "via": "TS_trans",
+   "bond_changes": {
+    "break": [
+     [
+      10,
+      11
+     ],
+     [
+      11,
+      12
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      8,
+      9
+     ]
+    ],
+    "form": [
+     [
+      11,
+      3
+     ],
+     [
+      11,
+      4
+     ],
+     [
+      9,
+      12
+     ],
+     [
+      8,
+      10
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 21.8,
+   "channel": "anti (peracid on the opposite face; epoxide trans to OH)",
+   "favored": false
+  },
+  {
+   "id": "e_anti_irc",
+   "from": "RC_anti",
+   "to": "P_trans",
+   "via": "TS_trans",
+   "bond_changes": {
+    "break": [
+     [
+      10,
+      11
+     ],
+     [
+      11,
+      12
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      8,
+      9
+     ]
+    ],
+    "form": [
+     [
+      11,
+      3
+     ],
+     [
+      11,
+      4
+     ],
+     [
+      9,
+      12
+     ],
+     [
+      8,
+      10
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 14.3,
+   "channel": "anti (own channel complex as reference)",
+   "favored": false
+  }
+ ]
+}

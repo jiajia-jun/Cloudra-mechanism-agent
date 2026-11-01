@@ -1,0 +1,53 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "properties": {
+        "energy_hartree": -541.608907902,
+        "evidence_log": "rc_min.log",
+        "note": "twisted minimum (C2-symmetric rotamer), dihedral C2-C1-C7-C8 = +88.51 deg, 78 real frequencies (0 imaginary), Normal termination; lowest verified minimum and barrier reference"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -541.582800299,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/ts_opt/refine.log",
+        "note": "first-order saddle for the aryl-aryl rotation at the coplanar crossing: dihedral C2-C1-C7-C8 = 180.0 deg, ring planes coplanar (C2h anti arrangement); Stationary point found, exactly one imaginary frequency -105.44 cm-1 with the other 77 modes real. Independent duplicate run ts_cc.log gives the identical energy and the same single imaginary mode."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "properties": {
+        "energy_hartree": -541.608907909,
+        "evidence_log": "p_prod_opt.log",
+        "note": "product-side twisted minimum: opt+freq (B3LYP-D3(BJ)/def2-SVP, int=ultrafine) started from the declaration_0003 IRC outer frame, dihedral +174.20 deg, 5.80 deg from the saddle, byte-identical to .cloudra/evidence/8126e689…/irc-4859170d…end-b.xyz (0.000 A match on all atom pairs); p_side_opt likewise from end-a at -174.20 deg converges to the twisted conformer at |torsion| = 88.5 deg, E = -541.608907909 Eh, 78 real frequencies (0 imaginary), Normal termination, optimiser converged. P is the mirror image of RC: identical sorted interatomic-distance multiset (agreement within 0.0013 A over all 378 pairs) at equal energy (7e-9 Eh) but opposite signed torsion (signed values in this file's atom order: rc_min.log +88.51 deg, p_prod_opt.log -88.49 deg; the Supervisor's independent measurement of the same native files gives the identical signs, so there is no disagreement). RC and P are therefore the equal-energy enantiomeric minima of the same molecule - two distinct chiral conformers, not one conformer - and they are geometrically distinct (best-fit RMSD 3.2 A to the rc_min.log geometry). The other declaration_0003 IRC outer frame (end-a, dihedral -174.20 deg) re-optimises back to the RC conformer (p_side_opt.log). Note: ts/ts_0001/verdict/irc_end_a.xyz and irc_end_b.xyz are NOT the declaration_0003 outer frames - they are the endpoints of the rejected off-path LQA run (declaration_0007), identified by their first SCF energies (+7.90 / +16.60 kcal/mol above the saddle) matching end_a_opt.log / end_b_opt.log; those two Opt+Freq jobs were cancelled without Normal termination or frequencies and are diagnostics only, never endpoint evidence."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 16.38,
+      "channel": "aryl-aryl rotation through the coplanar (dihedral 180 deg) crossing",
+      "favored": true
+    }
+  ]
+}

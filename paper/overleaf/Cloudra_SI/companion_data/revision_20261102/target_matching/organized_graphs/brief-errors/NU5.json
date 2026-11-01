@@ -1,0 +1,250 @@
+{
+ "nodes": [
+  {
+   "id": "RC",
+   "role": "reactant",
+   "smiles": [
+    "C=O.O=CO.C[N+]#[C-]"
+   ],
+   "properties": {
+    "energy_hartree": -436.701412596,
+    "evidence_log": "anno/RC_restart_optfreq.log",
+    "note": "pre-reaction complex of formaldehyde, formic acid and methyl isocyanide; 39 real frequencies, lowest 15.19 cm-1, 0 imaginary => verified minimum and the lowest RC reference (earlier RC readings -436.700670 / -436.700921 are connected conformers)."
+   }
+  },
+  {
+   "id": "INT1 Nitrilium Formate",
+   "role": "intermediate",
+   "smiles": [
+    "C=O.[O-]C=O.C[N+]#C"
+   ],
+   "properties": {
+    "note": "REFUTED as a species: the optimised structure (anno/INT1_restart_optfreq.log, E = -436.698023453 Ha) has 38 real frequencies and ONE imaginary frequency at -42.41 cm-1, and its connectivity is NOT the nitrilium/formate ion pair - the acid proton stays on the acid oxygen (O-H 1.00 A, 1.85 A from the isocyanide carbon, no H on that carbon), i.e. it is a proton-shared HCOOH.CH3NC.HCHO complex of the same connectivity class as RC, 2.13 kcal/mol above the RC minimum. So no discrete nitrilium intermediate exists at this level; the salt route e1/e2 is retained only as the investigated alternative. Additional negative evidence (e1 worker, 2026-10-29): two Opt=TS attempts died at NStep=100 and the relaxed O-H scan (ts/ts_0004/jobs/declaration_0006/scan/scan.log) is monotonic uphill to the proton-transferred side at +20 to +22 kcal/mol, with no bracketed saddle."
+   }
+  },
+  {
+   "id": "INT2 Formyl Imidate",
+   "role": "intermediate",
+   "smiles": [
+    "C=O.O=COC=NC"
+   ],
+   "properties": {
+    "energy_hartree": -436.713761819,
+    "evidence_log": "ts/ts_0002/jobs/declaration_0009/reactant_frequency/reactant_frequency.log",
+    "note": "O-formyl formimidate + formaldehyde complex, lowest verified conformer: the IRC reactant outer frame reoptimised to E = -436.713761819 Ha with 0 imaginary frequencies (lowest 26.7 cm-1) - ts/ts_0002/jobs/declaration_0009/reactant_opt/reactant_opt.log and .../reactant_frequency/reactant_frequency.log. The supervisor-accepted anno/INT2_optfreq.log (-436.706240455 Ha, 39 real frequencies) is a connected higher conformer +4.7 kcal/mol above this one, so the e3 barrier is referenced to -436.713761819. OPEN QUESTION on the status of this node (Supervisor caveat, dec_917582b2): the O-attack / formyloxymethyl formimidate isomer HC(=O)-O-CH2-O-C(H)=N-CH3 (ts/ts_0005/jobs/declaration_0006/reactant_opt/reactant_opt.log, E = -436.736162813 Ha, 39 real frequencies, 0 imaginary) lies 14.06 kcal/mol BELOW this e3 source conformer, so INT2 as declared here may not be the global minimum of composition C3H6NO3+CH2O; the e3 barrier is therefore referenced to the lowest verified INT2 conformer as the task rule requires, but the possibility that the true INT2 is the O-attack isomer is unresolved and would lower the effective barrier if admitted as the source state."
+   }
+  },
+  {
+   "id": "INT3 Alpha Adduct",
+   "role": "intermediate",
+   "smiles": [
+    "O=COC(=NC)CO"
+   ],
+   "properties": {
+    "energy_hartree": -436.740537908,
+    "evidence_log": "anno/INT3_optfreq.log",
+    "note": "alpha-adduct HC(=O)O-C(=NMe)-CH2OH; genuine minimum, all frequencies real (lowest 52.49, highest 3762.30 cm-1), accepted by the scientific supervisor"
+   }
+  },
+  {
+   "id": "P Product",
+   "role": "product",
+   "smiles": [
+    "CNC(=O)COC=O"
+   ],
+   "properties": {
+    "energy_hartree": -436.784926294,
+    "evidence_log": "anno/P_optfreq.log",
+    "note": "N-methyl 2-formyloxyacetamide minimum; all frequencies real; 27.85 kcal/mol below INT3; accepted by the scientific supervisor"
+   }
+  },
+  {
+   "id": "TS1",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "note": "UNEVIDENCED PLACEHOLDER - no saddle exists for this node: the proton transfer RC -> INT1 was not verified (two B3LYP Opt=TS attempts died at the NStep=100 ceiling, two relaxed O-H scans were monotonic). The node is retained only to carry the investigated-negative edge e1."
+   }
+  },
+  {
+   "id": "TS2",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "note": "UNEVIDENCED PLACEHOLDER - no saddle exists for this node: the C-O bond forming step INT1 -> INT2 was not verified (B3LYP Opt=TS non-convergent; the optimised 'ion pair' is the covalent O-attack adduct, and the relaxed GFN2-xTB scan shows no bound ion-pair minimum). Retained only to carry the investigated-negative edge e2."
+   }
+  },
+  {
+   "id": "TS3",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -436.590422824,
+    "evidence_log": "ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log",
+    "note": "First-order saddle of the e3 step (reconverged in ts_prepare run ts_0002, identical to anno/TS3_freq.log: E = -436.590422824 Ha, one imaginary frequency -2303.16 cm-1, frequency-only recheck -2302.49 cm-1). The imaginary mode is the imidate C-H -> aldehyde O proton transfer coupled to C1-C9 formation (C1-C9 = 2.15 A at the saddle). Its 80-point bidirectional IRC (ts/ts_0002/jobs/declaration_0009/irc/irc.log) connects INT2 with the alpha-adduct INT3, and both outer frames are verified minima. The earlier statement that this saddle is 'not the e3 saddle' was based on mode character alone and is superseded by the IRC connectivity; the barrier (77.4 kcal/mol) remains chemically implausible for rt."
+   }
+  },
+  {
+   "id": "TS4",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -436.739717591,
+    "evidence_log": "anno/TS4_freq.log",
+    "note": "first-order saddle converged from the INT3 seed (one imaginary frequency, -103.17 cm-1), but the scientific supervisor's mode analysis shows the imaginary mode is light-atom (methyl/CH) dominated: the sum of squared displacement over the declared acyl-transfer coordinate pairs is only 0.018 (1.8% of the mode), heavy-atom fraction 0.0055. It is therefore NOT established as the acyl-transfer saddle; it lies only 0.51 kcal/mol above the INT3 minimum and no IRC exists. UNEVIDENCED for the Mumm step: the e4 acyl transfer has no located saddle after seven formal ts_prepare attempts plus five B3LYP probes (work_e4/e4final.md), and the INT3 -> P region is a flat proton-coupled descent (constrained 6-ring relaxation reaches -436.785773743 Ha, 0.53 kcal/mol below P)."
+   }
+  },
+  {
+   "id": "TS12",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "note": "candidate saddle for the concerted first step RC -> INT2 (acid O-H proton moves to the isocyanide carbon with simultaneous formate C-O bond formation). The best structure available for it is the annealed 'INT1' saddle (E = -436.698023453 Ha, one imaginary frequency -42.41 cm-1, heavy-atom fraction 0.38, top pairs (4,8) 0.81, (2,7) 0.72, (3,8) 0.56, (1,8) 0.54; anno/INT1_restart_optfreq.log). Its IRC (RC <-> INT2) was not run, so no barrier is declared. IRC attempted twice on this feature (work_conc/int1_irc2.log with IRC=(CalcFC,MaxPoints=30,StepSize=10) and work_conc/int1_irc3.log with IRC=(HPC,CalcFC,MaxPoints=30,StepSize=5)) and both aborted with 'Bulirsch-Stoer Method is not Converging / Delta-x Convergence NOT Met'; the integrator never leaves the saddle (energy constant at -436.6980238 Ha), so no IRC connectivity exists for this candidate and no barrier is declared for e12. Submitted as the e12 candidate saddle: E = -436.698023453 Ha, one imaginary frequency -42.41 cm-1, heavy-atom fraction 0.38; barrier vs the RC minimum (-436.701412596 Ha, anno/RC_restart_optfreq.log) = +2.13 kcal/mol, i.e. the first step is cheap as expected for an acid-to-isocyanide proton transfer with simultaneous formate C-O bond formation. The step is declared WITHOUT IRC direction proof (the Gaussian IRC integrator fails on this 42 cm-1 feature) and without ZPE; the source minimum is RC and the target minimum is INT2 (-436.713761819 Ha, ts/ts_0002/jobs/declaration_0009/reactant_opt/reactant_opt.log).",
+    "energy_hartree": -436.698023453,
+    "evidence_log": "anno/INT1_restart_optfreq.log"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1 proton transfer to isocyanide carbon",
+   "from": "RC",
+   "to": "INT1 Nitrilium Formate",
+   "via": "TS1",
+   "bond_changes": {
+    "break": [
+     [
+      5,
+      6
+     ]
+    ],
+    "form": [
+     [
+      6,
+      9
+     ]
+    ]
+   },
+   "channel": "Stepwise nitrilium route, investigated and NOT verified: two Opt=TS attempts and two relaxed scans of the acid O-H -> isocyanide carbon coordinate all ended at the NStep=100 ceiling (maxcycles=200 is not honoured by this G16 build) on a flat plateau, with no bracketed saddle and no imaginary frequency; the relaxed scan (ts/ts_0004/jobs/declaration_0006/scan/scan.log) is monotonic: O-H 1.014 A = -436.70134388 (+0.04 kcal vs RC), 1.104 A = -436.69707484 (+2.72), 1.194 A = -436.695 to -436.690 (+7.2, not fully converged), while the proton-transferred side sits at -436.666 to -436.669 Ha (+20 to +22 kcal). Independently, the optimised 'nitrilium/formate' structure is itself the -42.41 cm-1 proton-shared saddle of the e12 edge, so no discrete ion-pair minimum was obtained either. No barrier is declared.",
+   "favored": false
+  },
+  {
+   "id": "e2 carboxylate attack forming imidate",
+   "from": "INT1 Nitrilium Formate",
+   "to": "INT2 Formyl Imidate",
+   "via": "TS2",
+   "bond_changes": {
+    "break": [
+     [
+      8,
+      9
+     ]
+    ],
+    "form": [
+     [
+      5,
+      9
+     ]
+    ]
+   },
+   "channel": "stepwise nitrilium route; investigated, no verified saddle",
+   "favored": false
+  },
+  {
+   "id": "e3 alpha-addition of imidate to formaldehyde",
+   "from": "INT2 Formyl Imidate",
+   "to": "INT3 Alpha Adduct",
+   "via": "TS3",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      2
+     ],
+     [
+      6,
+      9
+     ]
+    ],
+    "form": [
+     [
+      1,
+      9
+     ],
+     [
+      2,
+      6
+     ]
+    ]
+   },
+   "channel": "alpha-addition of the imidate carbon to formaldehyde, proton-transfer coupled: C1(H2C=O) bonds the imidate carbon C9 while the imidate C-H proton (map atom 6) moves to the aldehyde oxygen O2. VERIFIED at B3LYP-D3(BJ)/def2-SVP SMD(DCM): saddle E = -436.590422824 Ha, exactly one imaginary frequency -2303.16 cm-1, C1-C9 2.15 A (ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log); 80-point bidirectional IRC normal termination (ts/ts_0002/jobs/declaration_0009/irc/irc.log) with the reverse frame = INT2 (H on C9, C1-C9 2.55 A) and the forward frame = alpha-adduct (O2-H 0.97 A, C1-C9 1.54 A); both IRC outer frames reoptimised to zero-imaginary-frequency minima (reactant -436.713761819 Ha, product -436.740213114 Ha; ts/ts_0002/jobs/declaration_0009/reactant_opt/ and .../product_opt/). dE(TS - INT2 lowest conformer) = 77.4 kcal/mol; dE(INT3 conformer - INT2) = -16.6 kcal/mol. CAVEAT: the imaginary mode is a proton transfer (heavy-atom fraction 0.014) sitting on an almost-bonded C1-C9 = 2.15 A framework; 77.4 kcal/mol is far too high for a room-temperature step, so this verified edge is the computed proton-transfer-coupled channel, not necessarily the operative one. The competing concerted one-step channel (aldehyde O attacks the imidate carbon while the formyl migrates to the CH2) was searched and NOT found (xTB driving peaks +196 kcal/mol; B3LYP Opt=TS ran downhill 97.9 kcal/mol).",
+   "favored": true,
+   "barrier_kcal_mol": 77.4
+  },
+  {
+   "id": "e4 Mumm-type acyl transfer to amide",
+   "from": "INT3 Alpha Adduct",
+   "to": "P Product",
+   "via": "TS4",
+   "bond_changes": {
+    "break": [
+     [
+      2,
+      6
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      8,
+      9
+     ]
+    ],
+    "form": [
+     [
+      2,
+      3
+     ],
+     [
+      5,
+      9
+     ],
+     [
+      6,
+      8
+     ]
+    ]
+   },
+   "channel": "Intramolecular acyl transfer (Mumm-type): CH2-OH proton to N, CH2 oxygen captures the formyl carbon, formyl C-O(acyl) breaks and that oxygen becomes the amide C=O, C=N becomes C-N. NO SADDLE FOUND and therefore NO BARRIER DECLARED. Status after seven dedicated attempts (ts_0003 rev1/rev2, ts_0007, ts_0008, ts_0009, ts_0010, ts_0011) plus five systematic probes: (i) the only first-order points near INT3 are a methyl rotor (+0.5 kcal/mol, anno/TS4_freq.log) and an oxirane-region point (+24.2 kcal/mol) whose modes are not the acyl-transfer coordinate; (ii) a relaxed B3LYP scan of C2...O8 alone (work_e4/x/scanB2.log) costs +2.5/+3.9/+7.0/+11.0/+17.4/+27.4 kcal/mol at 2.70/2.49/2.28/2.07/1.86/1.65 A but keeps O8-H at 0.97 A with N5...H > 3.6 A, i.e. it is an oxonium branch with no proton transfer (the earlier GFN2-xTB +63 kcal/mol figure was a two-coordinate constraint artifact); (iii) a four-coordinate constrained relaxation of the ring-closed, proton-shared structure descends to -436.785773743 Ha, 28.4 kcal/mol below INT3 and 0.53 kcal/mol BELOW the reference P minimum (work_e4/x/ridge1.log), so the last step looks like a flat proton-coupled descent rather than passage over a discrete six-membered saddle; (iv) torsion analysis (work_e4/x/preorg2.py) shows O8...N5 cannot drop below ~3.28 A while C2...O8 ~ 2.2 A, so the pre-organised O8-H...N5 conformer required by the six-ring guess is not reachable, which is the common cause of every Opt=TS collapse. THERMOCHEMISTRY: the step is strongly exergonic, dE(INT3 -> P) = -27.85 kcal/mol from the accepted minima (anno/INT3_optfreq.log -436.740537908, anno/P_optfreq.log -436.784926294).",
+   "favored": false
+  },
+  {
+   "id": "e12 concerted proton transfer + C-O bond formation",
+   "from": "RC",
+   "to": "INT2 Formyl Imidate",
+   "via": "TS12",
+   "bond_changes": {
+    "break": [
+     [
+      5,
+      6
+     ]
+    ],
+    "form": [
+     [
+      6,
+      9
+     ],
+     [
+      5,
+      9
+     ]
+    ]
+   },
+   "channel": "Concerted first step (favoured): the formic-acid O-H proton transfers to the isocyanide carbon while the same acid oxygen bonds that carbon, and C-N becomes C=N. It replaces the discrete nitrilium ion-pair route, whose 'intermediate' (INT1) is itself a first-order saddle at -42.41 cm-1 with the proton still on the acid oxygen, i.e. the ion pair is not a minimum at this level. Candidate saddle = the INT1 structure (E = -436.698023453 Ha, anno/INT1_restart_optfreq.log); dE(TS - RC) = (-436.698023453 + 436.701412596) x 627.5095 = +2.13 kcal/mol. CAVEAT: no IRC direction proof - two bidirectional IRC attempts on this very flat feature aborted with 'Bulirsch-Stoer Method is not Converging / Delta-x Convergence NOT Met' (work_conc/int1_irc2.log, work_conc/int1_irc3.log), so the assignment rests on the mode composition and on the thermodynamic sink at INT2, not on a traced path. The stepwise e1/e2 edges are retained only as the investigated alternative.",
+   "favored": true,
+   "barrier_kcal_mol": 2.13
+  }
+ ]
+}

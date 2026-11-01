@@ -1,0 +1,206 @@
+{
+  "nodes": [
+    {
+      "id": "RCendo",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.O=C1OC(=O)C=C1"
+      ],
+      "properties": {
+        "channel": "endo",
+        "description": "pi-stacked pre-reaction complex of s-cis cyclopentadiene and maleic anhydride in the endo orientation (anhydride ring tucked under the diene's internal pi system)",
+        "energy_hartree": -573.016646164,
+        "evidence_log": "rc_endo_minA.log",
+        "frequency_log": "rc_endo_minA.log",
+        "irc_reached_saddle_log": "irc2endo_A.opt.log",
+        "note": "lowest verified minimum of this complex (54 modes, 0 imaginary); the reverse IRC outer frame of irc2_endo_channel.log relaxes to a shallow first-order saddle 0.0056 kcal/mol above it (irc2endo_A.opt.log / rc_endo_ch_end_opt.log, one -14.8 cm-1 intermolecular libration), while rcA_p.log/rcA_m.log (frame displaced 0.2 along that libration) relax to this same minimum. Barrier reference = this minimum."
+      }
+    },
+    {
+      "id": "TSendo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "channel": "endo",
+        "energy_hartree": -572.998610236,
+        "imaginary_frequency_cm1": -416.4,
+        "evidence_log": "ts_exo_opt.log",
+        "frequency_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "irc_log": "irc2_endo_channel.log",
+        "note": "file naming is historical: the endo saddle is stored in ts_exo_opt.log and in the ts_0002 run; one imaginary mode -416.39 cm-1 dominated by the forming pairs 2-11 and 4-12; carbonyl C 2.90 A from C1/C5, 3.76 A from C3 (secondary orbital overlap)"
+      }
+    },
+    {
+      "id": "Pendo",
+      "role": "product",
+      "smiles": [
+        "O=C1OC(=O)[C@H]2[C@@H]1[C@H]1C=C[C@@H]2C1"
+      ],
+      "properties": {
+        "channel": "endo",
+        "description": "endo-norbornene-5,6-dicarboxylic anhydride; anhydride tucked under the residual C=C (C=O 3.02-3.06 A from the C1=C5 midpoint, 3.71-3.73 A from the C7 methylene)",
+        "energy_hartree": -573.051114191,
+        "evidence_log": "p_endo_ch_end_opt.log",
+        "irc_frame_opt_log": "irc2endo_B.opt.log",
+        "note": "kinetic product; 0.31 kcal/mol less stable than the exo adduct",
+        "smiles_source": "RDKit canonical isomeric SMILES (canonical=True, isomericSmiles=True, H suppressed) perceived from the optimised geometry p_endo_ch_end_opt.log and, independently, from its IRC forward outer frame optimisation irc2endo_B.opt.log (identical string); InChIKey KNDQHSIWLOJIGP-UMRXKNAASA-N and the de-mapping round trip MolFromSmiles(this string) -> same key were verified; anhydride under the residual C1=C5. The endo/exo assignment is made from the geometry criterion (carbonyls 3.02 A from the C1=C5 midpoint vs 3.71 A from the CH2) and this key, not from atom-number stereodescriptor differences, which are symmetry-ambiguous in this Cs molecule."
+      }
+    },
+    {
+      "id": "RCexo",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.O=C1OC(=O)C=C1"
+      ],
+      "properties": {
+        "channel": "exo",
+        "description": "pi-stacked pre-reaction complex with the anhydride ring turned towards the C3 methylene bridge (exo orientation)",
+        "energy_hartree": -573.015396318,
+        "evidence_log": "rc_exo_ch_end_opt.log",
+        "irc_frame_opt_log": "irc2exo_A.opt.log",
+        "note": "clean minimum, 0 imaginary frequencies, lowest real mode 38.9 cm-1"
+      }
+    },
+    {
+      "id": "TSexo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "channel": "exo",
+        "energy_hartree": -572.996480374,
+        "imaginary_frequency_cm1": -410.1,
+        "evidence_log": "ts_endo_opt.log",
+        "frequency_log": "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log",
+        "irc_log": "irc2_exo_channel.log",
+        "note": "file naming is historical: the exo saddle is stored in ts_endo_opt.log and in the ts_0001 run; one imaginary mode -410.13 cm-1 dominated by the forming pairs 2-11 and 4-12; carbonyl C 3.88-4.27 A from C1/C5, 3.05 A from C3 (no secondary orbital overlap)"
+      }
+    },
+    {
+      "id": "Pexo",
+      "role": "product",
+      "smiles": [
+        "O=C1OC(=O)[C@H]2[C@@H]1[C@@H]1C=C[C@H]2C1"
+      ],
+      "properties": {
+        "channel": "exo",
+        "description": "exo-norbornene-5,6-dicarboxylic anhydride; anhydride syn to the C7 methylene bridge (C=O 3.97-3.98 A from the C1=C5 midpoint, 2.98-3.03 A from the C7 methylene)",
+        "energy_hartree": -573.051607817,
+        "evidence_log": "p_exo_ch_end_opt.log",
+        "irc_frame_opt_log": "irc2exo_B.opt.log",
+        "note": "thermodynamic product; 0.31 kcal/mol more stable than the endo adduct",
+        "smiles_source": "RDKit canonical isomeric SMILES perceived from p_exo_ch_end_opt.log and irc2exo_B.opt.log (identical string); InChIKey KNDQHSIWLOJIGP-RNGGSSJXSA-N and the de-mapping round trip MolFromSmiles(this string) -> same key were verified; anhydride syn to the C7 methylene (3.97 A from the C1=C5 midpoint, 2.98 A from the CH2). Atom-number stereodescriptor comparisons are not used: the bridgeheads and the anhydride-fusion carbons are exchanged by the molecular mirror plane."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_20ffd8c3",
+      "from": "RCendo",
+      "to": "Pendo",
+      "via": "TSendo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            11,
+            12
+          ]
+        ],
+        "form": [
+          [
+            2,
+            11
+          ],
+          [
+            4,
+            12
+          ],
+          [
+            1,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 11.32,
+      "channel": "endo",
+      "favored": true,
+      "barrier_note": "dE = E(TSendo) - E(RCendo,min) = -572.998610236 - (-573.016646164) Eh = 0.018035928 Eh = 11.32 kcal/mol (electronic, no ZPE); referenced to the lowest verified complex minimum. Against the IRC-reached shallow saddle (-573.016637296 Eh) the same barrier is 11.31 kcal/mol.",
+      "barrier_saddle_reference_kcal_mol": 11.31,
+      "bond_changes_note": "break = bonds whose order decreases (C1=C2, C4=C5, C11=C12); form = new sigma bonds C2-C11 and C4-C12 plus the C1-C5 bond whose order increases from single (diene) to double (adduct), verified as C1=C5 1.34 A in both optimised adducts",
+      "old_id": "e1",
+      "name": "cycloaddition_endo",
+      "dag_target_id": "step_20ffd8c3"
+    },
+    {
+      "id": "step_63c0e5bb",
+      "from": "RCexo",
+      "to": "Pexo",
+      "via": "TSexo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            11,
+            12
+          ]
+        ],
+        "form": [
+          [
+            2,
+            11
+          ],
+          [
+            4,
+            12
+          ],
+          [
+            1,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 11.87,
+      "channel": "exo",
+      "favored": false,
+      "barrier_note": "dE = E(TSexo) - E(RCexo) = -572.996480374 - (-573.015396318) Eh = 0.018915944 Eh = 11.87 kcal/mol (electronic, no ZPE).",
+      "bond_changes_note": "break = bonds whose order decreases (C1=C2, C4=C5, C11=C12); form = new sigma bonds C2-C11 and C4-C12 plus the C1-C5 bond whose order increases from single (diene) to double (adduct), verified as C1=C5 1.34 A in both optimised adducts",
+      "old_id": "e2",
+      "name": "cycloaddition_exo",
+      "dag_target_id": "step_63c0e5bb"
+    }
+  ],
+  "delivery_targets": [
+    {
+      "target_id": "step_20ffd8c3",
+      "name": "cycloaddition_endo",
+      "from": "RCendo",
+      "to": "Pendo",
+      "via": "TSendo",
+      "channel": "endo",
+      "favored": true
+    },
+    {
+      "target_id": "step_63c0e5bb",
+      "name": "cycloaddition_exo",
+      "from": "RCexo",
+      "to": "Pexo",
+      "via": "TSexo",
+      "channel": "exo",
+      "favored": false
+    }
+  ]
+}

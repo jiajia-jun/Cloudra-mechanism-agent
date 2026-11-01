@@ -1,0 +1,152 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[BH4-].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -141.672770833,
+        "evidence_log": "rc/rc_min_dhb_p120_cfc.log",
+        "note": "Pre-reaction ion-dipole complex [BH4-]...O=CH2 (B-O 4.46 A, C...H(transf) 2.97 A: no C-H and no B-O bond yet). Gaussian16 B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, gas phase, charge -1, mult 1, opt=(calcfc,maxcycle=200) freq, normal termination + 'Stationary point found'; 21 real frequencies, 0 imaginary (lowest 20.58 cm-1 - a floppy complex); input annotation 'smiles: [BH4-].C=O' before the job. Lowest electronic energy among all frequency-verified RC minima (also rc/rc_conf_dhb_p120.log -141.672767725, rc/rc_conf_short_o_h.log -141.672720681, rc/rc_conf_dhb_pm120.log -141.672649684, rc/rc_conf_contact_d260.log -141.672640458, rc/rc_conf_dhb_p0.log -141.672155479; every 'O->B contact' seed relaxed out to a loose 4.30-4.38 A complex). Bound by only -11.84 kcal/mol vs separated monomers, so its own electronic energy - never separated-monomer energies - is the barrier reference. CHECKED AND RESOLVED (unconstrained Opt+Freq, job 231, scanp1/scanp1_optfreq.log, 'opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine', no constraint, annotation 'smiles: [BH4-].C=O'): the inner-region seed at B...O 1.900 A / C...H 2.104 A (first point of scan2d/inner/bO190_cHscan.log, E = -141.676998410 Ha only as a CONSTRAINED value) is NOT a minimum and NOT an O-coordinated contact species. Relaxed freely it descends monotonically (-141.6770 -> -141.6904 -> -141.7048 -> -141.7117 -> -141.7149 -> -141.720758666 Ha) to Normal termination / 'Stationary point found', 21 real and 0 imaginary frequencies (lowest 208.9 cm-1), with B-O 1.492 / C-O 1.365 / B-H2 1.266 / C-H2 2.800 A, i.e. the product P (-141.720758600) to 4e-5 kcal/mol. The seed is a stretched product (a C-H is already formed at 1.125 A and B carries three H), so its -2.65 kcal/mol is a constrained artefact that must never be quoted as a species energy. RC remains the lowest verified reactant-state minimum and the barrier reference, and the mechanism is NOT stepwise through an O-coordinated contact species."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -141.609969835,
+        "evidence_log": "xpath/tsopt/xtb_max_optts.log",
+        "note": "LOCATED AND CONNECTIVITY-VERIFIED. Four-centred B-H-C-O saddle for the single elementary step RC -> P. B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, opt=(ts,calcfc,noeigentest) freq, charge -1 mult 1, gas phase, Normal termination, 'Stationary point found', E(RB3LYP) = -141.609969835 Ha = +39.41 kcal/mol vs the RC minimum (-141.672770833). 21 frequencies with EXACTLY ONE imaginary: -875.5335 cm-1, dominated by the transferring hydride (B1-H2 and H2-C6) with a smaller B1-O7 component. Geometry: B1-O7 2.556, C6...H2 1.179, B1-H2 1.929, C6-O7 1.306 A. CONNECTIVITY (bidirectional IRC in one job, irc394/ircA_fwd.log, irc=(calcfc,stepsize=10,recorrect=never,maxpoints=90), Normal termination): 90 forward points take B1-O7 2.556 -> 4.017 A and descend to -141.670475 Ha (reactant side); 77 reverse points take B1-O7 2.552 -> 1.492 A with C6...H2 -> 1.122 A and descend to -141.7202 Ha (product side). Both IRC outer frames were then reoptimised unconstrained with a frequency check and are the declared minima: irc394/ep_rc/irc_endB_optfreq.log gives E = -141.672770832 Ha, 21 real / 0 imaginary, B1-O7 4.459, B1-H2 1.253, C6...H2 2.974 A = the SOURCE species RC to 1e-9 Ha; irc394/ep_p/irc_endA_optfreq.log gives E = -141.720758711 Ha, 21 real / 0 imaginary, B1-O7 1.492, C6-O7 1.365, C6-H2 1.122 A = the TARGET species P to 1.1e-7 Ha. BARRIER: E(TS) - E(RC) = 0.062800998 Ha = 39.41 kcal/mol (electronic, no ZPE; 40.08 kcal/mol with ZPE sums, 42.45 with Gibbs sums - those are reported only as auxiliary numbers, the declared barrier is the electronic one). METHOD CAVEAT: a high electronic barrier on an anionic hydride transfer with diffuse-free def2-SVP in the gas phase will be overestimated; no diffuse functions, no counterion, no solvation. NOTE ON A RETRACTED INTERPRETATION: an intermediate revision of this graph called this saddle '+39.41 kcal/mol, far too high to be the reactive saddle' and then, after a dead-end-wing analysis, made it the 'leading candidate' with connectivity untested. Two endpoint checks made from mid-IRC frames (irc394/outer/chk_fwd.xyz / chk_rev.xyz, copied from the still-running IRC at ~point 19-20) wrongly suggested both branches return to RC; the canonical IRC outer frames above show RC on one side and P on the other, so the saddle IS the reaction step. The dead-end-wing reading of the low +1.9..+6.0 kcal/mol constrained rows still stands: those rows have the hydride on boron with C...H ~2.5 A and are not on the RC->P path."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CO[BH3-]"
+      ],
+      "properties": {
+        "energy_hartree": -141.7207586,
+        "evidence_log": "prod/prod_opt_freq.log",
+        "note": "Datively bound borane-methoxide adduct [CH3-O-BH3]- (O-B 1.493 A, C-O 1.366 A as measured from the last standard orientation of that log - an earlier 'C-O 1.42 A' in this note was a misreading and is corrected here - C-O-B 115 deg, B-C 2.41 A; BH3 intact) - the product; a separated CH3O- + BH3 state is NOT the product (that pair lies 85.3 kcal/mol above P). Gaussian16 B3LYP/def2SVP GD3BJ int=ultrafine, charge -1, mult 1, opt freq, normal termination; 21 real frequencies, 0 imaginary (lowest 210.96 cm-1); annotation 'smiles: CO[BH3-]'. dE(P-RC) = -0.047987767 Hartree = -30.11 kcal/mol (electronic only)."
+      }
+    },
+    {
+      "id": "INT_ionpair",
+      "role": "intermediate",
+      "smiles": [
+        "C[O-].B"
+      ],
+      "properties": {
+        "note": "EXPLORATORY ONLY - NO STATIONARY POINT OF THIS SPECIES WAS OBTAINED, and no energy or evidence log is bound to this node on purpose: binding the return-of-search log here would claim evidence for a species that does not exist at this level. RECORD OF THE FAILED SEARCH: the [CH3O-]...[BH3] contact-ion-pair seed b1/ionpair_opt_freq.log (B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, charge -1 mult 1, opt+freq, Normal termination, 'Stationary point found', 21 real / 0 imaginary) relaxed straight back to the pre-reaction complex (final B-H(transf) 1.253, H...C 2.975, B...O 4.459 A, E = -141.672770826 Ha, i.e. RC to 4e-6 Ha), and the methoxide-side seed b1/methoxide_opt_freq.log (same level, Normal termination, 21 real / 0 imaginary, E = -141.720758696 Ha) collapsed to the product P. So the ion-pair channel has no stationary-point support and the mechanism is a single elementary step, not a stepwise one. (A failed search is not proof of absence; the branch is kept as an untested/unconfirmed exploratory option, with no energies and no barriers claimed.)"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "note": "EXPLORATORY ONLY: hydride-transfer-only saddle. Not located - every search in this region returns to the RC basin; the only saddle found there (-72.7 cm-1, ts1/ts2_ionpair_opt_freq.log) is a BH4 libration. No energy, no barrier declared."
+      }
+    },
+    {
+      "id": "TS3",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "note": "EXPLORATORY ONLY: B-O bond closure of the ion pair. Not supported - the ion-pair seed returned to RC and the methoxide seed collapsed to P, so there is no closure step to ride. barrier_kcal_mol deliberately OMITTED (never a numeric 0)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "s1_concerted_hydride_BO",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "channel": "concerted, single elementary step (favored)",
+      "favored": true,
+      "dag_step_id": "step_562c208a",
+      "barrier_kcal_mol": 39.41,
+      "note": "Barrier = E(TS1) - E(RC) = -141.609969835 - (-141.672770833) = 0.062800998 Ha = 39.41 kcal/mol (electronic, from bound native logs; 40.08 with ZPE sums, 42.45 with Gibbs sums). Reaction energy -30.11 kcal/mol. Connectivity proven by bidirectional IRC plus reoptimised outer frames (see the TS1 node)."
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "INT_ionpair",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "channel": "stepwise-exploratory (no stationary-point support)",
+      "favored": false,
+      "dag_step_id": "s2_hydride_transfer_only"
+    },
+    {
+      "id": "e3",
+      "from": "INT_ionpair",
+      "to": "P",
+      "via": "TS3",
+      "bond_changes": {
+        "break": [],
+        "form": [
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "channel": "stepwise-exploratory (no stationary-point support)",
+      "favored": false,
+      "dag_step_id": "s3_bo_closure"
+    }
+  ],
+  "method_limits": [
+    "ORCA is absent in this sandbox ('which orca' empty, /opt empty, no orca* under /home /opt /usr/local); every reported number comes from Gaussian 16 Rev C.01, with xTB 6.5.0 only for GFN2 screening and path finding.",
+    "The modredundant 'value + F' freeze form is not honoured in this build (echoed as 'B 2 6 1.6000 B'); the working recipe is a zero-step S entry on the held coordinate ('B 1 7 S 1 0.0') plus a multi-point S scan on the other in the same job.",
+    "OptTS step ceiling is a build property: only opt=(maxcycle=N) is accepted (MaxCycle=/MaxCycles= are syntax errors) and the applied budget is min(N,100) - 400 clamps to 100 while 7 and 40 are honoured. Several TS searches died on 'Number of steps exceeded, NStep= 100'.",
+    "QST2/QST3 were attempted, not refused: QST2 on the true RC+P pair fails in l101 ('RedCar/ORedCr failed for GTrans'), QST3 on the correct trio segfaults in l9999, and the only runnable QST2 (RC + col326 peak) converges to a librational saddle.",
+    "def2-SVP lacks diffuse functions, which matters for an anionic hydride-transfer saddle and plausibly contributes to the ridge's extreme flatness; gas phase, no solvent, no counterion, one isolated anion, electronic energies only (no ZPE/thermal).",
+    "Constrained relaxed scan points are upper bounds on the MEP only where the path passes through them; they are never barriers, and rows differing in (C...H, B...O), in C-O form (adduct vs C=O-intact) or in which hydrogen migrates are not mutually comparable.",
+    "The earlier IRC probe from the -182.8 cm-1 frame was too short (15 points per direction, within +/-4 kcal/mol); the extended 90-point IRC then showed both branches returning to the reactant valley."
+  ],
+  "top_level_notes": [
+    "Mechanism: one elementary step RC -> P, dE = -30.11 kcal/mol (electronic), via the verified four-centred saddle TS1 at +39.41 kcal/mol relative to the reactant complex.",
+    "Barrier reference: the lowest verified reactant-state minimum, RC = -141.672770833 Ha (rc/rc_min_dhb_p120_cfc.log). The apparent lower constrained point was checked and closed (scanp1/scanp1_optfreq.log relaxes it to P).",
+    "The barrier is an ELECTRONIC energy difference from bound native logs (no ZPE, no thermal corrections). Auxiliary values with ZPE/Gibbs sums are quoted only in the notes, never as the declared barrier.",
+    "Negatives on file: no [CH3O-]...[BH3] ion pair minimum (b1/), no O-coordinated contact intermediate (scanp1/), QST2/QST3 between RC and P fail technically in this build; the low +1.9..+6.0 kcal/mol constrained rows are a dead-end wing with the hydride still on boron and are not on the RC->P path.",
+    "Method limits: ORCA absent (all results Gaussian 16 Rev C.01, xTB 6.5.0 only for GFN2 path finding); the 'value + F' freeze form is not honoured (zero-step S entry + S scan instead); opt=(maxcycle=N) is clamped to min(N,100); def2-SVP lacks diffuse functions, which matters for this anion and will overestimate the barrier; gas phase, no counterion, no solvation."
+  ]
+}

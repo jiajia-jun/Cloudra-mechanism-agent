@@ -1,0 +1,120 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.60093627,
+        "evidence_log": "calc/rc_opt2.log",
+        "note": "pre-reaction complex: H2C=O...H-O-H...H-NH-CH3, one water molecule bridges the carbonyl O and one N-H (N-C 2.33 A). B3LYP-D3BJ/def2-SVP, gas phase, 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.590691472,
+        "evidence_log": "calc/ts1_opt.log",
+        "note": "concerted C-N bond formation with a N-H -> water -> carbonyl-O double proton relay; 1 imaginary frequency (-1107.7 cm-1); IRC (calc/ts1_irc.log) links RC and INT1."
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.623702423,
+        "evidence_log": "calc/int1_opt.log",
+        "note": "carbinolamine CH3-NH-CH2-OH hydrogen-bonded to water, 0 imaginary frequencies (the H-bonded conformer calc/int1w_opt.log is 0.0002 kcal/mol higher)."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.531819757,
+        "evidence_log": "calc/ts2c2_opt.log",
+        "note": "dehydration saddle: N-H proton transfer to the leaving oxygen (N-H 1.57 A, O-H 1.10 A) coupled to C-O cleavage (1.55 A); 1 imaginary frequency (-1053.2 cm-1, proton-transfer dominated). IRC of this step was not completed within the compute budget."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=NC.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.609733771,
+        "evidence_log": "calc/p_opt.log",
+        "note": "N-methylmethanimine + 2 H2O, 0 imaginary frequencies."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "break": [
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 6.43,
+      "channel": "nucleophilic addition of methylamine to formaldehyde (water-relayed proton transfer) -> carbinolamine",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            6
+          ]
+        ],
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 57.66,
+      "channel": "dehydration of the carbinolamine (water elimination concerted with N-H deprotonation)",
+      "favored": true
+    }
+  ]
+}

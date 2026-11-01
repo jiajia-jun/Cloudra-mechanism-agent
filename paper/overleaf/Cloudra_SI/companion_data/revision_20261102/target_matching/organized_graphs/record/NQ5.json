@@ -1,0 +1,134 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC(O)CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.625537072,
+        "evidence_log": "calc/rc_conf3.log",
+        "note": "lowest 1,5-hexadien-3-ol minimum found (conformer scan); barrier reference"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -309.575178309,
+        "evidence_log": "calc/ts1_ts.log",
+        "note": "concerted [3,3]-sigmatropic oxy-Cope saddle, one imaginary mode -504.39 cm-1 (C1-C6 forming / C3-C4 breaking)"
+      }
+    },
+    {
+      "id": "INT_enol",
+      "role": "intermediate",
+      "smiles": [
+        "OC=CCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.633249389,
+        "evidence_log": "calc/int_min_from_irc.log",
+        "note": "hexa-1,5-dien-1-ol (enol of hex-5-enal), reoptimized from the TS1 IRC enol-side outer frame (lowest enol conformer found); the TS2 IRC enol-side frame relaxes to the conformer at -309.631122926 (calc/ts2_enol_optfreq2.log)"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -309.537678939,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0003/frequency/frequency.log",
+        "note": "intramolecular 1,3-H shift (4-membered ring O1-C2-C3-H8) saddle; OptTS ref ts/ts_0003/jobs/declaration_0003/ts_opt/refine.log, one imaginary mode -2135.78 cm-1"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=CCCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.645193379,
+        "evidence_log": "calc/ts2_ald_optfreq2.log",
+        "note": "hex-5-enal minimum from the TS2 IRC outer-frame Opt+Freq (0 imaginary); conformer calc/p_optfreq.log (-309.643595253) is 1.0 kcal/mol higher"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT_enol",
+      "via": "TS1",
+      "channel": "concerted [3,3] oxy-Cope",
+      "favored": true,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            6
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.6,
+      "note": "C3-C4 sigma breaks, C1-C6 sigma forms, C1=C2 -> C2=C3 and C5=C6 -> C4=C5; barrier relative to the lowest RC minimum calc/rc_conf3.log (-309.625537072), TS1 = -309.575178309, i.e. 31.60 kcal/mol. IRC evidence: calc/ts1_irc_both.log (single native bidirectional IRC from the verified TS1), outer-frame minima calc/ts1_enol_optfreq2.log and calc/ts1_rc_optfreq2.log (both 0 imaginary)"
+    },
+    {
+      "id": "e2",
+      "from": "INT_enol",
+      "to": "P",
+      "via": "TS2",
+      "channel": "intramolecular enol-keto tautomerization",
+      "favored": true,
+      "bond_changes": {
+        "break": [
+          [
+            7,
+            8
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            2,
+            8
+          ],
+          [
+            3,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 60.0,
+      "note": "O7-H8 breaks, C2-H8 forms, C3-O7 becomes double, C3=C2 becomes single; TS2 relative to the lowest enol minimum (-309.633249389), TS2 = -309.537678939, i.e. 59.97 kcal/mol. Reaction energy INT_enol -> P = -7.5 kcal/mol (electronic). IRC evidence: ts/ts_0003/jobs/declaration_0003/irc/irc.log (both directions), outer-frame minima calc/ts2_enol_optfreq2.log and calc/ts2_ald_optfreq2.log"
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "c1ccc2ccccc2c1-c1cccc2ccccc12"
+      ],
+      "properties": {
+        "name": "(aM)-1,1'-binaphthyl pre-reaction complex: the single, lowest-energy twisted ground-state conformer (the reactant is one molecule, so the pre-reaction complex is the (M) conformer itself, not separated monomers)",
+        "stereochemistry": "(aM) axial chirality (helix sense counter-clockwise along C1->C1'): torsion C2-C1-C1'-C2' = -69.4 deg (qm-axial sign convention +69.40), ring-plane angle 71.0 deg, C1-C1' = 1.491 A, closest inter-naphthyl H...H 3.00 A",
+        "conformer_check": "only one conformer family exists: a rigidly rotated 105 deg start (qm/g16/M_phi105_optfreq.log) relaxes back to |phi| = 69.4 deg, E identical to 2e-8 Ha, 0 imaginary frequencies; GFN2-xTB ensemble agrees",
+        "energy_hartree": -770.125109347,
+        "evidence_log": "qm/g16/M_min_optfreq.log"
+      }
+    },
+    {
+      "id": "TS_anti",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "anti/trans channel saddle: centrosymmetric (Ci) coplanar rotation transition state of the biaryl axis. NOTE the evidence file name is TS_syn_optfreq.log; the file name is mislabelled, the content is the anti/Ci saddle (documented mapping: TS_syn_optfreq.log = anti TS, TS_anti_optfreq.log = syn TS)",
+        "geometry": "torsion C2-C1-C1'-C2' = 180.0 deg, ring planes coplanar, C1-C1' = 1.497 A, both naphthalenes butterflied 13.6 deg out of plane (literature 13-14 deg), closest inter-naphthyl H...H 1.77 A (peri H8...H2')",
+        "imaginary_mode": "-38.77 cm-1, the biaryl torsion: counter-rotating ring A/ring B displacements; displacing +-1.5 along it and relaxing gives the (P) and (M) minima (qm/g16/relax_anti_p.log, qm/g16/relax_anti_m.log)",
+        "energy_hartree": -770.087695763,
+        "evidence_log": "qm/g16/TS_syn_optfreq.log"
+      }
+    },
+    {
+      "id": "TS_syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "syn/cis channel saddle: twisted syn (peri-hydrogen-clash) rotation transition state of the biaryl axis. NOTE the evidence file name is TS_anti_optfreq.log; mislabelled, content is the syn saddle",
+        "geometry": "torsion C2-C1-C1'-C2' = -27.3 deg (twisted, not coplanar - literature syn saddle is also twisted, ~27 deg), ring planes 14.2 deg, C1-C1' = 1.521 A, closest inter-naphthyl H...H 1.58 A (peri H8...H8'), the shorter/harder contact of the two channels",
+        "imaginary_mode": "-57.54 cm-1, the biaryl torsion; displacing +-1.5 along it and relaxing gives the (M) and (P) minima (qm/g16/relax_syn_p.log, qm/g16/relax_syn_m.log)",
+        "energy_hartree": -770.072775248,
+        "evidence_log": "qm/g16/TS_anti_optfreq.log"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "c1ccc2ccccc2c1-c1cccc2ccccc12"
+      ],
+      "properties": {
+        "name": "(aP)-1,1'-binaphthyl: the enantiomer of the reactant (identical constitutional graph - racemization, no bonds made or broken)",
+        "stereochemistry": "(aP) axial chirality, mirror image of RC: torsion C2-C1-C1'-C2' = +69.4 deg (qm-axial sign convention -69.40), ring-plane angle 71.0 deg, C1-C1' = 1.491 A; E(P) - E(M) = 0.000000 Ha (degenerate enantiomers)",
+        "energy_hartree": -770.125109347,
+        "evidence_log": "qm/g16/P_min_optfreq.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_anti",
+      "from": "RC",
+      "to": "P",
+      "via": "TS_anti",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 23.48,
+      "channel": "anti/trans (Ci, torsion 180 deg) - operative channel, matches experiment 23.5-24.1 kcal/mol",
+      "favored": true
+    },
+    {
+      "id": "e_syn",
+      "from": "RC",
+      "to": "P",
+      "via": "TS_syn",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 32.84,
+      "channel": "syn/cis (twisted, torsion 27 deg) - competing higher-barrier channel, +9.36 kcal/mol above the anti channel",
+      "favored": false
+    }
+  ]
+}

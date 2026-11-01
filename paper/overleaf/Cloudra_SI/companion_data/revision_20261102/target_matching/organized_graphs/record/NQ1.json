@@ -1,0 +1,110 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CCOc1ccccc1"
+      ],
+      "properties": {
+        "energy_hartree": -423.895030658,
+        "evidence_log": "runs/species_min/r/gjf/r_folded_relax.log",
+        "note": "Lowest-energy (folded, chair-like pre-reaction) conformer of allyl phenyl ether; B3LYP-D3(BJ)/def2-SVP Opt+Freq, 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -423.839532072,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+        "note": "Concerted chair-like [3,3]-sigmatropic transition state, 1 imaginary frequency (-381.5 cm-1)."
+      }
+    },
+    {
+      "id": "INT",
+      "role": "intermediate",
+      "smiles": [
+        "O=C1C(CC=C)C=CC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -423.877658659,
+        "evidence_log": "runs/species_min/int/gjf/int_c0.log",
+        "note": "6-Allylcyclohexa-2,4-dienone, lowest conformer; 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -423.789412346,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0004/ts_opt/refine.log",
+        "note": "Intramolecular 1,3-H shift (enolization) transition state, 1 imaginary frequency (-2150.2 cm-1)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "Oc1ccccc1CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -423.912643199,
+        "evidence_log": "runs/species_min/p/gjf/p_c0.log",
+        "note": "2-Allylphenol, lowest conformer; 0 imaginary frequencies."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 34.8,
+      "channel": "concerted [3,3]-sigmatropic (chair)"
+    },
+    {
+      "id": "e2",
+      "from": "INT",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            6,
+            14
+          ]
+        ],
+        "form": [
+          [
+            4,
+            14
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 55.4,
+      "channel": "1,3-H shift (enolization)"
+    }
+  ],
+  "metadata": {
+    "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1; electronic energies only (no ZPE/thermal)",
+    "atom_map_convention": "1=terminal allyl CH2, 2=allyl CH, 3=CH2-O, 4=O, 5=ipso C, 6=ortho C, 14=ortho H that migrates"
+  }
+}

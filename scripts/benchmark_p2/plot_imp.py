@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-import json
 import sys
 from pathlib import Path
 from statistics import mean
@@ -16,6 +15,7 @@ import figure_style as style  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from matplotlib.colors import LinearSegmentedColormap, to_rgb  # noqa: E402
+from matplotlib.ticker import MaxNLocator, StrMethodFormatter  # noqa: E402
 
 ARMS = ("guided", "standard", "record", "brief-errors")
 LABELS = {"guided": "Guided", "standard": "Backbone", "record": "Record", "brief-errors": "Brief"}
@@ -85,12 +85,52 @@ def main() -> None:
     publication_scores = read_csv(args.source_dir / "publication_scores_per_run.csv")
     assert len(publication_scores) == 200
     matrix = [row for row in publication_scores if row["tier"] == "impossible"]
-    brief_data = args.source_dir / "brief_imp"
-    deltas = read_csv(brief_data / "imp_brief_minus_guided.csv")
-    summary = json.loads((brief_data / "imp_summary.json").read_text(encoding="utf-8"))
-    assert len(matrix) == 40 and len(deltas) == 10
+    assert len(matrix) == 40
     lookup = {(row["arm"], row["task"]): row for row in matrix}
     assert set(lookup) == {(arm, task) for arm in ARMS for task in TASKS}
+    deltas = []
+    for task in TASKS:
+        brief, guided = lookup["brief-errors", task], lookup["guided", task]
+        difference = float(brief["score"]) - float(guided["score"])
+        deltas.append(
+            {
+                "task": task,
+                "brief_final": float(brief["score"]),
+                "guided_final": float(guided["score"]),
+                "brief_minus_guided": difference,
+                "task_winner": "brief-errors" if difference > 0 else "guided" if difference < 0 else "tie",
+                **{
+                    "delta_" + metric + "_weighted": weight * (float(brief[field]) - float(guided[field]))
+                    for metric, field, weight in [
+                        ("graph", "graph_publication", 0.1),
+                        ("selfc", "selfc_all_publication", 0.3),
+                        ("accuracy", "accuracy_publication", 0.6),
+                    ]
+                },
+            }
+        )
+    comparisons = [
+        row
+        for row in read_csv(args.source_dir / "tier_pairwise.csv")
+        if row["track"] == "official_repaired"
+        and row["tier"] == "impossible"
+        and row["arm_a"] == "guided"
+        and row["arm_b"] == "brief-errors"
+    ]
+    assert len(comparisons) == 1
+    paired = comparisons[0]
+    summary = {
+        "official_mean_difference": mean(row["brief_minus_guided"] for row in deltas),
+        "task_wins": {
+            arm: sum(row["task_winner"] == arm for row in deltas) for arm in ["brief-errors", "guided", "tie"]
+        },
+        "weighted_component_mean_deltas": {
+            metric: mean(row["delta_" + metric + "_weighted"] for row in deltas)
+            for metric in ["graph", "selfc", "accuracy"]
+        },
+        "paired_bootstrap_ci": {"low": -float(paired["ci_high"]), "high": -float(paired["ci_low"])},
+    }
+    assert abs(summary["official_mean_difference"] + float(paired["mean_difference"])) < 1e-10
     delta_lookup = {row["task"]: row for row in deltas}
     mean_lookup = {arm: mean(float(lookup[arm, task]["score"]) for task in TASKS) for arm in ARMS}
     means = [{"arm": arm, "n": len(TASKS), "composite_mean": mean_lookup[arm]} for arm in ARMS]
@@ -167,7 +207,13 @@ def main() -> None:
             color=style.WHITE if inside else style.INK,
             weight="bold" if TASKS[index] in ("IA1", "IA9", "IG8") else "normal",
         )
-    fig.text(0.102, 44.5 / 120, "Brief higher: 3     Guided higher: 5     Tied: 2", fontsize=7.4)
+    wins = summary["task_wins"]
+    fig.text(
+        0.102,
+        44.5 / 120,
+        f"Brief higher: {wins['brief-errors']}     Guided higher: {wins['guided']}     Tied: {wins['tie']}",
+        fontsize=7.4,
+    )
 
     style.panel(fig, "e", "Mean score contributions", 0.562, 51.5 / 120)
     contribution_ax = fig.add_axes([0.626, 12 / 120, 0.335, 29.5 / 120])
@@ -182,8 +228,9 @@ def main() -> None:
     )
     contribution_ax.axhline(0, color=style.INK, linewidth=0.65)
     contribution_ax.set_xticks(range(4), ("Graph\n× 0.1", "SC\n× 0.3", "Accuracy\n× 0.6", "Total"))
-    contribution_ax.set_ylim(-0.028, 0.081)
-    contribution_ax.set_yticks((-0.02, 0, 0.04, 0.08), ("−0.02", "0", "+0.04", "+0.08"))
+    contribution_ax.set_ylim(min(-0.04, min(contributions) * 2.2), max(0.081, max(contributions) * 1.35))
+    contribution_ax.yaxis.set_major_locator(MaxNLocator(nbins=4))
+    contribution_ax.yaxis.set_major_formatter(StrMethodFormatter("{x:+.2f}"))
     contribution_ax.set_ylabel("Mean score difference", fontsize=7.5, labelpad=3)
     style.clean_axis(contribution_ax, grid="y")
     for index, value in enumerate(contributions):
@@ -239,10 +286,29 @@ def main() -> None:
         "task_deltas": deltas,
         "arm_means": means,
         "summary": summary,
-        "component_rounding_note": "Mean component contributions sum to +0.0378933; saved composite delta is +0.0378800 because final scores are rounded.",
+        "component_rounding_note": (
+            f"Mean component contributions sum to {sum(contributions[:3]):+.7f}; "
+            f"saved composite delta is {contributions[3]:+.7f} because final scores are rounded."
+        ),
         "interpretation": "Scores are not scientific acceptance rates. Accuracy zero does not universally mean an incorrect refusal. All totals and components use the complete offline organization track in the local publication CSV.",
     }
-    caption = """Impossible-tier outcomes after offline organization and scoring. (a–c) Composite score, self-consistency (SC), and accuracy for ten tasks and four arms, using the same complete scoring track and a shared 0–1 color scale. Backbone denotes the standard arm using the same backbone model. Brief averages 0.483 and Guided 0.445. (d) Brief-minus-Guided differences concentrate the Brief advantage in IA1 and IA9, with an opposite outcome in IG8; Guided scores higher on five tasks, Brief on three, and two tie. (e) The +0.03788 mean difference comprises accuracy +0.06000, Graph −0.00661, and SC −0.01550 after weighting; the small sum discrepancy reflects saved-score rounding. The paired task-bootstrap 95% interval is −0.188 to +0.284. Accuracy zero does not universally indicate an incorrect refusal, and component or composite scores are not scientific acceptance rates."""
+    interval = summary["paired_bootstrap_ci"]
+    caption = (
+        "Impossible-tier outcomes after offline organization and scoring. "
+        "(a–c) Composite score, self-consistency (SC), and accuracy for ten tasks and four arms, "
+        "using the same complete scoring track and a shared 0–1 color scale. Backbone denotes "
+        "the standard arm using the same backbone model. "
+        f"Brief averages {mean_lookup['brief-errors']:.3f} and Guided {mean_lookup['guided']:.3f}. "
+        f"(d) Guided scores higher on {wins['guided']} tasks, Brief on {wins['brief-errors']}, "
+        f"and {wins['tie']} tie. "
+        f"(e) The {summary['official_mean_difference']:+.5f} mean difference comprises "
+        f"accuracy {weighted['accuracy']:+.5f}, Graph {weighted['graph']:+.5f}, "
+        f"and SC {weighted['selfc']:+.5f} after weighting; the small sum discrepancy reflects "
+        "saved-score rounding. The paired task-bootstrap 95% interval is "
+        f"{interval['low']:+.3f} to {interval['high']:+.3f}. "
+        "Accuracy zero does not universally indicate an incorrect refusal, and component "
+        "or composite scores are not scientific acceptance rates."
+    )
     style.save(fig, args.output, "bench_imp", data, caption)
     print(args.output / "bench_imp.png")
 

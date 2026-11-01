@@ -1,0 +1,66 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[F-].CCCl"
+      ],
+      "properties": {
+        "energy_hartree": -639.003420918,
+        "evidence_log": "species/RC_outer.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -639.002077378,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.F.[Cl-]"
+      ],
+      "properties": {
+        "energy_hartree": -639.022951037,
+        "evidence_log": "species/P_outer.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            5
+          ],
+          [
+            2,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0.84
+    }
+  ]
+}

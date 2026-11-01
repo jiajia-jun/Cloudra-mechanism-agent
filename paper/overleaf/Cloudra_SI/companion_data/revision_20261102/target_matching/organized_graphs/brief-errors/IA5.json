@@ -1,0 +1,129 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC1"
+      ],
+      "properties": {
+        "name": "Cyclobutene, pre-reaction minimum (neutral, closed shell, gas phase, thermal)",
+        "method": "Gaussian 16, PM7 (semi-empirical)",
+        "electronic_energy_hartree": 0.0592543374,
+        "frequencies_all_real": true,
+        "lowest_frequency_cm": 343.03,
+        "evidence_log": [
+          "rc/cyclobutene_optfreq.log",
+          "rc/rc_from_irc_optfreq.log",
+          "rc/rc_irc2_optfreq.log"
+        ]
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "Four-centre ring-opening transition state, C2-symmetric (conrotatory character): C3-C4 2.108 A, C1-C2 1.390 A, C2-C3 = C1-C4 1.415 A",
+        "method": "Gaussian 16, PM7 (semi-empirical)",
+        "electronic_energy_hartree": 0.1127547445,
+        "imaginary_frequency_cm": -838,
+        "symmetry_check": "Proper 2-fold operation reproduces the saddle at rmsd 0.0008 A, the corresponding mirror operation only at 1.10 A; CH2 azimuth changes -10.1/-41.0 deg (C3) vs -9.7/-40.6 deg (C4) in a common frame, i.e. both termini rotate in the same sense.",
+        "irc_evidence_log": [
+          "irc/irc_from_ts_full.log"
+        ],
+        "evidence_log": [
+          "ts/explor_ts_dis2.log"
+        ]
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "name": "1,3-Butadiene, gauche s-cis rotamer reached by the IRC (C1-C2-C3-C4 torsion about 40 deg, C3...C4 3.04 A); the planar s-cis form is not the PM7 minimum (soft 78.6 cm-1 torsion)",
+        "method": "Gaussian 16, PM7 (semi-empirical)",
+        "electronic_energy_hartree": 0.0442136744,
+        "frequencies_all_real": true,
+        "lowest_frequency_cm": 78.61,
+        "evidence_log": [
+          "product/prod_from_irc_optfreq.log",
+          "product/prod_irc2_optfreq.log"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 33.6,
+      "channel": "conrotatory"
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "P",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "channel": "disrotatory",
+      "accessible": false,
+      "properties": {
+        "reason": "No opposite-sense (Cs) first-order saddle and no barrier maximum on any tested Cs cut of the PM7 surface.",
+        "map_evidence": "Two-dimensional constrained map (Gaussian 16, PM7, Opt=(ModRedundant)): terminal twist theta = 0/15/30/45 deg from the planar cyclobutene reference (mirror-related dihedrals held equal so the geometry stays exactly Cs), crossed with C3-C4 = 1.546 -> 2.546 A (0.2 A steps). Energies (eV, absolute PM7 electronic) for theta = 0: 1.6267, 1.9002, 2.6303, 3.5244, 4.4131, 5.1666; theta = 15: 2.0028, 2.1687, 2.8292, 3.6784, 4.5342, 5.2627; theta = 30: 3.2509, 3.0591, 3.4667, 4.1486, 4.8921, 5.5408; theta = 45: 5.7402, 4.7631, 4.6648, 4.9903, 5.4918, 5.9822. Every cut rises monotonically with C3-C4 after the first point relaxes; no internal maximum at any twist, i.e. no barrier top for opposite-sense (disrotatory) opening in the bond range probed. The theta = 60 deg job (job 1935) did not converge and is excluded.",
+        "map_evidence_log": [
+          "ts/scan_tw00.log",
+          "ts/scan_tw15.log",
+          "ts/scan_tw30.log",
+          "ts/scan_tw45.log"
+        ],
+        "related_evidence": "Cs-symmetric TS guesses at C3-C4 = 1.75/1.85/1.95/2.10 A relax into the C2 (conrotatory) saddle TS1 (jobs 1905, 1909) or into a planar C2v cyclobutene minimum +25.0 kcal/mol (job 1907, ts/expl_d185_t50.log); a fixed-twist 1-D Cs cut (job 1929, ts/cs_scan2.log) also rises monotonically.",
+        "interpretation": "The disrotatory barrier cannot be quoted at the xTB/PM7 level used here; only the conrotatory ring-opening barrier (33.6 kcal/mol, edge e1) is trustworthy for this system at this level of theory.",
+        "scope_of_claim": "BOUNDED CLAIM: four azimuth dihedrals were frozen per cut, terminal twist 60 deg (job 1935) did not converge (Gaussian l9999) and C3-C4 beyond 2.546 A was not scanned. The statement is therefore 'no opposite-sense (disrotatory) barrier top in the explored Cs region of the PM7 surface (twist 0-45 deg, C3-C4 1.55-2.55 A)', NOT an unconstrained proof that no disrotatory saddle exists. The unconverged 60 deg job is a known limitation of this negative result.",
+        "no_number": "No activation barrier is attached to this channel: the requested disrotatory pathway is reported as not accessible at the xTB/PM7 level. Only the conrotatory edge e1 may be quoted as an activation barrier (33.6 kcal/mol, PM7 electronic dE, no ZPE, no thermal correction, semi-empirical).",
+        "unconnected_observation": {
+          "species": "planar C2v cyclobutene conformer (Cs/C2v subspace)",
+          "electronic_energy_hartree": 0.0991516,
+          "relative_to_RC_kcal_mol": 25,
+          "imaginary_frequencies": 0,
+          "description": "0 imaginary frequencies; planar heavy-atom skeleton (plane rmsd 0.000) with mirror-symmetric CH2 hydrogens; intact cyclobutene ring with C1-C4 stretched to 1.663 A (C1=C2 1.337, C2-C3 1.505, C3-C4 1.546, C1-C3 2.197, C2-C4 2.075). A displaced cyclobutene conformer on the Cs/C2v subspace, not a ring-opened species. No IRC was run, so what it connects to is unexplored; it must not be read as an intermediate on the delivered path.",
+          "status": "characterised but unconnected: no IRC was run, it is not an intermediate of the mechanism and carries no edge. Recorded as a species node only in the process notes; kept here as a property so no role field can misread it as a mechanism intermediate.",
+          "evidence_log": [
+            "ts/expl_d185_t50.log"
+          ]
+        }
+      }
+    }
+  ]
+}

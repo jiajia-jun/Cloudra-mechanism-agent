@@ -1,0 +1,138 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC(O)CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.627491873,
+        "evidence_log": "work/minima/rc_2.log",
+        "note": "lowest-energy B3LYP-D3(BJ)/def2-SVP gas-phase conformer of 1,5-hexadien-3-ol (6 conformers converged); Opt=Tight+Freq, 0 imaginary"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC(O)CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.575169218,
+        "evidence_log": "work/ts1b/ts/ts1_opt_b.log",
+        "note": "Concerted chair-like [3,3]-sigmatropic oxy-Cope saddle: Opt=(TS,CalcFC,NoEigentest) Freq, B3LYP/def2-SVP/GD3BJ gas phase, title 'smiles: C=CC(O)CC=C'; Normal termination, exactly one imaginary frequency -522.82 cm^-1 whose mode is fully concerted (C1...C6 forming 0.921, C3-C4 breaking 0.896, opposite phases). Geometry at the saddle: C1...C6 2.165 A, C3...C4 2.081 A, C1=C2 1.390, C2-C3 1.412, C5-C6 1.392 A, C3-OH 1.43 A, ring dihedrals -104/+117/-105 deg (chair-like, puckered). Independently reproduced: work/ts1/ts1_opt/freq_chk.log, E = -309.575083652 Ha, 1 imaginary frequency -507.68 cm^-1 (same saddle, dE = 8.5e-5 Ha). ZPE correction 0.144808 Ha."
+      }
+    },
+    {
+      "id": "INT-Enol",
+      "role": "intermediate",
+      "smiles": [
+        "OC=CCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.63453003,
+        "evidence_log": "work/minima/enol_5.log",
+        "note": "lowest-energy enol minimum (hexa-1,5-dien-1-ol, OC=CCCC=C; HO on sp2 terminal carbon); Opt=Tight+Freq, 0 imaginary; enol_1 is +1.75 kcal/mol higher"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "OC=CCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.538099922,
+        "evidence_log": "work/ts2/endpoints/ts_freq_check.log",
+        "note": "Four-centre O7-C3-C2-H8 1,3-H-shift saddle (task map): O7-H8 1.315 A, H8-C2 1.517 A, O7-C3 1.277 A, C2-C3 1.416 A; exactly one imaginary frequency -2133.15 cm^-1 dominated by H8 (0.94). Same geometry/energy as the TS optimization ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log. IRC (ts/ts_0002/jobs/declaration_0003/irc/irc.log) truncated at MaxPoints=20 in both directions; connectivity established by re-optimizing both native IRC outer frames: enol side work/ts2/endpoints/enol_endpoint.log (-309.631122939 Ha, 0 imag), aldehyde side work/ts2/endpoints/aldehyde_endpoint.log (-309.645810315 Ha, 0 imag)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=CCCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.649483748,
+        "evidence_log": "work/minima/p_1.log",
+        "note": "hex-5-enal; Opt=Tight+Freq, 0 imaginary"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT-Enol",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "channel": "concerted [3,3]-oxy-Cope (chair)",
+      "favored": true,
+      "barrier_kcal_mol": 32.83,
+      "barrier_note": "E(TS1) - E(lowest verified RC conformer work/minima/rc_2.log) = -309.575169218 - (-309.627491873) Ha = 0.052322655 Ha; electronic energy, no ZPE. Rate-limiting barrier is the enol-keto step (60.51 kcal/mol), not this one."
+    },
+    {
+      "id": "e2",
+      "from": "INT-Enol",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            7,
+            8
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            2,
+            8
+          ],
+          [
+            3,
+            7
+          ]
+        ]
+      },
+      "channel": "enol-keto 1,3-H shift",
+      "favored": true,
+      "barrier_kcal_mol": 60.51,
+      "barrier_note": "E(TS2) - E(lowest verified enol minimum work/minima/enol_5.log) = -309.538099922 - (-309.634530030) Ha; rate-determining step."
+    }
+  ]
+}

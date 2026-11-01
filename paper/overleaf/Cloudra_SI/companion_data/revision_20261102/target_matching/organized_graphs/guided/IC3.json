@@ -1,0 +1,94 @@
+{
+  "nodes": [
+    {
+      "id": "sp_1fd25e06",
+      "role": "reactant",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "properties": {
+        "name": "phenylnitrene, 3A2 triplet ground state",
+        "charge": 0,
+        "multiplicity": 3,
+        "electronic_state": "3A2 triplet (unrestricted PM7; frequency-verified stationary point described in the bound log)",
+        "level_of_theory": "Gaussian 16 PM7 (unrestricted formalism selected automatically for multiplicity>1, E(UPM7)); GFN2-xTB cross-check; gas phase",
+        "singlet_triplet_gap_kcal_mol": 15,
+        "state_ordering": "phenylnitrene triplet (3A2) below the lowest singlet (1A2) by about 15 kcal/mol",
+        "lowest_singlet_character": "open-shell (biradical) singlet, 1A2: the 3A2 configuration singlet-coupled, i.e. two singly occupied orbitals (one N-centred, one delocalised over the ring pi system) with strong imine biradical character. This state is NOT representable at the whitelisted level of theory (xtb/pm7), so the open-shell singlet node is marked accessible: false.",
+        "singlet_triplet_gap_basis": "high-level benchmark value for the true 1A2-3A2 adiabatic gap: MRCI/CBS 15.9 kcal/mol and PhN- photoelectron re-analysis 14.8 kcal/mol (15.0 +/- 1 recommended); not obtainable from the xtb/pm7 whitelist",
+        "pm7_closed_shell_singlet_gap_kcal_mol": 45.94,
+        "pm7_note": "PM7 can only reach the closed-shell 1A1 singlet (nitrenium-like, quinoid C=N). Its adiabatic energy is 45.94 kcal/mol above the PM7 3A2 minimum. That 45.94 kcal/mol is the separation of two computed states (3A2 and 1A1); it is NOT the singlet-triplet gap, and it can only be read as an upper bound on that gap if PM7 happens to keep the open-shell 1A2 state below the 1A1 state, an ordering that was never computed. GFN2-xTB cannot resolve the states at all: its uhf=0 solution is a Fermi-smeared fractionally occupied ensemble, so its -1.65 kcal/mol is an artefact.",
+        "evidence_log": [
+          "nitrene_t_final.log",
+          "nitrene_t_pm7_optfreq.log"
+        ],
+        "dag_target_id": "sp_1fd25e06",
+        "geometry_check_note": "The DAG's automated geometry check reports 'incomplete' for this species only because it cannot perceive a monovalent nitrenyl nitrogen in the mandated SMILES [N]c1ccccc1; the SMILES is kept unchanged and the native log is the evidence."
+      }
+    },
+    {
+      "id": "sp_328f0f69",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "properties": {
+        "name": "phenylnitrene, closed-shell 1A1 singlet (the only spin-pure singlet reachable at the whitelist level)",
+        "charge": 0,
+        "multiplicity": 1,
+        "electronic_state": "1A1 closed-shell (restricted PM7, S**2 = 0 by construction); quinoid C=N 1.281 A with ring bonds 1.456/1.379/1.400 A",
+        "level_of_theory": "Gaussian 16 PM7, restricted closed-shell formalism (E(RPM7)); gas phase",
+        "note": "Frequency-verified PM7 minimum: normal termination, opt converged, 0 imaginary frequencies (131.58/257.67/394.66 cm-1), see nitrene_s_final.log (bound geometry evidence, reviewed). This is not the lowest singlet of phenylnitrene; it is the nitrenium-like 1A1 state, computed only because a broken-symmetry 1A2 calculation is unavailable at the whitelisted level.",
+        "evidence_log": [
+          "nitrene_s_final.log",
+          "nitrene_s_pm7_optfreq.log"
+        ],
+        "dag_target_id": "sp_328f0f69"
+      }
+    },
+    {
+      "id": "sp_d44ee4c6",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "accessible": false,
+      "properties": {
+        "name": "phenylnitrene, lowest singlet 1A2 (open-shell biradical)",
+        "charge": 0,
+        "multiplicity": 1,
+        "electronic_state": "1A2 open-shell singlet (biradical)",
+        "accessible": false,
+        "note": "Not computable with the allowed methods (xtb, pm7): a spin-pure open-shell singlet needs broken-symmetry UHF (UPM7 / UHF route token), which the method policy intercepts, and GFN2-xTB has no broken-symmetry control (its uhf=0 solution is a fractionally occupied 300 K ensemble). Character taken from the literature; no barrier or gap value is claimed from this graph for this node.",
+        "dag_target_id": "sp_d44ee4c6"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_c4351c45",
+      "from": "sp_1fd25e06",
+      "to": "sp_328f0f69",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "adiabatic electronic state change (triplet -> closed-shell singlet)",
+      "note": "non-elementary electronic state change: no saddle point, no IRC"
+    },
+    {
+      "id": "step_b4c6d606",
+      "from": "sp_1fd25e06",
+      "to": "sp_d44ee4c6",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "accessible": false,
+      "channel": "adiabatic electronic state change (triplet -> lowest open-shell singlet 1A2)",
+      "note": "not computable at the whitelisted level; no number declared"
+    }
+  ]
+}

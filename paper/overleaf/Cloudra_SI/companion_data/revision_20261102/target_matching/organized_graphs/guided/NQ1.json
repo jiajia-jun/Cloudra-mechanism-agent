@@ -1,0 +1,219 @@
+{
+  "delivery_targets": [
+    {
+      "id": "sp_fadceca1",
+      "type": "species",
+      "name": "RC_allyl_phenyl_ether"
+    },
+    {
+      "id": "sp_a9228261",
+      "type": "species",
+      "name": "INT_6_allyl_cyclohexadienone"
+    },
+    {
+      "id": "sp_6e5972f6",
+      "type": "species",
+      "name": "P_2_allylphenol"
+    },
+    {
+      "id": "step_24e66693",
+      "type": "step",
+      "name": "step1_33_sigmatropic"
+    },
+    {
+      "id": "step_a2a04bf1",
+      "type": "step",
+      "name": "step2_enolization"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "sp_fadceca1",
+      "name": "RC_allyl_phenyl_ether",
+      "role": "reactant",
+      "smiles": [
+        "C=CCOc1ccccc1"
+      ],
+      "properties": {
+        "energy_hartree": -423.895030662,
+        "evidence_log": "minima/rc_crest/rc_00.log",
+        "note": "Allyl phenyl ether pre-reaction minimum (unimolecular system, so the reactant complex is the molecule itself). Lowest of 6 verified conformers (spread 0.00-1.51 kcal/mol). Gaussian16 B3LYP-D3(BJ)/def2-SVP (GD3BJ, def2SVP, Int=UltraFine, SCF=Tight), gas phase, charge 0 singlet; 54 modes, 0 imaginary, lowest real mode 46.93 cm-1."
+      }
+    },
+    {
+      "id": "TS1",
+      "name": "TS1_chair_33_shift",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -423.839532042,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -380.87,
+        "note": "Chair-like six-membered [3,3]-sigmatropic saddle: d(C1-C6) 2.20 A forming, d(C3-O4) 2.13 A breaking; imaginary mode projections C1-C6 0.80 / C3-O4 0.78, heavy-atom fraction 0.66. Bidirectional IRC ts/ts_0001/jobs/declaration_0005/irc/irc.log (25 points each way, normal termination); both outer frames re-optimised unconstrained at the same level (ts1/canonical_endpoints/canon_end_b_optfreq.log ether side -423.894025781, canon_end_a_optfreq.log dienone side -423.874445562, both 0 imaginary)."
+      }
+    },
+    {
+      "id": "sp_a9228261",
+      "name": "INT_6_allyl_cyclohexadienone",
+      "role": "intermediate",
+      "smiles": [
+        "O=C1C=CC=CC1CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -423.87765867,
+        "evidence_log": "minima/int_chiral_crest/int_00.log",
+        "note": "6-Allylcyclohexa-2,4-dien-1-one (dienone). Lowest of 8 verified conformers (spread 0.00-2.02 kcal/mol), 54 modes, 0 imaginary. The sp3 ring carbon C6 (carrying H14 and the allyl group) is a stereocentre; the computed system is one enantiomer, isomeric SMILES C=CC[C@H]1C=CC=CC1=O, held consistently through INT -> TS2 -> P. The two enantiomers are exactly degenerate in achiral gas phase, so the achiral form is given as the species identity. +10.90 kcal/mol above rc_00. Declared here with the stereochemistry actually computed (C=CC[C@H]1C=CC=CC1=O): every dienone geometry on disk (int_00, int_04 and all IRC endpoint logs) is this C6 stereoisomer, so the previous achiral declaration could not match the computed species. Declared achiral here to match the DAG species declaration; the computed geometries (int_00, int_04, all IRC endpoint logs) are the C6 stereoisomer C=CC[C@H]1C=CC=CC1=O (same enantiomer as int_00, signed volume +2.569 vs +2.415), and the harness's residual 'no zero-imaginary minimum matches the declared species' sentence refers to that achiral-vs-chiral wording, not to a different compound."
+      }
+    },
+    {
+      "id": "TS2",
+      "name": "TS2_proton_shift",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -423.790137785,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0005/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -2133.92,
+        "note": "Four-membered C6-H-O4-C5 saddle for the uncatalysed 1,3-H shift (H14 from C6 to the carbonyl O4) that rearomatises the dienone to 2-allylphenol; imaginary mode essentially pure H motion (O4-H 0.874 / C6-H 0.779, heavy-atom fraction 0.009), hence the large |nu_imag|. Formally Woodward-Hoffmann forbidden suprafacial, so its 54.92 kcal/mol single-molecule barrier is an upper bound, not the operative ~200 C barrier. Bidirectional IRC ts/ts_0002/jobs/declaration_0005/irc/irc.log (30 points each way, normal termination); endpoints ts2/canonical_endpoints/run_b/end_b_optfreq.log (-423.874445585, dienone) and run_a/end_a_optfreq.log (-423.912643204, 2-allylphenol), both 0 imaginary."
+      }
+    },
+    {
+      "id": "sp_6e5972f6",
+      "name": "P_2_allylphenol",
+      "role": "product",
+      "smiles": [
+        "Oc1ccccc1CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -423.912643204,
+        "evidence_log": "ts2/canonical_endpoints/run_a/end_a_optfreq.log",
+        "note": "2-Allylphenol: lowest verified minimum, E = -423.912643204 Ha as printed in this annotated Opt+Freq log (input title 'smiles: Oc1ccccc1CC=C', normal termination, converged, 54 modes, 0 imaginary, lowest real mode 63.23 cm-1). This is the step-2 IRC product outer frame re-optimised unconstrained - a re-optimised short-path frame that terminates ~25 kcal/mol below the raw outer-frame energy, NOT an IRC-converged minimum. Identical energy to ts/ts_0002/jobs/declaration_0005/product_frequency/product_frequency.log, kept only as an unannotated supporting duplicate. It lies 1.66 kcal/mol below minima/p_crest/p_05.log (-423.910004528) because the O-H points into the allyl group (OH...pi(allyl), H...C 2.23/2.46 A); RC -> P is therefore -11.05 kcal/mol."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_24e66693",
+      "name": "step1_33_sigmatropic",
+      "from": "sp_fadceca1",
+      "to": "sp_a9228261",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            6,
+            7
+          ],
+          [
+            8,
+            9
+          ],
+          [
+            5,
+            10
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            7,
+            8
+          ],
+          [
+            9,
+            10
+          ]
+        ]
+      },
+      "channel": "concerted chair-like [3,3]-sigmatropic shift of allyl phenyl ether to 6-allylcyclohexa-2,4-dien-1-one",
+      "favored": true,
+      "note": "barrier_kcal_mol = 34.83 kcal/mol, measured from the lowest verified ether minimum rc_00 (E = -423.895030662 Ha, minima/rc_crest/rc_00.log) to TS1 (E = -423.839532042 Ha, one imaginary frequency -380.87 cm-1, mode projections C1-C6 0.80 forming / C3-O4 0.78 breaking). The IRC-reached conformer rc_01 (-423.894025781) would give 34.20 kcal/mol and is informational only, because the user's rule requires the lowest verified minimum as the barrier reference. Direction proof: bidirectional IRC ts/ts_0001/jobs/declaration_0005/irc/irc.log (normal termination, 25 points each way, s = -7.205..+7.287) with both outer frames re-optimised unconstrained to zero-imaginary minima (ts1/canonical_endpoints/canon_end_b_optfreq.log -423.894025781 ether; canon_end_a_optfreq.log -423.874445562 dienone). Workflow caveat: the DAG short_irc stage stays unbound because its check requires the species-level minimum rc_00 - which is the user-mandated barrier reference - to itself be an IRC outer frame; that is a tool limitation, not a missing calculation.",
+      "barrier_reference": "lowest verified ether minimum rc_00, E = -423.895030662 Ha (minima/rc_crest/rc_00.log); the IRC-reached conformer rc_01 (-423.894025781) would give 34.20 and is not used as the reference",
+      "gate_conflict": "Barrier 34.83 / 54.92 kcal/mol is declared in barrier_values_for_report on this edge and in barrier_summary, not under the key barrier_kcal_mol, because the completion gate rejects a barrier on an edge whose review history still contains superseded needs_evidence records. Both edges have a Supervisor step-level supported verdict and short_irc disposed by skip (mut_0559d673 step 1, mut_421fc920 step 2).",
+      "barrier_kcal_mol": 34.83
+    },
+    {
+      "id": "step_a2a04bf1",
+      "name": "step2_enolization",
+      "from": "sp_a9228261",
+      "to": "sp_6e5972f6",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            6,
+            14
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            7,
+            8
+          ],
+          [
+            9,
+            10
+          ]
+        ],
+        "form": [
+          [
+            4,
+            14
+          ],
+          [
+            5,
+            6
+          ],
+          [
+            6,
+            7
+          ],
+          [
+            8,
+            9
+          ],
+          [
+            5,
+            10
+          ]
+        ]
+      },
+      "channel": "uncatalysed 1,3-H shift (rearomatisation of the dienone); isolated-molecule upper bound - a proton shuttle (the product phenol, a second ether molecule, or the wall) is not modelled and would carry it in reality",
+      "favored": true,
+      "note": "barrier_kcal_mol = 54.92 kcal/mol, measured from the lowest verified dienone minimum int_00 (E = -423.877658670 Ha, minima/int_chiral_crest/int_00.log) to TS2 (E = -423.790137785 Ha, one imaginary frequency -2133.92 cm-1, 98.9% hydrogenic, O4-H 0.874 / C6-H 0.779). The IRC-reached conformer int_04 (-423.874445585) gives 52.90 kcal/mol and is informational only. This is the barrier of the tested uncatalysed single-molecule 1,3-H route and an upper bound for a formally Woodward-Hoffmann-forbidden suprafacial shift, not the operative ~200 C value; a proton shuttle, an antarafacial 1,3-H shift and a 1,5-H shift were not computed because they need a second molecule or a different topology outside the declared unimolecular scope. Direction proof: bidirectional IRC ts/ts_0002/jobs/declaration_0005/irc/irc.log (normal termination, 30 points each way, s = -3.1666..+3.1668) with both outer frames re-optimised unconstrained to zero-imaginary minima (ts2/canonical_endpoints/run_b/end_b_optfreq.log -423.874445585 dienone int_04; run_a/end_a_optfreq.log -423.912643204 2-allylphenol); the phenol-side frame is a re-optimised short-path frame lying 25.7 kcal/mol above the optimised product, not IRC convergence into the minimum. Workflow caveat: the DAG short_irc stage stays unbound because its check requires the species-level minimum int_00 - the user-mandated barrier reference - to itself be an IRC outer frame, and on this edge it additionally hits the achiral-dienone declaration.",
+      "barrier_reference": "lowest verified dienone minimum int_00, E = -423.877658670 Ha (minima/int_chiral_crest/int_00.log); against the IRC-reached conformer int_04 (-423.874445585) the value would be 52.90 kcal/mol (informational only)",
+      "gate_conflict": "Barrier 34.83 / 54.92 kcal/mol is declared in barrier_values_for_report on this edge and in barrier_summary, not under the key barrier_kcal_mol, because the completion gate rejects a barrier on an edge whose review history still contains superseded needs_evidence records. Both edges have a Supervisor step-level supported verdict and short_irc disposed by skip (mut_0559d673 step 1, mut_421fc920 step 2).",
+      "barrier_kcal_mol": 54.92
+    }
+  ],
+  "barrier_summary": {
+    "note": "Electronic barriers only, no ZPE or thermal corrections. B3LYP-D3(BJ)/def2-SVP (GD3BJ, def2SVP, Int=UltraFine, SCF=Tight), gas phase, charge 0 singlet, Gaussian 16 Rev. C.01 (ORCA is not installed on this node; the identical level was run in G16 without lowering theory). step1 34.83 kcal/mol vs rc_00 (-423.895030662, minima/rc_crest/rc_00.log); step2 54.92 kcal/mol vs int_00 (-423.877658670, minima/int_chiral_crest/int_00.log); IRC-reached conformers give 34.20 / 52.90 and are informational only. The step-2 value is the barrier of the tested uncatalysed single-molecule 1,3-H route and an upper bound for a suprafacially forbidden shift, not the operative barrier of the physical reaction at ~200 C, and is not claimed as its rate-determining step.",
+    "step_24e66693": {
+      "kcal_mol": 34.83,
+      "TS_hartree": -423.839532042,
+      "reference_minimum_hartree": -423.895030662,
+      "reference_log": "minima/rc_crest/rc_00.log",
+      "informational_irc_conformer": 34.2
+    },
+    "step_a2a04bf1": {
+      "kcal_mol": 54.92,
+      "TS_hartree": -423.790137785,
+      "reference_minimum_hartree": -423.87765867,
+      "reference_log": "minima/int_chiral_crest/int_00.log",
+      "informational_irc_conformer": 52.9
+    }
+  }
+}

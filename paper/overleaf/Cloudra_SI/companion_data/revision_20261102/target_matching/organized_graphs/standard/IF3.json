@@ -1,0 +1,89 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "accessible": true,
+      "properties": {
+        "multiplicity": 3,
+        "spin_state": "triplet",
+        "singlet_triplet_gap_kcal_mol": 46.84,
+        "state_ordering": "triplet below closed-shell singlet",
+        "gap_definition": "adiabatic electronic PM7 energy difference between the triplet minimum and the closed-shell RHF singlet minimum",
+        "triplet_energy_hartree": 0.14564451844,
+        "singlet_energy_hartree": 0.220292490427,
+        "triplet_zpe_hartree": 0.255782,
+        "singlet_zpe_hartree": 0.256334,
+        "evidence_log": [
+          "gaussian/triplet_pm7.log",
+          "gaussian/singlet_rhf_pm7.log"
+        ]
+      }
+    },
+    {
+      "id": "S0",
+      "role": "intermediate",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "accessible": true,
+      "properties": {
+        "multiplicity": 1,
+        "spin_state": "closed-shell singlet (RHF)",
+        "energy_hartree": 0.220292490427,
+        "zpe_hartree": 0.256334,
+        "evidence_log": [
+          "gaussian/singlet_rhf_pm7.log"
+        ]
+      }
+    },
+    {
+      "id": "S_BS",
+      "role": "intermediate",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "accessible": false,
+      "properties": {
+        "multiplicity": 1,
+        "spin_state": "broken-symmetry UHF singlet",
+        "energy_hartree": 0.175267250464,
+        "s2_expectation": 1.3358,
+        "note": "Heavily spin-contaminated (<S**2> = 1.336); exploratory only, not used for the declared singlet-triplet gap.",
+        "evidence_log": [
+          "gaussian/singlet_pm7_vertical.log"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "S0",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "spin-state change (triplet to closed-shell singlet)",
+      "favored": false
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "S_BS",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "exploratory broken-symmetry singlet",
+      "favored": false,
+      "note": "Spin-contaminated exploratory state; no barrier declared."
+    }
+  ]
+}

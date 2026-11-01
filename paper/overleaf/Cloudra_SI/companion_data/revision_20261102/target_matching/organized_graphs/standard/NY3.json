@@ -1,0 +1,159 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N=C=O.O"
+      ],
+      "properties": {
+        "energy_hartree": -244.935406893,
+        "evidence_log": "runs/rc_c0.log",
+        "note": "Lowest-energy HNCO...H2O pre-reaction complex (bifurcated N-H...O(water) contact), clean minimum (15 real frequencies). Four complex conformers were optimized (runs/rc_c0..c3.log); this is the lowest. The conformer actually reached by the TS1 IRC is a higher-lying complex conformer of the same species (E=-244.926200325 Ha, ts/ts_0001/jobs/declaration_0003/reactant_frequency/)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.876786001,
+        "evidence_log": "runs/ts1.log",
+        "note": "One imaginary mode -1579.2 cm^-1: water O attacks C2 while a water H transfers to N1 and C=N becomes C-N. Formally verified by ts_prepare run ts_0001 (IRC both directions, outer frames optimized to zero-imaginary minima with identities N=C=O.O and NC(=O)O)."
+      }
+    },
+    {
+      "id": "IM1",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.96649599,
+        "evidence_log": "runs/im1_opt.log",
+        "note": "Carbamic acid, lowest verified minimum (anti O-H, 15 real frequencies). The same minimum was re-reached as the IRC product endpoint (E=-244.96649606 Ha)."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.897758352,
+        "evidence_log": "runs/ts2b.log",
+        "note": "One imaginary mode -1656.7 cm^-1: the hydroxyl H moves to N1 while C2-N1 breaks and C2-O4 becomes the second C=O of CO2. Formally verified by ts_prepare run ts_0002 (IRC to separated N + O=C=O with component minimum evidence)."
+      }
+    },
+    {
+      "id": "PC",
+      "role": "product",
+      "smiles": [
+        "N.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -244.958034176,
+        "evidence_log": "runs/pc_opt.log",
+        "note": "NH3 + CO2 product complex. This loose complex is not a clean minimum at this level (two very small imaginary modes, -28.6 and -16.4 cm^-1, near-free relative motion); per-component evidence: runs/nh3_opt.log (smiles: N, E=-56.5106949583 Ha) and runs/co2_opt.log (smiles: O=C=O, E=-188.444679570 Ha), component sum -244.9553745283 Ha."
+      }
+    },
+    {
+      "id": "IM1_rot",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.953791486,
+        "evidence_log": "runs/im1_g1_opt.log",
+        "note": "Gauche O-H rotamer of carbamic acid; degenerate mirror pair, runs/im1_g1_opt.log and runs/im1_g2_opt.log give the same energy. 8.3 kcal/mol above IM1."
+      }
+    },
+    {
+      "id": "TS_rot",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.953252181,
+        "evidence_log": "runs/im1b_opt.log",
+        "note": "One imaginary mode -272.4 cm^-1 = O-H torsion; conformational transition state between IM1 and IM1_rot (C-O and N-C framework essentially unchanged)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "IM1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            4
+          ],
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 36.79,
+      "channel": "water addition across the C=N bond (carbamic-acid formation)",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "IM1",
+      "to": "PC",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            4
+          ],
+          [
+            1,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 43.13,
+      "channel": "carbamic-acid decomposition to NH3 + CO2",
+      "favored": true
+    },
+    {
+      "id": "e3",
+      "from": "IM1",
+      "to": "IM1_rot",
+      "via": "TS_rot",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 8.31,
+      "channel": "conformational O-H rotamer interconversion",
+      "favored": false
+    }
+  ]
+}

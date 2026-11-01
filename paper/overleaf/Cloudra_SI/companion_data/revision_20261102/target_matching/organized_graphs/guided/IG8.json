@@ -1,0 +1,530 @@
+{
+  "nodes": [
+    {
+      "id": "Cr2",
+      "role": "reactant",
+      "smiles": [
+        "[Cr][Cr]"
+      ],
+      "properties": {
+        "accessible": false,
+        "accessible_reason": "The ground state of Cr2 (X 1Sigma_g+) is a formal sextuple bond built from 12 electrons (sigma^2 pi^4 delta^4 plus 4s sigma^2), which requires a multi-reference treatment. Neither of the two levels of theory permitted for this task can describe it: PM7 converges to a restricted closed-shell singlet (the 12 unpaired electrons are not represented), is not size consistent along the dissociation coordinate and switches SCF solutions between neighbouring geometries; GFN2-xTB gives a WBO of only 4.28, a HOMO-LUMO gap of 0.02 eV and a dissociation energy 4.3x the experimental value. Both methods are 27-47% off in r_e and both get omega_e wrong. A bond dissociation energy from either method therefore cannot be stood behind.",
+        "bond_dissociation_energy_kcal_mol": "not declared (accessible=false) - no value at the two allowed levels of theory can be stood behind. Exploratory values, kept only to document how badly the methods fail: GFN2-xTB D_e = 141.8 kcal/mol (6.15 eV) = E(GFN2 10 A restricted-singlet point, xtb/sp/cr2_10.00/sp.log, -3.495514166 Ha) - E(GFN2 minimum r = 2.12867 A, xtb/ohess/ohess.log, -3.721548858 Ha); that asymptote is size consistent with 2xE(Cr, uhf 0) to 0.33 kcal/mol, but the value is 4.3x the experimental D_0. GFN2 atom-sum estimate (also exploratory): D_e' = 2xE(Cr, uhf 0) - E(min) = 142.2 kcal/mol. PM7 gives no self-consistent BDE at all: depending on which SCF solution / geometry is used it scatters from -312.8 kcal/mol (2xE(Cr, 7S) = 0.302784 Ha - E(min); PM7 orders the atoms correctly, so this is a legitimate PM7 atom-sum estimate and says PM7 even predicts Cr2 to be unbound) through -83.4 kcal/mol (against 2xE(Cr, closed-shell) = 0.668364 Ha) to +213.7 kcal/mol (against the literal 10 A point, which is a maximum with one imaginary mode of -17.13 cm^-1).",
+        "experimental_reference": {
+          "r_e_angstrom": 1.679,
+          "omega_e_cm1": 450,
+          "D0_eV": 1.44,
+          "D0_kcal_mol": 33.2,
+          "note": "Gas-phase Cr2 X 1Sigma_g+ reference values used only as an accuracy yardstick; not computed in this project."
+        },
+        "potential_energy_curve": {
+          "description": "Ground-state (charge 0, multiplicity 1, gas phase) Cr2 potential energy curve computed with the two permitted levels of theory: rigid fixed-geometry single points on the z axis (no constraint, no relaxation), one unchanged native log per point (see each point's 'log'). These are raw single-point energies along the Cr-Cr coordinate, not stationary-point claims.",
+          "units": "r in Angstrom; energies in Hartree (absolute, as printed by the program)",
+          "methods": {
+            "pm7_gaussian16": {
+              "method": "PM7",
+              "program": "Gaussian 16 RevC.01",
+              "n_points": 22,
+              "points": [
+                {
+                  "r_angstrom": 1.3,
+                  "energy_hartree": 11.4377921284,
+                  "log": "pm7/gjf/sp_cr2_1.30.log"
+                },
+                {
+                  "r_angstrom": 1.4,
+                  "energy_hartree": 8.4046761086,
+                  "log": "pm7/gjf/sp_cr2_1.40.log"
+                },
+                {
+                  "r_angstrom": 1.5,
+                  "energy_hartree": 6.2441278858,
+                  "log": "pm7/gjf/sp_cr2_1.50.log"
+                },
+                {
+                  "r_angstrom": 1.6,
+                  "energy_hartree": 4.1577142397,
+                  "log": "pm7/gjf/sp_cr2_1.60.log"
+                },
+                {
+                  "r_angstrom": 1.68,
+                  "energy_hartree": 3.2232755582,
+                  "log": "pm7/gjf/sp_cr2_1.68.log"
+                },
+                {
+                  "r_angstrom": 1.75,
+                  "energy_hartree": 2.5961117165,
+                  "log": "pm7/gjf/sp_cr2_1.75.log"
+                },
+                {
+                  "r_angstrom": 1.85,
+                  "energy_hartree": 1.9364006081,
+                  "log": "pm7/gjf/sp_cr2_1.85.log"
+                },
+                {
+                  "r_angstrom": 2,
+                  "energy_hartree": 1.3190850759,
+                  "log": "pm7/gjf/sp_cr2_2.00.log"
+                },
+                {
+                  "r_angstrom": 2.2,
+                  "energy_hartree": 0.9282094537,
+                  "log": "pm7/gjf/sp_cr2_2.20.log"
+                },
+                {
+                  "r_angstrom": 2.4,
+                  "energy_hartree": 0.8074702028,
+                  "log": "pm7/gjf/sp_cr2_2.40.log"
+                },
+                {
+                  "r_angstrom": 2.47,
+                  "energy_hartree": 0.8012957891,
+                  "log": "pm7/gjf/sp_cr2_2.47.log"
+                },
+                {
+                  "r_angstrom": 2.6,
+                  "energy_hartree": 0.8192940839,
+                  "log": "pm7/gjf/sp_cr2_2.60.log"
+                },
+                {
+                  "r_angstrom": 2.7,
+                  "energy_hartree": 0.7934704562,
+                  "log": "pm7/gjf/sp_cr2_2.70.log"
+                },
+                {
+                  "r_angstrom": 2.8,
+                  "energy_hartree": 0.7245234416,
+                  "log": "pm7/gjf/sp_cr2_2.80.log"
+                },
+                {
+                  "r_angstrom": 2.9,
+                  "energy_hartree": 0.7051106042,
+                  "log": "pm7/gjf/sp_cr2_2.90.log"
+                },
+                {
+                  "r_angstrom": 3,
+                  "energy_hartree": 0.8556984879,
+                  "log": "pm7/gjf/sp_cr2_3.00.log"
+                },
+                {
+                  "r_angstrom": 3.5,
+                  "energy_hartree": 0.8503427003,
+                  "log": "pm7/gjf/sp_cr2_3.50.log"
+                },
+                {
+                  "r_angstrom": 4,
+                  "energy_hartree": 0.8512185536,
+                  "log": "pm7/gjf/sp_cr2_4.00.log"
+                },
+                {
+                  "r_angstrom": 5,
+                  "energy_hartree": 0.8472571363,
+                  "log": "pm7/gjf/sp_cr2_5.00.log"
+                },
+                {
+                  "r_angstrom": 6,
+                  "energy_hartree": 0.8444620181,
+                  "log": "pm7/gjf/sp_cr2_6.00.log"
+                },
+                {
+                  "r_angstrom": 8,
+                  "energy_hartree": 0.8439028103,
+                  "log": "pm7/gjf/sp_cr2_8.00.log"
+                },
+                {
+                  "r_angstrom": 10,
+                  "energy_hartree": 1.1419104749,
+                  "log": "pm7/gjf/sp_cr2_10.00.log"
+                }
+              ],
+              "log_dir": "pm7/gjf/sp_cr2_*.log"
+            },
+            "gfn2_xtb": {
+              "method": "GFN2-xTB",
+              "program": "xtb 6.5.0",
+              "n_points": 25,
+              "points": [
+                {
+                  "r_angstrom": 1.2,
+                  "energy_hartree": 2.189268609393,
+                  "log": "xtb/sp/cr2_01.20/sp.log"
+                },
+                {
+                  "r_angstrom": 1.3,
+                  "energy_hartree": -0.236418066369,
+                  "log": "xtb/sp/cr2_01.30/sp.log"
+                },
+                {
+                  "r_angstrom": 1.4,
+                  "energy_hartree": -1.71461936035,
+                  "log": "xtb/sp/cr2_01.40/sp.log"
+                },
+                {
+                  "r_angstrom": 1.5,
+                  "energy_hartree": -2.600056352854,
+                  "log": "xtb/sp/cr2_01.50/sp.log"
+                },
+                {
+                  "r_angstrom": 1.6,
+                  "energy_hartree": -3.120059516955,
+                  "log": "xtb/sp/cr2_01.60/sp.log"
+                },
+                {
+                  "r_angstrom": 1.7,
+                  "energy_hartree": -3.41806485304,
+                  "log": "xtb/sp/cr2_01.70/sp.log"
+                },
+                {
+                  "r_angstrom": 1.8,
+                  "energy_hartree": -3.582966750664,
+                  "log": "xtb/sp/cr2_01.80/sp.log"
+                },
+                {
+                  "r_angstrom": 1.9,
+                  "energy_hartree": -3.669096365457,
+                  "log": "xtb/sp/cr2_01.90/sp.log"
+                },
+                {
+                  "r_angstrom": 2,
+                  "energy_hartree": -3.708446350311,
+                  "log": "xtb/sp/cr2_02.00/sp.log"
+                },
+                {
+                  "r_angstrom": 2.05,
+                  "energy_hartree": -3.717190867042,
+                  "log": "xtb/sp/cr2_02.05/sp.log"
+                },
+                {
+                  "r_angstrom": 2.1,
+                  "energy_hartree": -3.721038808911,
+                  "log": "xtb/sp/cr2_02.10/sp.log"
+                },
+                {
+                  "r_angstrom": 2.15,
+                  "energy_hartree": -3.721282315372,
+                  "log": "xtb/sp/cr2_02.15/sp.log"
+                },
+                {
+                  "r_angstrom": 2.2,
+                  "energy_hartree": -3.718946136892,
+                  "log": "xtb/sp/cr2_02.20/sp.log"
+                },
+                {
+                  "r_angstrom": 2.25,
+                  "energy_hartree": -3.714945505341,
+                  "log": "xtb/sp/cr2_02.25/sp.log"
+                },
+                {
+                  "r_angstrom": 2.3,
+                  "energy_hartree": -3.710421153136,
+                  "log": "xtb/sp/cr2_02.30/sp.log"
+                },
+                {
+                  "r_angstrom": 2.4,
+                  "energy_hartree": -3.704968409135,
+                  "log": "xtb/sp/cr2_02.40/sp.log"
+                },
+                {
+                  "r_angstrom": 2.5,
+                  "energy_hartree": -3.702005360558,
+                  "log": "xtb/sp/cr2_02.50/sp.log"
+                },
+                {
+                  "r_angstrom": 2.7,
+                  "energy_hartree": -3.699231711564,
+                  "log": "xtb/sp/cr2_02.70/sp.log"
+                },
+                {
+                  "r_angstrom": 3,
+                  "energy_hartree": -3.690866158297,
+                  "log": "xtb/sp/cr2_03.00/sp.log"
+                },
+                {
+                  "r_angstrom": 3.5,
+                  "energy_hartree": -3.655921524673,
+                  "log": "xtb/sp/cr2_03.50/sp.log"
+                },
+                {
+                  "r_angstrom": 4,
+                  "energy_hartree": -3.605013036513,
+                  "log": "xtb/sp/cr2_04.00/sp.log"
+                },
+                {
+                  "r_angstrom": 5,
+                  "energy_hartree": -3.528355166613,
+                  "log": "xtb/sp/cr2_05.00/sp.log"
+                },
+                {
+                  "r_angstrom": 6,
+                  "energy_hartree": -3.502562747455,
+                  "log": "xtb/sp/cr2_06.00/sp.log"
+                },
+                {
+                  "r_angstrom": 8,
+                  "energy_hartree": -3.496072076179,
+                  "log": "xtb/sp/cr2_08.00/sp.log"
+                },
+                {
+                  "r_angstrom": 10,
+                  "energy_hartree": -3.495514166366,
+                  "log": "xtb/sp/cr2_10.00/sp.log"
+                }
+              ],
+              "log_dir": "xtb/sp/cr2_*/sp.log"
+            }
+          },
+          "assessment": "PM7: steep wall below 2.0 A, a local minimum at 2.4679 A (0.80129 Ha), a non-monotonic middle section with SCF-solution switches (2.80 A = 0.72452 and 2.90 A = 0.70511 lie 0.08-0.10 Ha BELOW the 3.00-4.00 A points), a flat tail around 0.844 Ha from 4 to 8 A and a jump of +0.298 Ha at 10 A with one imaginary mode (-17.13 cm^-1) - i.e. no consistent dissociation asymptote. GFN2-xTB: monotonic rise after the minimum at 2.15 A with a very soft long tail (plateau 2.5-2.7 A), no barrier, but the dissociation energy is 4.3x the experimental value. Neither curve reproduces the experimental r_e, omega_e or D_0.",
+          "per_point_logs": "every point carries its own unchanged native log in the 'log' field; absolute paths are relative to the sandbox root"
+        },
+        "evidence_log": [
+          "pm7/gjf/optfreq_cr2.log",
+          "pm7/gjf/optfreq_cr2.gjf",
+          "pm7/gjf/opt_cr2.log",
+          "pm7/gjf/opt_cr2.gjf",
+          "pm7/gjf/freq_cr2_min.log",
+          "pm7/gjf/freq_cr2_min.gjf",
+          "pm7/gjf/opt_cr2_from2.80.log",
+          "pm7/gjf/opt_cr2_from5.736.log",
+          "pm7/gjf/freq_asym_r4.013.log",
+          "pm7/gjf/freq_branch_r5.736.log",
+          "xtb/ohess/ohess.log",
+          "xtb/opt/xtbopt.xyz",
+          "xtb/hess/vibspectrum",
+          "pm7/gjf/sp_cr2_1.30.log",
+          "pm7/gjf/sp_cr2_1.40.log",
+          "pm7/gjf/sp_cr2_1.50.log",
+          "pm7/gjf/sp_cr2_1.60.log",
+          "pm7/gjf/sp_cr2_1.68.log",
+          "pm7/gjf/sp_cr2_1.75.log",
+          "pm7/gjf/sp_cr2_1.85.log",
+          "pm7/gjf/sp_cr2_2.00.log",
+          "pm7/gjf/sp_cr2_2.20.log",
+          "pm7/gjf/sp_cr2_2.40.log",
+          "pm7/gjf/sp_cr2_2.47.log",
+          "pm7/gjf/sp_cr2_2.60.log",
+          "pm7/gjf/sp_cr2_2.70.log",
+          "pm7/gjf/sp_cr2_2.80.log",
+          "pm7/gjf/sp_cr2_2.90.log",
+          "pm7/gjf/sp_cr2_3.00.log",
+          "pm7/gjf/sp_cr2_3.50.log",
+          "pm7/gjf/sp_cr2_4.00.log",
+          "pm7/gjf/sp_cr2_5.00.log",
+          "pm7/gjf/sp_cr2_6.00.log",
+          "pm7/gjf/sp_cr2_8.00.log",
+          "pm7/gjf/sp_cr2_10.00.log",
+          "xtb/sp/cr2_01.20/sp.log",
+          "xtb/sp/cr2_01.30/sp.log",
+          "xtb/sp/cr2_01.40/sp.log",
+          "xtb/sp/cr2_01.50/sp.log",
+          "xtb/sp/cr2_01.60/sp.log",
+          "xtb/sp/cr2_01.70/sp.log",
+          "xtb/sp/cr2_01.80/sp.log",
+          "xtb/sp/cr2_01.90/sp.log",
+          "xtb/sp/cr2_02.00/sp.log",
+          "xtb/sp/cr2_02.05/sp.log",
+          "xtb/sp/cr2_02.10/sp.log",
+          "xtb/sp/cr2_02.15/sp.log",
+          "xtb/sp/cr2_02.20/sp.log",
+          "xtb/sp/cr2_02.25/sp.log",
+          "xtb/sp/cr2_02.30/sp.log",
+          "xtb/sp/cr2_02.40/sp.log",
+          "xtb/sp/cr2_02.50/sp.log",
+          "xtb/sp/cr2_02.70/sp.log",
+          "xtb/sp/cr2_03.00/sp.log",
+          "xtb/sp/cr2_03.50/sp.log",
+          "xtb/sp/cr2_04.00/sp.log",
+          "xtb/sp/cr2_05.00/sp.log",
+          "xtb/sp/cr2_06.00/sp.log",
+          "xtb/sp/cr2_08.00/sp.log",
+          "xtb/sp/cr2_10.00/sp.log"
+        ],
+        "evidence_smiles_annotation": "every input/log carries the line 'smiles: [Cr][Cr]' (dimer) or 'smiles: [Cr]' (atom)",
+        "dag": {
+          "species": "Cr2",
+          "review_id": "rev_cda751f11b774a019ad108439a264871",
+          "supervisor_decision": "dec_938226d016124c57b1777b6c00e74cf7 (accept: real verified stationary point of both allowed methods, not a trustworthy sextuple-bond description)"
+        }
+      }
+    },
+    {
+      "id": "Cr2_asymptote",
+      "role": "product",
+      "smiles": [
+        "[Cr].[Cr]"
+      ],
+      "properties": {
+        "accessible": false,
+        "accessible_reason": "The two-atom dissociation limit of the singlet curve is not a clean, consistent minimum at either allowed level of theory. Physical asymptote: the sum of two ground-state atoms, E(2xCr, 7S). The only genuine singlet-asymptote stationary point is the GFN2-xTB restricted-singlet r = 10 A flat point (2.12 cm^-1, 0 imaginary, size consistent with 2xE(Cr, uhf 0) to -0.33 kcal/mol), obtained with a frozen Cr-Cr coordinate. PM7 has no asymptote at all: its long-range stationary point at r = 6.9786 A is a plateau extremum that lies 0.5411 Ha above 2xE(Cr, 7S) and 0.1755 Ha above 2xE(Cr, closed-shell), and the literal r = 10 A point is a maximum (one imaginary mode, -17.13 cm^-1) reached by an SCF-solution switch.",
+        "computed_stationary_points": {
+          "pm7_long_range": {
+            "r_angstrom": 6.9786,
+            "energy_hartree": 0.843898446,
+            "frequencies_cm1": [
+              13.8556,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "n_imag": 0,
+            "note": "PM7 long-range plateau extremum only. It is NOT the species asymptote energy: it lies 340 kcal/mol above 2xE(Cr, 7S) and 110 kcal/mol above 2xE(Cr, closed-shell), so no PM7 BDE may be quoted from it."
+          },
+          "pm7_10A": {
+            "r_angstrom": 10,
+            "energy_hartree": 1.141910475,
+            "n_imag": 1,
+            "imaginary_cm1": -17.131,
+            "note": "maximum along the Cr-Cr coordinate"
+          },
+          "gfn2_xtb_10A": {
+            "r_angstrom": 10,
+            "energy_hartree": -3.495514166,
+            "n_imag": 0,
+            "log": "xtb/sp/cr2_10.00/sp.log",
+            "note": "single point of the two Cr atoms 10 A apart (restricted closed-shell singlet, --uhf 0); the constrained optimization + Hessian at the same distance gives -3.495516248 Ha with a 2.12 cm^-1 real mode and zero imaginary modes (xtb/asym_ohess/ohess.log), i.e. the same asymptote 0.0013 kcal/mol away"
+          },
+          "atomic_limit": {
+            "E_Cr_7S_hartree": {
+              "pm7": 0.151392137,
+              "gfn2_xtb": -1.660416971
+            },
+            "E_Cr_closed_shell_hartree": {
+              "pm7": 0.334182041,
+              "gfn2_xtb": -1.747497514
+            },
+            "note": "PM7 orders the Cr atoms correctly: mult 7 (7S, sp_cr_atom_mult7.log) = 0.151392137 Ha lies 114.70 kcal/mol BELOW mult 1 (sp_cr_atom_mult1.log) = 0.334182041 Ha. Only GFN2-xTB inverts the ordering: uhf 0 (-1.747497514 Ha) lies 54.66 kcal/mol below uhf 6 (-1.660416971 Ha)."
+          }
+        },
+        "evidence_log": [
+          "pm7/gjf/opt_cr2_from5.736.log",
+          "pm7/gjf/freq_asym_r6.979.log",
+          "pm7/gjf/freq_asym_cr2_10A.log",
+          "pm7/gjf/sp_cr2_10.00.log",
+          "pm7/gjf/cr_atomA_m7_freq.log",
+          "pm7/gjf/cr_atomB_m7_freq.log",
+          "pm7/gjf/sp_cr_atom_mult1.log",
+          "pm7/gjf/sp_cr_atom_mult7.log",
+          "xtb/asym_ohess/ohess.log",
+          "xtb/sp/cr2_10.00/sp.log",
+          "recon/xtb/sp_5.00.log"
+        ],
+        "evidence_smiles_annotation": "'smiles: [Cr].[Cr]' or 'smiles: [Cr]' in every input/log",
+        "dag": {
+          "species": "Cr2 dissociation asymptote (2 Cr atoms)",
+          "review_id": "rev_d68a8fbcd1ce4fb0a677864daa2b420d"
+        }
+      }
+    },
+    {
+      "id": "Cr_atom",
+      "role": "product",
+      "smiles": [
+        "[Cr]"
+      ],
+      "properties": {
+        "accessible": true,
+        "accessible_note": "A single Cr atom is computable at both allowed methods. PM7 reproduces the 7S < closed-shell ordering correctly; only GFN2-xTB inverts it (see atomic_state_ordering_error).",
+        "description": "Atomic reference species for the dissociation limit of the singlet dimer: the product node Cr2_asymptote ([Cr].[Cr]) is the pair of these atoms. It is kept as its own node so that the atom-sum estimate D_e' = 2*E(Cr) - E(Cr2 minimum) is a first-class graph quantity rather than a number hidden in prose. It carries no elementary step of its own (the only transformation in this graph, the Cr-Cr cleavage, is already recorded as edge e1).",
+        "E_Cr_hartree": {
+          "pm7_multiplicity_7_7S": 0.151392137,
+          "pm7_multiplicity_1": 0.334182041,
+          "gfn2_xtb_uhf_6": -1.660416971,
+          "gfn2_xtb_uhf_0": -1.747497514
+        },
+        "frequencies": {
+          "pm7_mult7": "three zero frequencies only (free translations), NImag = 0",
+          "note": "single-atom frequency jobs give no 3N-6 internal modes"
+        },
+        "atomic_state_ordering_error": "PM7 gets the Cr atomic spectrum right: the septet (7S, 3d5 4s1) lies 114.70 kcal/mol BELOW the closed-shell atom (0.151392137 vs 0.334182041 Ha). GFN2-xTB inverts it: uhf 0 (-1.747497514 Ha) lies 54.66 kcal/mol below uhf 6 (-1.660416971 Ha). The physical ground state is 7S, so any BDE built from GFN2 atoms inherits this error, while the PM7 atom-sum estimate (-312.8 kcal/mol, Cr2 unbound) is legitimate for the PM7 model.",
+        "evidence_log": [
+          "pm7/gjf/cr_atomA_m7_freq.log",
+          "pm7/gjf/cr_atomB_m7_freq.log",
+          "pm7/gjf/sp_cr_atom_mult1.log",
+          "pm7/gjf/sp_cr_atom_mult7.log",
+          "xtb/atom/atom_uhf0.log",
+          "xtb/atom/atom_uhf6.log"
+        ],
+        "evidence_smiles_annotation": "'smiles: [Cr]' in every input/log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Cr2",
+      "to": "Cr2_asymptote",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "homolytic Cr-Cr bond dissociation (ground-state singlet surface)",
+      "favored": true,
+      "accessible": false,
+      "properties": {
+        "barrier": "none: the singlet Cr2 curve is purely dissociative - its only stationary points are the bound minimum and the separated-atom limit, so no first-order saddle of the elementary step exists on the Cr-Cr coordinate and no IRC can be defined. The shallow PM7 tail extrema (r = 5.736 A, 27.97 cm^-1; r = 6.9786 A, 13.86 cm^-1), the r = 4.013 A point with one imaginary mode (-58.05 cm^-1) and the r = 10 A maximum (-17.13 cm^-1) are numerical artefacts of a non-size-consistent curve, not transition states.",
+        "note": "Bond order of the Cr-Cr pair decreases from the formally sextuple bond of the singlet minimum to zero at the dissociation limit, hence the pair is recorded in 'break'.",
+        "barrier_note_kcal_mol": "not applicable (no barrier of the elementary step; see 'barrier')"
+      },
+      "evidence_log": [
+        "pm7/gjf/opt_cr2.log",
+        "pm7/gjf/freq_cr2_min.log",
+        "pm7/gjf/sp_cr_atom_mult1.log",
+        "pm7/gjf/sp_cr_atom_mult7.log",
+        "pm7/gjf/sp_cr2_1.30.log",
+        "pm7/gjf/sp_cr2_1.40.log",
+        "pm7/gjf/sp_cr2_1.50.log",
+        "pm7/gjf/sp_cr2_1.60.log",
+        "pm7/gjf/sp_cr2_1.68.log",
+        "pm7/gjf/sp_cr2_1.75.log",
+        "pm7/gjf/sp_cr2_1.85.log",
+        "pm7/gjf/sp_cr2_2.00.log",
+        "pm7/gjf/sp_cr2_2.20.log",
+        "pm7/gjf/sp_cr2_2.40.log",
+        "pm7/gjf/sp_cr2_2.47.log",
+        "pm7/gjf/sp_cr2_2.60.log",
+        "pm7/gjf/sp_cr2_2.70.log",
+        "pm7/gjf/sp_cr2_2.80.log",
+        "pm7/gjf/sp_cr2_2.90.log",
+        "pm7/gjf/sp_cr2_3.00.log",
+        "pm7/gjf/sp_cr2_3.50.log",
+        "pm7/gjf/sp_cr2_4.00.log",
+        "pm7/gjf/sp_cr2_5.00.log",
+        "pm7/gjf/sp_cr2_6.00.log",
+        "pm7/gjf/sp_cr2_8.00.log",
+        "pm7/gjf/sp_cr2_10.00.log",
+        "xtb/sp/cr2_01.20/sp.log",
+        "xtb/sp/cr2_01.30/sp.log",
+        "xtb/sp/cr2_01.40/sp.log",
+        "xtb/sp/cr2_01.50/sp.log",
+        "xtb/sp/cr2_01.60/sp.log",
+        "xtb/sp/cr2_01.70/sp.log",
+        "xtb/sp/cr2_01.80/sp.log",
+        "xtb/sp/cr2_01.90/sp.log",
+        "xtb/sp/cr2_02.00/sp.log",
+        "xtb/sp/cr2_02.05/sp.log",
+        "xtb/sp/cr2_02.10/sp.log",
+        "xtb/sp/cr2_02.15/sp.log",
+        "xtb/sp/cr2_02.20/sp.log",
+        "xtb/sp/cr2_02.25/sp.log",
+        "xtb/sp/cr2_02.30/sp.log",
+        "xtb/sp/cr2_02.40/sp.log",
+        "xtb/sp/cr2_02.50/sp.log",
+        "xtb/sp/cr2_02.70/sp.log",
+        "xtb/sp/cr2_03.00/sp.log",
+        "xtb/sp/cr2_03.50/sp.log",
+        "xtb/sp/cr2_04.00/sp.log",
+        "xtb/sp/cr2_05.00/sp.log",
+        "xtb/sp/cr2_06.00/sp.log",
+        "xtb/sp/cr2_08.00/sp.log",
+        "xtb/sp/cr2_10.00/sp.log"
+      ]
+    }
+  ]
+}

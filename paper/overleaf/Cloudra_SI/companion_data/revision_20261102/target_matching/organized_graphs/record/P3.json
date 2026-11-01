@@ -1,0 +1,100 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CCOC=C"
+      ],
+      "properties": {
+        "energy_hartree": -270.330333957,
+        "evidence_log": "gjf/ave_cis_anti_c4_optfreq.log",
+        "label": "allyl vinyl ether, lowest-energy conformer (pre-reaction minimum; unimolecular reaction, so the reactant complex is the molecule itself)",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, Opt+Freq, 0 imaginary frequencies",
+        "conformers_surveyed": 10,
+        "note": "Lowest of 10 verified conformer minima (cis/anti c4). Reference energy for the barrier; the IRC-connected conformer (gjf/irc_frame_fwd_optfreq.log) lies +2.34 kcal/mol above it."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -270.284391516,
+        "evidence_log": "gjf/ts_chair_optfreq.log",
+        "label": "concerted chair-like [3,3]-sigmatropic Claisen transition state",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, Opt=(TS,CalcFC) Freq, exactly 1 imaginary frequency -459.4683 cm-1",
+        "imaginary_frequency_cm1": -459.4683,
+        "note": "C1-C6 = 2.342 A, C3-O4 = 1.910 A, C2-C3 = 1.404 A, O4-C5 = 1.282 A in the saddle point geometry."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=CCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -270.355290283,
+        "evidence_log": "gjf/pent4enal_optfreq.log",
+        "label": "pent-4-enal (4-pentenal)",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, Opt+Freq, 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 28.8,
+      "channel": "concerted suprafacial [3,3]-sigmatropic rearrangement, chair-like six-membered TS",
+      "favored": true,
+      "properties": {
+        "reaction_energy_kcal_mol": -15.7,
+        "barrier_reference_log": "gjf/ave_cis_anti_c4_optfreq.log",
+        "barrier_definition": "DeltaE# = E(TS1) - E(lowest reactant minimum), electronic only (no ZPE, no thermal correction)",
+        "irc_reactant_side_log": "gjf/irc_forward_lqa.log",
+        "irc_product_side_log": "gjf/irc_reverse_lqa.log",
+        "endpoint_reactant_log": "gjf/irc_frame_fwd_optfreq.log",
+        "endpoint_product_log": "gjf/irc_frame_rev_optfreq.log",
+        "note": "Atom map: reactant [CH2:1]=[CH:2][CH2:3][O:4][CH:5]=[CH2:6] -> product [O:4]=[CH:5][CH2:6][CH2:1][CH:2]=[CH2:3]. C3-O4 sigma bond breaks, C1-C6 sigma bond forms; pi bonds shift accordingly (1=2 -> 1-2, 5=6 -> 5-6, 2-3 -> 2=3, 4-5 -> 4=5). Gaussian LQA IRC from the same TS: forward path (rc 0 -> +11.44) returns to allyl vinyl ether, reverse path (rc 0 -> -11.42) runs to pent-4-enal; both outer frames re-optimized to 0-imaginary-frequency minima.",
+        "irc_bidirectional_log": "ts/ts_0001/jobs/declaration_0005/irc/irc.log",
+        "endpoint_canonical_reactant_log": "gjf/irc_frame_reactant_canonical_optfreq.log",
+        "endpoint_canonical_product_log": "gjf/irc_frame_product_canonical_optfreq.log",
+        "reference_note": "The barrier reference is the lowest verified reactant conformer (gjf/ave_cis_anti_c4_optfreq.log, -270.330333957 Ha), which need not be the conformer the IRC returns; the IRC reactant-side endpoint is the s-trans-gauche conformer (-270.326610113 Ha, +2.34 kcal/mol), giving 26.5 kcal/mol if referred to it instead."
+      }
+    }
+  ]
+}

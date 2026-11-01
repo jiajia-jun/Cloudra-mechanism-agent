@@ -1,0 +1,112 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2[C@]3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "energy_hartree": -770.125109351,
+        "evidence_log": "j1_rc_min.log",
+        "name": "(P)-1,1'-binaphthyl, twisted ground-state atropisomer (pre-reaction complex); B3LYP-D3(BJ)/def2-SVP",
+        "axial_stereochemistry": "P (defined by tau(C2-C1-C1'-C2') = +69.4 deg); SMILES carries the @ axial marker, the P/M label follows the sign convention stated here",
+        "torsion_C2-C1-C1'-C2'_deg": 69.39,
+        "interplanar_angle_deg": 71,
+        "C1-C1prime_A": 1.491,
+        "imaginary_frequencies": 0,
+        "freq_log": "j1_rc_min.log",
+        "dmf_cpcm_energy_hartree": -770.130180497,
+        "dmf_cpcm_log": "bn_dmf_sp_min.log"
+      }
+    },
+    {
+      "id": "TS-A",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -770.08769579,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+        "name": "transoid (anti) coplanar C1-C1' rotation transition state",
+        "freq_log": "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log",
+        "imaginary_frequency_cm-1": -38.72,
+        "imaginary_frequencies": 1,
+        "torsion_C2-C1-C1'-C2'_deg": 179.98,
+        "interplanar_angle_deg": 0.02,
+        "C1-C1prime_A": 1.497,
+        "dmf_cpcm_energy_hartree": -770.09335902,
+        "dmf_cpcm_log": "bn_dmf_sp_ts.log"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2[C@@]3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "energy_hartree": -770.125105935,
+        "evidence_log": "bn_P2_min.log",
+        "name": "(M)-1,1'-binaphthyl, product atropisomer (enantiomer of RC); B3LYP-D3(BJ)/def2-SVP",
+        "axial_stereochemistry": "M (tau(C2-C1-C1'-C2') = -69.4 deg) - enantiomer of RC",
+        "torsion_C2-C1-C1'-C2'_deg": -69.39,
+        "interplanar_angle_deg": 70.98,
+        "C1-C1prime_A": 1.491,
+        "imaginary_frequencies": 0,
+        "freq_log": "bn_P2_min.log"
+      }
+    },
+    {
+      "id": "TS-B",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -770.072775242,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log",
+        "name": "cisoid-channel saddle: folded/stacked arrangement that avoids full coplanarity, with the two peri H8/H8' in contact",
+        "freq_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "imaginary_frequency_cm-1": -57.52,
+        "imaginary_frequencies": 1,
+        "torsion_C2-C1-C1'-C2'_deg": -27.32,
+        "interplanar_angle_deg": 14.19,
+        "C1-C1prime_A": 1.521,
+        "peri_H8_H8prime_A": 1.58
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS-A",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 23.48,
+      "channel": "transoid (anti) coplanar C1-C1' rotation - operative racemization channel",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "P",
+      "via": "TS-B",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 32.84,
+      "channel": "cisoid channel (folds to a stacked saddle instead of reaching coplanarity) - competing, disfavored",
+      "favored": false
+    }
+  ],
+  "notes": {
+    "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16 rev C.01, gas phase, electronic energies only (no ZPE, no thermal corrections)",
+    "conditions": "thermal racemization, ~50 degC, DMF; substrate is a neutral closed-shell hydrocarbon with no acid/base/counterion partner, so the elementary step is unimolecular and the electronic barrier is the reported quantity. CPCM(DMF) single points: RC -770.130180497, TS-A -770.093359020 -> solvated barrier 23.11 kcal/mol (solvent lowers it by 0.37 kcal/mol).",
+    "bond_changes_rationale": "The step is a pure conformational/axial-inversion step: the C1-C1' bond stays a single bond (1.491 A in RC, 1.497 A in TS-A), no bond order changes, so both break and form lists are empty (atom-map indices refer to the mapped reactant SMILES: axis bond C10-C11, torsion C9-C10-C11-C12).",
+    "direction_evidence": "Gaussian IRC from TS-A could not leave the very flat torsional saddle (Bulirsch-Stoer corrector 'Delta-x Convergence NOT Met' at point 1). Direction is instead documented by a relaxed B3LYP-D3(BJ)/def2-SVP torsion scan from the TS geometry (bn_scan_down.log): D=180 +23.48, D=150 +7.13, D=120 +0.93, D=90 +0.36, D=60 +0.18 kcal/mol relative to RC, i.e. monotonic descent from the coplanar saddle into the minimum basin; the mirror-image branch is symmetry-equivalent (enantiomeric) and gives the same energies.",
+    "literature_comparison": "exp dG(298) = 24.1 kcal/mol; B3LYP-D3(BJ)/def2-TZVP//B3LYP/6-31G(d) + SMD 24.6 kcal/mol (Tan & Paton, Chem. Sci. 2018). Our electronic def2-SVP value 23.5 kcal/mol is consistent within the basis/ZPE bracket."
+  }
+}

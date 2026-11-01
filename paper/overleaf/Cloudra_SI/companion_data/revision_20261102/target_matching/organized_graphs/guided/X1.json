@@ -1,0 +1,75 @@
+{
+  "nodes": [
+    {
+      "id": "RC_beta_propiolactone",
+      "role": "reactant",
+      "smiles": [
+        "O=C1OCC1"
+      ],
+      "properties": {
+        "energy_hartree": -266.965167566,
+        "evidence_log": "bpl_rc_min_optfreq.log",
+        "dag_species": "RC_beta_propiolactone",
+        "note": "beta-propiolactone minimum, B3LYP-D3(BJ)/def2-SVP gas phase, 0 imaginary frequencies; also verified by the IRC reactant-side endpoint re-optimisation ts/ts_0001/jobs/declaration_0004/reactant_opt/reactant_opt.log (same energy)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -266.899927361,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log",
+        "dag_step": "concerted_retro22_decarboxylation",
+        "note": "concerted four-center saddle, one imaginary frequency -893.37 cm-1 (C2-C5 and O3-C4 stretch/cleave, C2-O3 and C4-C5 contract); duplicate opt log ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log; IRC both directions ts/ts_0001/jobs/declaration_0004/irc/irc.log."
+      }
+    },
+    {
+      "id": "P_ethylene_CO2",
+      "role": "product",
+      "smiles": [
+        "C=C.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -266.984900169,
+        "evidence_log": "p_complex_min_optfreq.log",
+        "dag_species": "P_ethylene_CO2",
+        "note": "ethylene + CO2 complex minimum, 0 imaginary frequencies; separated fragments ethylene_optfreq.log (-78.5355238864 Ha) and co2_optfreq.log (-188.444679570 Ha); also the IRC product-side endpoint ts/ts_0001/jobs/declaration_0005/product_opt/product_opt.log (same energy)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC_beta_propiolactone",
+      "to": "P_ethylene_CO2",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 40.94,
+      "channel": "concerted retro-[2+2] four-center cycloreversion (decarboxylation)",
+      "favored": true,
+      "note": "form lists both bond-order increases: C2-O3 (single->double, CO2 unit) and C4-C5 (single->double, ethylene unit); break lists the two ring sigma bonds cleaved."
+    }
+  ]
+}

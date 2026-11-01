@@ -1,0 +1,159 @@
+{
+  "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1 (closed shell). All reported energies are electronic energies (SCF, no ZPE/thermal correction); barriers are DeltaE-double-dagger = E(TS) - E(reference minimum).",
+  "method_limits": [
+    "Energies are electronic-only (no ZPE, no thermal/Gibbs corrections); ZPE-corrected and 298 K Gibbs values for the minima are given in PROCESS.md and shift the relative numbers by <=0.75 kcal/mol.",
+    "Single level of theory: B3LYP-D3(BJ)/def2-SVP. Estimated uncertainty of the reported electronic energy differences is about +/-1 kcal/mol for the barrier and +/-0.5 kcal/mol for the small cis/trans product gap; no higher-level single points were computed (MethodPolicy allows only xtb, PM7 and B3LYP/def2-SVP).",
+    "The IRC (keywords IRC=(CalcFC,MaxPoints=25,StepSize=10), 0.1 bohr steps) stopped at the 25-point limit in both directions (irc_both_directions_converged=false; path range about +/-4.7 sqrt(amu) bohr). Direction proof therefore rests on re-optimizing the two truncated outer frames (r(C2...C7) = 2.908 A reactant side, 1.614 A product side) with combined Opt=(CalcFC) Tight + Freq jobs, which converge to the two declared minima, not on full IRC convergence to the minima.",
+    "Reactant conformational space is sampled at the same level: four rotamers were optimized and frequency-verified (all-s-trans rot_11, the degenerate s-cis,s-trans pair rot_01/rot_10, and the cisoid rot_00); no exhaustive conformer search of the product was performed.",
+    "No saddle was located for the conrotatory/trans channel (no trans TS, so no trans barrier); P_trans is an energy reference minimum only."
+  ],
+  "nodes": [
+    {
+      "id": "RC_cisoid",
+      "role": "reactant",
+      "smiles": [
+        "C/C=C/C=C\\C=C\\C"
+      ],
+      "properties": {
+        "name": "RC_cisoid",
+        "energy_hartree": -311.825755385,
+        "evidence_log": "rot_00.log",
+        "description": "cisoid s-cis,s-cis pre-reaction conformer of (2E,4Z,6E)-octa-2,4,6-triene; t1=t2=-32.7 deg, r(C2..C7)=3.348 A, methyl-methyl dihedral C1-C2..C7-C8 = 39.6 deg (both methyls on the same ring face -> cis precursor); 0 imaginary frequencies. This is the conformer the IRC actually reaches; it is 9.03 kcal/mol above the global reactant minimum R_min_alltrans. Reproduced to 4e-9 Ha by the re-optimized reactant IRC outer frame (endpoint_reactant.log, -311.825755381, 0 imaginary)."
+      }
+    },
+    {
+      "id": "R_min_alltrans",
+      "role": "reactant",
+      "smiles": [
+        "C/C=C/C=C\\C=C\\C"
+      ],
+      "properties": {
+        "name": "R_min_alltrans",
+        "energy_hartree": -311.840147174,
+        "evidence_log": "rot_11.log",
+        "description": "Lowest verified minimum of the same (2E,4Z,6E) substrate, all-s-trans conformer (t1=t2=180 deg, r(C2..C7)=5.792 A, 0 imaginary frequencies); connected to RC_cisoid by C3-C4/C5-C6 torsions. This is the reference minimum for the declared barrier, per the rule that a bond-changing step uses the lowest-energy verified reactant minimum including its connected conformers."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C/C=C/C=C\\C=C\\C"
+      ],
+      "properties": {
+        "name": "TS1 (disrotatory 6pi ring-closure saddle)",
+        "energy_hartree": -311.793195948,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log",
+        "converged_opt_log": "ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log",
+        "irc_log": "ts/ts_0001/jobs/declaration_0003/irc/irc.log",
+        "description": "Verified first-order saddle for the concerted disrotatory C2...C7 ring closure: normal termination, E = -311.793195948 Ha, exactly one imaginary frequency at -496.58 cm-1 dominated by the forming C2...C7 bond (pair projection 0.62; next largest non-H pairs C2-C3 = C6-C7 = 0.13, C3-C4 = C5-C6 = 0.09), i.e. the full triene bond-order reorganization. Geometry r(C2...C7)=2.269 A, b23=b67=1.407, b34=b56=1.394, b45=1.411 A, C1-C2=C7-C8=1.506 A (symmetric, delocalized). Bidirectional IRC from this same saddle gives outer frames at r=2.908 A (reactant side) and r=1.614 A (product side) which re-optimize to the cisoid and cis-product minima. Note: the TS1 smiles field carries the reactant connectivity (the same (2E,4Z,6E) triene), because SMILES cannot express the partially formed C2...C7 bond or the delocalized 1.39-1.41 A ring bonds; the transition structure is defined by the geometry and frequency log above, not by the SMILES string."
+      }
+    },
+    {
+      "id": "P_cis",
+      "role": "product",
+      "smiles": [
+        "C[C@@H]1C=CC=C[C@@H]1C"
+      ],
+      "properties": {
+        "name": "P_cis",
+        "energy_hartree": -311.857321736,
+        "evidence_log": "prod_cis_optfreq.log",
+        "description": "cis-5,6-dimethylcyclohexa-1,3-diene, 0 imaginary frequencies; methyl-methyl dihedral about -51 deg and methyl heights -1.774/-0.156 A from the ring plane, i.e. both methyls on the same ring face (disrotatory, Woodward-Hoffmann allowed product). Reproduced to 2e-8 Ha by the re-optimized product IRC outer frame (endpoint_product.log, -311.857321716, 0 imaginary)."
+      }
+    },
+    {
+      "id": "P_trans",
+      "role": "product",
+      "smiles": [
+        "C[C@H]1C=CC=C[C@@H]1C"
+      ],
+      "properties": {
+        "name": "P_trans (energy reference only, not the channel formed)",
+        "energy_hartree": -311.858908058,
+        "evidence_log": "prod_trans_optfreq.log",
+        "description": "trans-5,6-dimethylcyclohexa-1,3-diene reference minimum (methyl-methyl dihedral about -156 deg, 0 imaginary frequencies). Electronic energy is 1.00 kcal/mol below the cis diastereomer, but reaching it from the cisoid conformer requires the conrotatory (Woodward-Hoffmann forbidden) sense; no saddle was sought for that channel, so this node is a thermodynamic reference only and must not be read as the product of the reaction."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "cyclization_cis",
+      "from": "R_min_alltrans",
+      "to": "P_cis",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 29.46,
+      "channel": "Concerted disrotatory 6pi electrocyclization (Woodward-Hoffmann allowed) of (2E,4Z,6E)-octa-2,4,6-triene -> cis-5,6-dimethylcyclohexa-1,3-diene. The step is declared from the lowest-energy verified minimum of the reactant state, R_min_alltrans (-311.840147174 Ha), so that the declared barrier follows the task rule (reference = lowest minimum of the reactant state including its connected conformers): barrier_kcal_mol = 29.46 = E(TS1, -311.793195948) - E(R_min_alltrans) = 0.046951 Ha x 627.5095, uncertainty about +/-1 kcal/mol. The actual IRC connection runs from the cisoid conformer RC_cisoid (-311.825755385 Ha, both methyls on one ring face), which is the pre-reaction occurrence that closes; its intrinsic barrier is 20.43 kcal/mol. The 9.03 kcal/mol difference is the conformational penalty of the cisoid form: 5.40 kcal/mol from the cisoid to the s-cis,s-trans pair rot_01/rot_10 (-311.834360063) plus a further 3.63 kcal/mol to the all-s-trans global minimum. Both reactant minima are the same (2E,4Z,6E) stereoisomer; SMILES cannot encode the conformation, so the two occurrences are distinguished by their geometries and energies.",
+      "favored": true
+    },
+    {
+      "id": "cyclization_cis_intrinsic",
+      "from": "RC_cisoid",
+      "to": "P_cis",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 20.43,
+      "channel": "SAME elementary step as cyclization_cis, declared from the pre-reaction complex that the verified IRC actually connects: the bidirectional IRC from TS1 (ts/ts_0001/jobs/declaration_0003/irc/irc.log) starts at this saddle and its two outer frames (r(C2...C7) = 2.908 A reactant side, 1.614 A product side) re-optimize with RMSD 0.0000 A to RC_cisoid (-311.825755385 Ha, rot_00.log) and to P_cis (-311.857321736 Ha, prod_cis_optfreq.log). Barrier 20.43 kcal/mol = E(TS1, -311.793195948) - E(RC_cisoid) = 0.032559 Ha x 627.5095 (intrinsic barrier of the reactive cisoid conformer); uncertainty about +/-1 kcal/mol. This is the IRC-verified connectivity edge; the overall/rate-determining barrier referenced to the lowest verified reactant minimum is 29.46 kcal/mol on cyclization_cis (the 9.03 kcal/mol difference is the conformational penalty: 5.40 cisoid -> s-cis,s-trans pair, then 3.63 to all-s-trans).",
+      "favored": true
+    }
+  ]
+}

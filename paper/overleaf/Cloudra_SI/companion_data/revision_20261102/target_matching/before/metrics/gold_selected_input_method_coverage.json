@@ -1,0 +1,281 @@
+{
+  "D1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 4
+  },
+  "D3": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 4
+  },
+  "D4": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 11
+  },
+  "E1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 4
+  },
+  "F1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 6
+  },
+  "F4": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 7
+  },
+  "G2": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 4
+  },
+  "G3": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 5
+  },
+  "HA1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 8
+  },
+  "HA8": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 5
+  },
+  "HB10": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 8
+  },
+  "HI1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 16
+  },
+  "HL1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 14
+  },
+  "IB9": {
+    "method_signatures": [
+      "GFN2-xTB"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 9
+  },
+  "L1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 5
+  },
+  "L2": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 7
+  },
+  "M1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 5
+  },
+  "M14": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 4
+  },
+  "M15": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 6
+  },
+  "M16": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 7
+  },
+  "M17": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 6
+  },
+  "M3": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 5
+  },
+  "M8": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 5
+  },
+  "NR1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 24
+  },
+  "NU3": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 11
+  },
+  "NU5": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "DCM continuum explicitly present"
+    ],
+    "input_count": 7
+  },
+  "NU6": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "DCM continuum explicitly present"
+    ],
+    "input_count": 9
+  },
+  "NY3": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 25
+  },
+  "P2": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 5
+  },
+  "P3": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 5
+  },
+  "X1": {
+    "method_signatures": [
+      "B3LYP-D3(BJ)/def2-SVP"
+    ],
+    "continuum_signatures": [
+      "no continuum keyword in echoed route"
+    ],
+    "input_count": 7
+  }
+}

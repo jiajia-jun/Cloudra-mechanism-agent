@@ -1,0 +1,52 @@
+{
+  "nodes": [
+    {
+      "id": "NH3 reactant minimum",
+      "role": "reactant",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5106949538,
+        "evidence_log": "runs/nh3_end_b_canon_optfreq.log"
+      }
+    },
+    {
+      "id": "Planar NH3 transition state",
+      "role": "transition_state",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.501251744,
+        "evidence_log": "runs/nh3_ts_optfreq.log"
+      }
+    },
+    {
+      "id": "NH3 product minimum",
+      "role": "product",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5106947593,
+        "evidence_log": "runs/nh3_end_b_optfreq.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "umbrella inversion",
+      "from": "NH3 reactant minimum",
+      "to": "NH3 product minimum",
+      "via": "Planar NH3 transition state",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 5.93,
+      "channel": "umbrella inversion",
+      "favored": true
+    }
+  ]
+}

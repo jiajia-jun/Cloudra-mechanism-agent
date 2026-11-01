@@ -1,0 +1,117 @@
+{
+  "nodes": [
+    {
+      "id": "sp_e09e82c3",
+      "role": "reactant",
+      "smiles": [
+        "FOOF"
+      ],
+      "properties": {
+        "f_o_bond_length_angstrom": 1.485,
+        "o_o_bond_length_angstrom": 1.211,
+        "f_o_bond_dissociation_energy_kcal_mol": 11.46,
+        "f_o_bond_dissociation_energy_method": "PM7/Gaussian16, gas phase, 0 K with ZPE (D0); De = 13.30 kcal/mol; balanced reaction FOOF -> F + FOO",
+        "geometry_method": "PM7/Gaussian16, C2-gauche minimum, 0 imaginary frequencies (6 real modes 197/467/538/782/943/1058 cm-1)",
+        "angle_f_o_o_deg": 108.8,
+        "dihedral_f_o_o_f_deg": 92,
+        "geometry_evidence_log": ".cloudra/evidence/f070e3df9366a803_FOOF_pm7_opt_freq.log",
+        "evidence_log": [
+          ".cloudra/evidence/f070e3df9366a803_FOOF_pm7_opt_freq.log",
+          "calc/FOOF_pm7_opt_freq.log",
+          ".cloudra/evidence/1877b2c487607c30_FOO_rad_pm7_opt_freq.log",
+          ".cloudra/evidence/658889a6724ad1ab_F_pm7_freq.log",
+          "calc/pm7scan/FOOF_scan_cont_4p04_4p23.log",
+          "calc/pm7scan/FOOF_pair_optfreq_from_4p20_balanced.log",
+          "calc/pm7scan/FOOF_pair_freq_at_4p20.log"
+        ],
+        "xtb_cross_check": "GFN2-xTB (xtb 6.5.0), separate string entry, NOT averaged and NOT usable for the energy: FOOF r(F-O) = 1.518 A (1.5175), r(O-O) = 1.211 A (1.2106), E = -17.320490940487 Eh, ZPE = 0.0085164 Eh; FOO radical r(O-O) = 1.194 A, r(O-F) = 1.563 A, E = -12.612623952 Eh, ZPE = 0.0059846 Eh (3 real modes 446/652/1529 cm-1); F atom E = -4.619339964238 Eh, ZPE = 0. Balanced FOOF -> F + FOO: De = 55.55 kcal/mol, D0 = 53.96 kcal/mol, i.e. ~42 kcal/mol TOO HIGH (4x the 12-13 kcal/mol reference, 4.7x the PM7 value). GFN2 therefore fails on the energy but is informative on the shape of the coordinate: its constrained scan rises smoothly and plateaus at 54.2-54.3 kcal/mol for r(F1-O2) = 4.0-4.3 A, matching its component-based De, i.e. it reaches the F + FOO asymptote without a maximum.",
+        "experimental_reference": "microwave structure r(O-O) = 1.217 A, r(O-F) = 1.575 A, F-O-O 109.5 deg, dihedral 87.5 deg (experimental geometry anchor). The D0(F-O) value of 12-13 kcal/mol quoted in the task brief is the USER-SUPPLIED target, not an independently sourced number; the computed PM7 value 11.46 kcal/mol agrees with it within ~1 kcal/mol. No literature dHf(FOO,g) source is available inside this project, so no experimental BDE anchor is claimed beyond the user brief.",
+        "method_bias": "PM7 shortens the weak F-O bond by ~0.09 A (1.485 vs 1.575 A experimental) while reproducing r(O-O) essentially exactly (1.211 vs 1.217 A); the F-O length is therefore a lower bound on the true value",
+        "xtb_note": "Independent GFN2-xTB scan of the F1-O2 coordinate (calc/xtb/FOOF_scan/, closed-shell singlet continuous and monotonic 1.20-2.80 A rising to 44.4 kcal/mol, restricted SCF failure beyond, unrestricted doublet points 3.9-4.3 A flat at 54.1-54.3 kcal/mol matching the F + FOO asymptote): no point above the asymptote, so no barrier on the GFN2 surface either. The 3.1-3.8 A restricted points are SCF artifacts and are not used.",
+        "native_input_geometry_log": "calc/FOOF_pm7_opt_freq.log"
+      }
+    },
+    {
+      "id": "FOO",
+      "role": "product",
+      "smiles": [
+        "[O]OF"
+      ],
+      "properties": {
+        "note": "fluorooxy (FO2) radical, the counter-fragment of the balanced first F-O cleavage; doublet minimum (charge 0, multiplicity 2, <S**2> = 0.7616). PM7 makes it strongly asymmetric: r(O-O) = 1.128 A, r(O-F) = 1.540 A. The 1.500/1.500 A geometry quoted in an earlier review is the input geometry (2D RDKit seed), not the converged structure.",
+        "evidence_log": [
+          ".cloudra/evidence/1877b2c487607c30_FOO_rad_pm7_opt_freq.log",
+          "calc/foo_pm7/FOO_rad_pm7_opt_freq.log"
+        ],
+        "method": "PM7/Gaussian16, 0 2, 3 real modes 467/766/1466 cm-1, 0 imaginary, ZPE 0.006149 Eh",
+        "o_o_bond_length_angstrom": 1.128,
+        "o_f_bond_length_angstrom": 1.54,
+        "accessible": true,
+        "o_o_f_angle_deg": 109.6,
+        "frequencies_cm": [
+          467.2,
+          766.2,
+          1465.6
+        ],
+        "xtb_reference": "GFN2-xTB: E = -12.612623951768 Eh, ZPE = 0.005984 Eh, r(O-O) = 1.194 A, r(O-F) = 1.563 A (calc/xtb/FOO_opt/, calc/xtb/FOO_hess/) - the same species at the second allowed level, which gives a much more physical F-O-O geometry than PM7."
+      }
+    },
+    {
+      "id": "F",
+      "role": "product",
+      "smiles": [
+        "[F]"
+      ],
+      "properties": {
+        "note": "fluorine atom, single point; a one-atom species has no vibrational modes so its ZPE is exactly 0",
+        "evidence_log": [
+          ".cloudra/evidence/658889a6724ad1ab_F_pm7_freq.log",
+          "calc/F_pm7_freq.log"
+        ],
+        "method": "PM7/Gaussian16, 0 2, single point, E = 0.0301031 Eh",
+        "accessible": true
+      }
+    },
+    {
+      "id": "sp_656b60f1",
+      "role": "product",
+      "smiles": [
+        "[F].[O]OF"
+      ],
+      "accessible": false,
+      "properties": {
+        "note": "Dissociation asymptote F + FOO. It is NOT a stationary point at the allowed level of theory: from r(F-O) = 4.200 A an unconstrained PM7 opt+freq collapses back to covalent FOOF (NImag = 0), from the 4.235 A scan endpoint it collapses to a compact F-O-O isomer (E = 0.00640994 Eh, +1.5 kcal/mol above FOOF, NImag = 0), and the rigid 4.200 A point has one -62.0 cm-1 imaginary mode; the restricted closed-shell SCF also fails to converge at long range. The asymptote energy is therefore built from the separately optimized fragments (FOO minimum + F atom single point), which is the standard bond-energy protocol and the route the task brief allows for a complex that is not a clean minimum.",
+        "evidence_log": [
+          ".cloudra/evidence/1877b2c487607c30_FOO_rad_pm7_opt_freq.log",
+          ".cloudra/evidence/658889a6724ad1ab_F_pm7_freq.log"
+        ],
+        "collapse_test_logs": [
+          "calc/pm7scan/FOOF_pair_optfreq_from_4p20_balanced.log",
+          "calc/pm7scan/FOOF_pair_optfreq_from_4p235_balanced.log",
+          "calc/pm7scan/FOOF_pair_freq_at_4p20.log"
+        ],
+        "accessible_reason": "no bound F...FOO complex exists on the PM7 surface",
+        "component_frequencies": "FOO: 3 real modes 467.2/766.2/1465.6 cm-1, ZPE 0.006149 Eh, 0 imaginary; F: PM7 frequency job gives zero vibrational modes and ZPE = 0.000000 Eh exactly (log calc/F_pm7_freq.log), so 0 imaginary by construction"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_750bccca",
+      "from": "sp_e09e82c3",
+      "to": "sp_656b60f1",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "F-O homolysis from the terminal oxygen: no first-order saddle found along the relaxed F-O coordinate",
+      "note": "No first-order saddle was found along the relaxed F-O coordinate. The relaxed PM7 scan shows no maximum above its own boundary point (calc/pm7scan/FOOF_scan_cont_4p04_4p23.log; +74.3 kcal/mol at 4.235 A), but the restricted PM7 surface rearranges instead of dissociating (a 4.200 A start relaxes back to covalent FOOF, NImag = 0; the 4.235 A start relaxes to a compact F-O-O isomer 1.5 kcal/mol above FOOF, NImag = 0; the rigid 4.200 A point has one -62.0 cm-1 mode). The GFN2-xTB scan of the same coordinate does reach the asymptote: it rises smoothly and plateaus at 54.2-54.3 kcal/mol for r = 4.0-4.3 A, matching the component-based GFN2 De of 55.55 kcal/mol, with no maximum above the plateau. Conclusion: barrierless homolysis, no saddle on either allowed surface; therefore no TS node, no via target, no barrier_kcal_mol, and the ts_opt / imaginary-frequency / short_irc stages are not applicable. The F-O bond dissociation energy is built from the separately optimized fragments."
+    }
+  ]
+}

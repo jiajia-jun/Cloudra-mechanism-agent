@@ -1,0 +1,66 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C[N+]#[C-]"
+      ],
+      "properties": {
+        "energy_hartree": -132.624290156,
+        "evidence_log": "rc_ircend_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -132.553312049,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase",
+        "imaginary_frequency_cm1": -457.8181,
+        "note": "three-membered C1-N2-C3 ring: C1-N2 1.82 A, C1-C3 1.79 A, N2-C3 1.20 A"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CC#N"
+      ],
+      "properties": {
+        "energy_hartree": -132.659619594,
+        "evidence_log": "p_ircend_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 44.54,
+      "channel": "concerted 1,2-methyl shift",
+      "favored": true,
+      "reaction_energy_kcal_mol": -22.17
+    }
+  ]
+}

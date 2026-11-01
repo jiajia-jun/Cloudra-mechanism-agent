@@ -1,0 +1,93 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C#C/C=C\\C#C"
+      ],
+      "properties": {
+        "evidence_log": "work/rc/rc_opt.log",
+        "supporting_logs": [
+          "work/rc/rc_sp.log"
+        ],
+        "electronic_energy_hartree": 0.201059781868,
+        "imaginary_frequencies_cm": [],
+        "lowest_frequencies_cm": [
+          107.7741,
+          211.7936,
+          273.6076
+        ],
+        "notes": "(Z)-hex-3-ene-1,5-diyne minimum (Gaussian 16, PM7, gas phase, charge 0, mult 1); unimolecular, so the reactant complex is the molecule itself; C1...C6 = 4.27 A",
+        "accessible": true
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log",
+        "supporting_logs": [
+          "ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log",
+          "work/conn/up.log",
+          "work/conn/down.log"
+        ],
+        "electronic_energy_hartree": 0.25076315512,
+        "imaginary_frequencies_cm": [
+          -428.7755
+        ],
+        "notes": "concerted C1-C6 ring-closure saddle; the single imaginary mode is 69% C1/C6 pair displacement (forming bond); d(C1-C6)=1.58 A",
+        "accessible": true
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "[c]1cc[c]cc1"
+      ],
+      "properties": {
+        "evidence_log": "work/prod/prod_opt2.log",
+        "supporting_logs": [
+          "work/prod/prod_opt.log",
+          "work/prod/prod_opt3.log"
+        ],
+        "electronic_energy_hartree": 0.250458223061,
+        "imaginary_frequencies_cm": [],
+        "reaction_energy_kcal_mol": 31,
+        "notes": "p-benzyne (1,4-didehydrobenzene) minimum, all frequencies real; closed-shell RHF 'long bond' description, didehydro carbons 2.86 A apart, so both this energy and the barrier are upper-bound-like",
+        "accessible": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.2,
+      "channel": "concerted Bergman cyclization (C1-C6 ring closure)",
+      "favored": true
+    }
+  ]
+}

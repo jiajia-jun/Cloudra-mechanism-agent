@@ -1,0 +1,188 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "OC1C=CCCC1.O=COO"
+      ],
+      "properties": {
+        "energy_hartree": -574.387607001,
+        "evidence_log": "rc/rc_optfreq.log"
+      }
+    },
+    {
+      "id": "C_syn",
+      "role": "intermediate",
+      "smiles": [
+        "OC1C=CCCC1.O=COO"
+      ],
+      "properties": {
+        "energy_hartree": -574.379378259,
+        "evidence_log": [
+          "ts/ts_0001/jobs/declaration_0008/reactant_frequency/reactant_frequency.log",
+          "ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_opt.log"
+        ]
+      }
+    },
+    {
+      "id": "C_anti",
+      "role": "intermediate",
+      "smiles": [
+        "OC1C=CCCC1.O=COO"
+      ],
+      "properties": {
+        "energy_hartree": -574.374940338,
+        "evidence_log": [
+          "ts/ts_0002/jobs/declaration_0004/reactant_frequency/reactant_frequency.log",
+          "ts/ts_0002/jobs/declaration_0004/reactant_opt/reactant_opt.log"
+        ]
+      }
+    },
+    {
+      "id": "TS_syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -574.35273718,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/frequency/frequency.log"
+      }
+    },
+    {
+      "id": "P_syn",
+      "role": "product",
+      "smiles": [
+        "O[C@@H]1CCC[C@@H]2O[C@H]12.O=CO"
+      ],
+      "properties": {
+        "energy_hartree": -574.469344692,
+        "evidence_log": [
+          "ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.log",
+          "qm/prod_syn_optfreq.log",
+          "ts/ts_0001/jobs/declaration_0008/product_opt/product_opt.log"
+        ]
+      }
+    },
+    {
+      "id": "TS_anti",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -574.353416361,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log"
+      }
+    },
+    {
+      "id": "P_anti",
+      "role": "product",
+      "smiles": [
+        "O[C@@H]1CCC[C@H]2O[C@@H]12.O=CO"
+      ],
+      "properties": {
+        "energy_hartree": -574.469276858,
+        "evidence_log": [
+          "ts/ts_0002/jobs/declaration_0004/product_frequency/product_frequency.log",
+          "ts/ts_0002/jobs/declaration_0004/product_opt/product_opt.log"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "conf_syn",
+      "from": "RC",
+      "to": "C_syn",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      }
+    },
+    {
+      "id": "conf_anti",
+      "from": "RC",
+      "to": "C_anti",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      }
+    },
+    {
+      "id": "e1",
+      "from": "C_syn",
+      "to": "P_syn",
+      "via": "TS_syn",
+      "channel": "syn_cis",
+      "favored": false,
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            10,
+            11
+          ],
+          [
+            11,
+            12
+          ]
+        ],
+        "form": [
+          [
+            3,
+            11
+          ],
+          [
+            4,
+            11
+          ],
+          [
+            10,
+            12
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 21.88
+    },
+    {
+      "id": "e2",
+      "from": "C_anti",
+      "to": "P_anti",
+      "via": "TS_anti",
+      "channel": "anti_trans",
+      "favored": true,
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            10,
+            11
+          ],
+          [
+            11,
+            12
+          ]
+        ],
+        "form": [
+          [
+            3,
+            11
+          ],
+          [
+            4,
+            11
+          ],
+          [
+            10,
+            12
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 21.45
+    }
+  ]
+}

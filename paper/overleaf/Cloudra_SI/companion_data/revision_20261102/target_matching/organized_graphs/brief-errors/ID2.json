@@ -1,0 +1,133 @@
+{
+  "nodes": [
+    {
+      "id": "FOOF",
+      "role": "reactant",
+      "smiles": [
+        "FOOF"
+      ],
+      "properties": {
+        "f_o_bond_length_angstrom": 1.4852,
+        "o_o_bond_length_angstrom": 1.2115,
+        "f_o_bond_dissociation_energy_kcal_mol": "not determinable at the allowed level (edge e1 accessible: false). Two independent reasons: (i) PM7 gives 13.3 kcal/mol (De) only because its FOO minimum is unphysical (r(O-O) = 1.128 A); (ii) the two allowed methods disagree by ~42 kcal/mol (PM7 13.30 vs GFN2-xTB 55.55) for the same stoichiometry, which cannot support a declared bond energy.",
+        "f_o_bond_dissociation_energy_accessible_reason": "method disagreement (~42 kcal/mol between the two allowed semiempirical models, PM7 13.30 vs xTB 55.55) AND a structural pathology (PM7 FOO O-O = 1.128 A, shorter than O2; PM7 places FOO below FOOF); exploratory values only",
+        "f_o_bond_dissociation_energy_exploratory_pm7_kcal_mol": {
+          "De": 13.3,
+          "D0": 11.45,
+          "enthalpy_298K": 10.94
+        },
+        "f_o_bond_dissociation_energy_exploratory_xtb_gfn2_kcal_mol": 55.55,
+        "f_o_bond_dissociation_energy_experimental_kcal_mol": "~40-43 (D(F-OOF) ~42.6)",
+        "f_o_bond_dissociation_energy_exploratory_pm7_definition": "De = E(F, 2P) + E(FOO, 2A'') - E(FOOF) = 0.0301031311468 + (-0.00311890854798) - 0.00579605131611 = 0.02118817 Ha; D0 = De - ZPE(FOOF) + ZPE(FOO) = 11.45 kcal/mol (ZPE 0.009081 / 0.006147 Ha); 298 K enthalpy difference 10.94 kcal/mol from the Gaussian thermal enthalpy corrections 0.014029 / 0.010268 Ha. Exploratory only.",
+        "f_o_bond_length_angstrom_second": 1.4853,
+        "f_o_o_f_dihedral_degree": 91.6,
+        "o_o_bond_dissociation_energy_exploratory_pm7_kcal_mol": 60.89,
+        "multiplicity": 1,
+        "electronic_state": "1A (closed shell, C2 symmetry, skew F-O-O-F)",
+        "method": "Gaussian 16 native PM7 semiempirical Hamiltonian, gas phase, charge 0",
+        "energy_hartree": 0.00579605131611,
+        "imaginary_frequencies": 0,
+        "frequencies_cm1": [
+          197,
+          467,
+          538.4,
+          782.2,
+          943.9,
+          1057.8
+        ],
+        "accessible": true,
+        "evidence_log": [
+          "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/ID2/batch_1807f734104147cb/qm_pm7/foof_optfreq.log",
+          "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/ID2/batch_1807f734104147cb/qm_pm7/foof_optfreq.gjf"
+        ],
+        "note": "PM7 equilibrium structure: O-O 1.2115 A, O-F 1.4852/1.4853 A, O-O-F 108.8 deg, F-O-O-F 91.6 deg, 0 imaginary frequencies (6 real modes), E(RPM7) = 0.00579605131611 Ha. PM7 overbinds the F-O bond by ~0.09 A relative to the 1.575 A gas-phase experimental value (O-O is good: 1.2115 vs 1.217 A); the structure is therefore a PM7-level value and is delivered as such. The separate O-O channel (2 OF) gives 60.89 kcal/mol, in line with the ~60 kcal/mol experimental O-O bond."
+      }
+    },
+    {
+      "id": "F_atom_FOO_radical",
+      "role": "product",
+      "smiles": [
+        "[F].[O]OF"
+      ],
+      "properties": {
+        "description": "F-O homolysis products of FOOF (F2O2): F(2P) atom + fluoroperoxy radical FOO (2A'', SMILES [O]OF). Stoichiometry-matched asymptote; two doublet radicals, so the pair is unbound and is characterized per component.",
+        "f_atom_energy_hartree": 0.0301031311468,
+        "foo_radical_energy_hartree": -0.00311890854798,
+        "foo_o_o_bond_length_angstrom": 1.128,
+        "foo_o_f_bond_length_angstrom": 1.5402,
+        "foo_frequencies_cm1": [
+          467.5,
+          765.4,
+          1465.4
+        ],
+        "foo_imaginary_frequencies": 0,
+        "foo_s2": "0.7677 before annihilation, 0.7500 after",
+        "accessible": false,
+        "evidence_log": [
+          "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/ID2/batch_1807f734104147cb/qm_pm7/foo_pm7_optfreq.log",
+          "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/ID2/batch_1807f734104147cb/qm_pm7/foo_pm7_optfreq.gjf",
+          "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/ID2/batch_1807f734104147cb/qm_pm7/fatom_pm7_freq.log",
+          "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/ID2/batch_1807f734104147cb/qm_pm7/fatom_pm7_singlepoint.log"
+        ],
+        "note": "PM7 FOO minimum has r(O-O) = 1.128 A, which is unphysical (shorter than O2 and than FOOF's own 1.2115 A); GFN2-xTB gives 1.194 A. This is the origin of the low PM7 F-O BDE and is stated as a method limitation.",
+        "accessible_reason": "The PM7 FOO minimum in this node is a genuine, normally terminated stationary point but it is structurally pathological (r(O-O) = 1.128 A, shorter than O2 and than FOOF's own O-O), so the node cannot support a trustworthy F-O bond energy. Kept in the graph with its evidence for completeness, consistent with edge e1 accessible: false."
+      }
+    },
+    {
+      "id": "OF_radical_pair",
+      "role": "product",
+      "smiles": [
+        "[O]F.[O]F"
+      ],
+      "properties": {
+        "description": "O-O homolysis products of FOOF: two OF radicals (X2Pi). Extra channel recorded for completeness; this is the O-O bond, not the requested F-O bond.",
+        "of_radical_energy_hartree": 0.05141920325,
+        "of_bond_length_angstrom": 1.3815,
+        "o_o_bond_dissociation_energy_kcal_mol": 60.89,
+        "accessible": true,
+        "evidence_log": [
+          "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/ID2/batch_1807f734104147cb/qm_pm7/of_pm7_optfreq.log",
+          "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/ID2/batch_1807f734104147cb/qm_pm7/of_pm7_optfreq.gjf"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "FOOF",
+      "to": "F_atom_FOO_radical",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "F1-O2 homolysis of FOOF: F2O2 -> F(2P) + FOO (2A''), one-bond repulsive dissociation, so no first-order saddle exists and no transition state, TS frequency or IRC is defined (ts_opt/frequency/short_irc not applicable). A rigid triplet F...OOF single-point series (r(F-O) = 1.55-5.00 A) shows NO maximum for r(F-O) >= 1.9 A (0.0476 Ha at 1.90 A falling to 0.03371 Ha at 5.00 A; the 1.55 -> 1.70 A step rises by 1.1 kcal/mol because those two points sit on the repulsive triplet wall ~57 kcal/mol above the singlet minimum) and its 5.0 A point lies 4.22 kcal/mol above E(F) + E(FOO), exactly the strain of the frozen FOO fragment, so the asymptote is consistent with the atom-balanced fragment sum. That curve is charge-transfer contaminated and serves only as a stoichiometry/asymptote check. The relaxed closed-shell RPM7 scan (1.485-2.085 A) is a restricted-solution diagnostic only: internal maximum of +30.9 kcal/mol at 2.0852 A followed by a ~30 kcal/mol drop at 2.1852 A where the SCF switches solution; the rigid 2.0-5.0 A RPM7 points (up to ~+95 kcal/mol) follow the IONIC closed-shell curve. No barrier is taken from either. The F-O bond energy E(F) + E(FOO) - E(FOOF) = 13.30 kcal/mol (De) is reported as EXPLORATORY (see accessible_reason).",
+      "favored": true,
+      "accessible": false,
+      "accessible_reason": "The F-O bond energy cannot be determined at the allowed level: the two permitted semiempirical methods disagree by ~42 kcal/mol for the same atom-balanced stoichiometry (Gaussian PM7 13.30 kcal/mol De because its FOO minimum is unphysical, r(O-O) = 1.128 A, shorter than O2 and shorter than FOOF's own O-O, with PM7 even placing FOO below FOOF; GFN2-xTB 55.6 kcal/mol), against an experimental ~40-43 kcal/mol. Neither number is declared; both are kept as exploratory values. The FOOF side of the edge (NImag = 0 minimum) and the separate O-O channel (60.89 kcal/mol) are unaffected."
+    },
+    {
+      "id": "e2",
+      "from": "FOOF",
+      "to": "OF_radical_pair",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": []
+      },
+      "channel": "O2-O3 homolysis of FOOF: F2O2 -> 2 OF (X2Pi), also barrierless (no TS); included as an extra channel for the O-O bond. D(O-O) = 2*E(OF) - E(FOOF) = 60.89 kcal/mol (De, PM7).",
+      "favored": false
+    }
+  ]
+}

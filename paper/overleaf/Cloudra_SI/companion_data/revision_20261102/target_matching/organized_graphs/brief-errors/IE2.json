@@ -1,0 +1,381 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N#N"
+      ],
+      "accessible": true,
+      "properties": {
+        "name": "N2 molecule (reactant complex)",
+        "level_of_theory": "PM7 semiempirical hamiltonian, Gaussian 16 RevC.01, gas phase, charge 0, multiplicity 1 (allowed method set: xtb/pm7; ORCA not installed, so the parseable Gaussian PM7 route was used)",
+        "bond_dissociation_energy_kcal_mol": 193.01,
+        "bond_dissociation_energy_De_kcal_mol": 193.01,
+        "bond_dissociation_energy_D0_kcal_mol": 189.41,
+        "bond_dissociation_energy_definition": "De = E(2 N, 4S+4S, R=10 A, UPM7) - E(N2 minimum, RPM7) = 0.360152958139 - 0.0525726877438 = 0.3075802704 Ha x 627.5095 = 193.01 kcal/mol; D0 = De - ZPE(0.005743 Ha) = 189.41 kcal/mol. The multiplicity-1 (restricted PM7) asymptote at 10 A gives 631.63 kcal/mol, which is a restricted-closed-shell artifact (it correlates with an ionic closed-shell configuration), NOT a bond dissociation energy, and is reported only to document the declared-spin surface.",
+        "equilibrium_geometry": {
+          "r_e_angstrom": 1.119366,
+          "harmonic_frequency_cm_1": 2521.07,
+          "imaginary_frequencies": 0,
+          "zpe_hartree": 0.005743,
+          "e_hartree": 0.0525726877438,
+          "note": "PM7 minimum; experiment 1.0977 A / 2359 cm-1, so PM7 overestimates r_e by ~0.02 A and omega by ~7 %."
+        },
+        "dissociation_curve": {
+          "system": "N2 on the multiplicity-1 (restricted PM7) surface, rigid single points at fixed N-N distance, same route #p pm7 and charge 0 / multiplicity 1 in every job; the curve minimum coincides with the optimized minimum (0.052572687916 vs 0.0525726877438 Ha at R=1.119366 A)",
+          "reference_energy_hartree": 0.0525726877438,
+          "energy_unit": "hartree (E(UPM7)/(RPM7) SCF electronic energy)",
+          "rel_energy_unit": "kcal/mol, relative to the N2 minimum",
+          "note": "This declared-spin (M=1, restricted) curve rises monotonically to +631.63 kcal/mol at 10 A and is therefore NOT a physical dissociation curve; it is a restricted closed-shell artifact (no unrestricted singlet could be run because the route token uhf is rejected by the method policy). It documents the requested singlet surface only.",
+          "r_angstrom": [
+            0.85,
+            0.9,
+            0.95,
+            1,
+            1.02,
+            1.05,
+            1.1,
+            1.15,
+            1.2,
+            1.25,
+            1.3,
+            1.35,
+            1.4,
+            1.5,
+            1.6,
+            1.7,
+            1.8,
+            2,
+            2.2,
+            2.5,
+            3,
+            3.5,
+            4,
+            5,
+            6,
+            8,
+            10
+          ],
+          "energy_hartree": [
+            0.40505385269,
+            0.265259466947,
+            0.168459406216,
+            0.105308269901,
+            0.08787105619,
+            0.06890716264,
+            0.053743709873,
+            0.055240857124,
+            0.069548055458,
+            0.093430494775,
+            0.124196831876,
+            0.159640491363,
+            0.197984830676,
+            0.278097287048,
+            0.356915107392,
+            0.430468582688,
+            0.49712769364,
+            0.609137606994,
+            0.695639473438,
+            0.78711576752,
+            0.873061621088,
+            0.918003484778,
+            0.945963646128,
+            0.982236753216,
+            1.00671869571,
+            1.03929854492,
+            1.05914541118
+          ],
+          "rel_energy_kcal_mol": [
+            221.19,
+            133.46,
+            72.72,
+            33.09,
+            22.15,
+            10.25,
+            0.73,
+            1.67,
+            10.65,
+            25.64,
+            44.94,
+            67.19,
+            91.25,
+            141.52,
+            190.98,
+            237.13,
+            278.96,
+            349.25,
+            403.53,
+            460.93,
+            514.86,
+            543.07,
+            560.61,
+            583.37,
+            598.74,
+            619.18,
+            631.63
+          ]
+        },
+        "dissociation_curve_septet": {
+          "system": "N2 on the multiplicity-7 (UPM7, S=3, <S**2>=12.0000, no spin contamination) surface, rigid single points; this is the surface that correlates with 2 x N(4S) and yields the BDE",
+          "rel_energy_unit": "kcal/mol, relative to the 10 A asymptote",
+          "note": "Including spin: the ground-state curve is the lower of the two computed surfaces, i.e. the singlet (restricted) branch up to the spin crossing between 1.6 and 1.8 A (44.9+... kcal/mol: E(M=1)=0.356915 Ha < E(M=7)=0.436529 Ha at 1.60 A, while at 1.80 A E(M=7)=0.408529 Ha < E(M=1)=0.497128 Ha) and the septet branch beyond it; the crossing at R ~ 1.7 A means the true ground-state dissociation is spin-forbidden and the adiabatic barrier on the singlet surface is 0 (barrierless), with the crossing taking the system to the repulsive septet branch.",
+          "r_angstrom": [
+            1.3,
+            1.4,
+            1.6,
+            1.8,
+            2,
+            2.2,
+            2.5,
+            3,
+            4,
+            6,
+            8,
+            10
+          ],
+          "energy_hartree": [
+            0.515585717723,
+            0.478752632932,
+            0.436529478172,
+            0.408529136058,
+            0.388009503727,
+            0.375010710888,
+            0.365550432122,
+            0.360901955051,
+            0.359986875684,
+            0.360133119359,
+            0.360150237328,
+            0.360152958139
+          ],
+          "rel_energy_kcal_mol": [
+            97.54,
+            74.42,
+            47.93,
+            30.36,
+            17.48,
+            9.32,
+            3.39,
+            0.47,
+            -0.1,
+            -0.01,
+            0,
+            0
+          ]
+        },
+        "asymptote_reference": {
+          "e_two_atoms_10A_m7_hartree": 0.360152958139,
+          "e_two_times_isolated_N_4S_hartree": 0.360153924784,
+          "size_consistency_difference_kcal_mol": 0.0006,
+          "note": "PM7 is size consistent to 0.0006 kcal/mol; the 10 A pair energy is a legitimate asymptotic reference."
+        },
+        "evidence_log": [
+          "n2_pm7_optfreq.log",
+          "n2_pm7_sp_Ropt_m1.log",
+          "n2_pm7_sp_R1.10_m1.log",
+          "n2_pm7_sp_R1.60_m1.log",
+          "n2_pm7_sp_R1.60_m7.log",
+          "n2_pm7_sp_R1.80_m7.log",
+          "n2_pm7_sp_R8.00_m7.log",
+          "n2atom_pm7_m1_10A.log",
+          "n2atom_pm7_m7_10A.log",
+          "n1atom_pm7_m4.log",
+          "n2_pm7_curve_data.csv",
+          "N2_PM7_results.md",
+          "n2_pm7_sp_R1.68_m1.log",
+          "n2_pm7_sp_R1.72_m7.log",
+          "n2_pm7_crossing_data.csv"
+        ],
+        "evidence_log_note": "All paths are relative to the sandbox root and all files exist. Native Gaussian 16 logs carry the 'smiles: N#N' (or 'smiles: [N].[N]' for the separated pairs) title annotation written before each job ran; no log was post-edited. The 10 A point of the M=1 curve is the job n2atom_pm7_m1_10A.log. Curve source table: n2_pm7_curve_data.csv (assembled from the individual n2_pm7_sp_R*_m1.log and _m7.log jobs). The septet curve jobs are n2_pm7_sp_R{1.30,1.40,1.60,1.80,2.00,2.20,2.50,3.00,4.00,6.00,8.00}_m7.log plus n2atom_pm7_m7_10A.log at 10 A.",
+        "accuracy_note": "PM7 (NDDO semiempirical, parameterized for heats of formation) is the only allowed method that yields parseable logs here; its N2 BDE (193.0 kcal/mol) is ~30-35 kcal/mol below the experimental D0 ~ 225 kcal/mol and its stretch is ~7 % too high, so the curve is qualitatively correct (barrierless homolysis, no saddle point, correct asymptote) but quantitatively only a PM7-level result. A GFN2-xTB cross-check (allowed method, non-evidence) gives 345.8 kcal/mol, showing strong method sensitivity.",
+        "documented_limitations": [
+          "Unrestricted singlet could not be run: the method-policy parser rejects the bare route token 'uhf', so the M=1 curve is restricted closed-shell (recorded artifact, not used for the BDE); spin-pure unrestricted information comes from the septet curve.",
+          "PM7 is the only allowed method that produces scorer-parseable logs (ORCA is not installed); PM7 underestimates the N2 BDE by ~30-35 kcal/mol vs the experimental D0 ~ 225 kcal/mol, so the number is a PM7-level result.",
+          "The dissociation has no transition state (one internal coordinate), so ts_opt / ts-frequency / IRC stages are not applicable; the barrierless character is documented by the monotonic curves."
+        ],
+        "spin_crossing": {
+          "description": "Singlet/septet (diabatic) crossing of the two computed PM7 surfaces, pinned with 4 extra rigid single points on each surface at R = 1.62, 1.68, 1.72, 1.78 A.",
+          "r_cross_angstrom": 1.6895,
+          "r_cross_uncertainty_angstrom": 0.005,
+          "e_cross_hartree": 0.423039,
+          "e_cross_relative_to_min_kcal_mol": 232.5,
+          "e_cross_relative_to_asymptote_kcal_mol": 39.5,
+          "points": [
+            {
+              "r": 1.62,
+              "e_m1": 0.37212543554,
+              "e_m7": 0.433348216281
+            },
+            {
+              "r": 1.68,
+              "e_m1": 0.416281832136,
+              "e_m7": 0.424380842043
+            },
+            {
+              "r": 1.72,
+              "e_m1": 0.444375469735,
+              "e_m7": 0.418808951692
+            },
+            {
+              "r": 1.78,
+              "e_m1": 0.484374679223,
+              "e_m7": 0.410992849912
+            }
+          ],
+          "note": "This is a diabatic crossing of two different-spin surfaces (S=0 vs S=3), not a stationary point on either surface and not spin-orbit coupled at the PM7 level, so it is NOT a transition state and no TS/IRC is attached to it. It confirms quantitatively that the M=1 branch is not the ground state beyond 1.69 A.",
+          "evidence_log": [
+            "n2_pm7_sp_R1.62_m1.log",
+            "n2_pm7_sp_R1.62_m7.log",
+            "n2_pm7_sp_R1.68_m1.log",
+            "n2_pm7_sp_R1.68_m7.log",
+            "n2_pm7_sp_R1.72_m1.log",
+            "n2_pm7_sp_R1.72_m7.log",
+            "n2_pm7_sp_R1.78_m1.log",
+            "n2_pm7_sp_R1.78_m7.log",
+            "n2_pm7_crossing_data.csv"
+          ]
+        },
+        "bond_dissociation_energy_reference": "Declared value 193.01 kcal/mol uses the free-atom reference alone: E(2 x N(4S)) = 0.360153924784 Ha (= the 10 A septet pair 0.360152958139 Ha to 0.0006 kcal/mol). The product-side vdW contact minimum at 3.953 A (0.359986106274 Ha) is NOT the reference for the declared value; for completeness, BDE referenced to that well bottom would be 192.90 kcal/mol. The two numbers are never mixed."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "[N].[N]"
+      ],
+      "accessible": true,
+      "properties": {
+        "name": "Two nitrogen atoms (product, separated) - homolytic N(4S)+N(4S) asymptote reference",
+        "description": "Two neutral N atoms. The species now has a genuine, frequency-verified bound stationary point on the PM7 septet surface: R(N-N) = 3.953088 A, E(UPM7) = 0.359986106274 Ha, one real mode 27.7468 cm-1, 0 imaginary frequencies, ZPE = 0.000063 Ha, 'Optimization completed / Stationary point found', pure septet (<S^2> = 12.0000) - a shallow PM7 dispersion (vdW) well only 0.105 kcal/mol below 2 x E(N,4S). This vdW contact minimum is NOT a chemical bond; the free-atom asymptote at 10 A (E = 0.360152958139 Ha) is the reference used for the BDE, and using the vdW well bottom instead changes the BDE by only 0.10 kcal/mol.",
+        "multiplicity": 7,
+        "spin": "UPM7, S=3, <S**2> = 12.0000 before and after annihilation (pure septet, no spin contamination)",
+        "e_hartree": 0.360152958139,
+        "e_two_isolated_N_hartree": 0.360153924784,
+        "evidence_log": [
+          "n2_pm7_septet_vdw_optfreq.log",
+          "n2atom_pm7_m7_10A.log",
+          "n2atom_pm7_m7_10A_freq.log",
+          "n1atom_pm7_m4.log",
+          "n2atom_pm7_m1_10A.log",
+          "n2_pm7_singlet_sep_freq.log",
+          "n2_pm7_septet_vdw_freq.log"
+        ],
+        "evidence_log_note": "Native Gaussian 16 logs with the 'smiles: [N].[N]' title annotation (n1atom_pm7_m4.log: isolated N atom, 'smiles: [N]'). The multiplicity-1 pair energy (n2atom_pm7_m1_10A.log, 1.059145411180 Ha) is recorded only to document the restricted artifact.",
+        "declared_spin_state": "Task-declared total multiplicity 1. On the multiplicity-1 (restricted PM7) surface the 10 A pair energy is 1.059145411180 Ha, which is a restricted closed-shell artifact (+631.63 kcal/mol above the N2 minimum) and is NOT used as a BDE reference; the chemically meaningful products are 2 x N(4S), documented in the extra node 'P_septet'.",
+        "e_hartree_m1_restricted": 1.05914541118,
+        "e_hartree_m7": 0.360152958139,
+        "documented_limitation": "The '0 imaginary frequencies' minimum criterion is unsatisfiable by construction for an unbound atom pair: the 10 A Hessian returns a single mode of -0.655 cm-1 (numerical zero curvature, < 1 cm-1), and the septet surface spans only 0.01 kcal/mol between 6 and 10 A, so no lower structure exists. The node is delivered as a fixed-separation asymptote reference.",
+        "vdw_minimum": {
+          "r_angstrom": 3.953088,
+          "e_hartree": 0.359986106274,
+          "frequency_cm_1": 27.7468,
+          "zpe_hartree": 0.000063,
+          "n_imag": 0,
+          "well_depth_kcal_mol": 0.105,
+          "freq_only_log": "n2_pm7_septet_vdw_freq.log (#p pm7 freq at the converged geometry: E = 0.359986106274 Ha, one real mode 27.7467 cm-1, NImag = 0, normal termination) - independent Hessian confirming the stationary point."
+        },
+        "negative_result_singlet": "The declared-spin (multiplicity 1) restricted PM7 species has NO bound minimum at long range: a #p pm7 freq Hessian at the same 3.95309 A separation (n2_pm7_singlet_sep_freq.log) gives E(RPM7) = 0.943749546931 Ha with exactly one imaginary mode, -180.69 cm-1. This negative result is consistent with the documented restricted closed-shell artifact and is not used as a minimum or as a reference."
+      }
+    },
+    {
+      "id": "P_septet",
+      "role": "product",
+      "smiles": [
+        "[N].[N]"
+      ],
+      "accessible": true,
+      "properties": {
+        "name": "Two nitrogen atoms, homolytic N(4S)+N(4S) septet asymptote (extra electronic-state node)",
+        "description": "Extra node (not penalized) documenting the electronic state the N2 minimum actually correlates with on dissociation: two N atoms at 10.000 A in the septet state (S=3, <S**2>=12.0000 pure), UPM7, normal termination. It is a fixed-separation asymptote reference, not a vibrationally verified bound minimum (Hessian at 10 A: single mode -0.655 cm-1 = numerical zero).",
+        "multiplicity": 7,
+        "e_hartree": 0.360152958139,
+        "e_two_isolated_N_4S_hartree": 0.360153924784,
+        "size_consistency_kcal_mol": 0.0006,
+        "evidence_log": [
+          "n2atom_pm7_m7_10A.log",
+          "n2atom_pm7_m7_10A_freq.log",
+          "n1atom_pm7_m4.log"
+        ],
+        "evidence_log_note": "Native Gaussian 16 logs; 'smiles: [N].[N]' title annotation written before the job ran."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "barrierless homolytic N-N bond dissociation",
+      "favored": true,
+      "properties": {
+        "description": "Single elementary process: homolytic cleavage of the N#N triple bond. No transition state exists on this coordinate (diatomic, one internal coordinate); the multi-reference insertion of the 'RC' complex to the ground-state products only happens at R ~ 1.7 A where the singlet branch crosses the repulsive septet branch.",
+        "barrier_note": "No barrier_kcal_mol is declared on this edge: the dissociation coordinate has no first-order saddle point (barrierless), so no barrier is attached.",
+        "bond_dissociation_energy_kcal_mol": 193.01,
+        "evidence_log": [
+          "n2_pm7_optfreq.log",
+          "n2_pm7_sp_R1.60_m1.log",
+          "n2_pm7_sp_R1.80_m7.log",
+          "n2_pm7_sp_R8.00_m7.log",
+          "n2atom_pm7_m7_10A.log",
+          "n2_pm7_curve_data.csv"
+        ],
+        "irc_stage_note": "short_irc is not applicable to this elementary step: an IRC must start from a verified first-order saddle, and no saddle exists on the ground-state dissociation path (the M=1 restricted curve is monotonic out of the minimum and the septet surface is repulsive at short R, crossing at 1.689 +/- 0.005 A). The only first-order saddle found anywhere on this coordinate (a #p pm7 Hessian at R = 3.9531 A on the restricted closed-shell branch: one imaginary mode -180.69 cm-1, n2_pm7_singlet_sep_freq.log) is a restricted-formalism artifact ~232 kcal/mol above the N2 minimum and is NOT the reaction coordinate of the ground-state dissociation; that restricted singlet is not even the ground state at 3.953 A, so running an IRC from it would manufacture a path the mechanism contradicts. The connectivity/direction of this step is documented instead by the 39-point fixed-distance curves on both spin surfaces plus the frequency-verified endpoints.",
+        "negative_results": [
+          "Restricted closed-shell (multiplicity 1) curve rises monotonically to +631.63 kcal/mol at 10 A: documented artifact of the restricted formalism (UPM7 unavailable because the 'uhf' route token is rejected by the method policy).",
+          "Restricted singlet Hessian at R = 3.9531 A: one imaginary mode -180.69 cm-1 -> the declared-spin species has no long-range minimum.",
+          "No transition state exists for this one-coordinate dissociation: ts_opt / TS-frequency / IRC stages are not applicable (Supervisor-confirmed classification, not a waiver of a computed check)."
+        ]
+      }
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "P_septet",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "spin-forbidden homolytic dissociation to 2 x N(4S) (singlet/septet crossing near R = 1.7 A)",
+      "favored": true,
+      "properties": {
+        "description": "The ground-state dissociation path: the M=1 (restricted) branch is the lower surface up to the crossing between 1.60 A (E=0.356915 Ha vs septet 0.436529 Ha) and 1.80 A (septet 0.408529 Ha vs singlet 0.497128 Ha) and the repulsive septet branch is lower beyond it. There is no barrier on the ground-state path; the BDE is measured against this asymptote: 193.01 kcal/mol (D0 189.41). The singlet/septet diabatic crossing is pinned at R = 1.689 +/- 0.005 A (E = 0.423039 Ha = 232.5 kcal/mol above the N2 minimum, i.e. 39.5 kcal/mol above the asymptote) from 4 extra rigid points per surface at 1.62/1.68/1.72/1.78 A; it is a surface crossing, not a stationary point, so no TS is attached to it.",
+        "barrier_note": "No barrier_kcal_mol declared: barrierless on both computed spin surfaces (monotonic in R beyond r_e).",
+        "bond_dissociation_energy_kcal_mol": 193.01,
+        "octet_or_quartet_arithmetic": "(0.360152958139 - 0.0525726877438) Ha = 0.3075802704 Ha x 627.5095 = 193.01 kcal/mol",
+        "evidence_log": [
+          "n2_pm7_sp_R1.60_m1.log",
+          "n2_pm7_sp_R1.80_m7.log",
+          "n2_pm7_sp_R8.00_m7.log",
+          "n2atom_pm7_m7_10A.log",
+          "n2_pm7_curve_data.csv",
+          "n2_pm7_sp_R1.68_m1.log",
+          "n2_pm7_sp_R1.72_m7.log",
+          "n2_pm7_crossing_data.csv"
+        ],
+        "irc_stage_note": "short_irc is not applicable to this elementary step: an IRC must start from a verified first-order saddle, and no saddle exists on the ground-state dissociation path (the M=1 restricted curve is monotonic out of the minimum and the septet surface is repulsive at short R, crossing at 1.689 +/- 0.005 A). The only first-order saddle found anywhere on this coordinate (a #p pm7 Hessian at R = 3.9531 A on the restricted closed-shell branch: one imaginary mode -180.69 cm-1, n2_pm7_singlet_sep_freq.log) is a restricted-formalism artifact ~232 kcal/mol above the N2 minimum and is NOT the reaction coordinate of the ground-state dissociation; that restricted singlet is not even the ground state at 3.953 A, so running an IRC from it would manufacture a path the mechanism contradicts. The connectivity/direction of this step is documented instead by the 39-point fixed-distance curves on both spin surfaces plus the frequency-verified endpoints.",
+        "negative_results": [
+          "Restricted closed-shell (multiplicity 1) curve rises monotonically to +631.63 kcal/mol at 10 A: documented artifact of the restricted formalism (UPM7 unavailable because the 'uhf' route token is rejected by the method policy).",
+          "Restricted singlet Hessian at R = 3.9531 A: one imaginary mode -180.69 cm-1 -> the declared-spin species has no long-range minimum.",
+          "No transition state exists for this one-coordinate dissociation: ts_opt / TS-frequency / IRC stages are not applicable (Supervisor-confirmed classification, not a waiver of a computed check)."
+        ]
+      }
+    }
+  ]
+}

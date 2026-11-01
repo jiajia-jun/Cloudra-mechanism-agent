@@ -1,0 +1,75 @@
+{
+  "nodes": [
+    {
+      "id": "RC_borane_formaldehyde_adduct",
+      "name": "RC_borane_formaldehyde_adduct",
+      "role": "reactant",
+      "smiles": [
+        "[BH3-][O+]=C"
+      ],
+      "properties": {
+        "energy_hartree": -141.041124115,
+        "evidence_log": "qc/rc_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "note": "Pre-reaction Lewis adduct H3B-O=CH2 (dative B-O 1.61 A, C=O 1.22 A). Opt+Freq, normal termination, 0 imaginary frequencies (lowest 197.2 cm-1). A BH3-rotated-60-deg conformer relaxed back to the same minimum (-141.041124083 Ha). A separate BH3...eta2-(C=O) pi-complex reference was NOT attempted."
+      }
+    },
+    {
+      "id": "TS1",
+      "name": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -141.015601446,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0010/ts_opt/refine.log",
+        "evidence_log_frequency": "ts/ts_0001/jobs/declaration_0010/frequency/frequency.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "note": "First-order saddle, exactly one imaginary frequency -398.72 cm-1 (17 real modes). Measured mode composition (from the frequency log): dominant displacement on the methylene hydrogens (H7 50%, H8 11%, H6 15%; heavy-atom fraction 9.8%), pair projections C3-H6 0.526 vs B1-H6 0.050 - i.e. CH2-H wagging/rehybridisation (C3 sp2->sp3) dominates with a smaller C3...H6 component; the B1-H6 bond is barely stretched at this early saddle. Geometry B1-H6 1.24, C3-H6 2.14, B1-O2 1.77, O2-C3 1.23 A. Reproduced independently at -141.015601412 Ha (qc_ts2/ts_opt2.log, exact-Hessian Opt=TS)."
+      }
+    },
+    {
+      "id": "P_methoxyborane",
+      "name": "P_methoxyborane",
+      "role": "product",
+      "smiles": [
+        "COB"
+      ],
+      "properties": {
+        "energy_hartree": -141.113508768,
+        "evidence_log": "qc/p2_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "note": "Methoxyborane H2B-O-CH3 (B-O 1.34, O-C 1.42 A). Opt+Freq, normal termination, 0 imaginary frequencies; two B-H (2528/2637 cm-1) and three C-H (3020/3113/3120 cm-1) stretches. Decisive test of the compact/bridged region: unconstrained Opt+Freq from the bridged frame (B1-H6 1.479, C3-H6 1.494, B1-O2 1.467 A) collapses directly to this product (qc_ts2/bridged_unconstrained_optfreq.log, E = -141.113508746 Ha, 0 imaginary), so that region is inside the product basin and is not an intermediate."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "hydride_transfer_RC_to_P",
+      "name": "hydride_transfer_RC_to_P",
+      "from": "RC_borane_formaldehyde_adduct",
+      "to": "P_methoxyborane",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.02,
+      "channel": "intramolecular hydride transfer from the Lewis adduct (single elementary step)",
+      "favored": true
+    }
+  ]
+}

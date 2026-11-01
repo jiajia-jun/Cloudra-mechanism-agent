@@ -1,0 +1,77 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "conformer": "s-trans (O4 antiperiplanar to C1), O4-C3-C2-C1 = 180.0 deg",
+        "energy_hartree": -191.779652743,
+        "evidence_log": "ep3_strans_optfreq.log",
+        "support_logs": [
+          "rc_strans_optfreq.log"
+        ],
+        "imaginary_frequencies": 0,
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "note": "opt+freq started from the canonical s-trans-side IRC outer frame; identical minimum to the directly optimised conformer (rc_strans_optfreq.log, -191.779652729 Ha, 1.4e-8 Ha higher)"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "twisted first-order saddle for internal rotation about the C2-C3 single bond, O4-C3-C2-C1 = 92.05 deg",
+        "energy_hartree": -191.765230948,
+        "evidence_log": "ts1_rot_optfreq.log",
+        "imaginary_frequencies": 1,
+        "imaginary_frequency_cm-1": -230.7054,
+        "irc_logs": [
+          "ts1_irc_bidir.log"
+        ],
+        "endpoint_logs": [
+          "ep3_strans_optfreq.log",
+          "ep3_scis_optfreq.log"
+        ]
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "conformer": "s-cis (O4 synperiplanar to C1), O4-C3-C2-C1 = 0.0 deg",
+        "energy_hartree": -191.777487602,
+        "evidence_log": "ep3_scis_optfreq.log",
+        "support_logs": [
+          "p_scis_optfreq.log"
+        ],
+        "imaginary_frequencies": 0,
+        "relative_energy_kcal_mol": 1.36
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 9.05,
+      "channel": "C2-C3 internal rotation (purely conformational, s-trans -> s-cis); reverse barrier 7.69 kcal/mol; no bond broken or formed",
+      "favored": true,
+      "properties": {
+        "reverse_barrier_kcal_mol": 7.69,
+        "irc_connection": "both IRC branches from the same saddle: forward to the s-trans side (159.1 deg), reverse to the s-cis side (15.0 deg), each re-optimised to the declared minima"
+      }
+    }
+  ]
+}

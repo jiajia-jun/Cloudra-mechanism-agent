@@ -5,7 +5,7 @@ guided,0.35,1,IA1,1,Exact SC score only; not a universal stage-completion label.
 guided,0.5,0,,0,Exact SC score only; not a universal stage-completion label.
 guided,0.75,1,IA7,1,Exact SC score only; not a universal stage-completion label.
 guided,0.8333333333333334,0,,0,Exact SC score only; not a universal stage-completion label.
-guided,1.0,8,IA5;IA9;IB9;IC3;ID2;IE2;IF3;IG8,6,Exact SC score only; not a universal stage-completion label.
+guided,1.0,8,IA5;IA9;IB9;IC3;ID2;IE2;IF3;IG8,5,Exact SC score only; not a universal stage-completion label.
 standard,0.0,2,ID2;IE2,2,Exact SC score only; not a universal stage-completion label.
 standard,0.25,1,IA5,1,Exact SC score only; not a universal stage-completion label.
 standard,0.35,3,IA1;IA7;IB9,3,Exact SC score only; not a universal stage-completion label.
@@ -19,11 +19,11 @@ record,0.35,1,IA1,1,Exact SC score only; not a universal stage-completion label.
 record,0.5,1,IC3,1,Exact SC score only; not a universal stage-completion label.
 record,0.75,2,IA7;IB9,1,Exact SC score only; not a universal stage-completion label.
 record,0.8333333333333334,0,,0,Exact SC score only; not a universal stage-completion label.
-record,1.0,3,IA5;IA9;IF3,3,Exact SC score only; not a universal stage-completion label.
+record,1.0,3,IA5;IA9;IF3,2,Exact SC score only; not a universal stage-completion label.
 brief-errors,0.0,0,,0,Exact SC score only; not a universal stage-completion label.
 brief-errors,0.25,0,,0,Exact SC score only; not a universal stage-completion label.
 brief-errors,0.35,0,,0,Exact SC score only; not a universal stage-completion label.
 brief-errors,0.5,2,ID2;IE2,2,Exact SC score only; not a universal stage-completion label.
 brief-errors,0.75,1,IA7,1,Exact SC score only; not a universal stage-completion label.
 brief-errors,0.8333333333333334,1,IB9,0,Exact SC score only; not a universal stage-completion label.
-brief-errors,1.0,6,IA1;IA5;IA9;IC3;IF3;IG8,4,Exact SC score only; not a universal stage-completion label.
+brief-errors,1.0,6,IA1;IA5;IA9;IC3;IF3;IG8,2,Exact SC score only; not a universal stage-completion label.

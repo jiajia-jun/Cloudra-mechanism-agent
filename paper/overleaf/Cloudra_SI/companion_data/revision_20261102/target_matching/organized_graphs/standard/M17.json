@@ -1,0 +1,53 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C[N+]#[C-]"
+      ],
+      "properties": {
+        "energy_hartree": -132.624289833,
+        "evidence_log": "calc/rc_optfreq.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": []
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CC#N"
+      ],
+      "properties": {
+        "energy_hartree": -132.659619573,
+        "evidence_log": "calc/p_optfreq.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      }
+    }
+  ]
+}

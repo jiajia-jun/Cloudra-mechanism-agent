@@ -1,5 +1,9 @@
 # Cloudra SI 初稿
 
+更新日期：2026年11月2日。
+
+本轮本地同步：正式分数接入 target-correspondence Accuracy overlay（整体均分 0.7176；Impossible Brief 0.6029 / Guided 0.5051 / Record 0.2925）；中英文结果与讨论、SI 详细结果与 matcher 节已对齐；bench 图件已拷入 Overleaf 工程；交付 ZIP 已重建。本机无 XeLaTeX，PDF 预览未重编译；在线 Overleaf 另传。核对见 output/Cloudra_Overleaf/local_sync_20261102.json。
+
 日期：2026年10月31日。英文 SI 共31页，已在 Overleaf 使用 XeLaTeX、TeX Live 2026 编译。
 
 2026年11月1日本地同步：SI正文和当前正式PDF未改；已将落后的Overleaf源码ZIP和数据ZIP同步为当前正式源稿及 CloudraBench-P2-final-20261101 配套材料。源码包26文件，数据包489文件；通讯邮箱为 `202509240114@csust.edu.cn`。桌面旧SI副本已换为当前31页正式PDF，提交准备包内已核验正确的SI预览保持。

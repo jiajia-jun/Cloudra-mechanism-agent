@@ -1,0 +1,266 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=[N+]=[N-].C=C"
+      ],
+      "properties": {
+        "description": "Diazomethane...ethylene pre-reaction complex (single dot-joined complex node). Clean PM7 minimum found with Opt=(CalcFC,Tight,MaxCyc=300)+Freq started from the reactant-side IRC outer frame: E = 0.1087521022 Ha, 27 real frequencies (3N-6), 0 imaginary, lowest 5.1 cm-1, opt converged, normal termination. Very floppy and weakly bound: 1.6 kcal/mol below separated CH2N2 (0.0891890331) + C2H4 (0.0220771930) = 0.1112662261 Ha. Earlier standard/loose optimizations from other orientations stalled on 1-2 tiny imaginary librational modes.",
+        "complex_is_clean_minimum": true,
+        "evidence_log": [
+          "calc/ep1_src_min2.log",
+          "calc/ep1_src_ircS_optfreq4.log",
+          "calc/ch2n2_optfreq.log",
+          "probe_ethylene.log",
+          "calc/ep1_react_side.log",
+          "calc/rc_opt3.log",
+          "calc/rc_opt4.log"
+        ],
+        "energy_hartree": 0.1087521022,
+        "separated_reference_hartree": 0.1112662261,
+        "method": "PM7 / Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "assignment_note": "The verified complex geometry is written in the symmetry-equivalent fragment labelling: CH2N2 = C4=N3-N2 (C4-N3 1.28 A, N2-N3 1.14 A) and C2H4 = C1=C5 (1.33 A); the site-verified RC node SMILES is unchanged."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "Asynchronous (diradicaloid) 1,3-dipolar cycloaddition saddle: the imaginary mode at -679.0 cm-1 closes the two ring bonds that are open at the saddle (pair projections C4...C5 0.93, C1...N2 0.90, C1...C4 0.65, N2...C5 0.64), i.e. ring closure is asynchronous rather than synchronous. E = 0.14503399 Ha, exactly one imaginary frequency, opt+freq in one native log. TS geometry: C1-N2 2.137, N3-C4 1.335, C1-C5 1.372, C4-C5 2.192, N2-N3 1.160 A.",
+        "evidence_log": [
+          "calc/step2b/ts2_opt2.log",
+          "calc/step2b/ts2_irc2.log",
+          "calc/ts1_irc_long.log"
+        ],
+        "energy_hartree": 0.14503399,
+        "imaginary_frequency_cm": [
+          -679.0101
+        ],
+        "method": "PM7 / Gaussian 16, gas phase",
+        "connectivity_basis": "Connectivity rests on the first-order saddle plus bidirectional IRC interval evidence (calc/step2b/ts2_irc2.log, 25 points each way, normal termination, IRC did not reach its own stopping criterion) plus frequency-verified minima at both outer frames (calc/ep1_src_min2.log, calc/ep1_pz_side.log). Shorter single-direction IRC re-runs (calc/ts1_irc_forward.log ends at 0.0520 Ha next to the 1-pyrazoline minimum; calc/ts1_irc_reverse.log ends at 0.1164 Ha on the dimer side) are consistent with the same two basins; a longer combined IRC (calc/ts1_irc_long.log) error-terminated in the corrector step, so no fully converged IRC exists. The final and cleanest runs are the short-step pair calc/ts1_ircS_forward.log (131 points, reaction coordinate 0 -> 4.461, normal termination, final frame 0.0497127148 Ha) and calc/ts1_ircS_reverse.log (200 points, -6.810 -> 0, normal termination, final frame 0.1108398234 Ha); their outer frames were re-optimized unconstrained, giving calc/ep1_pz_ircS_optfreq.log (0.0497597872 Ha, 27 real modes, 0 imaginary) and calc/ep1_src_ircS_optfreq4.log (0.1087524996 Ha, 27 real modes, 0 imaginary)."
+      }
+    },
+    {
+      "id": "PZ",
+      "role": "intermediate",
+      "smiles": [
+        "C1CN=NC1"
+      ],
+      "properties": {
+        "description": "1-pyrazoline, planar five-membered ring C1-N2=N3-C4-C5. E = 0.0497598520 Ha; 27 real frequencies (3N-6), lowest 159.7 cm-1, 0 imaginary. The IRC product-side outer frame re-optimizes to the same minimum (calc/ep1_pz_side.log, 0.0497604009 Ha). Only one conformer exists at PM7 (spread <0.05 kcal/mol over three seeds).",
+        "evidence_log": [
+          "calc/pz_optfreq.log",
+          "calc/ep1_pz_ircS_optfreq.log",
+          "calc/ep1_pz_side.log",
+          "calc/step2b/pz_opt_A.log"
+        ],
+        "energy_hartree": 0.049759852,
+        "method": "PM7 / Gaussian 16, gas phase"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": false,
+      "properties": {
+        "description": "N2-extrusion saddle of 1-pyrazoline -> cyclopropane + N2. NOT ACCESSIBLE at the allowed level of theory: closed-shell PM7 (Gaussian 16 RPM7) yields no concerted cheletropic extrusion saddle on this surface. Two Opt=(TS,CalcFC,NoEigentest) searches in the extrusion region converged to retro-1,3-dipolar cleavage saddles instead (calc/step2b/ts2_opt2.log -679.0 cm-1; calc/step2b/ts2_opt5.log -595.1 cm-1, whose IRC runs to CH2N2 + C2H4); all other starts rolled downhill to the cyclopropane...N2 minimum. Constrained PM7 scans give extrusion crests of +70.3 (1D C1-N2, ring intact), +96.6 (2D C1-N2/C1-C4 ridge) and >150 kcal/mol (forced C1-C4 closure with the ring intact). No bound stepwise/diradical intermediate on the closed-shell singlet surface.",
+        "accessible_note": "no trustworthy saddle; exploratory scans and failed saddle searches only, so no barrier is declared",
+        "evidence_log": [
+          "calc/step2b/ts2_scanC1N2.log",
+          "calc/step2b/ts2_scan2D.log",
+          "calc/step2b/ts2_scan2Dfine.log",
+          "calc/step2b/ts2_scanC1C4.log",
+          "calc/step2b/rev_scan.log",
+          "calc/step2b/rev_scan2.log",
+          "calc/step2b/ts2_opt5.log",
+          "calc/step2b/ts2_opt5_irc.log",
+          "calc/dirad_triplet.log",
+          "calc/dirad_bsse.log",
+          "calc/dirad_bs_opt.gjf",
+          "calc/pz_open_scan2D.log",
+          "ts/ts_0002/process.json"
+        ],
+        "method": "PM7 / Gaussian 16, gas phase",
+        "diradical_channel_check": "Diradical channel tested and excluded at this level: (a) unrestricted triplet PM7 (UPM7, mult 3) optimization started from the 1-pyrazoline geometry gives E = 0.1542087 Ha, i.e. +65.5 kcal/mol above the singlet pyrazoline minimum, and it is not even a minimum (2 imaginary frequencies) - calc/dirad_triplet.log; (b) a broken-symmetry singlet single point (guess=(mix,always), UPM7 seed) at the extrusion-region saddle geometry collapses back to the closed-shell solution (E = 0.17682749 Ha, identical to the RHF value) - calc/dirad_bsse.log. So the closed-shell singlet solution is stable against symmetry breaking and no low-lying diradical intermediate exists.",
+        "untried_or_blocked": "Two follow-ups that the earlier consultation asked for before declaring the step inaccessible could not be completed under the active method policy: (a) an unconstrained broken-symmetry open-shell singlet optimization (PM7, mult 1, guess=(mix,always), from the ring-opened frame of ts2_scan2Dfine.log) was rejected by the compute policy (policy_blocked) - only closed-shell PM7 is allowed, so an open-shell-singlet diradical intermediate cannot be characterised here; (b) a 2D relaxed PM7 scan opening both C1-N2 and N3-C4 simultaneously (calc/pz_open_scan2D.log, B 1 2 S 8 0.2 / B 3 4 S 8 0.2) error-terminated: the constrained relaxation at the first scan point hit the step cap (NStep=66, max force 5.1e-2) and the job died in l9999. Together with the triplet UPM7 result (not a minimum, 2 imaginary modes) and the RHF collapse of the broken-symmetry single point, no accessible route to a bound open-shell intermediate was found.",
+        "formal_workflow_attempt": "The formal TS workflow (ts_prepare run ts_0002) was run twice with the workflow's own atom map: GFN2-xTB path refinements of 100 and then 300 runs produced no valid saddle guess - the first hit the refinement cap without convergence, the second produced a candidate that failed validation because it did not place the declared reaction centre (workflow-derived pairs (2,3),(2,5),(4,5) in its own numbering) in a plausible range (ts/ts_0002/process.json, path-task.chem-result.json). The workflow was then stopped (ts_stop) as a recorded negative result."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1CC1.N#N"
+      ],
+      "properties": {
+        "description": "Cyclopropane + N2. The shallow cyclopropane...N2 contact is a genuine but very floppy PM7 minimum: E = 0.07030398 Ha, 27 real frequencies (lowest 7.7 cm-1), 0.89 kcal/mol below separated cyclopropane (0.0191473575 Ha) + N2 (0.0525726877 Ha) = 0.0717200452 Ha.",
+        "evidence_log": [
+          "calc/step2b/ts2_opt4.log",
+          "calc/step2b/cp_optfreq.log",
+          "calc/step2b/n2_optfreq.log"
+        ],
+        "energy_hartree": 0.07030398,
+        "separated_reference_hartree": 0.0717200452,
+        "method": "PM7 / Gaussian 16, gas phase"
+      }
+    },
+    {
+      "id": "SEP",
+      "role": "product",
+      "smiles": [
+        "C=[N+]=[N-].C=C"
+      ],
+      "properties": {
+        "description": "Separated-asymptote reference for the competing retro-1,3-dipolar cleavage: diazomethane + ethylene, each a verified PM7 minimum (0.0891890331 + 0.0220771930 = 0.1112662261 Ha). This is NOT the pre-reaction complex: node RC ('C=[N+]=[N-].C=C', same dot-joined SMILES string by schema convention) is a distinct bound minimum 1.6 kcal/mol lower at 0.1087521022 Ha, and the IRC of the retro edge passes through that complex minimum before reaching this asymptote.",
+        "role_note": "reference asymptote, not a complex minimum",
+        "energy_hartree": 0.1112662261,
+        "evidence_log": [
+          "calc/ch2n2_optfreq.log",
+          "probe_ethylene.log"
+        ],
+        "method": "PM7 / Gaussian 16, gas phase"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "PZ",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 22.8,
+      "channel": "asynchronous (diradicaloid) ring closure; 1,3-dipolar cycloaddition",
+      "favored": true,
+      "properties": {
+        "barrier_reference": "lowest verified reactant minimum = the diazomethane...ethylene pre-reaction complex, E(RC) = 0.1087521022 Ha (calc/ep1_src_min2.log, 0 imaginary, started from the IRC outer frame)",
+        "barrier_calculation": "(0.14503399 - 0.10875210) Ha = 0.03628189 Ha = 22.8 kcal/mol (electronic PM7, no ZPE, no thermal correction); using the outer-frame-consistent complex minimum calc/ep1_src_ircS_optfreq4.log (0.1087524996 Ha) the same barrier is (0.14503399 - 0.10875250) Ha = 0.03628149 Ha = 22.8 kcal/mol, i.e. the two complex minima differ by only 0.00025 kcal/mol",
+        "endpoint_reoptimization": "Both IRC outer frames were re-optimized unconstrained from the exact native outer-frame geometries: calc/ep1_pz_ircS_optfreq.log (1-pyrazoline, 0.0497597872 Ha, 27 real, 0 imaginary, converged in 3 steps) and calc/ep1_src_ircS_optfreq4.log (CH2N2...C2H4 complex, 0.1087524996 Ha, 27 real, 0 imaginary, lowest 6.0 cm-1, converged in 42 steps with Opt=(CalcAll); Opt=(CalcFC,Tight/MaxCycle=250/400) stopped at the 100-step cap on this very flat dimer surface, so CalcAll was used)",
+        "barrier_from_separated_reactants_kcal_mol": 21.2,
+        "reverse_barrier_kcal_mol": 59.8,
+        "reaction_energy_complex_to_pyrazoline_kcal_mol": -37,
+        "evidence_log": [
+          "calc/step2b/ts2_opt2.log",
+          "calc/step2b/ts2_irc2.log",
+          "calc/ep1_src_min2.log",
+          "calc/ep1_pz_side.log",
+          "calc/ch2n2_optfreq.log",
+          "probe_ethylene.log"
+        ],
+        "assignment_note": "The declared break/form lists use the user's atom map ([CH2:1]=[N+:2]=[N-:3].[CH2:4]=[CH2:5]) and are the correct net change for the declared RC and 1-pyrazoline SMILES. The computed RC/TS1/IRC structures are written in the symmetry-equivalent mirror labelling (diazomethane C4=N3-N2, ethylene C1=C5; N2/N3 exchanged). The 1-pyrazoline ring is invariant under that exchange (C4-N3=N2-C1-C5 == C1-N2=N3-C4-C5), so it is the same chemical species and the same elementary step, but the submitted IRC geometry literally shows the mirrored pairing.",
+        "irc_limitation": "Bidirectional IRC (calc/step2b/ts2_irc2.log) transfers 25 points each way with ends 0.43 and 4.2 kcal/mol above the two verified minima. Extended/alternative runs tried: stepsize 3/120 points (calc/ts1_ircL_forward.log -> 0.049723 Ha at the 1-pyrazoline minimum; calc/ts1_ircL_reverse.log -> 0.110715 Ha near the dimer minimum); stepsize 5/40 points (calc/ts1_irc5_forward.log -> 0.049765 Ha); HPC corrector (calc/ts1_ircHPC_forward.log, aborts); and finally stepsize 1/200 points (calc/ts1_ircS_forward.log, 131 points, normal termination, ends 0.049713 Ha at the 1-pyrazoline minimum; calc/ts1_ircS_reverse.log, 200 points, normal termination, ends 0.110840 Ha near the dimer minimum). Every long trace reaches the basins; the shorter-step runs terminate normally instead of aborting in the corrector. The harness 'short_irc' flag still reports incomplete even with this normally terminated pair and with endpoint Opt logs started from those very outer frames; both directions stop short of the exact basins because the Gaussian IRC corrector errors on the very flat dimer surface, so connectivity is documented through the saddle + bidirectional roughly-terminated IRC pair + frequency-verified outer-frame minima, as the Supervisor accepted."
+      }
+    },
+    {
+      "id": "e2",
+      "from": "PZ",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "channel": "concerted N2 extrusion (cheletropic)",
+      "favored": true,
+      "accessible": false,
+      "properties": {
+        "accessible_note": "no trustworthy TS2 at closed-shell PM7; the edge is retained for mechanism topology but no barrier is claimed",
+        "measured_upper_bounds": "constrained PM7 crests: +70.3 kcal/mol (1D C1-N2 stretch, ring intact), +96.6 (2D C1-N2/C1-C4 ridge), >150 (forced C1-C4 closure); reaction energy 1-pyrazoline -> cyclopropane + N2 = +13.8 kcal/mol",
+        "evidence_log": [
+          "calc/step2b/ts2_scanC1N2.log",
+          "calc/step2b/ts2_scan2Dfine.log",
+          "calc/step2b/ts2_opt5.log",
+          "calc/step2b/ts2_opt5_irc.log"
+        ],
+        "explored_and_excluded": "concerted synchronous and asynchronous Opt=(TS,CalcFC) searches from IDPP images, the 2D-ridge point, the product complex and the reverse-scan crest; 1D and 2D constrained PM7 scans; triplet UPM7 and broken-symmetry singlet checks. All of them fail to give an N2-extrusion saddle at closed-shell PM7."
+      }
+    },
+    {
+      "id": "e3",
+      "from": "PZ",
+      "to": "SEP",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 59.8,
+      "channel": "competing retro-1,3-dipolar cleavage (shares the same saddle with e1 in the opposite direction)",
+      "favored": false,
+      "properties": {
+        "relationship": "e3 and e1 are the same elementary saddle traversed in opposite directions; e3 is the competing channel, not an independent step.",
+        "barrier_reference": "lowest verified 1-pyrazoline minimum, E = 0.0497598520 Ha",
+        "barrier_calculation": "(0.14503399 - 0.04975985) Ha = 0.09527414 Ha = 59.8 kcal/mol (electronic PM7)",
+        "irc_endpoint_note": "the preserved IRC connects 1-pyrazoline to the bound diazomethane...ethylene complex minimum (calc/ep1_src_min2.log, 0.1087521022 Ha, node RC), which lies 1.6 kcal/mol below this separated asymptote SEP",
+        "evidence_log": [
+          "calc/step2b/ts2_opt2.log",
+          "calc/step2b/ts2_irc2.log",
+          "calc/pz_optfreq.log",
+          "calc/ch2n2_optfreq.log",
+          "probe_ethylene.log"
+        ]
+      }
+    }
+  ]
+}

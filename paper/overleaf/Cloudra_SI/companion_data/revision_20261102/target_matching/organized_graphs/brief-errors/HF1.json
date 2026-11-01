@@ -1,0 +1,176 @@
+{
+  "nodes": [
+    {
+      "id": "RC_syn",
+      "role": "reactant",
+      "smiles": [
+        "O[C@@H]1C=CCCC1.O=COO"
+      ],
+      "properties": {
+        "note": "Cis-face (OH hydrogen-bonded) pre-reaction complex: (1S)-cyclohex-2-en-1-ol + performic acid, peracid terminal O over the same alkene face as the allylic OH; O(allylic)...H-O(peracid) 1.63 A, O...O 2.63 A. Barrier reference conformer (lowest of three verified conformers).",
+        "evidence_log": "work/cis/jobs/rc_c2_s0_t10_p240_x315/rc_c2_s0_t10_p240_x315.log",
+        "energy_hartree": -574.382711163
+      }
+    },
+    {
+      "id": "TS_syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "note": "cis (syn, OH-directed) channel saddle, B3LYP-D3(BJ)/def2-SVP CPCM(CH2Cl2): Stationary point found, exactly one imaginary frequency -453.5571 cm-1 whose mode is dominated by O-O cleavage (pair projection 0.921) and both C-O formations (0.884, 0.809); the peroxy proton is still on the peroxy oxygen (0.990 A) and 2.571 A from the formyl oxygen, so the O-H transfer is a small component of the mode. Geometry: terminal peroxy O 2.071/2.198 A from the alkene carbons C3/C4, O-O 1.843 A, allylic O-H hydrogen-bonded to the formyl O (H...O 1.764 A).",
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/ts_opt/refine.log",
+        "energy_hartree": -574.353087433,
+        "imaginary_frequency_cm-1": -453.5571
+      }
+    },
+    {
+      "id": "PC_cis",
+      "role": "product",
+      "smiles": [
+        "O[C@H]1CCC[C@H]2O[C@@H]12.O=CO"
+      ],
+      "properties": {
+        "note": "Product complex of the cis channel: (1S,2S,3R)-2,3-epoxycyclohexan-1-ol + formic acid (OH and epoxide O on the same face). Energy/evidence_log are those of the lowest verified minimum of this complex, reached by optimising the product-side outer frame of the forward IRC from TS_syn: epoxide closed (O21-C3 1.439, O21-C4 1.437 A), peracid O-O broken (2.638 A), formic acid with the proton on O20 (1.000 A), C19=O18 1.216 / C19-O20 1.315 A; allylic O -1.42 A and epoxide O -1.20 A against the ring plane (same face = cis); the OH-bearing carbon is untouched so (1S) is retained. 1.90 kcal/mol below the alternative pc_a conformer and 1.61 kcal/mol below PS_complex_trans.",
+        "evidence_log": "work/irc_b3lyp/cis_irc_outer_prod.log",
+        "energy_hartree": -574.467249078,
+        "alternative_conformer": {
+          "evidence_log": "work/cis/jobs/pc_a/pc_a.log",
+          "energy_hartree": -574.464226955,
+          "note": "1.90 kcal/mol above the adopted minimum; same epoxide.HCOOH complex, different formic-acid orientation (and the O-H on the other formic-acid oxygen in that labelling)."
+        }
+      }
+    },
+    {
+      "id": "RC_anti",
+      "role": "reactant",
+      "smiles": [
+        "O[C@@H]1C=CCCC1.O=COO"
+      ],
+      "properties": {
+        "note": "Anti-face pre-reaction complex (lowest verified conformer of the anti-face family): (1S)-cyclohex-2-en-1-ol + performic acid with the peracid on the alkene face opposite the allylic OH; ring-plane distances under the fixed convention n=(r4-r2)x(r6-r2) on ring atoms 2,4,6 (C1,C3,C5): allylic O +1.26 A, peracid terminal O -2.92 A (opposite faces), no OH...O hydrogen bond. Barrier reference conformer. Two alternatives are retained: job 1528 (-574.37045492 Ha, 0.574 kcal/mol higher, cleaner low-frequency diagnostic) and the IRC-REACHED anti conformer, jobs 1635/1620 (-574.370191765 / -574.370191767 Ha, 0.739 kcal/mol higher, 0 imaginary, identical to each other to 2e-9 Ha and to job 1529), into which the normally terminated 1621 reverse arm relaxes. Because the IRC-reached conformer lies ABOVE this reference, the barrier reference does not move.",
+        "evidence_log": "work/anti/jobs3/rcAx_s1_tight2/rcAx_s1_tight2.log",
+        "energy_hartree": -574.371368992,
+        "alternative_reference": {
+          "evidence_log": "work/anti/jobs3/rcA_x_s0_th25_ph060_sp140/rcA_x_s0_th25_ph060_sp140.log",
+          "energy_hartree": -574.37045492,
+          "note": "0.574 kcal/mol above the adopted reference; same anti-face complex family, different peracid orientation."
+        }
+      }
+    },
+    {
+      "id": "TS_anti",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "note": "trans (anti) channel saddle, B3LYP-D3(BJ)/def2-SVP CPCM(CH2Cl2): Stationary point found, exactly one imaginary frequency -439.2828 cm-1 whose mode is the epoxidation coordinate (O-O stretch +1.42, C3-peroxy-O formation -1.36, plus peroxy-H motion). Geometry: terminal peroxy O 2.056/2.322 A from C3/C4, O-O 1.810 A, peroxy H 0.994 A still on the peroxy oxygen. Ring-plane face check under the fixed convention n=(r4-r2)x(r6-r2) on ring atoms 2,4,6 (C1,C3,C5): allylic O +1.32 A, peroxy O -1.90 A = opposite faces, i.e. the anti channel. Obtained by mirroring the cis B3LYP saddle's peracid fragment through the ring plane (substrate untouched).",
+        "evidence_log": "work/anti/jobs4/ts_anti_b3lyp_seed.log",
+        "energy_hartree": -574.347209537,
+        "imaginary_frequency_cm-1": -439.2828
+      }
+    },
+    {
+      "id": "PC_trans",
+      "role": "product",
+      "smiles": [
+        "O[C@H]1CCC[C@@H]2O[C@@H]21.O=CO"
+      ],
+      "properties": {
+        "note": "Product complex of the trans channel: (1S,2R,3S)-2,3-epoxycyclohexan-1-ol + formic acid (OH and epoxide O on opposite faces).",
+        "evidence_log": "work/anti/jobs2/pc1/pc1.log",
+        "energy_hartree": -574.464683779
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_syn",
+      "from": "RC_syn",
+      "to": "PC_cis",
+      "via": "TS_syn",
+      "bond_changes": {
+        "break": [
+          [
+            10,
+            11
+          ],
+          [
+            11,
+            12
+          ],
+          [
+            8,
+            9
+          ]
+        ],
+        "form": [
+          [
+            3,
+            11
+          ],
+          [
+            4,
+            11
+          ],
+          [
+            9,
+            12
+          ],
+          [
+            8,
+            10
+          ]
+        ]
+      },
+      "channel": "cis (syn, OH-directed)",
+      "favored": true,
+      "barrier_kcal_mol": 18.59,
+      "barrier_status": "B3LYP-D3(BJ)/def2-SVP CPCM(CH2Cl2) electronic barrier: E(TS) -574.353087433 - E(RC_syn) -574.382711163 = 0.02962373 Ha = +18.59 kcal/mol, no ZPE or thermal correction. Reference = the lowest verified (0 imaginary frequency) minimum of this channel's pre-reaction complex. The forward IRC from this saddle (work/irc_b3lyp/irc_cis_b3lyp.log) descends to the product well (last points -574.4618 Ha, epoxide closed, formic acid formed, i.e. the proton transfer occurs just after the saddle), so the channel is one asynchronous concerted step. Short_irc evidence: the cap-limited job 1595 IRC was later superseded by the CORRECTOR-FREE bidirectional IRC job 1683 (work/irc150/irc_cis150_nrc.log, IRC=(CalcFC,StepSize=5,MaxPoints=150,Recorrect=Never)), which terminated normally with a full reaction-path summary, 64 forward + 83 reverse path points inside the 150-point budget, RxCoord -13.181 -> +10.185, no cap stop and no corrector failure, and irc_both_directions_converged = true. Both outer frames were optimised and frequency-verified: reverse frame job 1687 (work/irc150/cis1683_rev_outer_optfreq.log, -574.382043497 Ha, 63 modes, 0 imaginary, lowest real 28.5956 cm-1, peracid and alkene intact, O1...H23 1.650 A, same-face placement, +0.419 kcal/mol above RC_syn) and forward frame job 1686 (work/irc150/cis1683_fwd_outer_optfreq.log, -574.468988412 Ha, 63 modes, 0 imaginary, cis epoxide O21-C3 1.445 / O21-C4 1.442 A, C3-C4 1.474 A, O-O 2.619 A broken, proton on O20 = form [10,12], same face as the allylic OH), the latter being a NEW, LOWER cis product conformer 1.09 kcal/mol below the PS_cis evidence file. Supervisor re-accepted on this package (dec_0b62de5e1f1948ae938a2451437b810b) with the barrier unchanged. Retained, deliberately unrepaired caveat: the short_irc stage still reports incomplete because the IRC-reached conformers are not the declared reference minima (+0.419 kcal/mol on this reactant side); that is a bookkeeping mismatch of conformers of the same species, and re-declaring the minima would silently move 18.59 to 18.17 kcal/mol, so the declared minima and every barrier were left untouched. PS_complex_cis keeps its accepted evidence; job 1686 is an additional conformer observation, not a replacement, and product energies enter no dE-dagger.",
+      "note": "Peracid O(11) is delivered to both alkene carbons C(3)/C(4) (epoxide); the O-O bond (10-11) and the peroxy O-H (11-12) are broken; the peracid C(8)=O(9) becomes a single bond and C(8)-O(10) becomes the C=O of formic acid, with the proton on O(9). MEASURED OUTCOME AND LABEL EQUIVALENCE: the computed cis IRC, and the optimised IRC-reached cis product minimum (work/irc_b3lyp/cis_irc_outer_prod.log), place H(12) on the inner peroxy oxygen O(10) (H12-O10 1.000 A) with C(8)=O(9) still a double bond (1.216 A) and C(8)-O(10) 1.315 A - i.e. form [10,12] with the formic-acid O-H on O(10). The declared pairs are the SAME transformation with the two equivalent oxygens of the same formic acid exchanged (O(9) and O(10) are its two oxygens, one carbonyl one hydroxyl in any one labelling), so they describe the chemistry correctly; the atom-mapped proton destination shown by the IRC is O(10), not O(9)."
+    },
+    {
+      "id": "e_anti",
+      "from": "RC_anti",
+      "to": "PC_trans",
+      "via": "TS_anti",
+      "bond_changes": {
+        "break": [
+          [
+            10,
+            11
+          ],
+          [
+            11,
+            12
+          ],
+          [
+            8,
+            9
+          ]
+        ],
+        "form": [
+          [
+            3,
+            11
+          ],
+          [
+            4,
+            11
+          ],
+          [
+            9,
+            12
+          ],
+          [
+            8,
+            10
+          ]
+        ]
+      },
+      "channel": "trans (anti)",
+      "favored": false,
+      "barrier_kcal_mol": 15.16,
+      "barrier_status": "B3LYP-D3(BJ)/def2-SVP CPCM(CH2Cl2) electronic barrier: E(TS) -574.347209537 - E(RC_anti) -574.371368992 = 0.024159455 Ha = +15.16 kcal/mol, no ZPE or thermal correction. NOTE on interpretation: this is the barrier measured from the anti channel's own pre-reaction complex, which lies 7.12 kcal/mol ABOVE RC_syn and has no OH...O hydrogen bond. Relative to the common reactant state the anti pathway therefore costs 7.12 + 15.16 = 22.28 kcal/mol, and in absolute terms the anti saddle (-574.347210 Ha) lies 3.69 kcal/mol above the cis saddle (-574.353087 Ha), so the syn/cis epoxide is the kinetically favoured product. Direction/connectivity (evidence submitted for Supervisor review): the REVERSE IRC from this same saddle is job 1621 (work/anti/irc/irc_anti_rev3.log, IRC=(CalcFC,Reverse,MaxPoints=40,StepSize=3), NORMAL termination, 39-40 reverse points, -574.347210 -> -574.365340688 Ha = 11.38 kcal/mol below the saddle and 3.78 kcal/mol above RC_anti), and its point-39 outer frame was optimised and frequency-verified as job 1635 (work/anti/endpoints/anti_irc_rev1621_outer.log, two normal terminations, 63 modes, 0 imaginary, lowest real 15.3349 cm-1, -574.370191765 Ha), an anti-face peracid-intact reactant complex 0.739 kcal/mol above RC_anti and identical to jobs 1620/1529. The product side is the verified trans-epoxide + formic-acid minimum work/anti/endpoints/anti_irc_fwd_outer.log (-574.462421648 Ha, 63 modes, 0 imaginary, 1.42 kcal/mol above PC_trans), obtained by optimising the outer frame of the ERROR-TERMINATED forward trace (job 1599) - that trace is not claimed as converged or normally terminated. SUPERSEDED / STRENGTHENED: the corrector-free bidirectional IRC job 1682 (work/irc150/irc_anti150_nrc.log, IRC=(CalcFC,StepSize=5,MaxPoints=150,Recorrect=Never)) terminated normally with both directions converged (71 forward / 70 reverse usable points, parser 72 forward + 71 backward, RxCoord -12.298 -> +12.418, irc_both_directions_converged = true), and its outer frames were optimised and frequency-verified: source job 1685 (work/irc150/anti1682_rev_outer_optfreq.log, -574.370191764 Ha, 63 modes, 0 imaginary, lowest real 15.3454 cm-1, the 1635/1620 conformer, 0.739 kcal/mol above RC_anti) and target job 1684 (work/irc150/anti1682_fwd_outer_optfreq.log, -574.462421649 Ha, 63 modes, 0 imaginary, lowest real 34.9298 cm-1, the same trans-epoxide + formic-acid conformer as the file above, form [9,12], 1.42 kcal/mol above PC_trans). Supervisor re-accepted on that package (dec_9c25ab6baaf3481781d73e0f9c21a908) with the barrier unchanged at 15.16 kcal/mol. The residual caveat is only that each arm's last frame lies 0.30 kcal/mol (source) and 1.51 kcal/mol (target) above its relaxed minimum, so the final relaxation is carried by the outer-frame Opt+Freq rather than by the IRC itself; the O21-H -> O18-H proton relocation is bridged by that verified product minimum rather than traced point by point.",
+      "note": "Same elementary changes as e_syn, on the opposite alkene face: O(11) delivered to C(3)/C(4), O-O (10-11) and peroxy O-H (11-12) broken, peracid C(8)=O(9) -> single, C(8)-O(10) -> C=O, proton on O(9). The anti forward IRC trace (work/anti/irc/irc_anti_b3lyp.log, job 1599, error-terminated in the corrector after 17 forward points) already shows this exact atom-mapped arrangement - the proton sits on the formyl oxygen O(9) (O18-H23 1.153 A) with the O-O bond broken (2.561 A) - so for this channel the declared pairs match the measured path directly, unlike the cis channel where the IRC measures form [10,12]. Both are the same formic acid with O(9)/O(10) exchanged (see e_syn). IRC evidence now bound (submitted for review): the normally terminated reverse arm (job 1621) plus its own frequency-verified minimum (job 1635) on the source side, and the frequency-verified product minimum work/anti/endpoints/anti_irc_fwd_outer.log on the target side, with the error termination of the forward trace 1599 stated explicitly. The earlier retained gap ('no normally terminated both-arms anti IRC exists') is now CLOSED in substance by job 1682, a normally terminated, cap-free, both-directions-converged IRC from this same saddle, with frequency-verified outer-frame minima jobs 1684/1685 (dec_9c25ab6baaf3481781d73e0f9c21a908); the short_irc stage nonetheless still reports incomplete because those IRC-reached conformers are not the declared reference minima (+0.739 reactant, +1.42 product kcal/mol), a bookkeeping mismatch that was deliberately not repaired by re-declaring minima."
+    }
+  ]
+}

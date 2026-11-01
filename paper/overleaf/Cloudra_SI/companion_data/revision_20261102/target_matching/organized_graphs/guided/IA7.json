@@ -1,0 +1,83 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C#C/C=C\\C#C"
+      ],
+      "properties": {
+        "evidence_log": "pm7/reac/rc1_pm7_optfreq.log",
+        "evidence_log_crosscheck": "reac/mmff_seed.out",
+        "energy_hartree": 0.201059781868,
+        "method": "PM7 (Gaussian 16 RevC.01), gas phase, charge 0, multiplicity 1",
+        "description": "(Z)-hex-3-ene-1,5-diyne minimum: #p PM7 Opt Freq, normal termination, optimisation converged, 24 frequencies all real (lowest 107.77 cm-1), E(RPM7) = 0.201059781868 Eh, ZPE 0.070525 Eh. d(C1...C6) = 4.271 A, d(C1-C2) = 1.212, d(C2-C3) = 1.405, d(C3=C4) = 1.347 A, C1-C2-C3 = C4-C5-C6 = 179.6 deg (alkyne termini axial). This is the barrier reference (lowest verified minimum).",
+        "conformer_note": "Exactly one enediyne minimum exists at this level: three independent seeds (GFN2 minimum geometry, arms bent 12 deg + terminal-H torsion, and a geometry compressed to d(C1...C6) = 3.10 A) all relax to this same structure (energies within 2.9e-5 kcal/mol), because C1 lies on the C2-C3 axis so the torsions are degenerate. The independent GFN2-xTB set (reac/mmff_seed.out, E = -14.708256387439 Eh) shows the same behaviour and the same single C2-symmetric minimum."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0002/jobs/declaration_0005/frequency/frequency.log",
+        "evidence_log_opt": "ts/ts_0002/jobs/declaration_0005/ts_opt/refine.log",
+        "evidence_log_irc": "ts/ts_0002/jobs/declaration_0008/irc/irc.log",
+        "energy_hartree": 0.250763163567,
+        "method": "PM7 (Gaussian 16 RevC.01), gas phase, charge 0, multiplicity 1",
+        "description": "C1/C6 ring-closing saddle of the concerted Bergman cyclization: Opt=(TS,CalcFC,NoEigenTest) converged, frequency job gives exactly ONE imaginary mode, -428.68 cm-1 (next real mode 398.06 cm-1), whose displacement is the symmetric in-plane C1/C6 closing motion (C1 +0.59, C6 -0.59, C3 -0.17, C4 +0.17, H7/H10 ~0.2 of the squared displacement). d(C1-C6) = 1.578 A; E(RPM7) = 0.250763163567 Eh, ZPE 0.319732 Eh. Native IRC (IRC=(CalcFC,LQA), 30+30 points, job 2218) starts from this saddle; its two outer frames were optimized independently to the two declared zero-imaginary-frequency minima.",
+        "crosscheck_gfn2": "Independent GFN2-xTB saddle (ts_extra/saddle/copt209/hess.out): d(C1-C6) = 2.089 A, one imaginary mode -367.78 cm-1, E = -14.683015526685 Eh, barrier 15.84 kcal/mol relative to the GFN2 enediyne minimum. The two semiempirical levels bracket the reaction differently (see barrier note).",
+        "irc_note": "Native IRC in Gaussian 16 PM7 (the only policy-legal IRC engine: xtb 6.5.0 has no IRC routine and the ts_prepare workflow refuses ts_opt for engine xtb). Attempt 1: job 2218, #p PM7 IRC=(CalcFC,LQA,MaxPoints=30,StepSize=5,MaxCycle=40) - 4 forward / 30 backward points. Attempt 2 (smaller steps, more refuelling): job 2242, #p PM7 IRC=(CalcFC,StepSize=2,MaxPoints=60,RecalcFC=10) - 8 forward / 60 backward points, reaction-coordinate range -3.71...0.49 amu^0.5 bohr. Both terminate normally but neither satisfies irc_both_directions_converged, so the bidirectional-path criterion is recorded as a native-IRC TOOL LIMITATION rather than left unexplained. The direction evidence used instead: (i) the saddle's single imaginary mode (-428.68 cm-1, C1/C6 closing, watch pair (1,6)); (ii) the IRC product-side outer frame relaxing without constraints to the p-benzyne minimum (ts/ts_0002/jobs/declaration_0009/product_frequency/product_frequency.log, 0 imaginary, E = 0.250458295628 Eh, d(C1-C6) = 1.481 A); (iii) the reactant-side outer frame relaxing without constraints to the enediyne minimum (ts_extra/pm7/irc2/ep_a_optfreq.log, 0 imaginary, lowest real 107.82 cm-1, E = 0.201059828137 Eh, the same minimum as the barrier reference). The sub-minimum IRC frame value 0.200003 Eh is an integrator artefact: relaxing that frame returns the enediyne minimum 0.65 kcal/mol higher, and no lower-lying enediyne minimum exists at PM7."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "[c]1cc[c]cc1"
+      ],
+      "properties": {
+        "evidence_log": "ts/ts_0002/jobs/declaration_0009/product_frequency/product_frequency.log",
+        "evidence_log_crosscheck": "prod/p_benzyne.out",
+        "method": "PM7 (Gaussian 16 RevC.01), gas phase, charge 0, multiplicity 1",
+        "description": "p-Benzyne (1,4-didehydrobenzene), C6H4, didehydro centres at ring atoms C2 and C5 of the reactant map. Bound evidence: the IRC frame-B relaxation .../declaration_0009/product_frequency/product_frequency.log - native Gaussian 16 PM7 Opt+Freq, normal termination, opt converged, 24 frequencies all real (0 imaginary, lowest real 354.80 cm-1), E(RPM7) = 0.250458295628 Eh, d(C1-C6) = 1.481 A, ring bonds 1.328/1.330/1.477/1.330/1.328/1.481 A, C2...C5 = 2.517 A, planar. Independently reproduced by pm7/prod/p_pm7_optfreq.log (E = 0.250458223050 Eh, 0 imaginary, lowest real 346.58 cm-1). Reaction energy RC->P = +31.0 kcal/mol (electronic, PM7: 0.250458295628 - 0.201059781868 Eh = 0.049398506 Eh), declared as semi-quantitative only; see reaction_energy_note for why this is not a physical reaction energy.",
+        "reaction_energy_note": "dE(RC->P) = 0.250458295628 - 0.201059781868 = 0.049398506 Eh = +31.00 kcal/mol (electronic, PM7). NOT a physical reaction energy: restricted RHF PM7 gives a localised cumulene-like closed-shell p-benzyne that lies 31.84 kcal/mol ABOVE the PM7 triplet (pm7/prod/p_pm7_triplet_diag.log, E = 0.199719969587 Eh); the true singlet is the ground state with a small S-T gap, so the product is grossly over-destabilised. An unrestricted singlet is not reachable under this method policy (guess=mix stays on the restricted branch; UHF is refused). The GFN2-xTB cross-check errs in the opposite direction (prod/p_benzyne.out: P = -0.53 kcal/mol).",
+        "evidence_log_independent_opt": "pm7/prod/p_pm7_optfreq.log (independent PM7 Opt+Freq minimum, E = 0.250458223050 Eh, 0 imaginary frequencies, lowest real 346.58 cm-1; labelled cross-check only, no numeric field so that no unbound energy claim is read as delivery evidence)",
+        "status_note": "Species-level minimum-energy claim: intentionally NOT declared as a standalone verified number. The optimised P minimum is recorded only in the bound geometry/frequency log (see evidence_log) and in the prose description; the harness closed-shell bond perception cannot represent the neutral C6H4 biradical (\"Final molecular charge (0) does not match input (-1); could not find valid bond ordering\"), a documented artifact (dec_3d6bf2a2bb6b485ea856a3d74ac95e0a, dec_a9867b48ca1e44359e909d004b9bd3a6), so P carries structure-supported evidence only (rev_ccffaf0912974cbea9ca9749becf737e, dec_53b45c5f262149de8ab47a3a60a202d1)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.19,
+      "channel": "concerted Bergman cyclization (single C1-C6 ring-closing saddle; both alkyne triple bonds reduced to double bonds)",
+      "favored": true,
+      "properties": {
+        "barrier_note": "Electronic barrier (no ZPE) E(TS1)-E(RC) = 0.250763163567 - 0.201059781868 = 0.049703399 Eh = 31.19 kcal/mol at PM7 (ZPE-corrected 30.21). Independent GFN2-xTB cross-check: 15.84 kcal/mol (E(TS) - E(RC_min) = -14.683015526685 + 14.708256387439 = 0.025241 Eh). The two allowed semiempirical levels disagree by ~15 kcal/mol because each mishandles the singlet biradical character of the product/TS region in opposite directions (PM7 over-destabilises p-benzyne, GFN2 over-stabilises it), so the barrier magnitude is not converged within the allowed methods; the mechanism (one concerted step through a single C1-C6 closing saddle, no intermediate) is however reproduced identically by both.",
+        "reverse_barrier_kcal_mol": 0.19
+      }
+    }
+  ]
+}

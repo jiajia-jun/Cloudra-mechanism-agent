@@ -1,0 +1,137 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "O=C(O)CC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -417.360029569,
+        "evidence_log": "calc/rc_min/rc_min.log",
+        "note": "lowest-energy B3LYP-D3(BJ)/def2-SVP malonic acid minimum in this study (syn conformer, intramolecular O1...H-O7 hydrogen bond, O1...O7 2.64 A); 27 real frequencies"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -417.315470343,
+        "evidence_log": "ts/ts_0006/jobs/declaration_0001/frequency/frequency.log",
+        "note": "six-membered cyclic decarboxylation TS (ring C5-C4-C2-O1...H11-O7); exactly one imaginary frequency -407.7 cm-1; IRC verified in both directions (ts/ts_0006/jobs/declaration_0001/irc/irc.log)"
+      }
+    },
+    {
+      "id": "INT",
+      "role": "intermediate",
+      "smiles": [
+        "OC(O)=C.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -417.332274514,
+        "evidence_log": "calc/int_min/int_min.log",
+        "note": "hydrogen-bonded complex of ethene-1,1-diol (acetic acid enol) with CO2, verified minimum (27 real frequencies); +17.4 kcal/mol above RC"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CC(=O)O.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -417.367422528,
+        "evidence_log": "calc/prod/prod.log",
+        "note": "acetic acid + CO2, verified minimum (27 real frequencies); overall reaction -4.6 kcal/mol"
+      }
+    },
+    {
+      "id": "TS4",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -417.220057874,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0001/ts_opt/refine.log",
+        "note": "explored four-membered (C4-H11-O7-C5) direct-decarboxylation saddle, one imaginary frequency -372.2 cm-1; IRC failed to converge, so this strained branch is not competitive and has no IRC direction proof"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            5
+          ],
+          [
+            7,
+            11
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            11
+          ],
+          [
+            5,
+            7
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 27.96,
+      "channel": "concerted six-membered cyclic decarboxylation (enol route)",
+      "favored": true
+    },
+    {
+      "id": "e3",
+      "from": "RC",
+      "to": "P",
+      "via": "TS4",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            5
+          ],
+          [
+            7,
+            11
+          ]
+        ],
+        "form": [
+          [
+            4,
+            11
+          ],
+          [
+            5,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 87.84,
+      "channel": "direct four-membered decarboxylation (investigated, not competitive)",
+      "favored": false
+    }
+  ],
+  "notes": {
+    "methodology": "gas phase, B3LYP-D3(BJ)/def2-SVP (Gaussian 16), barriers are electronic energy differences without ZPE/thermal corrections against the lowest verified malonic acid minimum (RC, calc/rc_min/rc_min.log).",
+    "unresolved": "The second step of the enol route (keto-enol tautomerization of ethene-1,1-diol to acetic acid inside the CO2 complex) was not located: the GFN2-xTB path guess stalled twice, a constructed intramolecular 1,3-H-transfer guess descended back to the enediol (57 TS steps, no saddle), and a relaxed O1-H11 scan dissociated. The INT and P nodes are therefore connected only through the investigated direct channel in this graph; the tautomerization TS remains an open gap.",
+    "thermochemistry": "E(acetic acid + CO2) - E(malonic acid) = -4.6 kcal/mol (electronic)."
+  }
+}

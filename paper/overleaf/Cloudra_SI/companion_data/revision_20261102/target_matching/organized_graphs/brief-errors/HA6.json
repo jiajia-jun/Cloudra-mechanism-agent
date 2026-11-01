@@ -1,0 +1,239 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C[C@H]1C=C[C@@H]1C"
+      ],
+      "properties": {
+        "description": "trans-3,4-dimethylcyclobutene pre-reaction minimum (unimolecular: the reactant complex is the molecule itself; methyls on opposite ring faces)",
+        "energy_hartree": -234.459195859,
+        "evidence_log": "qm/RC_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP gas phase, 0 imaginary",
+        "reference_note": "The lowest reactant minimum present in the evidence set is verify/endpoint_combo/EE_endA_optfreq.log at -234.459198284 Ha, 0.0015 kcal/mol below the RC reference qm/RC_optfreq.log (-234.459195859 Ha) used for the declared barriers; the difference is numerical and leaves 31.30 / 42.37 kcal/mol and the +11.07 kcal/mol difference unchanged."
+      }
+    },
+    {
+      "id": "TS_EE",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "channel": "conrotatory-EE",
+        "description": "conrotatory saddle (favored), outward methyl rotation; exactly 1 imaginary frequency -521.16 cm-1 (methyl-rotation mode coupled to C2-C5 cleavage; C2-C5 = 2.164 A, C3-C4 = 1.377 A, both methyl torsions 143.4 deg)",
+        "energy_hartree": -234.409312762,
+        "n_imag": 1,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "ts_opt_log": "ts/ts_0001/jobs/declaration_0006/ts_opt/refine.log",
+        "irc_log": "ts/ts_0001/jobs/declaration_0007/irc/irc.log",
+        "spin": "<S^2> = 0 (restricted closed-shell B3LYP, charge 0 multiplicity 1); a restricted calculation cannot probe diradical character - a broken-symmetry UB3LYP single point would be the test"
+      }
+    },
+    {
+      "id": "P_EE",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C/C"
+      ],
+      "properties": {
+        "description": "(2E,4E)-hexa-2,4-diene minimum (both diene torsions 180 deg)",
+        "energy_hartree": -234.483262073,
+        "evidence_log": "qm/P_EE_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP gas phase, 0 imaginary"
+      }
+    },
+    {
+      "id": "TS_ZZ",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "channel": "conrotatory-ZZ",
+        "description": "conrotatory-inward saddle; exactly 1 imaginary frequency -631.66 cm-1 (methyl-rotation mode, C2-C5 pair carrying 0.44 of the pair-projected displacement); methyl torsions 68.9 deg at the saddle decreasing to ~3 deg at the product, i.e. the opposite sense of rotation to the EE channel",
+        "energy_hartree": -234.391681925,
+        "n_imag": 1,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "ts_opt_log": "ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log",
+        "irc_log": "ts/ts_0002/jobs/declaration_0004/irc/irc.log",
+        "spin": "<S^2> = 0 (restricted closed-shell B3LYP, charge 0 multiplicity 1); a restricted calculation cannot probe diradical character - a broken-symmetry UB3LYP single point would be the test"
+      }
+    },
+    {
+      "id": "P_ZZ_2Z4Z",
+      "role": "product",
+      "smiles": [
+        "C/C=C\\C=C/C"
+      ],
+      "properties": {
+        "description": "(2Z,4Z)-hexa-2,4-diene minimum (both diene torsions 0 deg)",
+        "energy_hartree": -234.479937867,
+        "evidence_log": "qm/P_ZZtrue_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP gas phase, 0 imaginary"
+      }
+    },
+    {
+      "id": "TS_EZ",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "channel": "disrotatory-EZ",
+        "description": "disrotatory (thermally symmetry-forbidden) channel. No distinct saddle resolved: the ts_0003 attempt collapsed onto the same stationary point as the ZZ-inward saddle (E=-234.391682 Ha, -631.6 cm-1). No barrier declared. Untried test: constrained/relaxed scan driving the two methyl torsions in opposite senses while stretching C2-C5.",
+        "attempt_record": "Disrotatory saddle search attempts (all recorded, none successful): ts_0003/jobs/declaration_0003 ts_opt/refine.log + frequency/frequency.log converged to E = -234.391681966 Ha with one imaginary frequency -631.576 cm-1, which is the conrotatory-ZZ-inward saddle, not a disrotatory one; ts_0003 declaration_0005 refine.log ended at E = -234.391671622 Ha with normal_termination=false; declaration_0004 was an input defect (Gaussian L202, d(H10-C1) = 0.46 A). These are attempt outcomes, NOT proof that no disrotatory saddle exists.",
+        "evidence_log": "ts/ts_0003/jobs/declaration_0003/ts_opt/refine.log",
+        "evidence_frequency_log": "ts/ts_0003/jobs/declaration_0003/frequency/frequency.log",
+        "status": "no verified saddle; channel investigated, unresolved"
+      }
+    },
+    {
+      "id": "P_EZ",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C\\C"
+      ],
+      "properties": {
+        "description": "(2E,4Z)-hexa-2,4-diene minimum",
+        "energy_hartree": -234.481711854,
+        "evidence_log": "qm/P_EZ_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP gas phase, 0 imaginary"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_EE",
+      "from": "RC",
+      "to": "P_EE",
+      "via": "TS_EE",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "channel": "conrotatory-EE",
+      "favored": true,
+      "barrier_kcal_mol": 31.3,
+      "properties": {
+        "barrier_definition": "dE# = E(TS_EE) - E(RC), electronic only; reproducible from native saddle+freq logs",
+        "ts_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "ts_opt_log": "ts/ts_0001/jobs/declaration_0006/ts_opt/refine.log",
+        "irc_log": "ts/ts_0001/jobs/declaration_0007/irc/irc.log",
+        "src_minimum_log": "qm/RC_optfreq.log",
+        "target_minimum_log": "qm/P_EE_optfreq.log",
+        "irc_connectivity": "Bidirectional IRC from the same verified saddle (ts/ts_0001/jobs/declaration_0007/irc/irc.log: normal termination, both directions converged, fwd=61 / bwd=29, final E = -234.459190892 Ha). Reactant-side outer frame: intact cyclobutene, C2-C5 = 1.58 A, methyl torsions 119.5/119.5 deg = RC. Product-side outer frame: diene, C2-C5 = 3.10 A, methyl torsions 178.3/178.3 deg (E,E), central torsion -27.5 deg. Both outer frames were optimised unconstrained to zero-imaginary minima: reactant -234.459198284 Ha, product -234.477891634 Ha -> genuine (2E,4E).",
+        "product_conformer_note": "The IRC landed on a CONFORMER of the product: the relaxed endpoint (-234.477891634 Ha, central diene torsion -27.5 deg, s-cis-like) is 3.4 kcal/mol above the quoted s-trans species minimum qm/P_EE_optfreq.log (-234.483262073 Ha, 180 deg). Same (2E,4E) stereoisomer, not interchangeable; the barrier uses the RC reference.",
+        "stage_check_note": "Machine-level stage check short_irc PASSED once each endpoint minimum was supplied as a single combined Opt+Freq log that starts at the IRC outer frame and carries zero imaginary frequencies (verify/endpoint_combo/EE_endA_optfreq.log -234.459198284 Ha, 0 imag; EE_endB_optfreq.log -234.477891794 Ha, 0 imag). Separate Opt-only and Freq-only endpoint logs are not sufficient for that check.",
+        "endpoint_minima_logs": "source: verify/endpoint_combo/EE_endA_optfreq.log; target: verify/endpoint_combo/EE_endB_optfreq.log"
+      }
+    },
+    {
+      "id": "e_ZZ",
+      "from": "RC",
+      "to": "P_ZZ_2Z4Z",
+      "via": "TS_ZZ",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "channel": "conrotatory-ZZ",
+      "favored": false,
+      "barrier_kcal_mol": 42.37,
+      "properties": {
+        "barrier_definition": "dE# = E(TS_ZZ) - E(RC), electronic only; reproducible from native saddle+freq logs",
+        "ts_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "ts_opt_log": "ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log",
+        "irc_log": "ts/ts_0002/jobs/declaration_0004/irc/irc.log",
+        "src_minimum_log": "qm/RC_optfreq.log",
+        "target_minimum_log": "qm/P_ZZtrue_optfreq.log",
+        "irc_connectivity": "Bidirectional IRC from the same verified saddle (ts/ts_0002/jobs/declaration_0004/irc/irc.log: StepSize=5 / RecalcFC=5, normal termination, both directions converged, fwd=147 / bwd=79, final E = -234.459187248 Ha; the earlier attempt declaration_0003 died in the L123 IRC corrector on the flat diene end, i.e. numerically). Reactant-side outer frame: intact cyclobutene, C2-C5 = 1.58 A, methyl torsions 118.3/118.3 deg = RC. Product-side outer frame: diene, C2-C5 = 3.25 A, methyl torsions 2.6/2.6 deg = (2Z,4Z) (the (E,Z) isomer would read ~0/180), central torsion 52.9 deg. Both outer frames optimised unconstrained to zero-imaginary minima: reactant -234.459195838 Ha, product -234.475965179 Ha.",
+        "product_conformer_note": "The IRC landed on a CONFORMER of the product: the relaxed endpoint (-234.475965179 Ha, central diene torsion 52.9 deg, s-cis-like) is 2.5 kcal/mol above the quoted s-trans species minimum qm/P_ZZtrue_optfreq.log (-234.479937867 Ha, 0 deg). Same (2Z,4Z) stereoisomer; the two energies are not interchangeable.",
+        "barrier_difference_note": "minor - major = 42.37 - 31.30 = +11.07 kcal/mol; both barriers are dE(TS - RC) with RC = qm/RC_optfreq.log (-234.459195859 Ha), electronic only, no ZPE or thermal correction.",
+        "endpoint_minima_logs": "source: verify/endpoint_combo/ZZ_endA_optfreq.log (-234.459198213 Ha, 0 imag); target: verify/endpoint_combo/ZZ_endB_optfreq.log (-234.475967422 Ha, 0 imag, methyl torsions 3/3 = (2Z,4Z))",
+        "stage_check_note": "Machine-level stage check short_irc PASSED with the same combined Opt+Freq endpoint treatment as the EE edge."
+      }
+    },
+    {
+      "id": "e_EZ",
+      "from": "RC",
+      "to": "P_EZ",
+      "via": "TS_EZ",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "channel": "disrotatory-EZ",
+      "favored": false,
+      "properties": {
+        "note": "Symmetry-forbidden 4pi thermal disrotatory channel (Woodward-Hoffmann). No distinct saddle was obtained: the saddle searches collapsed onto the conrotatory-ZZ-inward saddle (see TS_EZ attempt record). No barrier is declared; the channel is retained only as investigated-unresolved.",
+        "constrained_scan": "Decisive test performed. (a) verify/disrot/disrot_scan4.log (job 1348, Opt=ModRedundant, B3LYP-D3(BJ)/def2-SVP): relaxed scan of C2-C5 from 1.58 to 2.42 A in 0.06 A steps with both methyl torsions FROZEN in opposite senses (D(1,2,3,4) held at 178.0 deg outward, D(3,4,5,6) held at 90.0 deg inward - verified in the Optimized Parameters table). Energy profile: +49.40 (1.58), +48.26 (1.64, minimum), then rising to a maximum of +60.53 kcal/mol at d(C2-C5) = 2.18 A, then falling to +44.65 at 2.42 A (relative to RC = -234.459195859 Ha). This constrained-path maximum is an UPPER BOUND, not a barrier: the methyl torsions were held fixed, so it is not a stationary point of the full PES and no barrier is declared for this channel. It lies ~29 kcal/mol above the conrotatory-EE saddle (31.30) and ~18 kcal/mol above conrotatory-ZZ-inward (42.37), so the disrotatory path is strongly disfavoured, consistent with it being a thermally forbidden 4pi process. (b) Earlier attempt verify/disrot/disrot_scan2.log: the 'D i j k l value F' form was echoed by Gaussian with a 'B' flag and did not hold (methyls relaxed to ~124 deg), so that run is a plain C2-C5-constrained path with a maximum of +29.89 kcal/mol at 2.18 A and does NOT discriminate the channels. (c) verify/disrot/disrot_scan3.gjf failed at L202 (H10-H15 0.32 A) because the rigidly rotated start geometry contained a clash; fixed by choosing the 90 deg inward target (clash-free)."
+      }
+    }
+  ],
+  "favored_channel": "conrotatory-EE",
+  "barrier_difference_minor_minus_major_kcal_mol": 11.07,
+  "remaining_gaps": [
+    {
+      "channel": "disrotatory-EZ",
+      "edge": "e_EZ",
+      "species": "P_EZ",
+      "status": "investigated, unresolved",
+      "barrier_kcal_mol": null,
+      "summary": "The thermally forbidden disrotatory channel to (2E,4Z)-hexa-2,4-diene was investigated but no distinct saddle was obtained, so no barrier is declared. Three saddle searches failed: ts_0003/declaration_0003 collapsed exactly onto the conrotatory-ZZ-inward saddle (E = -234.391681966 Ha, one imaginary frequency -631.576 cm-1), ts_0003/declaration_0005 ended with normal_termination=false at E = -234.391671622 Ha, and declaration_0004 was an input defect (Gaussian L202).",
+      "constrained_scan": "verify/disrot/disrot_scan4.log (job 1348, B3LYP-D3(BJ)/def2-SVP, Opt=ModRedundant): C2-C5 scanned 1.58 -> 2.42 A in 0.06 A steps with both methyl torsions frozen in opposite senses (D(1,2,3,4) = 178.0 deg outward, D(3,4,5,6) = 90.0 deg inward). Constrained-path maximum +60.53 kcal/mol at d(C2-C5) = 2.18 A (vs RC = -234.459195859 Ha). This is an UPPER BOUND on a constrained path, not a saddle barrier; it lies ~29 kcal/mol above conrotatory-EE (31.30) and ~18 kcal/mol above conrotatory-ZZ-inward (42.37).",
+      "non_discriminating_scan": "verify/disrot/disrot_scan2.log reached +29.89 kcal/mol at 2.18 A, but the 'D i j k l value F' input form was echoed by Gaussian with a 'B' flag and the dihedral freeze did not hold (methyls relaxed to ~124 deg), so that path does not represent the disrotatory coordinate.",
+      "what_would_close_it": "A genuine Opt=(TS,CalcFC,NoEigentest)+Freq search started from the constrained-peak frame (or from a properly constructed disrotatory guess) followed by a bidirectional IRC; if it converges to a first-order saddle its dE would be declared on e_EZ.",
+      "impact_on_delivery": "None for the two delivered channels: both conrotatory edges are saddle-, frequency-, bidirectional-IRC- and endpoint-minimum-verified and Supervisor-accepted, with barriers 31.30 (EE, favoured) and 42.37 (ZZ-inward) kcal/mol and a +11.07 kcal/mol difference."
+    }
+  ]
+}

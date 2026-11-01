@@ -259,6 +259,7 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
             smiles=complex_smiles(entry["reactants"]),
             accessible=entry.get("reactant_accessible", True),
             label=r_label,
+            properties=entry.get("reactant_properties", {}),
         )
     ]
     edges: list[MechanismEdge] = []
@@ -275,6 +276,7 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
             accessible=step.get("node_accessible", True),
             label=("target state" if property_kind else "product") if last
             else (f"state {k}" if property_kind else f"intermediate {k}"),
+            properties=step.get("node_properties", {}),
         )
         via = None
         if step.get("with_ts"):
@@ -300,6 +302,7 @@ def _build_graph(tid: str, entry: dict) -> GoldMechanismGraph:
                 bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
                 accessible=step.get("ts_accessible", True) and step.get("node_accessible", True),
                 barrier_kcal_mol=step.get("barrier"),
+                channel=step.get("channel"),
             )
         )
         nodes.append(node)

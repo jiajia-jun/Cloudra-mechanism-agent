@@ -1,0 +1,106 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -189.622498829,
+        "evidence_log": "work/minima/rc_zsyn_clean/rc_zsyn_clean.log",
+        "conformer": "Z-syn (syn-periplanar) formic acid, dihedral H4-O1-C2-O3 = 0.0 deg; lowest HCOOH conformer (E-anti is +4.831 kcal/mol higher)",
+        "method": "Gaussian 16 RevC.01, #p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ, gas phase, charge 0, multiplicity 1",
+        "n_imag": 0,
+        "cross_check_log": "work/minima/z_hcooh2/z_hcooh2.log",
+        "energy_kcal_relative": 0
+      },
+      "name": "Reactant Complex"
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -189.509282329,
+        "evidence_log": "work/ts_annot/ts2/ts2.log",
+        "imaginary_frequency_cm": -2212.4228,
+        "n_imag": 1,
+        "mode_composition": "H4 0.830, H5 0.157, C2 0.012 (squared displacements); pair projections (4,5) 0.872, (1,4) 0.806, (2,5) 0.436 -> coupled C2-H5 + O1-H4 cleavage with H4-H5 (H2) formation",
+        "geometry": "planar four-membered ring O1-C2-H5-H4; O1-C2 1.254, C2-O3 1.169, O1-H4 1.301, C2-H5 1.469, H4...H5 1.049 A, O1...O3 2.324 A",
+        "method": "Gaussian 16 RevC.01, #p opt=(ts,calcfc,noeigentest) freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ, gas phase, charge 0, multiplicity 1",
+        "note": "Independent duplicate of the formal-workflow saddle ts/ts_0002 (E identical to 1e-9 Ha); this exact-title log is the delivered evidence.",
+        "cross_check_log": "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log",
+        "cross_check_energy_hartree": -189.509282329,
+        "energy_kcal_relative": 71.044
+      },
+      "name": "Transition State 1"
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C(=O)=O.[H][H]"
+      ],
+      "properties": {
+        "energy_hartree": -189.62018192,
+        "evidence_log": "work/minima/p_complex_clean/p_complex_clean.log",
+        "description": "CO2...H2 van der Waals complex, C...H2-midpoint 2.901 A, H-H 0.761 A, H2 perpendicular to the CO2 plane; complex energy, not the component sum",
+        "component_logs": [
+          "work/minima/co2_clean/co2_clean.log",
+          "work/minima/h2_clean/h2_clean.log"
+        ],
+        "method": "Gaussian 16 RevC.01, #p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ, gas phase, charge 0, multiplicity 1",
+        "n_imag": 0,
+        "cross_check_log": "work/minima/p_complex/p_complex.log",
+        "energy_kcal_relative": 1.454
+      },
+      "name": "Product Complex"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            4,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 71.044,
+      "channel": "concerted dehydrogenation",
+      "favored": true,
+      "name": "Concerted H2 elimination",
+      "barrier_definition": "Delta-E(double dagger) = E(TS1) - E(RC Z-syn), electronic only (no ZPE/thermal), Gaussian 16 RevC.01 B3LYP/def2-SVP + GD3BJ, gas phase",
+      "barrier_evidence": [
+        "work/ts_annot/ts2/ts2.log",
+        "work/minima/rc_zsyn_clean/rc_zsyn_clean.log"
+      ],
+      "irc_evidence_log": "work/ts_annot/irc_final/irc_final_nr.log",
+      "endpoint_evidence": [
+        "work/ts_annot/irc_final/ep_react/ep_react.log",
+        "work/ts_annot/irc_final/ep_prod/ep_prod.log"
+      ],
+      "irc_connection": "E-anti HCOOH <-> TS1 <-> CO2...H2 (barrier referenced to the lower Z-syn minimum)"
+    }
+  ]
+}

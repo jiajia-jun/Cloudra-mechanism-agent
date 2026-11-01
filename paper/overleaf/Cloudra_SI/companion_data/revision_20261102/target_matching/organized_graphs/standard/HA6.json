@@ -1,0 +1,112 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C[C@H]1C=C[C@@H]1C"
+      ],
+      "properties": {
+        "description": "trans-3,4-dimethylcyclobutene pre-reaction minimum"
+      }
+    },
+    {
+      "id": "TS_con",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "conrotatory (Woodward-Hoffmann allowed) ring-opening TS"
+      }
+    },
+    {
+      "id": "P_EE",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C/C"
+      ],
+      "properties": {
+        "description": "(2E,4E)-hexa-2,4-diene"
+      }
+    },
+    {
+      "id": "TS_dis",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "disrotatory (symmetry-forbidden) ring-opening TS"
+      }
+    },
+    {
+      "id": "P_EZ",
+      "role": "product",
+      "smiles": [
+        "C/C=C\\C=C/C"
+      ],
+      "properties": {
+        "description": "(2E,4Z)-hexa-2,4-diene"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_con",
+      "from": "RC",
+      "to": "P_EE",
+      "via": "TS_con",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "channel": "conrotatory",
+      "favored": true
+    },
+    {
+      "id": "e_dis",
+      "from": "RC",
+      "to": "P_EZ",
+      "via": "TS_dis",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "channel": "disrotatory",
+      "favored": false
+    }
+  ]
+}

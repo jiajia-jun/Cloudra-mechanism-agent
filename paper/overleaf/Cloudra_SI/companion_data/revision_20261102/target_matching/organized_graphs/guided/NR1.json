@@ -1,0 +1,197 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "NC=O"
+      ],
+      "properties": {
+        "energy_hartree": -169.772982771,
+        "evidence_log": "calc/min/formamide_optfreq.log",
+        "note": "isolated formamide minimum (B3LYP-D3(BJ)/def2-SVP, gas phase), planar, 12 real frequencies; the N-H cis to O is H5 (2.56 A)"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -169.699168962,
+        "evidence_log": "calc/ts1/ts1_optfreq.log",
+        "note": "1,3-prototropic N->O shift through a planar 4-membered ring N1-C2-O3-H5; NImag=1 (-1897.9 cm-1), mode 97% H5"
+      }
+    },
+    {
+      "id": "FA1",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.751089752,
+        "evidence_log": "calc/ts1/ts1_endB_optfreq.log",
+        "note": "formimidic acid E rotamer, N-H trans to O, O-H syn to N; lowest imidic-acid minimum. Registered from the optimisation started at the outermost product-side IRC frame of calc/ts1/ts1_irc_short.log (NImag=0, 12 real modes, lowest 591.1 cm-1), so the species minimum and the IRC endpoint are the same calculation; the same minimum was independently computed as calc/conf/FA_EZ_optfreq.log (-169.751089429 Ha)"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -169.71480921,
+        "evidence_log": "calc/conf/ts2_optfreq.log",
+        "note": "first-order saddle at -991.8 cm-1 (E=-169.71480921 Ha) with an IN-PLANE N-H imaginary mode (z displacements ~0); documented as a real saddle of an in-plane coordinate, not the E/Z torsion saddle - both of its IRC outer frames optimise back to the E rotamer (calc/conf/ts2_endA_optfreq.log / ts2_endB_optfreq.log, -169.7510896 Ha), so it cannot carry the FA1 -> FA2 edge"
+      }
+    },
+    {
+      "id": "FA2",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.744844853,
+        "evidence_log": "calc/conf/FA_OHsyn_optfreq.log",
+        "note": "formimidic acid Z rotamer, N-H cis to O (O3-H4 2.40 A) with the O-H rotated away from N (N1-H6 3.09 A), NImag=0 (12 real modes, lowest 410.4 cm-1); the file carries the species title 'smiles: N=CO'. This is the minimum that the TS3 intermediate-side IRC outer frame reaches (calc/elim/ts3_endB_optfreq.log, -169.744844622 Ha, delta 0.2 microhartree; that frame-connected log is kept as the supporting reference only, because its own title line was mis-annotated). Not the lowest imidic-acid minimum: FA1 is 3.9 kcal/mol lower and the O-H-syn Z conformer (calc/min/formimidic_optfreq.log, -169.745424093 Ha) is 0.36 kcal/mol lower"
+      }
+    },
+    {
+      "id": "TS3",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -169.641371383,
+        "evidence_log": "calc/elim/ts3_optfreq.log",
+        "note": "elimination saddle, ring N1-C2-O3-H4: N-H4 1.38 A, O-H4 1.26 A, C-O 1.71 A, C-N 1.21 A; NImag=1 (-1923.8 cm-1), mode 97% H4"
+      }
+    },
+    {
+      "id": "PR",
+      "role": "product",
+      "smiles": [
+        "C#N.O"
+      ],
+      "properties": {
+        "energy_hartree": -169.727469793,
+        "evidence_log": "calc/elim/ts3_endA2.log",
+        "note": "HCN...H2O complex reached by the st3_elim IRC: NImag=0 with 12 real modes (lowest 130.7 cm-1), E=-169.727469793 Ha. HCN (N-C 1.155 A, C-H5 1.094 A) plus an intact water (O-H 0.967/0.967, H-O-H 104.4 deg) held by a linear C-H...O contact (H5...O 1.929 A, C-H...O 179 deg, C-O 3.023 A). This is 4.2 kcal/mol below the alternative water-donor complex calc/min/hcn_water_complex_optfreq.log (-169.720742486 Ha, N...H-O 2.09 A), which is documented here as a second minimum of the same state rather than as the delivered product. BSSE caveat: the complex lies 9.4 kcal/mol below the sum of the separately optimised monomers (-169.712408316 Ha), far more than any plausible binding, so BSSE (larger for the shorter C-H...O contact) inflates the absolute stabilisation and the two complexes' relative stability is not settled by these numbers."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_8a3cdd3a",
+      "from": "RC",
+      "to": "FA1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "channel": "imidic-acid stepwise",
+      "favored": false,
+      "name": "e1_taut",
+      "dag_step_id": "step_8a3cdd3a",
+      "barrier_note": "barrier 46.3 kcal/mol vs the formamide minimum (-169.772982771 Ha): TS1 -169.699168962 minus RC -169.772982771. Electronic energy only, no ZPE/thermal correction.",
+      "barrier_kcal_mol": 46.3,
+      "barrier_reference": "formamide RC (-169.772982771 Ha)"
+    },
+    {
+      "id": "step_0f0ac30f",
+      "from": "FA1",
+      "to": "FA2",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "combined conformational change: N-H flip about C=N plus O-H rotation",
+      "note": "conformational edge, empty break/form lists. No saddle connecting FA1 and FA2 has been located, so this edge deliberately has via = null: 22.8 kcal/mol is a relaxed-scan upper bound along the N-H torsion, not a barrier of a verified saddle. TS2 (-991.8 cm-1, calc/conf/ts2_optfreq.log) is a real but unrelated IN-PLANE N-H saddle whose two IRC frames both return to the E rotamer; it is kept as a documented saddle of that other coordinate and does not carry this edge.",
+      "favored": false,
+      "name": "e2_rot",
+      "dag_step_id": "step_0f0ac30f",
+      "barrier_note": "barrier NOT declared: 22.8 kcal/mol is a relaxed-scan upper bound along the N-H torsion from the Z side, not a verified saddle.",
+      "barrier_kcal_mol": 22.8,
+      "barrier_reference": "relaxed scan along the N-H torsion (scan estimate, no verified saddle)",
+      "barrier_status": "scan_estimate_unverified_saddle"
+    },
+    {
+      "id": "step_9b6e1d08",
+      "from": "FA2",
+      "to": "PR",
+      "via": "TS3",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "channel": "imidic-acid stepwise",
+      "note": "concerted N-H transfer plus C-O cleavage from the O-H-anti Z rotamer; TS3 -169.641371383 Ha minus FA1 -169.751089752 Ha = 68.86 kcal/mol, i.e. 82.6 kcal/mol above the formamide minimum; the step is endothermic by 10.9 kcal/mol (PR -169.727469793 Ha minus FA2 -169.744844853 Ha = -0.017375 Ha) and the overall reaction by 28.6 kcal/mol (PR minus RC -169.772982771 Ha). Not declared as the favoured channel. Direct one-step channel status: the concerted dehydration guess (calc/direct/ts4_v3.log, opt(TS,calcfc,maxcycles=200)) converged to a SECOND-ORDER saddle only - two imaginary frequencies (-1714.2 and -1595.1 cm-1, both essentially the migrating H) at E = -169.534376 Ha, i.e. 149.6 kcal/mol above formamide and 67 kcal/mol above TS3. No first-order direct saddle was located, so the direct channel is neither verified nor competitive; no channel preference is claimed.",
+      "favored": false,
+      "name": "e3_elim",
+      "dag_step_id": "step_9b6e1d08",
+      "barrier_note": "barrier 68.9 kcal/mol vs FA1 (-169.751089752 Ha) = 82.6 kcal/mol vs formamide: TS3 -169.641371383 minus FA1. Electronic energy only, no ZPE/thermal correction.",
+      "barrier_kcal_mol": 68.9,
+      "barrier_reference": "FA1 (lowest imidic-acid minimum, -169.751089752 Ha)"
+    }
+  ],
+  "delivery_targets": [
+    {
+      "step_id": "step_8a3cdd3a",
+      "name": "st1_taut",
+      "from": "RC",
+      "to": "FA1",
+      "edge": "e1_taut"
+    },
+    {
+      "step_id": "step_0f0ac30f",
+      "name": "st2_rot",
+      "from": "FA1",
+      "to": "FA2",
+      "edge": "e2_rot"
+    },
+    {
+      "step_id": "step_9b6e1d08",
+      "name": "st3_elim",
+      "from": "FA2",
+      "to": "PR",
+      "edge": "e3_elim"
+    }
+  ]
+}

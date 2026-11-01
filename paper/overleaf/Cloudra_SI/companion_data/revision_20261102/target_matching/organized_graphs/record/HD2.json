@@ -1,0 +1,144 @@
+{
+  "nodes": [
+    {
+      "id": "RC-anti",
+      "role": "reactant",
+      "smiles": [
+        "C1CCC2OC2C1.[OH-]"
+      ],
+      "properties": {
+        "energy_hartree": -385.48562501,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0008/reactant_frequency/reactant_frequency.log",
+        "note": "B3LYP-D3(BJ)/def2-SVP, CPCM(water) optimized pre-reaction ion-dipole complex (OH- paired with cis-cyclohexene oxide); lowest harmonic frequency 94.3 cm-1, no imaginary frequency."
+      }
+    },
+    {
+      "id": "RC-syn",
+      "role": "reactant",
+      "smiles": [
+        "C1CCC2OC2C1.[OH-]"
+      ],
+      "properties": {
+        "energy_hartree": -385.48562501,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0008/reactant_frequency/reactant_frequency.log",
+        "note": "Same ion-dipole pre-reaction complex used as the reference for the syn (frontside) channel; a separate frontside contact minimum does not exist at this level (an unconstrained optimization of the frontside arrangement drives OH- 4.6-4.9 A away from C2, jobs/rc_syn_optfreq.log)."
+      }
+    },
+    {
+      "id": "TS-anti",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.46504963,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "imaginary_frequency_cm1": -496.65,
+        "note": "Backside SN2 saddle: one imaginary frequency -496.6 cm-1; O1-C2 2.255 A forming, O3-C2 1.719 A breaking, O3-C4 1.401 A. IRC (ts/ts_0001/jobs/declaration_0008/irc/irc.log) connects the ion-dipole complex to the trans-2-hydroxycyclohexan-1-olate, i.e. inversion at C2."
+      }
+    },
+    {
+      "id": "TS-syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.433114126,
+        "evidence_log": "jobs/syn_encounter_opt.log",
+        "note": "Frontside (retention) encounter: constrained optimization with d(O1-C2) fixed at 2.143 A and the face dihedral O1-C2-C4-O3 frozen (Opt=ModRedundant, B3LYP-D3(BJ)/def2-SVP, CPCM water). No genuine first-order frontside C-O saddle exists: an unconstrained Opt=TS from this region collapses to an ion-dipole saddle with the epoxide intact (ts/ts_0002/jobs/declaration_0007/frequency/frequency.log, nu_imag -62.8 cm-1 with only 0.44 relative O1-C2 character). This energy is therefore an upper-bound estimate of the syn barrier, dominated by nucleophile-epoxide-oxygen repulsion."
+      }
+    },
+    {
+      "id": "P-trans",
+      "role": "product",
+      "smiles": [
+        "[O-][C@@H]1CCCC[C@H]1O"
+      ],
+      "properties": {
+        "energy_hartree": -385.535074968,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.log",
+        "note": "trans-2-hydroxycyclohexan-1-olate (anti addition product): the IRC-connected product minimum (O1-C2 1.430 A, O3-C2 2.409 A), all frequencies real (lowest 165.7 cm-1). A separately built trans conformer is 1.6 kcal/mol higher (jobs/p_trans_optfreq.log, -385.532569619)."
+      }
+    },
+    {
+      "id": "P-cis",
+      "role": "product",
+      "smiles": [
+        "[O-][C@@H]1CCCC[C@@H]1O"
+      ],
+      "properties": {
+        "energy_hartree": -385.548723771,
+        "evidence_log": "jobs/p_cis_optfreq.log",
+        "note": "cis-2-hydroxycyclohexan-1-olate (syn/retention product), all frequencies real (lowest 146.2 cm-1)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-anti",
+      "from": "RC-anti",
+      "to": "P-trans",
+      "via": "TS-anti",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 12.91,
+      "channel": "anti (backside) -> trans-diol",
+      "favored": true
+    },
+    {
+      "id": "e-syn",
+      "from": "RC-syn",
+      "to": "P-cis",
+      "via": "TS-syn",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 32.95,
+      "channel": "syn (frontside) -> cis-diol",
+      "favored": false
+    },
+    {
+      "id": "e-syn-alt",
+      "from": "RC-anti",
+      "to": "P-cis",
+      "via": "TS-syn",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 32.95,
+      "channel": "syn (frontside) -> cis-diol",
+      "favored": false
+    }
+  ]
+}

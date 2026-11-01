@@ -1,0 +1,2082 @@
+{
+  "scope": "Accuracy-only replay of the 12 original deliveries; published Graph and SC unchanged; no QM or delivery edits.",
+  "old_accuracy_source": "git HEAD:cloudra/benchmark/accuracy.py",
+  "old_accuracy_sha256": "5174becfca602679c0460d0c9c8447c03aa634977c35b10f4fe73bda6c350555",
+  "new_accuracy_sha256": "2d80a9c57656fe66fff6ae5c980a0ca510aba8f7857830955103e15df894719e",
+  "baseline_scores_source": "repository/paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv",
+  "baseline_scores_sha256": "0e118fb4a4e342f47806a487e4df5d706ff98edd29f15d441950a5b2001e3f6c",
+  "runs": [
+    {
+      "arm": "guided",
+      "task": "L2",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/L2/batch_94084d85d0634ca0/mechanism_graph.json",
+      "graph_sha256": "dabcac396a52440be7e213be268963e0127b831476771f2eb2e4a5eb5bf1484a",
+      "normalization": null,
+      "old_task_sha256": "a4002bdaacf6ffccba96aff98757baad87ad40dea94d62cbe3caa77fc80d7c05",
+      "new_task_sha256": "2a3f71af0dca11b38adb758e484d33abd216213a366e72f3d9e7ae3ea059de6a",
+      "old_accuracy": 0.7,
+      "new_accuracy": 0.7,
+      "baseline_accuracy": 0.7,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 0.0,
+      "new_minus_baseline": 0.0,
+      "baseline_graph": 1.0,
+      "baseline_self_consistency": 0.75,
+      "baseline_composite": 0.745,
+      "accuracy_only_composite": 0.7449999999999999,
+      "old_selected": {
+        "edge_id": "step_29e6224c",
+        "ts_path": "ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log",
+        "base_path": "endpoint_combined/.cloudra/execution-510/results/reactant_optfreq.log",
+        "base_node_id": "sp_21d5e5df",
+        "barrier_kcal_mol": 18.987395019416,
+        "declared_kcal_mol": 18.99
+      },
+      "new_selected": {
+        "edge_id": "step_29e6224c",
+        "ts_path": "ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log",
+        "base_path": "endpoint_combined/.cloudra/execution-510/results/reactant_optfreq.log",
+        "base_node_id": "sp_21d5e5df",
+        "barrier_kcal_mol": 18.987395019416,
+        "declared_kcal_mol": 18.99
+      },
+      "barrier_evidence": {
+        "steps": [
+          {
+            "edge_id": "step_29e6224c",
+            "ts_path": "ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log",
+            "base_path": "endpoint_combined/.cloudra/execution-510/results/reactant_optfreq.log",
+            "base_node_id": "sp_21d5e5df",
+            "barrier_kcal_mol": 18.987395019416,
+            "declared_kcal_mol": 18.99
+          }
+        ],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {
+          "step_29e6224c": [
+            {
+              "edge_id": "step_29e6224c",
+              "ts_path": "ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log",
+              "base_path": "endpoint_combined/.cloudra/execution-510/results/reactant_optfreq.log",
+              "base_node_id": "sp_21d5e5df",
+              "barrier_kcal_mol": 18.987395019416,
+              "declared_kcal_mol": 18.99
+            }
+          ]
+        }
+      },
+      "native_selected_log_energies": {
+        "endpoint_combined/.cloudra/execution-510/results/reactant_optfreq.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/L2/batch_94084d85d0634ca0/endpoint_combined/.cloudra/execution-510/results/reactant_optfreq.log",
+          "sha256": "424469ca0d21b3087f8b870d7f782bebf87cfe987ccb78b0b103aa06f0c7060f",
+          "electronic_energy_hartree": -233.233672607
+        },
+        "ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/L2/batch_94084d85d0634ca0/ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log",
+          "sha256": "151c78e8694f991f12a209e4815f742d7a9f488f4c366afdfc631f11ac3ab0af",
+          "electronic_energy_hartree": -233.203414267
+        }
+      },
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": 18.987395019416,
+        "declared_barrier_kcal": 18.99,
+        "rds_edge_id": "step_29e6224c",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.001566137648586362,
+        "capped_penalty": 0.3,
+        "final_score": 0.7,
+        "fail_loud": false,
+        "edge_scores": {
+          "L2_E1": 0.001566137648586362
+        },
+        "property_scores": {},
+        "notes": [
+          "gold edge L2_E1 matched delivered step step_29e6224c by endpoint species",
+          "edge L2_E1: log-derived 18.987 vs gold 29.770 (sigma 3.0) -> 0.0016 (weight 1.0)",
+          "numeric penalty 0.998 capped at 0.3"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": 18.987395019416,
+        "declared_barrier_kcal": 18.99,
+        "rds_edge_id": "step_29e6224c",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.001566137648586362,
+        "capped_penalty": 0.3,
+        "final_score": 0.7,
+        "fail_loud": false,
+        "edge_scores": {
+          "L2_E1": 0.001566137648586362
+        },
+        "property_scores": {},
+        "notes": [
+          "gold edge L2_E1 matched delivered step step_29e6224c by endpoint species",
+          "edge L2_E1: log-derived 18.987 vs gold 29.770 (sigma 3.0) -> 0.0016 (weight 1.0)",
+          "numeric penalty 0.998 capped at 0.3"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "step_29e6224c",
+          "from": "sp_21d5e5df",
+          "to": "sp_fa1a0666",
+          "via": "TS1",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "form": [
+              [
+                1,
+                6
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 18.99,
+          "weight": 1.0,
+          "channel": "disrotatory (Woodward-Hoffmann allowed, 6-pi thermal)",
+          "favored": null
+        }
+      ]
+    },
+    {
+      "arm": "standard",
+      "task": "L2",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/standard/r1/sandboxes/L2/batch_8b2051b670f348ba/mechanism_graph.json",
+      "graph_sha256": "c856a6f18176f5a3f7f898910ebbce2dec5ceb3dd62a6b6fc3b666f4d5f17e83",
+      "normalization": null,
+      "old_task_sha256": "a4002bdaacf6ffccba96aff98757baad87ad40dea94d62cbe3caa77fc80d7c05",
+      "new_task_sha256": "2a3f71af0dca11b38adb758e484d33abd216213a366e72f3d9e7ae3ea059de6a",
+      "old_accuracy": 0.7,
+      "new_accuracy": 0.8832329938516985,
+      "baseline_accuracy": 0.7,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 0.18323299385169856,
+      "new_minus_baseline": 0.18323299385169856,
+      "baseline_graph": 1.0,
+      "baseline_self_consistency": 0.5,
+      "baseline_composite": 0.67,
+      "accuracy_only_composite": 0.7799397963110191,
+      "old_selected": {
+        "edge_id": "e1",
+        "ts_path": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+        "base_path": "rc_czc_hexatriene_optfreq.log",
+        "base_node_id": "RC_cZc",
+        "barrier_kcal_mol": 18.987418237287784,
+        "declared_kcal_mol": 18.99
+      },
+      "new_selected": {
+        "edge_id": "e2",
+        "ts_path": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+        "base_path": "hexatriene_tZt_optfreq.log",
+        "base_node_id": "RC",
+        "barrier_kcal_mol": 28.275010887737153,
+        "declared_kcal_mol": 28.28
+      },
+      "barrier_evidence": {
+        "steps": [
+          {
+            "edge_id": "e1",
+            "ts_path": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+            "base_path": "rc_czc_hexatriene_optfreq.log",
+            "base_node_id": "RC_cZc",
+            "barrier_kcal_mol": 18.987418237287784,
+            "declared_kcal_mol": 18.99
+          },
+          {
+            "edge_id": "e2",
+            "ts_path": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+            "base_path": "hexatriene_tZt_optfreq.log",
+            "base_node_id": "RC",
+            "barrier_kcal_mol": 28.275010887737153,
+            "declared_kcal_mol": 28.28
+          }
+        ],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {
+          "e1": [
+            {
+              "edge_id": "e1",
+              "ts_path": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+              "base_path": "rc_czc_hexatriene_optfreq.log",
+              "base_node_id": "RC_cZc",
+              "barrier_kcal_mol": 18.987418237287784,
+              "declared_kcal_mol": 18.99
+            }
+          ],
+          "e2": [
+            {
+              "edge_id": "e2",
+              "ts_path": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+              "base_path": "hexatriene_tZt_optfreq.log",
+              "base_node_id": "RC",
+              "barrier_kcal_mol": 28.275010887737153,
+              "declared_kcal_mol": 28.28
+            }
+          ]
+        }
+      },
+      "native_selected_log_energies": {
+        "hexatriene_tZt_optfreq.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/standard/r1/sandboxes/L2/batch_8b2051b670f348ba/hexatriene_tZt_optfreq.log",
+          "sha256": "667f3f63225c57415aec4a6be5086db2c408f6d7caf7fcdf6e1db4e6885ca0b3",
+          "electronic_energy_hartree": -233.248473327
+        },
+        "rc_czc_hexatriene_optfreq.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/standard/r1/sandboxes/L2/batch_8b2051b670f348ba/rc_czc_hexatriene_optfreq.log",
+          "sha256": "77d264a96a40befd56bdfe2638ff3a9bd846bfe82bfe3fc215ea70f001c2a47a",
+          "electronic_energy_hartree": -233.233672606
+        },
+        "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/standard/r1/sandboxes/L2/batch_8b2051b670f348ba/ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+          "sha256": "b6ef95bc7b8c4856375682085a5aee64c11ac443ef01dc7d6fbb0679d132d391",
+          "electronic_energy_hartree": -233.203414229
+        }
+      },
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": 28.275010887737153,
+        "declared_barrier_kcal": 28.28,
+        "rds_edge_id": "e2",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.001566181213724635,
+        "capped_penalty": 0.3,
+        "final_score": 0.7,
+        "fail_loud": false,
+        "edge_scores": {
+          "L2_E1": 0.001566181213724635
+        },
+        "property_scores": {},
+        "notes": [
+          "gold edge L2_E1 matched delivered step e1 by endpoint species",
+          "edge L2_E1: log-derived 18.987 vs gold 29.770 (sigma 3.0) -> 0.0016 (weight 1.0)",
+          "numeric penalty 0.998 capped at 0.3"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": 28.275010887737153,
+        "declared_barrier_kcal": 28.28,
+        "rds_edge_id": "e2",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.8832329938516985,
+        "capped_penalty": 0.11676700614830149,
+        "final_score": 0.8832329938516985,
+        "fail_loud": false,
+        "edge_scores": {
+          "L2_E1": 0.8832329938516985
+        },
+        "property_scores": {},
+        "notes": [
+          "gold edge L2_E1 matched delivered step e2 by endpoint species",
+          "edge L2_E1: log-derived 28.275 vs gold 29.770 (sigma 3.0) -> 0.8832 (weight 1.0)"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e1",
+          "from": "RC_cZc",
+          "to": "P",
+          "via": "TS1",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "form": [
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ],
+              [
+                1,
+                6
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 18.99,
+          "weight": 1.0,
+          "channel": null,
+          "favored": null
+        },
+        {
+          "id": "e2",
+          "from": "RC",
+          "to": "P",
+          "via": "TS1",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "form": [
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ],
+              [
+                1,
+                6
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 28.28,
+          "weight": 1.0,
+          "channel": null,
+          "favored": null
+        }
+      ]
+    },
+    {
+      "arm": "record",
+      "task": "L2",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/record/r1/sandboxes/L2/batch_76e567788441411d/mechanism_graph.json",
+      "graph_sha256": "f992878884b7f0259855cef234d16af2ba9202945ae31567b9b4511d3ae9d1b6",
+      "normalization": null,
+      "old_task_sha256": "a4002bdaacf6ffccba96aff98757baad87ad40dea94d62cbe3caa77fc80d7c05",
+      "new_task_sha256": "2a3f71af0dca11b38adb758e484d33abd216213a366e72f3d9e7ae3ea059de6a",
+      "old_accuracy": 0.8832305081044819,
+      "new_accuracy": 0.8832305081044819,
+      "baseline_accuracy": 0.8832305081044819,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 0.0,
+      "new_minus_baseline": 0.0,
+      "baseline_graph": 1.0,
+      "baseline_self_consistency": 0.75,
+      "baseline_composite": 0.8549,
+      "accuracy_only_composite": 0.8549383048626891,
+      "old_selected": {
+        "edge_id": "e1",
+        "ts_path": "ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results/refine.log",
+        "base_path": "qm/hexatriene_tZt_optfreq.log",
+        "base_node_id": "RC",
+        "barrier_kcal_mol": 28.274993944971357,
+        "declared_kcal_mol": 28.27
+      },
+      "new_selected": {
+        "edge_id": "e1",
+        "ts_path": "ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results/refine.log",
+        "base_path": "qm/hexatriene_tZt_optfreq.log",
+        "base_node_id": "RC",
+        "barrier_kcal_mol": 28.274993944971357,
+        "declared_kcal_mol": 28.27
+      },
+      "barrier_evidence": {
+        "steps": [
+          {
+            "edge_id": "e1",
+            "ts_path": "ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results/refine.log",
+            "base_path": "qm/hexatriene_tZt_optfreq.log",
+            "base_node_id": "RC",
+            "barrier_kcal_mol": 28.274993944971357,
+            "declared_kcal_mol": 28.27
+          }
+        ],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {
+          "e1": [
+            {
+              "edge_id": "e1",
+              "ts_path": "ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results/refine.log",
+              "base_path": "qm/hexatriene_tZt_optfreq.log",
+              "base_node_id": "RC",
+              "barrier_kcal_mol": 28.274993944971357,
+              "declared_kcal_mol": 28.27
+            }
+          ]
+        }
+      },
+      "native_selected_log_energies": {
+        "qm/hexatriene_tZt_optfreq.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/record/r1/sandboxes/L2/batch_76e567788441411d/qm/hexatriene_tZt_optfreq.log",
+          "sha256": "755108d297fc2af585f91bed06ee87c202772fb118da836e551bb633bb4210c6",
+          "electronic_energy_hartree": -233.248473353
+        },
+        "ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results/refine.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/record/r1/sandboxes/L2/batch_76e567788441411d/ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results/refine.log",
+          "sha256": "1a60c9b62152b5b5f623d90b550bcf05bdb123ec2faf84936c648222a1dde692",
+          "electronic_energy_hartree": -233.203414282
+        }
+      },
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": 28.274993944971357,
+        "declared_barrier_kcal": 28.27,
+        "rds_edge_id": "e1",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.8832305081044819,
+        "capped_penalty": 0.11676949189551811,
+        "final_score": 0.8832305081044819,
+        "fail_loud": false,
+        "edge_scores": {
+          "L2_E1": 0.8832305081044819
+        },
+        "property_scores": {},
+        "notes": [
+          "gold edge L2_E1 matched delivered step e1 by endpoint species",
+          "edge L2_E1: log-derived 28.275 vs gold 29.770 (sigma 3.0) -> 0.8832 (weight 1.0)"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": 28.274993944971357,
+        "declared_barrier_kcal": 28.27,
+        "rds_edge_id": "e1",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.8832305081044819,
+        "capped_penalty": 0.11676949189551811,
+        "final_score": 0.8832305081044819,
+        "fail_loud": false,
+        "edge_scores": {
+          "L2_E1": 0.8832305081044819
+        },
+        "property_scores": {},
+        "notes": [
+          "gold edge L2_E1 matched delivered step e1 by endpoint species",
+          "edge L2_E1: log-derived 28.275 vs gold 29.770 (sigma 3.0) -> 0.8832 (weight 1.0)"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e1",
+          "from": "RC",
+          "to": "P",
+          "via": "TS1",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "form": [
+              [
+                1,
+                6
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 28.27,
+          "weight": 1.0,
+          "channel": "thermal 6pi disrotatory electrocyclization (Woodward-Hoffmann allowed for 4n+2)",
+          "favored": true
+        }
+      ]
+    },
+    {
+      "arm": "brief-errors",
+      "task": "L2",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/brief-errors/r1/sandboxes/L2/batch_1807f734104147cb/mechanism_graph.json",
+      "graph_sha256": "2adec1c8919a19818dfb9ad699ef2f242a539ba2d97e46fd71454e9d49a7280f",
+      "normalization": null,
+      "old_task_sha256": "a4002bdaacf6ffccba96aff98757baad87ad40dea94d62cbe3caa77fc80d7c05",
+      "new_task_sha256": "2a3f71af0dca11b38adb758e484d33abd216213a366e72f3d9e7ae3ea059de6a",
+      "old_accuracy": 0.8832390700297313,
+      "new_accuracy": 0.8832390700297313,
+      "baseline_accuracy": 0.8832390700297313,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 0.0,
+      "new_minus_baseline": 0.0,
+      "baseline_graph": 1.0,
+      "baseline_self_consistency": 0.8333333333333334,
+      "baseline_composite": 0.8799,
+      "accuracy_only_composite": 0.8799434420178388,
+      "old_selected": {
+        "edge_id": "e1",
+        "ts_path": "qm/ts_opt2.log",
+        "base_path": "qm/rc_min.log",
+        "base_node_id": "RC",
+        "barrier_kcal_mol": 28.275052303361008,
+        "declared_kcal_mol": 28.27
+      },
+      "new_selected": {
+        "edge_id": "e1",
+        "ts_path": "qm/ts_opt2.log",
+        "base_path": "qm/rc_min.log",
+        "base_node_id": "RC",
+        "barrier_kcal_mol": 28.275052303361008,
+        "declared_kcal_mol": 28.27
+      },
+      "barrier_evidence": {
+        "steps": [
+          {
+            "edge_id": "e1",
+            "ts_path": "qm/ts_opt2.log",
+            "base_path": "qm/rc_min.log",
+            "base_node_id": "RC",
+            "barrier_kcal_mol": 28.275052303361008,
+            "declared_kcal_mol": 28.27
+          },
+          {
+            "edge_id": "e2",
+            "ts_path": "qm/ts_opt2.log",
+            "base_path": "qm/rc_min.log",
+            "base_node_id": "RC",
+            "barrier_kcal_mol": 28.275052303361008,
+            "declared_kcal_mol": 18.99
+          }
+        ],
+        "notes": [
+          "edge e1: several minima of RC below the saddle; using qm/rc_min.log (lowest-energy stable intermediate in the declared source conformational state)",
+          "edge e_conf: no transition-state node (`via`)",
+          "edge e2: several minima of RC_folded below the saddle; using qm/rc_min.log (lowest-energy stable intermediate in the declared source conformational state)"
+        ],
+        "graph_found": true,
+        "alternatives": {
+          "e1": [
+            {
+              "edge_id": "e1",
+              "ts_path": "qm/ts_opt2.log",
+              "base_path": "qm/big_end_a_cf.log",
+              "base_node_id": "RC_folded",
+              "barrier_kcal_mol": 18.98744396516122,
+              "declared_kcal_mol": 28.27
+            },
+            {
+              "edge_id": "e1",
+              "ts_path": "qm/ts_opt2.log",
+              "base_path": "qm/rc_min.log",
+              "base_node_id": "RC",
+              "barrier_kcal_mol": 28.275052303361008,
+              "declared_kcal_mol": 28.27
+            }
+          ],
+          "e2": [
+            {
+              "edge_id": "e2",
+              "ts_path": "qm/ts_opt2.log",
+              "base_path": "qm/big_end_a_cf.log",
+              "base_node_id": "RC_folded",
+              "barrier_kcal_mol": 18.98744396516122,
+              "declared_kcal_mol": 18.99
+            },
+            {
+              "edge_id": "e2",
+              "ts_path": "qm/ts_opt2.log",
+              "base_path": "qm/rc_min.log",
+              "base_node_id": "RC",
+              "barrier_kcal_mol": 28.275052303361008,
+              "declared_kcal_mol": 18.99
+            }
+          ]
+        }
+      },
+      "native_selected_log_energies": {
+        "qm/rc_min.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/brief-errors/r1/sandboxes/L2/batch_1807f734104147cb/qm/rc_min.log",
+          "sha256": "184e930779136290baf5d7e0a16c053c2dc9411daa9289fe31a4537ce7f877cc",
+          "electronic_energy_hartree": -233.248473353
+        },
+        "qm/ts_opt2.log": {
+          "native_log": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/brief-errors/r1/sandboxes/L2/batch_1807f734104147cb/qm/ts_opt2.log",
+          "sha256": "0bd23841fccb8d52243c21faeb1a9a9720dd3d73f9ab8c542aecde585a0ea34e",
+          "electronic_energy_hartree": -233.203414189
+        }
+      },
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": 28.275052303361008,
+        "declared_barrier_kcal": 28.27,
+        "rds_edge_id": "e1",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.8832390700297313,
+        "capped_penalty": 0.11676092997026866,
+        "final_score": 0.8832390700297313,
+        "fail_loud": false,
+        "edge_scores": {
+          "L2_E1": 0.8832390700297313
+        },
+        "property_scores": {},
+        "notes": [
+          "gold edge L2_E1 matched delivered step e1 by endpoint species",
+          "edge L2_E1: log-derived 28.275 vs gold 29.770 (sigma 3.0) -> 0.8832 (weight 1.0)"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": 28.275052303361008,
+        "declared_barrier_kcal": 28.27,
+        "rds_edge_id": "e1",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.8832390700297313,
+        "capped_penalty": 0.11676092997026866,
+        "final_score": 0.8832390700297313,
+        "fail_loud": false,
+        "edge_scores": {
+          "L2_E1": 0.8832390700297313
+        },
+        "property_scores": {},
+        "notes": [
+          "gold edge L2_E1 matched delivered step e1 by endpoint species",
+          "edge L2_E1: log-derived 28.275 vs gold 29.770 (sigma 3.0) -> 0.8832 (weight 1.0)"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e1",
+          "from": "RC",
+          "to": "P",
+          "via": "TS1",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "form": [
+              [
+                1,
+                6
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 28.27,
+          "weight": 1.0,
+          "channel": "Cs / suprafacial (Woodward-Hoffmann-forbidden disrotatory 6pi electrocyclic closure)",
+          "favored": false
+        },
+        {
+          "id": "e_conf",
+          "from": "RC",
+          "to": "RC_folded",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "conformational (s-trans -> s-cis,s-cis methylene rotation)",
+          "favored": true
+        },
+        {
+          "id": "e2",
+          "from": "RC_folded",
+          "to": "P",
+          "via": "TS1",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "form": [
+              [
+                1,
+                6
+              ],
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 18.99,
+          "weight": 1.0,
+          "channel": "Cs / suprafacial (same saddle as e1, entered from the folded conformer the IRC reaches)",
+          "favored": false
+        }
+      ]
+    },
+    {
+      "arm": "guided",
+      "task": "IA5",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/IA5/batch_94084d85d0634ca0/mechanism_graph.json",
+      "graph_sha256": "500a8cc037d6bf86e2757a18c9217ef306dc640043bf8b93703341607dedd711",
+      "normalization": null,
+      "old_task_sha256": "c7cddfdd1937287cf337dbd855a065516246b29fbf3458d6b816028386e4f3b0",
+      "new_task_sha256": "da0f35d0dd79b613fe9536f64608b99ff5b85c3a5ed3ee03df446c07b941b03f",
+      "old_accuracy": 0.0,
+      "new_accuracy": 1.0,
+      "baseline_accuracy": 0.0,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 1.0,
+      "new_minus_baseline": 1.0,
+      "baseline_graph": 1.0,
+      "baseline_self_consistency": 1.0,
+      "baseline_composite": 0.4,
+      "accuracy_only_composite": 1.0,
+      "old_selected": {
+        "id": "conrotatory_ring_opening",
+        "from": "RC_cyclobutene",
+        "to": "P_butadiene",
+        "via": "TS_conrotatory",
+        "step_type": "",
+        "bond_changes": {
+          "break": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "form": [
+            [
+              1,
+              4
+            ],
+            [
+              2,
+              3
+            ]
+          ]
+        },
+        "accessible": true,
+        "barrier_kcal_mol": 33.57,
+        "weight": 1.0,
+        "channel": "conrotatory",
+        "favored": true
+      },
+      "new_selected": {
+        "id": "disrotatory_ring_opening",
+        "from": "RC_cyclobutene",
+        "to": "P_butadiene",
+        "via": "TS_disrotatory",
+        "step_type": "",
+        "bond_changes": {
+          "break": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "form": [
+            [
+              1,
+              4
+            ],
+            [
+              2,
+              3
+            ]
+          ]
+        },
+        "accessible": false,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "disrotatory",
+        "favored": false
+      },
+      "barrier_evidence": {
+        "steps": [],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {}
+      },
+      "native_selected_log_energies": {},
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IA5_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IA5_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 1.0,
+        "capped_penalty": 0.0,
+        "final_score": 1.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IA5_E1": 1.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IA5_E1: effectively inaccessible in the gold reference; correct negative final claim; scored 1"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "conrotatory_ring_opening",
+          "from": "RC_cyclobutene",
+          "to": "P_butadiene",
+          "via": "TS_conrotatory",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                3
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 33.57,
+          "weight": 1.0,
+          "channel": "conrotatory",
+          "favored": true
+        },
+        {
+          "id": "disrotatory_ring_opening",
+          "from": "RC_cyclobutene",
+          "to": "P_butadiene",
+          "via": "TS_disrotatory",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                3
+              ]
+            ]
+          },
+          "accessible": false,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "disrotatory",
+          "favored": false
+        }
+      ]
+    },
+    {
+      "arm": "standard",
+      "task": "IA5",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/standard/r1/sandboxes/IA5/batch_8b2051b670f348ba/mechanism_graph.json",
+      "graph_sha256": "7faf29991f9297c6d4d2865f128d78cad486d81b38275fa2011b31582fe342d0",
+      "normalization": null,
+      "old_task_sha256": "c7cddfdd1937287cf337dbd855a065516246b29fbf3458d6b816028386e4f3b0",
+      "new_task_sha256": "da0f35d0dd79b613fe9536f64608b99ff5b85c3a5ed3ee03df446c07b941b03f",
+      "old_accuracy": 0.0,
+      "new_accuracy": 0.0,
+      "baseline_accuracy": 0.0,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 0.0,
+      "new_minus_baseline": 0.0,
+      "baseline_graph": 0.6666666666666667,
+      "baseline_self_consistency": 0.25,
+      "baseline_composite": 0.1417,
+      "accuracy_only_composite": 0.14166666666666666,
+      "old_selected": {
+        "id": "e1",
+        "from": "RC",
+        "to": "P",
+        "via": "TS_dis",
+        "step_type": "",
+        "bond_changes": {
+          "break": [
+            [
+              3,
+              4
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          "form": [
+            [
+              2,
+              3
+            ],
+            [
+              1,
+              4
+            ]
+          ]
+        },
+        "accessible": true,
+        "barrier_kcal_mol": 49.16,
+        "weight": 1.0,
+        "channel": "disrotatory",
+        "favored": false
+      },
+      "new_selected": {
+        "id": "e1",
+        "from": "RC",
+        "to": "P",
+        "via": "TS_dis",
+        "step_type": "",
+        "bond_changes": {
+          "break": [
+            [
+              3,
+              4
+            ],
+            [
+              1,
+              2
+            ]
+          ],
+          "form": [
+            [
+              2,
+              3
+            ],
+            [
+              1,
+              4
+            ]
+          ]
+        },
+        "accessible": true,
+        "barrier_kcal_mol": 49.16,
+        "weight": 1.0,
+        "channel": "disrotatory",
+        "favored": false
+      },
+      "barrier_evidence": {
+        "steps": [],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {}
+      },
+      "native_selected_log_energies": {},
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IA5_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IA5_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IA5_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IA5_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e1",
+          "from": "RC",
+          "to": "P",
+          "via": "TS_dis",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                3,
+                4
+              ],
+              [
+                1,
+                2
+              ]
+            ],
+            "form": [
+              [
+                2,
+                3
+              ],
+              [
+                1,
+                4
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 49.16,
+          "weight": 1.0,
+          "channel": "disrotatory",
+          "favored": false
+        },
+        {
+          "id": "e2",
+          "from": "RC",
+          "to": "P",
+          "via": "TS_con",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                3,
+                4
+              ],
+              [
+                1,
+                2
+              ]
+            ],
+            "form": [
+              [
+                2,
+                3
+              ],
+              [
+                1,
+                4
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 33.57,
+          "weight": 1.0,
+          "channel": "conrotatory",
+          "favored": true
+        }
+      ]
+    },
+    {
+      "arm": "record",
+      "task": "IA5",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/record/r1/sandboxes/IA5/batch_76e567788441411d/mechanism_graph.json",
+      "graph_sha256": "83fb2f1fd1e2e2c2ee31ef61e4c1260d350c7a5e93c4196c5b44f225873668d1",
+      "normalization": null,
+      "old_task_sha256": "c7cddfdd1937287cf337dbd855a065516246b29fbf3458d6b816028386e4f3b0",
+      "new_task_sha256": "da0f35d0dd79b613fe9536f64608b99ff5b85c3a5ed3ee03df446c07b941b03f",
+      "old_accuracy": 0.0,
+      "new_accuracy": 1.0,
+      "baseline_accuracy": 0.0,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 1.0,
+      "new_minus_baseline": 1.0,
+      "baseline_graph": 1.0,
+      "baseline_self_consistency": 1.0,
+      "baseline_composite": 0.4,
+      "accuracy_only_composite": 1.0,
+      "old_selected": {
+        "id": "e_con",
+        "from": "RC",
+        "to": "P",
+        "via": "TS_con",
+        "step_type": "",
+        "bond_changes": {
+          "break": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "form": [
+            [
+              1,
+              4
+            ],
+            [
+              2,
+              3
+            ]
+          ]
+        },
+        "accessible": true,
+        "barrier_kcal_mol": 33.57,
+        "weight": 1.0,
+        "channel": "conrotatory",
+        "favored": true
+      },
+      "new_selected": {
+        "id": "e_dis",
+        "from": "RC",
+        "to": "P",
+        "via": "TS_dis",
+        "step_type": "",
+        "bond_changes": {
+          "break": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "form": [
+            [
+              1,
+              4
+            ],
+            [
+              2,
+              3
+            ]
+          ]
+        },
+        "accessible": false,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "disrotatory",
+        "favored": false
+      },
+      "barrier_evidence": {
+        "steps": [],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {}
+      },
+      "native_selected_log_energies": {},
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IA5_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IA5_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 1.0,
+        "capped_penalty": 0.0,
+        "final_score": 1.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IA5_E1": 1.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IA5_E1: effectively inaccessible in the gold reference; correct negative final claim; scored 1"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e_dis",
+          "from": "RC",
+          "to": "P",
+          "via": "TS_dis",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                3
+              ]
+            ]
+          },
+          "accessible": false,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "disrotatory",
+          "favored": false
+        },
+        {
+          "id": "e_con",
+          "from": "RC",
+          "to": "P",
+          "via": "TS_con",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                2
+              ],
+              [
+                3,
+                4
+              ]
+            ],
+            "form": [
+              [
+                1,
+                4
+              ],
+              [
+                2,
+                3
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 33.57,
+          "weight": 1.0,
+          "channel": "conrotatory",
+          "favored": true
+        }
+      ]
+    },
+    {
+      "arm": "brief-errors",
+      "task": "IA5",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/brief-errors/r1/sandboxes/IA5/batch_1807f734104147cb/mechanism_graph.json",
+      "graph_sha256": "66ee1bc46118f0c16bb897be9b6b400cd4d2c0d94a45dbed0220eeaea0b7d330",
+      "normalization": null,
+      "old_task_sha256": "c7cddfdd1937287cf337dbd855a065516246b29fbf3458d6b816028386e4f3b0",
+      "new_task_sha256": "da0f35d0dd79b613fe9536f64608b99ff5b85c3a5ed3ee03df446c07b941b03f",
+      "old_accuracy": 0.0,
+      "new_accuracy": 1.0,
+      "baseline_accuracy": 0.0,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 1.0,
+      "new_minus_baseline": 1.0,
+      "baseline_graph": 0.6666666666666667,
+      "baseline_self_consistency": 1.0,
+      "baseline_composite": 0.3667,
+      "accuracy_only_composite": 0.9666666666666667,
+      "old_selected": {
+        "id": "e1",
+        "from": "RC",
+        "to": "P",
+        "via": "TS1",
+        "step_type": "",
+        "bond_changes": {
+          "break": [
+            [
+              1,
+              4
+            ]
+          ],
+          "form": [
+            [
+              3,
+              4
+            ]
+          ]
+        },
+        "accessible": true,
+        "barrier_kcal_mol": 33.6,
+        "weight": 1.0,
+        "channel": "conrotatory",
+        "favored": null
+      },
+      "new_selected": {
+        "id": "e2",
+        "from": "RC",
+        "to": "P",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [
+            [
+              1,
+              4
+            ]
+          ],
+          "form": [
+            [
+              3,
+              4
+            ]
+          ]
+        },
+        "accessible": false,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "disrotatory",
+        "favored": null
+      },
+      "barrier_evidence": {
+        "steps": [],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {}
+      },
+      "native_selected_log_energies": {},
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IA5_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IA5_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 1.0,
+        "capped_penalty": 0.0,
+        "final_score": 1.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IA5_E1": 1.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IA5_E1: effectively inaccessible in the gold reference; correct negative final claim; scored 1"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e1",
+          "from": "RC",
+          "to": "P",
+          "via": "TS1",
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                4
+              ]
+            ],
+            "form": [
+              [
+                3,
+                4
+              ]
+            ]
+          },
+          "accessible": true,
+          "barrier_kcal_mol": 33.6,
+          "weight": 1.0,
+          "channel": "conrotatory",
+          "favored": null
+        },
+        {
+          "id": "e2",
+          "from": "RC",
+          "to": "P",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [
+              [
+                1,
+                4
+              ]
+            ],
+            "form": [
+              [
+                3,
+                4
+              ]
+            ]
+          },
+          "accessible": false,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "disrotatory",
+          "favored": null
+        }
+      ]
+    },
+    {
+      "arm": "guided",
+      "task": "IC3",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/IC3/batch_94084d85d0634ca0/mechanism_graph.json",
+      "graph_sha256": "59c5fbda0d64414e633ca19cf441f0b7a7d27a5024e32a81dbeb225087ced8bc",
+      "normalization": null,
+      "old_task_sha256": "3d7feff28e01d78459b6722889c063f9fe59f66a825a6f195bcf5366b2be0590",
+      "new_task_sha256": "c91f34ebd04cfd885a08eb4bbca69b9d4dc30b00eae8c9ee398651c5624bc3b0",
+      "old_accuracy": 0.0,
+      "new_accuracy": 0.0,
+      "baseline_accuracy": 0.0,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 0.0,
+      "new_minus_baseline": 0.0,
+      "baseline_graph": 1.0,
+      "baseline_self_consistency": 1.0,
+      "baseline_composite": 0.4,
+      "accuracy_only_composite": 0.4,
+      "old_selected": {
+        "id": "step_b4c6d606",
+        "from": "sp_1fd25e06",
+        "to": "sp_d44ee4c6",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [],
+          "form": []
+        },
+        "accessible": false,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "adiabatic electronic state change (triplet -> lowest open-shell singlet 1A2)",
+        "favored": null
+      },
+      "new_selected": {
+        "id": "step_b4c6d606",
+        "from": "sp_1fd25e06",
+        "to": "sp_d44ee4c6",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [],
+          "form": []
+        },
+        "accessible": false,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "adiabatic electronic state change (triplet -> lowest open-shell singlet 1A2)",
+        "favored": null
+      },
+      "barrier_evidence": {
+        "steps": [],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {}
+      },
+      "native_selected_log_energies": {},
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IC3_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IC3_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IC3_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IC3_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "step_c4351c45",
+          "from": "sp_1fd25e06",
+          "to": "sp_328f0f69",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "adiabatic electronic state change (triplet -> closed-shell singlet)",
+          "favored": null
+        },
+        {
+          "id": "step_b4c6d606",
+          "from": "sp_1fd25e06",
+          "to": "sp_d44ee4c6",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": false,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "adiabatic electronic state change (triplet -> lowest open-shell singlet 1A2)",
+          "favored": null
+        }
+      ]
+    },
+    {
+      "arm": "standard",
+      "task": "IC3",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/standard/r1/sandboxes/IC3/batch_8b2051b670f348ba/mechanism_graph.json",
+      "graph_sha256": "34b399c3adb7493c7998a9dd672862ec3f32299103b8ea63c5c5851a5c0269be",
+      "normalization": null,
+      "old_task_sha256": "3d7feff28e01d78459b6722889c063f9fe59f66a825a6f195bcf5366b2be0590",
+      "new_task_sha256": "c91f34ebd04cfd885a08eb4bbca69b9d4dc30b00eae8c9ee398651c5624bc3b0",
+      "old_accuracy": 0.0,
+      "new_accuracy": 0.0,
+      "baseline_accuracy": 0.0,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 0.0,
+      "new_minus_baseline": 0.0,
+      "baseline_graph": 0.3333333333333333,
+      "baseline_self_consistency": 0.5,
+      "baseline_composite": 0.1833,
+      "accuracy_only_composite": 0.18333333333333332,
+      "old_selected": {
+        "id": "e1",
+        "from": "PN_T",
+        "to": "PN_S1",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [],
+          "form": []
+        },
+        "accessible": true,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "electronic state change (spin flip within the same (n,pi*) configuration)",
+        "favored": false
+      },
+      "new_selected": {
+        "id": "e1",
+        "from": "PN_T",
+        "to": "PN_S1",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [],
+          "form": []
+        },
+        "accessible": true,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "electronic state change (spin flip within the same (n,pi*) configuration)",
+        "favored": false
+      },
+      "barrier_evidence": {
+        "steps": [],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {}
+      },
+      "native_selected_log_energies": {},
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IC3_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IC3_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IC3_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IC3_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e1",
+          "from": "PN_T",
+          "to": "PN_S1",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "electronic state change (spin flip within the same (n,pi*) configuration)",
+          "favored": false
+        },
+        {
+          "id": "e2",
+          "from": "PN_T",
+          "to": "PN_S_CS",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "electronic state change to the closed-shell zwitterionic configuration",
+          "favored": false
+        }
+      ]
+    },
+    {
+      "arm": "record",
+      "task": "IC3",
+      "graph_path": "Cloudra-P2-final-20261031/campaign_data/cloudra-p2c-20261025/record/r1/sandboxes/IC3/batch_76e567788441411d/mechanism_graph.json",
+      "graph_sha256": "3808676236ccd33bedead192720510f736ef4cdd641f063980d40cbd2a938206",
+      "normalization": null,
+      "old_task_sha256": "3d7feff28e01d78459b6722889c063f9fe59f66a825a6f195bcf5366b2be0590",
+      "new_task_sha256": "c91f34ebd04cfd885a08eb4bbca69b9d4dc30b00eae8c9ee398651c5624bc3b0",
+      "old_accuracy": 0.0,
+      "new_accuracy": 0.0,
+      "baseline_accuracy": 0.0,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 0.0,
+      "new_minus_baseline": 0.0,
+      "baseline_graph": 0.6666666666666667,
+      "baseline_self_consistency": 0.5,
+      "baseline_composite": 0.2167,
+      "accuracy_only_composite": 0.21666666666666667,
+      "old_selected": {
+        "id": "e1",
+        "from": "PHN_T",
+        "to": "PHN_S",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [],
+          "form": []
+        },
+        "accessible": true,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "spin-state change (intersystem crossing) - no transition state on the singlet surface; bond orders and connectivity unchanged",
+        "favored": null
+      },
+      "new_selected": {
+        "id": "e1",
+        "from": "PHN_T",
+        "to": "PHN_S",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [],
+          "form": []
+        },
+        "accessible": true,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "spin-state change (intersystem crossing) - no transition state on the singlet surface; bond orders and connectivity unchanged",
+        "favored": null
+      },
+      "barrier_evidence": {
+        "steps": [],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {}
+      },
+      "native_selected_log_energies": {},
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IC3_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IC3_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IC3_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IC3_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e1",
+          "from": "PHN_T",
+          "to": "PHN_S",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "spin-state change (intersystem crossing) - no transition state on the singlet surface; bond orders and connectivity unchanged",
+          "favored": null
+        },
+        {
+          "id": "e2",
+          "from": "PHN_T",
+          "to": "PHN_S_CS",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "spin-state change to the closed-shell 1A1 singlet (same connectivity)",
+          "favored": null
+        }
+      ]
+    },
+    {
+      "arm": "brief-errors",
+      "task": "IC3",
+      "graph_path": "Cloudra-P2-final-20261031/reconstructions/brief-errors/IC3/mechanism_graph.json",
+      "graph_sha256": "dc67f154844cd7a2febbfd8ea3290424742b8d04ca73baf8442f82c5c475fc52",
+      "normalization": null,
+      "old_task_sha256": "3d7feff28e01d78459b6722889c063f9fe59f66a825a6f195bcf5366b2be0590",
+      "new_task_sha256": "c91f34ebd04cfd885a08eb4bbca69b9d4dc30b00eae8c9ee398651c5624bc3b0",
+      "old_accuracy": 0.0,
+      "new_accuracy": 1.0,
+      "baseline_accuracy": 0.0,
+      "old_minus_baseline": 0.0,
+      "new_minus_old": 1.0,
+      "new_minus_baseline": 1.0,
+      "baseline_graph": 1.0,
+      "baseline_self_consistency": 1.0,
+      "baseline_composite": 0.4,
+      "accuracy_only_composite": 1.0,
+      "old_selected": {
+        "id": "e1_T1_to_S1",
+        "from": "T1_3A2",
+        "to": "S1_1A1",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [],
+          "form": []
+        },
+        "accessible": true,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "interstate (electronic state change / intersystem crossing), no bond-order change",
+        "favored": null
+      },
+      "new_selected": {
+        "id": "e2_T1_to_S2",
+        "from": "T1_3A2",
+        "to": "S2_1A2",
+        "via": null,
+        "step_type": "",
+        "bond_changes": {
+          "break": [],
+          "form": []
+        },
+        "accessible": false,
+        "barrier_kcal_mol": null,
+        "weight": 1.0,
+        "channel": "interstate (electronic state change / intersystem crossing), no bond-order change",
+        "favored": null
+      },
+      "barrier_evidence": {
+        "steps": [],
+        "notes": [],
+        "graph_found": true,
+        "alternatives": {}
+      },
+      "native_selected_log_energies": {},
+      "old_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 0.0,
+        "capped_penalty": 1.0,
+        "final_score": 0.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IC3_E1": 0.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IC3_E1: effectively inaccessible in the gold reference; positive or missing final claim; scored 0"
+        ]
+      },
+      "new_report": {
+        "enabled": true,
+        "log_barrier_kcal": null,
+        "declared_barrier_kcal": null,
+        "rds_edge_id": "",
+        "sigma_kcal": 3.0,
+        "gaussian_score": 1.0,
+        "capped_penalty": 0.0,
+        "final_score": 1.0,
+        "fail_loud": false,
+        "edge_scores": {
+          "IC3_E1": 1.0
+        },
+        "property_scores": {},
+        "notes": [
+          "edge IC3_E1: effectively inaccessible in the gold reference; correct negative final claim; scored 1"
+        ]
+      },
+      "declared_graph_edges": [
+        {
+          "id": "e1_T1_to_S1",
+          "from": "T1_3A2",
+          "to": "S1_1A1",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": true,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "interstate (electronic state change / intersystem crossing), no bond-order change",
+          "favored": null
+        },
+        {
+          "id": "e2_T1_to_S2",
+          "from": "T1_3A2",
+          "to": "S2_1A2",
+          "via": null,
+          "step_type": "",
+          "bond_changes": {
+            "break": [],
+            "form": []
+          },
+          "accessible": false,
+          "barrier_kcal_mol": null,
+          "weight": 1.0,
+          "channel": "interstate (electronic state change / intersystem crossing), no bond-order change",
+          "favored": null
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "all_12_old_accuracy_reproduce_published_baseline": true,
+    "all_12_original_graphs_unchanged": true,
+    "all_12_normalization_is_null": true,
+    "all_12_new_gold_hashes_match_current_files": true,
+    "any_new_fail_loud": false,
+    "changed_runs": 5
+  }
+}

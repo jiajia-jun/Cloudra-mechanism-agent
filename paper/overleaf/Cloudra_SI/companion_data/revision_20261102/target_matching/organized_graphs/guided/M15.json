@@ -1,0 +1,73 @@
+{
+  "nodes": [
+    {
+      "id": "cis-HONO",
+      "role": "reactant",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "name": "cis-HONO (syn conformer, dihedral O1-N2-O3-H4 = 0 deg)",
+        "energy_hartree": -205.544707593,
+        "evidence_log": "qm/cisHONO_min_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "dihedral_O1_N2_O3_H4_deg": 0,
+        "n_imaginary": 0,
+        "irc_endpoint_log": "qm/irc_end_b_optfreq.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "torsional saddle, dihedral O1-N2-O3-H4 = -87.6 deg",
+        "energy_hartree": -205.521528755,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "dihedral_O1_N2_O3_H4_deg": -87.6,
+        "imaginary_frequency_cm1": -700.32,
+        "n_imaginary": 1
+      }
+    },
+    {
+      "id": "trans-HONO",
+      "role": "product",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "name": "trans-HONO (anti conformer, dihedral O1-N2-O3-H4 = 180 deg)",
+        "energy_hartree": -205.543935823,
+        "evidence_log": "qm/transHONO_min_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "dihedral_O1_N2_O3_H4_deg": 180,
+        "n_imaginary": 0,
+        "irc_endpoint_log": "qm/irc_end_a_optfreq.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "cis-HONO",
+      "to": "trans-HONO",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 14.54,
+      "channel": "internal rotation about the N2-O3 single bond (torsion of O1-N2-O3-H4)",
+      "favored": true,
+      "properties": {
+        "barrier_reference": "E(TS1) - E(RC, cis-HONO minimum) = -205.521528755 - (-205.544707593) = 0.023178838 Ha",
+        "reverse_barrier_kcal_mol": 14.06,
+        "reaction_energy_kcal_mol": 0.48,
+        "irc_log": "ts/ts_0001/jobs/declaration_0004/irc/irc.log",
+        "irc_direction_b": "syn/cis side -> qm/irc_end_b_optfreq.log (0.01 deg, 0 imag, E = -205.544707594 Ha)",
+        "irc_direction_a": "anti/trans side -> qm/irc_end_a_optfreq.log (179.78 deg, 0 imag, E = -205.543935659 Ha)"
+      }
+    }
+  ]
+}

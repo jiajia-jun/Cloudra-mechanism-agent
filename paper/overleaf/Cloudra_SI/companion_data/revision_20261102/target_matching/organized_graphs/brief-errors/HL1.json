@@ -1,0 +1,150 @@
+{
+  "nodes": [
+    {
+      "id": "RC_exo",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -441.020095442,
+        "evidence_log": "work/exo/rc_exo_freq.log",
+        "channel": "exo",
+        "description": "Pre-reaction contact complex of the exo channel: HCNO lying over the C4=C5 face ANTI to the methano bridge C10 (B3LYP-D3(BJ)/def2-SVP, 0 imaginary frequencies)."
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -440.994316662,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "channel": "exo",
+        "imaginary_frequency_cm_1": -426.4927,
+        "description": "Concerted asynchronous [3+2] saddle of the exo channel: C(nitrile)-C4 2.21 A, O-C5 2.48 A, isoxazoline ring on the face opposite to C10. Barrier 16.18 kcal/mol above RC_exo."
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12"
+      ],
+      "properties": {
+        "energy_hartree": -441.095689332,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.log",
+        "channel": "exo",
+        "description": "exo/anti diastereomer: 2-isoxazoline fused at C4-C5 with the ring on the face opposite to the methano bridge C10 (0 imaginary frequencies). Isomeric SMILES derived from the optimized 3D geometry."
+      }
+    },
+    {
+      "id": "RC_endo",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -441.019350296,
+        "evidence_log": "work/endo/rc_endo_freq.log",
+        "channel": "endo",
+        "description": "Pre-reaction contact complex of the endo channel: HCNO over the C4=C5 face SYN to the methano bridge C10 (0 imaginary frequencies). 0.47 kcal/mol above RC_exo."
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -441.00218335,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log",
+        "channel": "endo",
+        "imaginary_frequency_cm_1": -375.9273,
+        "description": "Concerted asynchronous [3+2] saddle of the endo channel: C(nitrile)-C4 2.26 A, O-C5 2.47 A, ring on the same side as C10. Barrier 10.77 kcal/mol above RC_endo."
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12"
+      ],
+      "properties": {
+        "energy_hartree": -441.098273683,
+        "evidence_log": "work/endo/prod_endo_freq.log",
+        "channel": "endo",
+        "description": "endo/syn diastereomer: 2-isoxazoline fused at C4-C5 with the ring on the same side as the methano bridge C10 (0 imaginary frequencies). Isomeric SMILES derived from the optimized 3D geometry."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_exo",
+      "from": "RC_exo",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.18,
+      "channel": "exo",
+      "irc_log": "ts/ts_0001/jobs/declaration_0008/irc/irc.log",
+      "endpoint_source_log": "work/exo/rc_exo_framefreq.log",
+      "endpoint_target_log": "ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.log",
+      "note": "Concerted asynchronous [3+2]; IRC bidirectional (68 forward / 64 backward points), outer frames re-optimized to 0-imaginary minima. The DAG automated short_irc check reports incomplete only because the harness sidecar irc_endpoints.json records null endpoint filenames."
+    },
+    {
+      "id": "e_endo",
+      "from": "RC_endo",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 10.77,
+      "channel": "endo",
+      "irc_log": "ts/ts_0002/jobs/declaration_0006/irc/irc.log",
+      "endpoint_source_log": "work/endo/rc_endo_frame_freqonly.log",
+      "endpoint_target_log": "work/endo/prod_endo_freq.log",
+      "note": "Concerted asynchronous [3+2]; IRC bidirectional, outer frames re-optimized. Reactant-side frame bound as a frequency-verified relaxed frame (0 imag, 0.029 kcal/mol above and the same stationary point as the endo contact minimum). Same harness short_irc manifest defect."
+    }
+  ]
+}

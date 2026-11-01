@@ -1,0 +1,73 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=C=O.C=N"
+      ],
+      "properties": {
+        "energy_hartree": -247.061426649,
+        "evidence_log": "step_RC_c4_opt.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "note": "ketene + methanimine pre-reaction (van der Waals) complex; combined Opt+Freq, 24 real frequencies, normal termination. A second, IRC-connected conformer of the same complex is 0.36 kcal/mol higher (ts/ts_0013/jobs/declaration_0006/reactant_frequency/reactant_frequency.log, -247.060858386 Ha); the lower minimum is used as the barrier reference."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -247.010602991,
+        "evidence_log": "ts/ts_0013/jobs/declaration_0005/frequency/frequency.log",
+        "imaginary_frequency_cm": -575.3,
+        "note": "first-order saddle of the concerted, strongly asynchronous [2+2] cycloaddition; Opt=(TS,CalcFC) converged (ts/ts_0013/jobs/declaration_0005/ts_opt/refine.log, E = -247.010602991 Ha), Freq gives exactly one imaginary mode at -575.3 cm-1 (ring-closing), IRC (CalcFC, 15 points each way) connects the RC complex (rx = -2.596) with 2-azetidinone (rx = +2.596); both IRC outer frames re-optimized to zero-imaginary-frequency minima."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=C1CCN1"
+      ],
+      "properties": {
+        "energy_hartree": -247.11910522,
+        "evidence_log": "step_P.log",
+        "note": "2-azetidinone; combined Opt+Freq, 24 real frequencies, normal termination. Independent product minimum from the TS workflow: -247.119105195 Ha."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.9,
+      "channel": "concerted_asynchronous_2+2",
+      "favored": true
+    }
+  ]
+}

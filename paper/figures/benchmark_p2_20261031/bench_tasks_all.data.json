@@ -290,7 +290,7 @@
       "task": "L2",
       "arm": "standard",
       "field": "score",
-      "value": 0.67
+      "value": 0.7799
     },
     {
       "task": "L2",
@@ -1052,7 +1052,7 @@
       "task": "IA5",
       "arm": "guided",
       "field": "score",
-      "value": 0.4
+      "value": 1.0
     },
     {
       "task": "IA5",
@@ -1064,13 +1064,13 @@
       "task": "IA5",
       "arm": "record",
       "field": "score",
-      "value": 0.4
+      "value": 1.0
     },
     {
       "task": "IA5",
       "arm": "brief-errors",
       "field": "score",
-      "value": 0.3667
+      "value": 0.9667
     },
     {
       "task": "IA7",
@@ -1166,7 +1166,7 @@
       "task": "IC3",
       "arm": "brief-errors",
       "field": "score",
-      "value": 0.4
+      "value": 1.0
     },
     {
       "task": "ID2",
@@ -3890,7 +3890,7 @@
       "task": "L2",
       "arm": "standard",
       "field": "accuracy",
-      "value": 0.7
+      "value": 0.8832329938516985
     },
     {
       "task": "L2",
@@ -4652,7 +4652,7 @@
       "task": "IA5",
       "arm": "guided",
       "field": "accuracy",
-      "value": 0.0
+      "value": 1.0
     },
     {
       "task": "IA5",
@@ -4664,13 +4664,13 @@
       "task": "IA5",
       "arm": "record",
       "field": "accuracy",
-      "value": 0.0
+      "value": 1.0
     },
     {
       "task": "IA5",
       "arm": "brief-errors",
       "field": "accuracy",
-      "value": 0.0
+      "value": 1.0
     },
     {
       "task": "IA7",
@@ -4766,7 +4766,7 @@
       "task": "IC3",
       "arm": "brief-errors",
       "field": "accuracy",
-      "value": 0.0
+      "value": 1.0
     },
     {
       "task": "ID2",

@@ -1,0 +1,82 @@
+{
+  "nodes": [
+    {
+      "id": "RC_endo",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C1=CCC=C1"
+      ],
+      "properties": {
+        "name": "Pre-reaction pi complex of two cyclopentadiene molecules (endo approach, syn face relation)",
+        "energy_hartree": -387.964270258,
+        "evidence_log": "endo/rc_endo_optfreq.log",
+        "note": "B3LYP-D3(BJ)/def2-SVP gas phase, combined Opt+Freq, 0 imaginary frequencies (60 real modes); two intact Cp rings, ring centroids 3.78 A, forming pairs C2...C7 3.39 A and C4...C6 3.44 A."
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "Concerted endo [4+2] transition state",
+        "energy_hartree": -387.935351367,
+        "evidence_log": "mine/ts_endo_t2.log",
+        "note": "B3LYP-D3(BJ)/def2-SVP gas phase Opt=TS + Freq; exactly one imaginary frequency at -473.31 cm-1; at the saddle both new C-C bonds are the two shortest inter-fragment contacts (2.10 and 2.39 A) and the three diene C-C bonds are 1.400-1.415 A."
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "C12C=CC(C1)C1C=CCC12"
+      ],
+      "properties": {
+        "name": "endo-Dicyclopentadiene (tricyclo[5.2.1.0(2,6)]deca-3,8-diene)",
+        "energy_hartree": -387.996736503,
+        "evidence_log": "endo/p_endo_run.log",
+        "note": "B3LYP-D3(BJ)/def2-SVP gas phase, combined Opt+Freq, 0 imaginary frequencies; endo (syn) diastereomer, diene-CH2...dienophile-CH2 = 3.12 A."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_endo",
+      "from": "RC_endo",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            7
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 18.15,
+      "channel": "endo",
+      "favored": true
+    }
+  ]
+}

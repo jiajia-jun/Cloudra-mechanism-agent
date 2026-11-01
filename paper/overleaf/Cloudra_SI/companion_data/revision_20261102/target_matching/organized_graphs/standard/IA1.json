@@ -1,0 +1,115 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CC=C1"
+      ],
+      "properties": {
+        "description": "rectangular (D2h-like, bond-alternating) closed-shell singlet ground-state minimum of cyclobutadiene; the isolated molecule is the pre-reaction 'complex' for this unimolecular automerization (gas phase, no solvent, no counterion)",
+        "level_of_theory": "GFN2-xTB (xtb 6.5.0), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -10.444857330164,
+        "imaginary_frequencies_cm1": [],
+        "bond_lengths_angstrom": {
+          "C1-C2": 1.3263,
+          "C2-C3": 1.5526,
+          "C3-C4": 1.3263,
+          "C4-C1": 1.5526,
+          "C-H": 1.0721
+        },
+        "evidence_log": "rect_min_start.out",
+        "evidence_input": "rect_min_start.xyz",
+        "evidence_note": "rect_min_start.xyz is the MMFF seed; the optimised minimum is the converged structure of rect_min_start.out (also saved as rect_min_opt.xyz)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CC=C1"
+      ],
+      "properties": {
+        "description": "square D4h structure: first-order saddle of the antisymmetric (b1g-type) bond-alternation coordinate; all four C-C = 1.4305 A, planar",
+        "level_of_theory": "GFN2-xTB (xtb 6.5.0), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -10.408998459544,
+        "imaginary_frequencies_cm1": [
+          -4612.29
+        ],
+        "bond_lengths_angstrom": {
+          "C1-C2": 1.4305,
+          "C2-C3": 1.4305,
+          "C3-C4": 1.4305,
+          "C4-C1": 1.4305,
+          "C-H": 1.0709
+        },
+        "caveat": "the restricted (closed-shell) GFN2-xTB solution at the square geometry is essentially degenerate (HOMO-LUMO gap 1.6e-6 eV), so the square is a diradicaloid that a single-reference semiempirical SCF describes poorly; the imaginary frequency (-4612 cm-1) and the barrier are therefore not quantitative",
+        "evidence_log": "square_collapse_control_xtb.out",
+        "evidence_input": "square_collapse_control_xtb.xyz",
+        "evidence_note": "square_collapse_control_xtb.xyz is the D4h-symmetrised square start; the optimiser converged on the square (final structure saved as xtbopt.xyz at the time of job 984, energy -10.408998459544 Ha)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1=CC=C1"
+      ],
+      "properties": {
+        "description": "rectangular minimum reached downhill from TS1 along the imaginary mode: same rectangular geometry but with the bond alternation exchanged (1-2 and 3-4 now long/single, 2-3 and 4-1 short/double); simply the automerized reactant",
+        "level_of_theory": "GFN2-xTB (xtb 6.5.0), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -10.44485738134,
+        "imaginary_frequencies_cm1": [],
+        "bond_lengths_angstrom": {
+          "C1-C2": 1.5522,
+          "C2-C3": 1.3263,
+          "C3-C4": 1.5522,
+          "C4-C1": 1.3263
+        },
+        "evidence_log": "endpoint_fromTS_A_xtb.out",
+        "evidence_input": "endpoint_fromTS_A_xtb.xyz",
+        "evidence_note": "endpoint_fromTS_A_xtb.xyz is the displaced-square START of this run (labelled a=1.44, x=-0.05); the optimised endpoint geometry is the converged structure of endpoint_fromTS_A_xtb.out (0 imaginary frequencies, E = -10.444857381340 Ha)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            1
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 22.5,
+      "channel": "concerted single-step skeletal automerization through the square D4h first-order saddle",
+      "favored": true,
+      "properties": {
+        "reference_minimum": "RC (rectangular singlet minimum, E = -10.444857330164 Ha, 0 imaginary frequencies)",
+        "transition_state": "TS1 (square D4h, E = -10.408998459544 Ha, 1 imaginary frequency at -4612.29 cm-1)",
+        "barrier_definition": "delta-E double dagger = E(TS1) - E(RC), GFN2-xTB electronic energies, no ZPE or thermal correction",
+        "connection_evidence": "downhill displacement along the imaginary mode followed by re-optimisation gives two rectangular minima (endpoint_fromTS_A/B_xtb.out) with exchanged bond alternation and energies degenerate to 1.4e-10 Ha; rigid D4h ring-family single points sqgrid_a*_x*.out show the square is a maximum in the alternation coordinate",
+        "caveat": "restricted closed-shell GFN2-xTB at the square is electronically degenerate (HOMO-LUMO gap 1.6e-6 eV); the value is the GFN2-xTB result only and is not transferable"
+      }
+    }
+  ]
+}

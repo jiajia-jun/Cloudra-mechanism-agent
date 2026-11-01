@@ -1,0 +1,60 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5106949583,
+        "evidence_log": "rc_nh3_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, gas phase)",
+        "geometry": "pyramidal C3v NH3 minimum, 6 real frequencies (1062.6, 1656.7, 1656.8, 3444.3, 3561.4, 3561.6 cm-1)"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5012516341,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+        "opt_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+        "irc_log": "ts/ts_0001/jobs/declaration_0004/irc/irc.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, gas phase)",
+        "geometry": "planar D3h NH3 first-order saddle, exactly one imaginary frequency -828.5 cm-1 (umbrella mode: the three H atoms move symmetrically against N)"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.510694813,
+        "evidence_log": "product_nh3_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, gas phase)",
+        "geometry": "inverted pyramidal C3v NH3 minimum (IRC product-side outer frame, Opt+Freq), 6 real frequencies (1061.2, 1656.1, 1656.6, 3446.9, 3563.6, 3564.9 cm-1)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 5.93,
+      "channel": "umbrella inversion (single barrier)",
+      "favored": true
+    }
+  ]
+}

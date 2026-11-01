@@ -127,6 +127,7 @@ def gold_subgraph_selfconsistency(
     import networkx as nx
 
     from cloudra.benchmark.graph_similarity import species_substitution_cost
+    from cloudra.benchmark.target_identity import channel_compatible, state_compatible
 
     cfg = ged_config or GedConfig()
     gold_nodes = {node.id: node for node in gold_graph.nodes}
@@ -144,6 +145,13 @@ def gold_subgraph_selfconsistency(
             delivered_from = delivered_nodes.get(delivered_edge.from_node)
             delivered_to = delivered_nodes.get(delivered_edge.to_node)
             if delivered_from is None or delivered_to is None:
+                continue
+            if not channel_compatible(gold_edge.channel, delivered_edge.channel):
+                continue
+            if any(
+                not state_compatible(gold_node.properties.get("state"), delivered_node.properties.get("state"))
+                for gold_node, delivered_node in ((gold_from, delivered_from), (gold_to, delivered_to))
+            ):
                 continue
             cost_from = species_substitution_cost(gold_from.smiles, delivered_from.smiles, cfg)
             cost_to = species_substitution_cost(gold_to.smiles, delivered_to.smiles, cfg)

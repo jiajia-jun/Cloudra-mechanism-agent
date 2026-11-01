@@ -1,0 +1,176 @@
+{
+ "nodes": [
+  {
+   "id": "RC",
+   "role": "reactant",
+   "smiles": [
+    "C=O.O=CO.C[N+]#[C-]"
+   ],
+   "properties": {
+    "energy_hartree": -436.699408099,
+    "evidence_log": "jobs/rc_optfreq.log",
+    "note": "H-bonded three-component pre-reaction complex (formaldehyde O2...H6-O5 formic acid, methyl isocyanide C9 3.9 A from C1). Clean minimum, 0 imaginary frequencies. B3LYP-D3BJ/def2SVP, SMD dichloromethane."
+   }
+  },
+  {
+   "id": "TS1",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -436.689302558,
+    "evidence_log": "jobs/ts1b.log",
+    "imaginary_frequency_cm_1": -319.02,
+    "note": "C1-C9 bond formation with lagging O5-H6 -> O2 proton transfer (C1-C9 1.871 A, C1-O2 1.268, O2-H6 1.474, O5-H6 1.041). One imaginary frequency."
+   }
+  },
+  {
+   "id": "INT1",
+   "role": "intermediate",
+   "smiles": [
+    "C[N+]#CCO.O=C[O-]"
+   ],
+   "properties": {
+    "energy_hartree": -436.701018216,
+    "evidence_log": "jobs/int1b.log",
+    "note": "Nitrilium cation CH3-N+~C-CH2-OH ion-paired with formate; O2-H...O5 H-bond. Clean minimum, 0 imaginary frequencies. IRC from TS1 ends here (jobs/irc1.log)."
+   }
+  },
+  {
+   "id": "TS2",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -436.701018216,
+    "evidence_log": "jobs/scan3.log",
+    "note": "Barrierless nucleophilic addition of the formate O5 to the nitrilium carbon C9: the relaxed scan jobs/scan3.log (O5-C9 2.98 -> 1.45 A) is monotonically downhill (40 kcal/mol, no maximum), so no first-order saddle exists; this node carries the ion-pair geometry/energy at the top of that path."
+   }
+  },
+  {
+   "id": "INT2",
+   "role": "intermediate",
+   "smiles": [
+    "CN=C(CO)OC=O"
+   ],
+   "properties": {
+    "energy_hartree": -436.739218696,
+    "evidence_log": "jobs/int2b.log",
+    "note": "O-formyl alpha-hydroxy imidate CH3-N=C(O-CHO)(CH2OH). Clean minimum, 0 imaginary frequencies."
+   }
+  },
+  {
+   "id": "TS3",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -436.688563414,
+    "evidence_log": "jobs/scan5.log",
+    "note": "Upper bound for the concerted O2/O5 swap (formyloxy migration onto C1 plus O2-H6 -> N8): geometry and energy are the relaxed constrained point at O2-C9 = 1.84 A in jobs/scan5.log. No first-order saddle was located for this step at this level of theory (see PROCESS.md), so this barrier is an upper bound rather than a verified saddle."
+   }
+  },
+  {
+   "id": "P",
+   "role": "product",
+   "smiles": [
+    "CNC(=O)COC=O"
+   ],
+   "properties": {
+    "energy_hartree": -436.782772043,
+    "evidence_log": "jobs/prod2.log",
+    "note": "N-methyl-2-formyloxyacetamide. Clean minimum, 0 imaginary frequencies."
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "from": "RC",
+   "to": "INT1",
+   "via": "TS1",
+   "channel": "stepwise-nitrilium",
+   "bond_changes": {
+    "form": [
+     [
+      1,
+      9
+     ],
+     [
+      2,
+      6
+     ]
+    ],
+    "break": [
+     [
+      5,
+      6
+     ],
+     [
+      1,
+      2
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 6.34
+  },
+  {
+   "id": "e2",
+   "from": "INT1",
+   "to": "INT2",
+   "via": "TS2",
+   "channel": "stepwise-nitrilium",
+   "bond_changes": {
+    "form": [
+     [
+      9,
+      5
+     ]
+    ],
+    "break": [
+     [
+      8,
+      9
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 0
+  },
+  {
+   "id": "e3",
+   "from": "INT2",
+   "to": "P",
+   "via": "TS3",
+   "channel": "stepwise-nitrilium",
+   "favored": true,
+   "bond_changes": {
+    "form": [
+     [
+      9,
+      2
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      8,
+      6
+     ]
+    ],
+    "break": [
+     [
+      9,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      8,
+      9
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 31.79
+  }
+ ]
+}

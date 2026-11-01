@@ -7,15 +7,15 @@
   ],
   "grouped_means": [
     [
-      0.792954,
+      0.804954,
       0.91252,
       0.73702,
       0.9576500000000001,
-      0.44505999999999996
+      0.5050600000000001
     ],
     [
-      0.5813900000000001,
-      0.6989099999999999,
+      0.583588,
+      0.704405,
       0.57305,
       0.68875,
       0.24733
@@ -23,14 +23,14 @@
   ],
   "paired_differences": [
     {
-      "mean_difference": 0.2115639999999999,
-      "ci_low": 0.1289875999999997,
-      "ci_high": 0.2985365999999996
+      "mean_difference": 0.2213659999999999,
+      "ci_low": 0.1348696,
+      "ci_high": 0.3123679999999999
     },
     {
-      "mean_difference": 0.21361,
-      "ci_low": 0.0465347500000002,
-      "ci_high": 0.3927003750000002
+      "mean_difference": 0.208115,
+      "ci_low": 0.0399242500000002,
+      "ci_high": 0.38862025
     },
     {
       "mean_difference": 0.16397,
@@ -43,9 +43,9 @@
       "ci_high": 0.4459299999999999
     },
     {
-      "mean_difference": 0.1977299999999999,
-      "ci_low": 0.0895,
-      "ci_high": 0.32272
+      "mean_difference": 0.2577299999999999,
+      "ci_low": 0.102,
+      "ci_high": 0.44056
     }
   ],
   "paired_tasks": [
@@ -184,9 +184,9 @@
     },
     {
       "task": "IA5",
-      "brief-errors": 0.3667,
-      "guided": 0.4,
-      "record": 0.4,
+      "brief-errors": 0.9667,
+      "guided": 1.0,
+      "record": 1.0,
       "standard": 0.1417
     },
     {
@@ -212,7 +212,7 @@
     },
     {
       "task": "IC3",
-      "brief-errors": 0.4,
+      "brief-errors": 1.0,
       "guided": 0.4,
       "record": 0.2167,
       "standard": 0.1833
@@ -257,7 +257,7 @@
       "brief-errors": 0.8799,
       "guided": 0.745,
       "record": 0.8549,
-      "standard": 0.67
+      "standard": 0.7799
     },
     {
       "task": "M1",
@@ -401,8 +401,8 @@
     }
   ],
   "paired_outcome_counts": {
-    "a_wins": 36,
-    "b_wins": 7,
+    "a_wins": 35,
+    "b_wins": 8,
     "ties": 7
   }
 }

@@ -1,0 +1,177 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "NC=O"
+      ],
+      "properties": {
+        "energy_hartree": -169.772982771,
+        "evidence_log": "calc/A/rc_formamide_optfreq.log",
+        "note": "isolated formamide (pre-reaction state, unimolecular gas-phase reaction): C1 minimum, 0 imaginary frequencies, B3LYP-D3(BJ)/def2-SVP"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "NC=O"
+      ],
+      "properties": {
+        "energy_hartree": -169.69916943,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -1897.79,
+        "note": "1,3-H shift of the N-H cis to C=O (map H5) onto O3. Formally verified through ts_prepare run ts/ts_0003: exactly one imaginary mode -1897.79 cm-1, and both actual IRC outer frames optimized independently to zero-imaginary-frequency minima with the declared identities (formamide side and formimidic acid c3 side). Logs: ts/ts_0003/jobs/declaration_0001/ts_opt/refine.log, frequency/frequency.log, irc/irc.log, product_frequency/; guess from the relaxed scan maximum of calc/A/scan_NH_to_OH.log"
+      }
+    },
+    {
+      "id": "FI",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.751089429,
+        "evidence_log": "calc/A/fi_c3_OHsyn_NHanti.log",
+        "note": "formimidic acid global minimum, HO-C=N-H syn/anti (tau(HO-C=N)=0, tau(OC=N-H)=180), 0 imaginary frequencies; this is the conformer the TS1 IRC reaches. Other verified conformers: c1 -169.745424093 (calc/A/fi_c1.log, syn/syn), c2 -169.744844853 (calc/A/fi_c2_OHanti_NHsyn.log, O-H anti/N-H syn), c4 -169.741299930 (calc/A/fi_c4_OHanti_NHanti.log)"
+      }
+    },
+    {
+      "id": "TSCONF",
+      "role": "transition_state",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.73215734,
+        "evidence_log": "calc/A/tsconf_optfreq.log",
+        "imaginary_frequency_cm1": -543.04,
+        "note": "conformational transition of formimidic acid: pure hydroxyl torsion of H6 about the O3-C2 axis (imaginary mode displacements 0.39/0.88 on H6, all other atoms <=0.03), single imaginary frequency -543.04 cm-1 at tau(H-O-C=N)=94.4 deg. Both IRC branches and both re-optimized outer frames are verified: forward -> c3 (OH-syn/NH-anti, -169.751089942), reverse -> c4 (OH-anti/NH-anti, -169.741299799); the N-H never inverts, so this edge is c3 <-> c4 (logs calc/A/tsconf_irc.log, calc/A/tsconf_irc_rev.log, calc/A/tsconf_ircend_fwd_optfreq.log, calc/A/tsconf_ircend_rev_optfreq.log)"
+      }
+    },
+    {
+      "id": "FI2",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.744844853,
+        "evidence_log": "calc/B/fi3_NHtoO_OHanti_optfreq.log",
+        "note": "formimidic acid OH-anti / N-H-syn rotamer (N-H cis to O), 0 imaginary frequencies: the reactive conformer for dehydration and the minimum the TS2 IRC reaches on the intermediate side (+3.92 kcal/mol above FI). It differs from FI/FIC by the N-H orientation, i.e. it is NOT reachable by the pure C-O torsion TSCONF; the in-plane N-H reorientation between the NH-anti and NH-syn families was not located in this study. Edge e3 nevertheless references the bond-changing barrier to the lowest verified minimum of this state (FI), as required"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.641367278,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -1925.17,
+        "note": "concerted elimination from formimidic acid: N-H (map H4) transfers to O3 while C2-O3 breaks and C=N becomes C#N; freq log ts/ts_0001/jobs/declaration_0005/frequency/frequency.log (-1925.1662), IRC ts/ts_0001/jobs/declaration_0005/irc/irc.log with IRC outer-frame minima ts/ts_0001/jobs/declaration_0005/reactant_opt/reactant_opt.log (-169.744844939) and the HCN...H2O product. A second conformer channel (ts/ts_0002, from the O-H syn / N-H syn rotamer) relaxes to the same saddle (-169.641371482, imag -1923.68), so only one dehydration saddle exists"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C#N.O"
+      ],
+      "properties": {
+        "energy_hartree": -169.720742486,
+        "evidence_log": "calc/B/prod_HCN_H2O_optfreq.log",
+        "note": "HCN...H2O hydrogen-bonded product complex, 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "FIC",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.74129993,
+        "evidence_log": "calc/A/fi_c4_OHanti_NHanti.log",
+        "note": "formimidic acid OH-anti / N-H-anti rotamer, 0 imaginary frequencies; the IRC forward outer frame of the TSCONF saddle re-optimizes to this conformer (calc/A/tsconf_ircend_rev_optfreq.log / tsconf_ircend_fwd_optfreq.log, -169.741299799)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "FI",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 46.32,
+      "channel": "tautomerization"
+    },
+    {
+      "id": "e2",
+      "from": "FI",
+      "to": "FIC",
+      "via": "TSCONF",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 11.88,
+      "channel": "conformational"
+    },
+    {
+      "id": "e3",
+      "from": "FI",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 68.85,
+      "channel": "dehydration"
+    }
+  ]
+}

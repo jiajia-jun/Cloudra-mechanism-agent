@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -196.370768891,
+        "evidence_log": "runs/rcA3_optfreq.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "imaginary_frequencies": 0,
+        "note": "Propene-ethylene pre-reaction (pi) complex, single dot-joined complex, two fragments with no interfragment bond (C3...C10 3.848 A). This is the LOWEST VERIFIED MINIMUM of the reactant state and therefore the declared barrier REFERENCE for edge e1: runs/rcA3_optfreq.log, E(RB3LYP) = -196.370768891 Ha, normal termination, opt converged (Stationary point found), 0 imaginary frequencies (lowest real modes 32.2, 55.8, 66.3 cm-1 are loose-fragment rotations/translations), title 'smiles: C=CC.C=C'. Connectivity: propene C1=C2 1.336 with C3 carrying the allylic H7 at 1.101 A, ethylene C10=C11 1.333 with H15 on C11 at 1.095 A - i.e. the rcB-type atom labelling used by the declared mapping. Independently re-reached from the reverse outer frame of the bidirectional IRC: runs/end_react_v8_optfreq.log (job 354, started exactly at the irc_bidir_v7 ...end-a frame, title 'smiles: C=CC.C=C'), normal termination, Stationary point found on all four criteria, 0 imaginary of 39 modes (lowest real 32.2160/55.8125/66.2795 cm-1), E(RB3LYP) = -196.370768891 Ha, two fragments C3...C10 3.857 / C1...C11 3.848 A - i.e. this node's well, not the shallow -16.5 cm-1 saddle that a different start gave in runs/end_react_v5_optfreq.log. The second conformer runs/rcB_optfreq.log (E = -196.369332614 Ha, 0 imaginary, C3...C4 3.97 A) is 0.90 kcal/mol HIGHER and is retained as the geometry the saddle search was started from (and as the original DAG-accepted node evidence); it is not the barrier reference."
+      },
+      "name": "Propene-Ethylene Reactant Complex"
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -196.322809254,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "imaginary_frequencies": 1,
+        "imaginary_mode_cm1": -1155.69,
+        "note": "First-order saddle, stationary point found, exactly one imaginary frequency (-1155.69 cm-1; next real modes 159.7, 345.9 cm-1). Independently reproduced by runs/ts_lowest.log (-196.322809265 Ha, -1155.67 cm-1). MEASURED geometry of the refined saddle (atom order: 1,2,3 = propene C1,C2,C3; 4,5 = H on C1; 6 = H on C2; 7,8,9 = H on C3 with 7 = the allylic H = map 6; 10,11 = ethylene C4,C5; 12,13 on C10; 14,15 on C11): C1-C2 1.415, C2-C3 1.389, C3-C10 2.129 (new sigma bond still forming), C10-C11 1.407, C3-H7 3.550 (allylic C-H already broken), H7-C11 1.096 (allylic H already on the enophile), C1-H15 1.329 and C11-H15 1.462 (one ethylene H bridging C1 and C11, C1...C11 2.73 A). The single imaginary mode is dominated by that bridging hydrogen (squared-displacement fraction 0.766; next H4 0.051, H7 0.025; heavy-atom fraction 0.048; reaction-centre pair projections 3-10 0.195, 7-11 0.017, 3-7 0.001; ts_inspect mode_alignment 'undecidable', reported as measured). Therefore the soft coordinate is H motion with the C-C closure riding along: an extremely asynchronous, H-first saddle, NOT a symmetric concerted motion, and the C3-H6/C3-H7 cleavage is NOT the eigenvector of this saddle. The C1-C2 1.415 / C2-C3 1.389 values are transient allylic delocalisation, not a net pi shift."
+      },
+      "name": "Alder-ene transition state TS1"
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CCCC"
+      ],
+      "properties": {
+        "energy_hartree": -196.411432438,
+        "evidence_log": "runs/p_optfreq.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "imaginary_frequencies": 0,
+        "note": "1-Pentene (CH2=CH-CH2-CH2-CH3); normal termination, 0 imaginary frequencies. Lowest 1-pentene conformer found (p = p2; p3 +0.20 kcal/mol). Independently re-reached from the forward IRC outer frame: runs/end_prod_v2_optfreq.log, E = -196.411432438 Ha (identical), 0 imaginary frequencies (lowest real mode 87.85 cm-1), chain C1=C2 1.336, C2-C3 1.502, C3-C10 1.539, C10-C11 1.528 with the allylic H and the bridging H both on C11 at 1.101-1.103 A. Also re-reached from the forward outer frame of the bidirectional IRC: runs/end_prod_v8_optfreq.log (job 355, started exactly at the irc_bidir_v7 ...end-b frame, title 'smiles: C=CCCC'), normal termination, Stationary point found, 0 imaginary of 39 modes (lowest real 87.8507/123.2539/228.8811 cm-1), E(RB3LYP) = -196.411432437 Ha (same minimum within 4e-8 Ha), C1=C2 1.336, C2-C3 1.502, C3-C10 1.539, C10-C11 1.528 with H7 1.102 and H15 1.099 both on C11."
+      },
+      "name": "1-Pentene Product"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            6
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "channel": "Single elementary step, extremely asynchronous and H-transfer first: the allylic C3-H6 bond is already broken at the saddle (3.550 A) and H6 is on the enophile C5 (1.096 A), while the new C3-C4 sigma bond is still forming (2.129 A) and the C4=C5 pi bond is still largely intact (1.407 A); one ethylene hydrogen transiently bridges C1 and C11 (1.329/1.462 A). Forward motion closes C3-C4 and consumes the C4=C5 pi bond, giving 1-pentene with the propene pi bond retained at C1=C2 (no net pi shift).",
+      "barrier_kcal_mol": 30.1,
+      "properties": {
+        "barrier_hartree": 0.047959637,
+        "state": "B3LYP-D3(BJ)/def2-SVP electronic energy difference E(TS1) - E(RC), no ZPE or thermal correction, gas phase; reference = the lowest verified minimum of the reactant state, runs/rcA3_optfreq.log (-196.370768891 Ha), not the conformer reached by the IRC",
+        "favored": true,
+        "mapping": "bond-change indices are the mapped atom indices of the declared SMILES [CH2:1]=[CH:2][CH2:3]([H:6]).[CH2:4]=[CH2:5]; in the native log atom order this is C1,C2,C3 = map 1,2,3; H7 = map 6 (allylic H); C10,C11 = map 4,5.",
+        "direction_evidence": "Forward IRC ts/ts_0002/jobs/declaration_0002/irc/irc.log (55 points from this saddle) and the normally terminated forward leg runs/irc_fwd_v3.log close C3-C10 2.12 -> 1.55 A, restore C1=C2 to 1.34 A, make C2-C3 and C10-C11 single, and leave H7 and the bridging H both on C11 at ~1.10 A: 1-pentene, confirmed by a 0-imaginary opt+freq started at the forward outer frame (runs/end_prod_v2_optfreq.log). Reverse IRC runs/irc_rev_formal.log (job 305, normal termination) opens C3-C10 back to 2.87 A and returns a two-fragment propene + ethylene complex with no interfragment bond.",
+        "limitation_atom_mapping": "CORRECTED: the reverse IRC returns to the rcA3 minimum itself, not merely to a similar complex. The converged reverse outer frame (runs/end_react_v4_optfreq.log, E = -196.370768889 Ha, 0 imaginary) IS rcA3 (-196.370768891 Ha) under an explicit atom bijection 1<->3, 4<->9, 5<->8, 6<->6, 7<->4, 8<->5, 9<->15, 10<->10, 11<->11, 12<->13, 13<->12, 14<->7, 15<->14: 5-carbon RMSD 0.00009 A after superposition, all 15 atoms matching within 0.001 A, sorted 105-distance fingerprints agreeing within 0.0003 A, energies within 2e-6 Ha, and the lowest six real modes equal within 0.02 cm-1. The trajectory's atom labelling is therefore permuted relative to rcA3's naming (the allylic transfer is undone at the other end of the allyl system, so in the outer frame the methyl carbon carries the name C1 and the returning hydrogen the name H15). Per-index statements such as H7-C11 1.094 / C3-H7 3.02 therefore describe the NAMING, not a different complex or a different stationary point. Consequence for the step: the direction proof reaches the declared reactant minimum on both counting levels; the declared break/form pairs describe the forward net change, and no second channel exists (the pi-shifted reading stays withdrawn).",
+        "source_minimum_provenance": "The bound source minimum is runs/end_react_v8_optfreq.log (job 354), started DIRECTLY at the reverse outer frame of the accepted bidirectional IRC runs/irc_bidir_v7.log (runs/end_react_v8_start.xyz reproduces the ...end-a.xyz sidecar to 0.0000 A, atom order unchanged, title 'smiles: C=CC.C=C'): normal termination, Stationary point found on all four criteria after 99 optimisation steps, 0 imaginary of 39 modes (lowest real 32.2160/55.8125/66.2795 cm-1), E(RB3LYP) = -196.370768891 Ha, two fragments with no interfragment bond (C3...C10 3.857, C1...C11 3.848 A). It is runs/rcA3_optfreq.log to 1e-9 Ha, i.e. this graph's RC node itself, so no separate bijection argument is needed for the delivery. Earlier chain evidence that reaches the same stationary point: runs/end_react_v4_optfreq.log (E = -196.370768889 Ha, 0 imaginary, lowest real 32.23/55.83/66.30 cm-1), identical to rcA3 under the bijection 1<->3, 4->9, 5<->8, 6<->6, 7<->4, 8<->5, 9<->15, 10<->10, 11<->11, 12<->13, 13<->12, 14<->7, 15<->14 (5-carbon RMSD 0.00009 A). Superseded observation: runs/end_react_v5_optfreq.log, also started at the reverse outer frame of the earlier 40-point IRC, instead relaxed to a shallow floppy saddle 0.46 kcal/mol above rcA3 with one imaginary frequency at -16.5353 cm-1 (E = -196.370038255 Ha); it is NOT used as the source minimum and the direct-from-frame v8 optimisation shows that outcome was start-path dependent on a very flat reactant side, not a property of the declared RC.",
+        "failed_endpoint_attempts": "runs/end_react_v2 (job 314) and runs/end_react_v3 (job 322) both stopped at 'Number of steps exceeded, NStep= 100' without frequencies. The original diagnosis (Gaussian 16 silently ignoring the misspelled keyword 'maxcycles') was only half right: with the correct spelling MaxCycle=200 accepted in jobs 354/355, the reactant job still needed 99 steps of a 100-step Berny cap, and runs/end_react_v6_optfreq.log with MaxCycle=300 also stopped at NStep=100 - so in this installation the 100-step cap is not raised by MaxCycle at all. Practical consequence: endpoint jobs on this flat pi-complex surface must be started close enough to the minimum to converge within 100 steps.",
+        "barrier_reference": "barrier_kcal_mol = (-196.322809254) - (-196.370768891) = 0.047959637 Ha x 627.5095 = 30.10 kcal/mol. Referenced to runs/rcA3_optfreq.log, the lowest verified minimum of the propene-ethylene reactant state (0 imaginary frequencies). If the 0.90 kcal/mol higher conformer runs/rcB_optfreq.log (-196.369332614 Ha) were used instead, the same saddle would give 29.19 kcal/mol; rcB is the geometry the saddle search started from but is NOT the reference.",
+        "forward_segment": "Forward IRC from the same saddle: runs/irc_fwd_v3.log (job 321), normally terminated, 40/40 forward points at the maxpoints cap, irc=(calcfc,maxpoints=40,stepsize=10,forward,recorrect=never), first E = -196.322809254 Ha, last E = -196.400575797 Ha, C3-C10 2.119 -> 1.558 A, C1-C2 1.409 -> 1.337 A, C2-C3 1.393 -> 1.501 A, C10-C11 1.414 -> 1.539 A, H7 on C11 1.102 A and the bridging H back on C11 1.095 A. Direction evidence only; the 1-pentene minimum is proven separately by runs/end_prod_v5_optfreq.log (E = -196.411432426 Ha, 0 imaginary, lowest real 87.83/123.20/228.81/304.76 cm-1, title 'smiles: C=CCCC').",
+        "bidirectional_irc_v7": "SUPERSEDES the single-direction logs as the primary direction evidence: runs/.cloudra/execution-350/results/irc_bidir_v7.log (job 350), natively copied as runs/irc_bidir_v7.log, title 'smiles: C=CC.C=C', #p B3LYP/def2SVP irc=(calcfc,maxpoints=120,stepsize=10,recorrect=never) em=gd3bj int=ultrafine, started at the final geometry of ts_opt/refine.log (extracted unmodified to runs/irc_bidir_v7_start.xyz). Normal termination. Unlike every earlier IRC here, this log states a PES minimum was reached on BOTH sides - forward: 'PES minimum detected on this side of the pathway. Magnitude of the gradient = 0.0000108', 'Calculation of FORWARD path complete.'; reverse: gradient 1.27e-05, 'Calculation of REVERSE path complete.', 'Reaction path calculation complete.' - and log_parser returns irc_both_directions_converged = TRUE. Point counts 69 forward (RxCoord +0.123 -> +8.303) and 70 reverse (RxCoord -0.123 -> -8.454), both well inside maxpoints=120, so the paths ended on the gradient criterion rather than at the cap. Energies relative to the TS -196.322810 Ha: reactant-side first point -196.323170 Ha, last point -196.369020 Ha; product-side first point -196.323230 Ha, last point -196.410430 Ha. Outer frames (harness sidecars ...end-a.xyz / ...end-b.xyz, atom order unchanged): end-a = two fragments, no interfragment bond, C1-C2 1.496, C2=C3 1.336, C10=C11 1.333, C3...C10 3.316 A, H7 on C11 1.093, H15 on C1 1.104 (the known permuted labelling of the same rcA3 species); end-b = clean 1-pentene, C1=C2 1.337, C2-C3 1.504, C3-C10 1.541, C10-C11 1.529, H7 1.102 and H15 1.099 both on C11. The outer-frame energies sit 1.1 (reactant side) and 0.6 (product side) kcal/mol above the two verified minima, which is normal for an IRC halting at the flat path minimum; no declared energy or barrier changes. Scope: these are IRC outer frames, not relaxed minima. Each of the two frames was then optimized unconstrained with frequencies in its own native log: source runs/end_react_v8_optfreq.log (0 imaginary, E = -196.370768891 Ha = this graph's RC node energy exactly) and target runs/end_prod_v8_optfreq.log (0 imaginary, E = -196.411432437 Ha = the P node within 4e-8 Ha), which is what closes the harness short_irc stage (scientific_checks.short_irc = passed, 'direct pairing: both actual IRC outer frames were independently optimized to the correct zero-imaginary minima'). Earlier independent chain evidence: runs/end_react_v4_optfreq.log (-196.370768889 Ha) and runs/end_prod_v5_optfreq.log (-196.411432426 Ha)."
+      },
+      "name": "Concerted Alder-ene H transfer and C-C bond formation"
+    }
+  ],
+  "delivery": {
+    "mode": "dag_guided",
+    "species_ids": {
+      "Propene-Ethylene Reactant Complex": "sp_e2cef9ea",
+      "1-Pentene Product": "sp_18638a9b"
+    },
+    "step_id": "step_438129c2",
+    "step_name": "Concerted Alder-ene H transfer and C-C bond formation",
+    "barrier_reference_node": "RC",
+    "status": "complete",
+    "note": "Nodes RC/TS1/P correspond one-to-one to the declared DAG species and the single declared elementary step; energies and evidence_log paths pair exactly with the accepted native logs."
+  }
+}

@@ -1,0 +1,240 @@
+{
+  "nodes": [
+    {
+      "id": "N2",
+      "role": "reactant",
+      "smiles": [
+        "N#N"
+      ],
+      "properties": {
+        "level_of_theory": "Gaussian 16 RevC.01, PM7, gas phase, charge 0, electronic energy scale as printed by Gaussian (PM7 reference scale)",
+        "bond_dissociation_energy_kcal_mol": 193.01,
+        "bond_dissociation_energy_convention": "D_e (electronic, harmonic ZPE excluded), gas phase, charge 0. Defined as E(PM7 minimum of N2 at r_eq = 1.1194 A) minus E(2 free ground-state N atoms, 2 x 4S, i.e. the septet limit). The septet asymptote was taken at r = 20.00 A where the curve is flat and equals 2 x E(one N atom, mult 4) to 1.5e-8 hartree. It is NOT taken from the multiplicity-1 restricted closed-shell branch, which is not an asymptote (see notes).",
+        "bond_dissociation_energy_D0_kcal_mol": 189.41,
+        "bond_dissociation_energy_D0_convention": "D_0 = D_e - ZPE(N2); ZPE = 0.0057434 hartree = 3.60 kcal/mol (2521.07 cm-1) from the PM7 Opt+Freq log; the two separated N atoms have no ZPE.",
+        "bond_dissociation_energy_experimental_kcal_mol": "225.0 (D_0) / 228.4 (D_e), 9.76 eV; PM7 underestimates the N2 bond strength by ~35 kcal/mol at this level of theory",
+        "equilibrium_bond_length_angstrom": 1.1194,
+        "harmonic_frequency_cm1": 2521.07,
+        "zpe_hartree": 0.0057434,
+        "electronic_energy_hartree_pm7_scale": 0.0525726877431,
+        "dissociation_curve": {
+          "description": "PM7 rigid single-point scan of the two-atom N-N distance (exact for a diatomic: the bond length is the only internal degree of freedom). Energies relative to the PM7 minimum at r_eq = 1.1194 A (E = 0.0525726877431 hartree). Two spin branches were scanned: mult 1 (restricted closed-shell singlet, the ground state of bonded N2) and mult 7 (highest-spin, dissociating to 2 x 4S N atoms). 'ground_state_lowest' is the lower of the two branches at each r; the branches cross at r = 1.69 A.",
+          "r_angstrom": [
+            0.9,
+            0.95,
+            1,
+            1.05,
+            1.08,
+            1.1,
+            1.12,
+            1.15,
+            1.18,
+            1.2,
+            1.25,
+            1.3,
+            1.35,
+            1.4,
+            1.5,
+            1.6,
+            1.7,
+            1.8,
+            2,
+            2.25,
+            2.5,
+            3,
+            4,
+            6
+          ],
+          "energy_rel_kcal_mol_mult1": [
+            133.46,
+            72.72,
+            33.09,
+            10.25,
+            3.14,
+            0.73,
+            0,
+            1.67,
+            6.23,
+            10.65,
+            25.64,
+            44.94,
+            67.19,
+            91.25,
+            141.52,
+            190.98,
+            237.13,
+            278.96,
+            349.25,
+            414.92,
+            460.93,
+            514.86,
+            560.61,
+            598.74
+          ],
+          "energy_rel_kcal_mol_mult7": [
+            735.18,
+            658.38,
+            601.14,
+            438.98,
+            409.72,
+            392.53,
+            376.98,
+            356.46,
+            338.88,
+            328.6,
+            307.12,
+            290.55,
+            277.64,
+            267.43,
+            252.24,
+            240.94,
+            231.54,
+            223.37,
+            210.49,
+            200.92,
+            196.4,
+            193.48,
+            192.91,
+            193
+          ],
+          "ground_state_lowest_rel_kcal_mol": [
+            133.46,
+            72.72,
+            33.09,
+            10.25,
+            3.14,
+            0.73,
+            0,
+            1.67,
+            6.23,
+            10.65,
+            25.64,
+            44.94,
+            67.19,
+            91.25,
+            141.52,
+            190.98,
+            231.54,
+            223.37,
+            210.49,
+            200.92,
+            196.4,
+            193.48,
+            192.91,
+            193
+          ],
+          "energy_hartree_mult1": [
+            0.265259466947,
+            0.168459406216,
+            0.105308269901,
+            0.0689071626404,
+            0.0575713641608,
+            0.0537437098733,
+            0.0525737389231,
+            0.0552408571235,
+            0.0625078503362,
+            0.0695480554577,
+            0.0934304947751,
+            0.124196831876,
+            0.159640491363,
+            0.197984830676,
+            0.278097287048,
+            0.356915107392,
+            0.430468582688,
+            0.49712769364,
+            0.609137606994,
+            0.713788187358,
+            0.78711576752,
+            0.873061621088,
+            0.945963646128,
+            1.00671869571
+          ],
+          "energy_hartree_mult7": [
+            1.22415012938,
+            1.10176394245,
+            1.01055752437,
+            0.752131413873,
+            0.705510474249,
+            0.678101923939,
+            0.653333878439,
+            0.620624836607,
+            0.592611614056,
+            0.576222730557,
+            0.542005148263,
+            0.515585717723,
+            0.495019970946,
+            0.478752632932,
+            0.454549936663,
+            0.436529478172,
+            0.421557500218,
+            0.408529136058,
+            0.388009503727,
+            0.372761014101,
+            0.365550432122,
+            0.360901955051,
+            0.359986875684,
+            0.360133119359
+          ],
+          "units": {
+            "r": "angstrom",
+            "energy_rel": "kcal/mol relative to the PM7 minimum",
+            "energy_abs": "hartree (PM7 scale as printed by Gaussian 16)"
+          },
+          "asymptote_r_angstrom": 20,
+          "asymptote_energy_rel_kcal_mol": 193.01,
+          "crossing_r_angstrom": 1.69
+        },
+        "notes": "Ground-state dissociation of N2 to two 4S N atoms is spin-forbidden; the mult-1 restricted closed-shell branch stays on an unphysical ionic-like wall and keeps rising (598.74 kcal/mol at 6 A, 619.18 at 8 A, 631.63 at 10 A), so it was discarded as an asymptote (plateau test required by the Supervisor). It is nevertheless the correct description of the bonded minimum and of the inner repulsive wall (0.90-1.60 A). The mult-7 branch is monotone decreasing from 0.90 to 4.00 A (a 0.10 kcal/mol dispersion shelf at 4 A) and flat to 20 A. Multiplicity 1 is the declared state of N2; the septet asymptote is the proper electronic ground-state limit of the separated atoms.",
+        "evidence_log": [
+          "pm7/final/n2_optfreq_rerun.log",
+          "pm7/n2_optfreq.log"
+        ],
+        "additional_supporting_logs_in_workspace": "pm7/scan/r<d>.log (24 mult-1 points of the curve), pm7/scan7/r<d>_mult7.log (24 mult-7 points), pm7/n2_pair_r20p00_mult7.log and pm7/n2_atom_N_mult4.log (asymptote cross-check), pm7/summary.md"
+      }
+    },
+    {
+      "id": "2N",
+      "role": "product",
+      "smiles": [
+        "[N].[N]"
+      ],
+      "properties": {
+        "level_of_theory": "Gaussian 16 RevC.01, PM7, gas phase, charge 0",
+        "description": "Dissociated limit: two ground-state N(4S) atoms, total multiplicity 7 (2 x 4S), UPM7, <S**2> = 12.0000 at every distance (no spin contamination). Characterised by rigid single points at 6.00, 8.00, 10.00 and 20.00 A plus an optimized stationary point at r = 3.9531 A (the shallow long-range dispersion minimum of the two-atom system, binding 0.10 kcal/mol, one real mode 27.75 cm-1, NImag = 0). The N-N bond is fully broken there: this is a non-bonded 2N supermolecule, not a chemical bond.",
+        "long_range_stationary_point_description": "Gaussian PM7 '#p PM7 Opt Freq' started at r = 4.00 A (mult 7) converges to a genuine UPM7 stationary point: r = 3.9531 A, E = 0.359986106 Eh, one real mode 27.7468 cm-1, NImag = 0, <S**2> = 12.0, normal termination (pm7/final/n2_pair_r4p00_mult7_optfreq.log). It is the ~0.105 kcal/mol long-range N-N dispersion well, i.e. a non-bonded 2N supermolecule; it is NOT a chemical bond and NOT the BDE reference. The 6.00 A frequency jobs show negative curvature only because 6 A lies outside that well.",
+        "bde_asymptote_choice": "The declared BDE uses the plateaued 20.00 A / 2 x E(N,4S) value, not this 3.95 A well; the difference is 0.105 kcal/mol.",
+        "asymptote": "0.3601539097 Eh at r = 20.00 A (all numeric curve and BDE values are declared on the reactant node)",
+        "two_isolated_atoms_cross_check": "2 x E(N, 4S) = 0.3601539248 Eh, equal to the 20 A plateau to 1.5e-8 Eh",
+        "spin_state": "septet (S = 3), two 4S N atoms",
+        "singlet_restricted_branch_note": "The multiplicity-1 restricted closed-shell pair is not a physical asymptote (still climbing at 10 A); it is reported only in the dissociation_curve of the reactant node.",
+        "pair_frequency_note": "Frequency jobs on the 6.00 A pair give one imaginary mode each: -5.1092 cm-1 (mult 7) and -78.5007 cm-1 (mult 1), i.e. 6 A lies outside the 3.95 A dispersion well; the 3.95 A optimisation itself has one real mode, 27.7468 cm-1, NImag = 0.",
+        "accessible": true,
+        "evidence_log": [
+          "pm7/final/n2_pair_r4p00_mult7_optfreq.log",
+          "pm7/n2_pair_freq_mult7.log"
+        ],
+        "additional_supporting_logs_in_workspace": "pm7/n2_pair_r20p00_mult7.log and pm7/n2_atom_N_mult4.log (asymptote and 2 x E(N,4S)), pm7/scan7/ (mult-7 scan), pm7/n2_pair_sp.log, pm7/summary.md"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "N2",
+      "to": "2N",
+      "via": "",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "barrierless homolytic N-N bond dissociation; singlet -> 2 x 4S atomic limit (spin-forbidden curve crossing at r = 1.69 A)",
+      "favored": true,
+      "note": "No transition state exists: the potential is monotonic in the only internal coordinate (N-N stretch), and frequency analyses of the stretched pair give one imaginary mode (-5.11 cm-1 mult 7, -78.50 cm-1 mult 1) but no first-order saddle point. ts_opt/frequency/short_irc are therefore not applicable for this step. bond_changes use the atom-map indices of [N:1]#[N:2]."
+    }
+  ]
+}

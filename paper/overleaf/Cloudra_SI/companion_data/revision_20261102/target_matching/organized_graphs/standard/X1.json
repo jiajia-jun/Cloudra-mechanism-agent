@@ -1,0 +1,81 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "O=C1OCC1"
+      ],
+      "properties": {
+        "energy_hartree": -266.965168387,
+        "evidence_log": "inp/lactone_rc.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16 (B3LYP/def2SVP EmpiricalDispersion=GD3BJ, Opt+Freq)",
+        "imaginary_frequencies": [],
+        "charge": 0,
+        "multiplicity": 1,
+        "note": "beta-propiolactone minimum; the reaction is unimolecular so the pre-reaction complex is the lactone itself"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -266.899927556,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+        "imaginary_frequencies": [
+          -893.988
+        ],
+        "cross_check_log": "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log",
+        "note": "concerted cycloreversion saddle; the single imaginary mode is dominated by C2-C5 (0.97 relative displacement) and O3-C4 (0.64) stretching, i.e. the ring-opening/CO2-extrusion coordinate"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.C(=O)=O"
+      ],
+      "properties": {
+        "energy_hartree": -266.98490395,
+        "evidence_log": "inp/prod_from_irc_uf.log",
+        "imaginary_frequencies": [],
+        "lowest_real_frequency_cm": 30.19,
+        "note": "C2H4...CO2 van der Waals product complex (clean minimum, 0 imaginary frequencies at Int=UltraFine Opt=(VeryTight)); separated C2H4 + CO2 = -266.98020347 Ha in inp/ethylene.log and inp/co2.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 40.94,
+      "channel": "concerted cycloreversion (retro-ene-type ring opening with CO2 extrusion)",
+      "favored": true
+    }
+  ]
+}

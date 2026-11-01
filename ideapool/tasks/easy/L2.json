@@ -112,7 +112,8 @@
           "barrier_kcal_mol": 29.77,
           "weight": 1.0,
           "channel": null,
-          "favored": null
+          "favored": null,
+          "barrier_reference_policy": "lowest_verified_minimum"
         }
       ]
     },

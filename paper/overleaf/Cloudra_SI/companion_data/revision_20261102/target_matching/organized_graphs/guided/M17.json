@@ -1,0 +1,89 @@
+{
+  "nodes": [
+    {
+      "id": "Methyl Isocyanide (RC)",
+      "role": "reactant",
+      "smiles": [
+        "C[N+]#[C-]"
+      ],
+      "properties": {
+        "label": "RC",
+        "name": "methyl isocyanide — reactant complex (intact CH3NC minimum; unimolecular rearrangement, so the reactant complex is the molecule itself)",
+        "energy_hartree": -132.624289828,
+        "evidence_log": "runs/rc_optfreq.log",
+        "supporting_logs": [
+          "runs/rc_endpoint2_optfreq.log"
+        ],
+        "method": "Gaussian 16, B3LYP/def2-SVP, EmpiricalDispersion=GD3BJ (D3(BJ)), Int=Ultrafine, gas phase, charge 0, multiplicity 1",
+        "n_imag": 0
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "concerted 1,2-methyl shift saddle point (triangular C1-N2-C3; C1-N2 1.819, C1-C3 1.786, N2-C3 1.195 A)",
+        "via_step": "1,2-Methyl Shift",
+        "energy_hartree": -132.553312023,
+        "evidence_log": "runs/ts_optfreq.log",
+        "method": "Gaussian 16, B3LYP/def2-SVP, EmpiricalDispersion=GD3BJ (D3(BJ)), Int=Ultrafine, gas phase, charge 0, multiplicity 1",
+        "n_imag": 1,
+        "imaginary_frequency_cm1": -457.6185,
+        "irc_logs": [
+          "runs/irc_bidir3.log"
+        ],
+        "endpoint_logs": [
+          "runs/rc_endpoint2_optfreq.log",
+          "runs/prod_endpoint3_optfreq.log"
+        ],
+        "direction": "bidirectional IRC from this saddle: rx>0 outer frame re-optimizes to CH3NC (C1-N2 1.416 A), rx<0 outer frame re-optimizes to CH3CN (C1-C3 1.459 A, C#N 1.158 A)"
+      }
+    },
+    {
+      "id": "Acetonitrile (P)",
+      "role": "product",
+      "smiles": [
+        "CC#N"
+      ],
+      "properties": {
+        "label": "P",
+        "name": "acetonitrile",
+        "energy_hartree": -132.659619572,
+        "evidence_log": "runs/prod_optfreq.log",
+        "supporting_logs": [
+          "runs/prod_endpoint3_optfreq.log"
+        ],
+        "method": "Gaussian 16, B3LYP/def2-SVP, EmpiricalDispersion=GD3BJ (D3(BJ)), Int=Ultrafine, gas phase, charge 0, multiplicity 1",
+        "n_imag": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "1,2-Methyl Shift",
+      "from": "Methyl Isocyanide (RC)",
+      "to": "Acetonitrile (P)",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 44.54,
+      "channel": "concerted 1,2-methyl migration; the single elementary step and rate-determining step of the isomerization",
+      "favored": true,
+      "reaction_energy_kcal_mol": -22.17,
+      "barrier_reference": "E(TS) - E(lowest verified RC minimum runs/rc_endpoint2_optfreq.log) = (-132.553312023 + 132.624290299) Ha"
+    }
+  ]
+}

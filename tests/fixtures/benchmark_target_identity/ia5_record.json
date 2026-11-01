@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC1"
+      ],
+      "properties": {
+        "description": "Cyclobutene minimum (C2v). Unimolecular gas-phase reaction: the pre-reaction complex is the isolated cyclobutene minimum itself.",
+        "energy_hartree": 0.0592543376
+      }
+    },
+    {
+      "id": "TS_dis",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": false,
+      "properties": {
+        "description": "Disrotatory (Cs, mirror-plane) ring-opening saddle. NOT accessible at the allowed level of theory: no first-order Cs saddle exists on the Gaussian16 PM7 surface. The Cs ridge top (C3-C4 = 2.2417 A) is a stationary point of index 2 (-179.98 cm-1 in-plane ring coordinate + -250.87 cm-1 out-of-plane CH2 wag), i.e. a hilltop, not a transition state; the exactly coplanar manifold has no maximum at all; four independent TS searches (including one started on the Cs ridge) collapse onto the conrotatory C2 saddle. Exploratory reference only (not a declared barrier): +42.8 kcal/mol above the cyclobutene minimum."
+      }
+    },
+    {
+      "id": "TS_con",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "Conrotatory (C2-symmetric) ring-opening saddle. Geometry exactly invariant under the proper C2 operation (x,y,z)->(-x,y,-z) with C1<->C2, C3<->C4; C1-C2 1.390, C2-C3 1.415, C3-C4 2.108, C4-C1 1.415 A; single imaginary mode -838.10 cm-1 (both termini rotate in the same sense).",
+        "energy_hartree": 0.1127541314
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "description": "1,3-Butadiene. Lowest PM7 minimum is s-trans (C2h, central torsion 180 deg, E = 0.0432949126 Ha). The conrotatory IRC reaches the connected C2-gauche conformer (central torsion 45.7 deg, E = 0.0442136744 Ha); planar s-cis is not a minimum (one imaginary torsional mode, -96.86 cm-1).",
+        "energy_hartree": 0.0432949126
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_dis",
+      "from": "RC",
+      "to": "P",
+      "via": "TS_dis",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "channel": "disrotatory",
+      "favored": false,
+      "accessible": false
+    },
+    {
+      "id": "e_con",
+      "from": "RC",
+      "to": "P",
+      "via": "TS_con",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 33.57,
+      "channel": "conrotatory",
+      "favored": true
+    }
+  ]
+}

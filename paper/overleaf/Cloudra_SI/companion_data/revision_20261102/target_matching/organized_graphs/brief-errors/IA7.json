@@ -1,0 +1,78 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C#C/C=C\\C#C"
+      ],
+      "properties": {
+        "evidence_log": "pm7/reac/rc1_pm7_optfreq.log",
+        "energy_hartree": 0.201059781868,
+        "method": "PM7 (Gaussian 16 RevC.01), gas phase, charge 0, multiplicity 1, electronic energy without ZPE",
+        "description": "(Z)-hex-3-ene-1,5-diyne pre-reaction minimum (single enediyne minimum). #p opt freq PM7, normal termination, optimisation converged, 24 frequencies all real (lowest 107.8 cm-1). d(C1...C6) = 4.247 A (value at the frequency geometry recorded inside the log; the extracted *_final.xyz geometry does not match the log and is not delivered as a structure), d(C1-C2) = d(C5-C6) = 1.213 A, C2-C3 = C4-C5 = 1.405 A, C3=C4 = 1.347 A, C1-C2-C3 = C4-C5-C6 = 179.9 deg, C2-C3=C4-C5 dihedral 0 deg (Z). This is the barrier reference: the lowest verified enediyne minimum in the evidence set (rc1/rc2 identical to 3e-8 Eh, re-optimisation from the alternative seeds returns the same structure).",
+        "conformer_note": "Three independent seeds (ETKDG/MMFF, arms bent inward, C1...C6 compressed to 3.10 A) were optimised at PM7; they converge to the same single enediyne minimum (rc1 = rc2 = 0.2010598 Eh, rc3b_reopt = 0.2010598 Eh). A compressed-seed run reported 0.1819425 Eh, but a fresh single point at that exact geometry gives 0.2010657 Eh with both the default and scf=(maxcycle=512,xqc) protocols, so 0.1819425 Eh is a history-dependent value along that minimisation and is excluded (it is not a reproducible stationary-point energy at fixed coordinates). Single-point cross-check logs: pm7/scfdiag/rc1_dflt/sp.log, pm7/scfdiag/rc3_dflt/sp.log.",
+        "crosscheck_gfn2": "Independent GFN2-xTB set (not delivered, native xtb logs cannot be parsed by the scorer): enediyne -14.708256 Eh, saddle -14.683016 Eh, barrier 15.8 kcal/mol; qualitative behaviour agrees (single minimum, one C1/C6-closing saddle)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log",
+        "evidence_log_opt": "ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log",
+        "evidence_log_irc": "ts/ts_0001/jobs/declaration_0007/irc/irc.log",
+        "irc_note": "Native IRC from the verified saddle (IRC=(CalcFC,StepSize=1,MaxPoints=100,RecalcFC=20), declaration 0007): forward 17 points to rx +0.5249 (0.2504630 Eh, product side), backward 100 points to rx -3.0884 (0.2078330 Eh, approaching the enediyne minimum from above, no frame below it). The outer frame of each direction was optimised without constraints and gives, respectively, the p-benzyne minimum (0.2504583 Eh, 0 imaginary) and the enediyne minimum (0.2010602 Eh, 0 imaginary, lowest real 107.6 cm-1). The earlier declaration_0004 IRC (StepSize=2, 40 points, reverse to rx -2.47 / 0.2177681 Eh, endpoints 0.2010598 / 0.2504632 Eh) gives the same picture. METHOD LIMITATION: no globally converged bidirectional IRC is claimed, and none appears attainable at restricted PM7 - extending the reverse direction lets the RPM7 restricted wavefunction slip onto a lower closed-shell solution (declaration 0003: rx -4.63, 0.1911 Eh, 6.3 kcal/mol BELOW the enediyne minimum; declaration 0005 with MaxPoints=120: rx -7.41, 0.1744 Eh, 16.7 kcal/mol below it). The reverse interval is therefore valid only to rx -2.47; both counterexample logs are kept unmodified (ts/ts_0001/jobs/declaration_0003/irc/irc.log, ts/ts_0001/jobs/declaration_0005/irc/irc.log). A third attempt with an even smaller step and a longer path (IRC=(CalcFC,StepSize=1,MaxPoints=300,RecalcFC=50), 317 points, ts/ts_0001/jobs/declaration_0008/irc/irc.log) reproduces the same behaviour: the forward direction detects a PES minimum on the p-benzyne side, while the reverse branch continues past rx -3 without a turning point and ends at 0.1683 Eh, far below the enediyne minimum - i.e. the restricted PM7 potential energy surface simply has no converged reverse IRC link to the enediyne minimum, so the automated bidirectional-IRC convergence flag cannot be satisfied for this step at the allowed level of theory.",
+        "energy_hartree": 0.250763187408,
+        "method": "PM7 (Gaussian 16 RevC.01), gas phase, charge 0, multiplicity 1, electronic energy without ZPE",
+        "description": "Concerted Bergman ring-closing saddle. Opt=(TS,CalcFC,NoEigenTest) converged to a first-order saddle; the frequency calculation gives exactly ONE imaginary frequency, -427.74 cm-1 (next real mode 397.95 cm-1), whose displacement is the symmetric in-plane C1/C6 closing motion. Geometry at the frequency calculation: d(C1-C6) = 1.578 A, C3=C4 = 1.430 A. Single point at this exact geometry reproduces 0.2507632 Eh to 1e-9 Eh (pm7/scfdiag/ts_dflt/sp.log), so the saddle energy is not affected by the enediyne SCF-bookkeeping issue."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "[c]1cc[c]cc1"
+      ],
+      "properties": {
+        "evidence_log": "pm7/prod2/pb2_pm7_optfreq.log",
+        "evidence_log_irc_endpoint": "ts/ts_0001/jobs/declaration_0003/product_frequency/product_frequency.log",
+        "energy_hartree": 0.250457908491,
+        "reaction_energy_kcal_mol": 31.0,
+        "method": "PM7 (Gaussian 16 RevC.01), gas phase, charge 0, multiplicity 1, electronic energy without ZPE",
+        "description": "p-Benzyne (1,4-didehydrobenzene, C6H4): ring atoms C1-C2-C3-C4-C5-C6, didehydro (radical) centres at the para positions C2 and C5 of the reactant map, C6H4 with four C-H. #p opt freq PM7, normal termination, optimisation converged, 24 frequencies all real (0 imaginary, lowest real ~347 cm-1), planar; ring bonds ~1.328/1.330/1.478/1.330/1.328/1.481 A, C2...C5 2.517 A. Independent checks of the same minimum: IRC product-side endpoint re-optimisation 0.2504583 Eh (ts/ts_0001/jobs/declaration_0003/product_frequency/product_frequency.log) and a differently seeded optimisation 0.2504582 Eh (pm7/prod/pb1_pm7_optfreq.log). Delivered species log: pm7/prod2/pb2_pm7_optfreq.log, built directly in the reactant atom order; four C-H bonds of 1.076-1.078 A sit on ring atoms C1/C3/C4/C6 and C2/C5 carry no hydrogen, i.e. the didehydro centres are exactly the para pair C2/C5 - this is what establishes the p-benzyne identity, since the automated geometry check returns 'incomplete' for all three logs (biradical re-perception from Cartesian coordinates; checker limitation recorded by the Supervisor).",
+        "reaction_energy_note": "reaction_energy_kcal_mol = E(P) - E(RC) = (0.25045791 - 0.20105978) Eh = +31.0 kcal/mol (electronic, no ZPE). This is a restricted-reference (RPM7) value and is NOT a physical reaction energy: p-benzyne is a singlet biradical, and the restricted wavefunction gives a localised, cumulene-like closed-shell description that lies 31.8 kcal/mol ABOVE the PM7 triplet (diagnostic: pm7/prod/pb_triplet_diag.log, 0.1997200 Eh). The true singlet is the ground state with a small S-T gap, so the product is strongly over-destabilised; an unrestricted singlet is not reachable under the allowed method policy (PM7/xTB only; UHF-type keywords refused). Consequence: the product end of the profile (reverse barrier ~0.2 kcal/mol) is dominated by this artefact, while the forward barrier RC -> TS1 (~31 kcal/mol) is not, because both of those states are genuine closed-shell species."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.2,
+      "channel": "concerted Bergman cyclization (C1-C6 ring closure)",
+      "favored": true
+    }
+  ]
+}

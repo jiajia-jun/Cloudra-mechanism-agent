@@ -1,0 +1,174 @@
+{
+  "nodes": [
+    {
+      "id": "Cr2",
+      "role": "reactant",
+      "smiles": [
+        "[Cr][Cr]"
+      ],
+      "properties": {
+        "species": "Cr2, X 1Sigma_g+ (formal sextuple bond), charge 0, multiplicity 1, gas phase",
+        "level_of_theory": "Gaussian 16 RevC.01, PM7 semiempirical, gas phase (no solvent, no counterions)",
+        "bond_dissociation_energy_kcal_mol": 26.74,
+        "bond_dissociation_energy_D0_kcal_mol": 25.55,
+        "bond_dissociation_energy_definition": "De of the same-surface PM7 potential energy curve: E(Cr2, R = 8.000 A asymptote) - E(Cr2, PM7 equilibrium minimum at R = 2.468 A). D0 = De - ZPE (835.6 cm-1 -> 1.19 kcal/mol).",
+        "zero_point_correction_kcal_mol": 1.19,
+        "equilibrium_bond_length_angstrom": 2.468,
+        "harmonic_frequency_cm_minus1": 835.6,
+        "number_of_imaginary_frequencies": 0,
+        "minimum_energy_hartree": 0.80129019831,
+        "asymptote_bond_length_angstrom": 8,
+        "asymptote_energy_hartree": 0.843902810255,
+     "asymptote_evidence_log": "probe_mult/cr2_r8_m1.log",
+        "bond_dissociation_energy_atom_reference_kcal_mol": 312.8,
+        "bond_dissociation_energy_atom_reference_note": "Extension only: 2 x E(Cr atom, PM7, septet) - E(Cr2 minimum) = 312.8 kcal/mol. PM7 puts the two isolated Cr atoms ~0.50 hartree ABOVE its own Cr2 asymptote, an internal inconsistency of the method; this number is NOT the delivered BDE.",
+        "potential_energy_curve": {
+          "description": "Rigid PM7 potential energy curve of Cr2: Cr-Cr distance constrained, independent Gaussian single point with a fresh SCF guess at every distance (charge 0, multiplicity 1). The equilibrium point is the PM7 optimum R = 2.4679 A.",
+          "bond_length_angstrom": [
+            1.4,
+            1.5,
+            1.6,
+            1.7,
+            1.8,
+            1.9,
+            2,
+            2.1,
+            2.2,
+            2.25,
+            2.3,
+            2.35,
+            2.4,
+            2.45,
+            2.468,
+            2.5,
+            2.55,
+            2.6,
+            2.65,
+            3,
+            3.2,
+            3.4,
+            3.6,
+            3.8,
+            4,
+            4.5,
+            5,
+            6.5,
+            8
+          ],
+          "energy_hartree": [
+            8.40467610855,
+            6.24412788575,
+            4.15771423973,
+            3.02784984726,
+            2.23583389522,
+            1.68875964112,
+            1.31908507588,
+            1.07756777768,
+            0.928209453709,
+            0.879547534476,
+            0.844631307467,
+            0.82124001957,
+            0.80747020277,
+            0.801690541021,
+            0.80129019831,
+            0.802503466267,
+            0.808712445676,
+            0.81929408392,
+            0.833374300313,
+            0.855698487932,
+            0.850722246926,
+            0.850083425238,
+            0.850686884481,
+            0.851199866035,
+            0.851218553602,
+            0.849551125413,
+            0.847257136303,
+            0.844002330682,
+            0.843902810255
+          ],
+          "relative_energy_kcal_mol": [
+            4771.2,
+            3415.43,
+            2106.19,
+            1397.19,
+            900.19,
+            556.9,
+            324.92,
+            173.37,
+            79.64,
+            49.11,
+            27.2,
+            12.52,
+            3.88,
+            0.25,
+            0,
+            0.76,
+            4.66,
+            11.3,
+            20.13,
+            34.14,
+            31.02,
+            30.62,
+            31,
+            31.32,
+            31.33,
+            30.28,
+            28.84,
+            26.8,
+            26.74
+          ],
+          "units": "bond_length_angstrom / energy_hartree / relative_energy_kcal_mol (relative to the PM7 minimum)"
+        },
+        "comparison_to_experiment": "Experimental: D0(Cr2) = 1.44 +/- 0.06 eV = 33.2 kcal/mol, re = 1.679 A. PM7 gives a bound Cr2 with D0 = 25.6 kcal/mol (about 8 kcal/mol too weak) but re = 2.468 A, i.e. 0.79 A too long, and a very soft 836 cm-1 mode. PM7 therefore reproduces the existence and the order of magnitude of the Cr-Cr bond but is not a quantitative description of the sextuple bond.",
+        "cross_check_xtb_gfn2": "GFN2-xTB (xtb 6.5.0, single point at R = 2.45 A): E = -3.703290 Eh versus 2 x E(Cr) = -3.494995 Eh, i.e. ~131 kcal/mol at that unrelaxed geometry - xTB overbinds far more strongly than PM7 and also fails quantitatively. xtb output is not an accepted evidence format for this task, so it is reported as a cross-check only.",
+        "caveats": "Single-reference semiempirical SCF supports several self-consistent solutions for Cr2. At R = 2.70-2.90 A a second closed-shell solution 0.07-0.13 hartree lower is found, and an optimisation started at R = 2.90 A runs to R = 4.013 A (E = 0.668221 hartree, one 27.1 cm-1 mode); that branch is separated by a ~0.18 hartree discontinuity and is discarded as an SCF artefact. Only the smooth, reproducible branch (rigid scan, independent single points and the optimisation from R = 2.45 A, all in agreement) is delivered. A true description of the Cr2 sextuple bond requires multireference (CASSCF/MRCI) treatment, which is outside the allowed methods (xTB, PM7).",
+        "evidence_log": [
+          "opt_pm7/cr2_opt_from2.45.log",
+          "probe_mult/cr2_r8_m1.log",
+          "pec_pm7/cr2_pm7_r2.45.log",
+          "scan_cr2/cr2_pm7_scan.log"
+        ],
+        "accessible": true
+      }
+    },
+    {
+      "id": "Cr_atoms",
+      "role": "product",
+      "smiles": [
+        "[Cr].[Cr]"
+      ],
+      "properties": {
+        "species": "two separated Cr atoms, charge 0, multiplicity 7 (2 x 7S3, d5s1) - the true ground-state dissociation products",
+        "level_of_theory": "Gaussian 16 RevC.01, PM7 semiempirical, gas phase",
+        "atom_energy_hartree": 0.151392136524,
+        "total_energy_two_atoms_hartree": 0.302784273048,
+        "imaginary_frequencies": 0,
+        "note": "The adiabatic dissociation products of ground-state Cr2 are two 7S Cr atoms; the closed-shell singlet Cr2 surface is not adiabatically connected to them, so the delivered BDE is taken from the same-surface PM7 asymptote (0.843903 hartree at R = 8.0 A), not from these atomic energies.",
+        "evidence_log": [
+          "atom_cr/cr_atom_pm7.log"
+        ],
+        "accessible": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Cr2",
+      "to": "Cr_atoms",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "Cr-Cr bond dissociation (homolysis of the formal sextuple bond); monotonic and barrierless on the PM7 curve",
+      "favored": true,
+      "note": "A diatomic has a single internal coordinate, so no transition state and no barrier exist on the Cr2 -> 2 Cr path. The edge is a barrierless bond-cleavage step and deliberately carries no barrier_kcal_mol."
+    }
+  ]
+}

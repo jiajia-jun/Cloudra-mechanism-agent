@@ -1,0 +1,193 @@
+{
+  "nodes": [
+    {
+      "id": "formamide",
+      "role": "reactant",
+      "smiles": [
+        "NC=O"
+      ],
+      "properties": {
+        "energy_hartree": -169.772982776,
+        "evidence_log": "runs/ts1_endA_optfreq.log",
+        "description": "Isolated formamide monomer = pre-reaction state (gas phase, no added water, acid or catalyst). Reoptimisation of the ts_0001 IRC outer frame A; B3LYP-D3(BJ)/def2-SVP, Gaussian 16, Opt=Tight+Freq, 0 imaginary frequencies. Identical to the independently built formamide minimum runs/fma_optfreq.log (-169.772982777 Ha). Barrier reference for every step leaving formamide. Evidence log is the declared species minimum log whose input coordinates are identical to the tautomerization IRC outer frame A; it prints the same energy as runs/fma_from_irc2.log and runs/fma_optfreq.log."
+      }
+    },
+    {
+      "id": "TS1_tautomerization",
+      "role": "transition_state",
+      "smiles": [
+        "NC=O"
+      ],
+      "properties": {
+        "energy_hartree": -169.699169473,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0008/ts_opt/refine.log",
+        "description": "1,3-H transfer saddle formamide -> formimidic acid: one imaginary mode -1897.9 cm-1 (97.3 % on the transferring H; pair shares (1,5) 0.758, (3,5) 0.847). Bidirectional IRC (24 forward + 28 reverse points) with both outer frames reoptimised to frequency-verified minima. Delta-E double dagger = 46.3 kcal/mol; Delta-E = +13.7 kcal/mol (electronic, no ZPE/thermal)."
+      }
+    },
+    {
+      "id": "formimidic_acid",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.751090045,
+        "evidence_log": "runs/ts1_endB_optfreq.log",
+        "description": "N-H-ANTI conformer of HN=CH-OH delivered by the tautomerization IRC: H4-N1-C2-O3 = 180 deg, N1-C2-O3-H5 = 0 deg, i.e. the N-H proton points away from the hydroxyl oxygen. Lowest verified formimidic-acid minimum and therefore the barrier reference for the elimination (68.9 kcal/mol). It cannot eliminate water without first rotating about C-N. CONFORMATIONAL RELATION: this N-H-anti conformer (D(4,1,2,3)=180.0 deg, D(1,2,3,5)=0.0 deg, runs/ts1_endB_optfreq.log) and the N-H-syn conformer (node formimidic_acid_syn, D(4,1,2,3)=0.0 deg, D(1,2,3,5)=180.0 deg, runs/ts2_endA_optfreq.log) are two independently frequency-verified minima 3.92 kcal/mol apart that differ in BOTH the N-H and the O-H torsion. The anti<->syn interconversion barrier was NOT obtained at this level in this budget: the only rotation saddle found (-169.708619458 Ha, -980.6 cm-1) keeps the syn O-H torsion (D(1,2,3,5)=-180.0 deg) and therefore cannot interconvert the two conformers, and a two-torsion saddle was not computed. The rotamer cost is carried inside the elimination barrier, which is referenced to this anti minimum (68.9 = 64.9 + 3.9). Evidence log is the declared species minimum log whose input coordinates are identical to the tautomerization IRC outer frame B; it prints the same energy as runs/fia_optfreq.log."
+      }
+    },
+    {
+      "id": "formimidic_acid_syn",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.744844941,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0014/reactant_frequency/reactant_frequency.log",
+        "description": "N-H-SYN conformer of HN=CH-OH: H4-N1-C2-O3 = 0 deg, N1-C2-O3-H5 = 180 deg (N1-H4 1.028, C2-N1 1.260, C2-O3 1.357, O3-H5 0.967, C2-H6 1.104 A), 0 imaginary frequencies, 3.92 kcal/mol above the anti minimum. This is the only conformer whose N-H proton points at the hydroxyl O and the conformer from which the verified elimination saddle descends; the elimination IRC's reactant outer frame reoptimises exactly onto it. SMILES cannot encode the torsion, so the anti/syn distinction is carried by the separate node ids. Note: runs/fia_syn_opt.log is NOT this conformer (it is anti). Relation to the anti conformer: 3.92 kcal/mol higher, reached in the graph as the source node of the elimination; the connecting rotation barrier is not declared (see the formimidic_acid node note), so the two conformers are documented as verified minima without a computed interconversion barrier."
+      }
+    },
+    {
+      "id": "TS2_water_elimination",
+      "role": "transition_state",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.641371156,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0013/ts_opt/refine.log",
+        "description": "Four-membered-ring syn elimination saddle formimidic acid -> HCN...H2O: one imaginary mode -1923.4 cm-1 (97.5 % of the displacement on the transferring proton H4; pairs (3,4) 0.904, (1,4) 0.848, (2,3) 0.121; 11 real modes, lowest 503.5 cm-1, ZPE 0.037663 Ha). Geometry: N1-C2 1.208, C2-O3 1.705 (breaking), H4 1.377 from N1 / 1.256 from O3, O3-H5 0.973, C2-H6 1.093 A. Bidirectional IRC (80 points each way, rx -4.251/+4.255) with both outer frames reoptimised to frequency-verified minima (syn rotamer -169.744844941; C-H...O bonded HCN...H2O -169.727470281). Barriers: 0.103474 Ha = 64.9 kcal/mol above the syn conformer node, and 68.9 kcal/mol referenced to the lowest verified formimidic-acid minimum (anti, = 64.9 + 3.9 conformational cost)."
+      }
+    },
+    {
+      "id": "HCN_H2O_complex",
+      "role": "product",
+      "smiles": [
+        "C#N.O"
+      ],
+      "properties": {
+        "energy_hartree": -169.727470281,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0014/product_frequency/product_frequency.log",
+        "description": "HCN...H2O product complex as ONE dot-joined node at its lowest verified minimum: C#N 1.156, C-H 1.094, O-H 0.967/0.967 A, H(CN)...O 1.929 A (C-H...O hydrogen bond), 0 imaginary frequencies, E = -169.727470281 Ha. Delivered by the elimination IRC. A 4.22 kcal/mol higher conformer of the same pair (water-H...N contact, closest H...N 2.09 A) is runs/prod_optfreq.log at -169.720742488 Ha. Separated-monomer energies are never used; endothermicity of the elimination vs the formimidic-acid minimum is +14.8 kcal/mol."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "tautomerization_formamide_to_formimidic_acid",
+      "from": "formamide",
+      "to": "formimidic_acid",
+      "via": "TS1_tautomerization",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 46.3,
+      "channel": "tautomerization",
+      "favored": true
+    },
+    {
+      "id": "water_elimination_formimidic_acid_syn_to_HCN_H2O",
+      "from": "formimidic_acid_syn",
+      "to": "HCN_H2O_complex",
+      "via": "TS2_water_elimination",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 64.9,
+      "channel": "water_elimination",
+      "favored": true,
+      "description": "N-H proton (H4) delivered to the hydroxyl O3 while C2-O3 ruptures and C2-N1 shortens to C#N, via TS2 (-169.641371156 Ha). Declared barrier = TS - source node = -169.641371156 + 169.744844941 = 0.103474 Ha = 64.9 kcal/mol (electronic, no ZPE/thermal), i.e. the value reproducible from the bound node energies of this edge. Referenced to the LOWEST verified formimidic-acid minimum (the N-H-anti conformer, -169.751090045) the same barrier is 68.9 kcal/mol, reached as 64.9 + 3.9 (the anti->syn conformational cost declared on conformational_formimidic_acid_anti_to_syn); that is the number to quote against the user rule, and the two agree to 0.1 kcal/mol. Reverse barrier from the product minimum (-169.727470281) is 54.0 kcal/mol, so the step is endothermic by +10.9 kcal/mol from the syn conformer (+14.8 kcal/mol from the anti minimum): the dehydration is thermally inaccessible in the isolated gas phase at ordinary temperature."
+    },
+    {
+      "id": "conformational_formimidic_acid_anti_to_syn",
+      "from": "formimidic_acid",
+      "to": "formimidic_acid_syn",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "conformational",
+      "favored": true,
+      "description": "Purely conformational step between the two verified formimidic-acid conformers (no bond broken or formed, hence two empty bond_changes lists): anti -169.751090045 Ha with D(4,1,2,3)=180.0 deg and D(1,2,3,5)=0.0 deg, and syn -169.744844941 Ha with D(4,1,2,3)=0.0 deg and D(1,2,3,5)=180.0 deg, 3.92 kcal/mol apart. THE TWO CONFORMERS DIFFER IN BOTH THE N-H TORSION AND THE O-H TORSION. A first-order saddle was located at -169.708619458 Ha with one imaginary mode at -980.6 cm-1 that is 98 % hydrogen motion on H4 (runs/rot_ts_guess.log), but its own internal-coordinate table gives D(4,1,2,3)=90.0 deg with D(1,2,3,5)=-180.0 deg, i.e. it keeps the O-H torsion exactly where the syn conformer has it; it can therefore only join syn to the (180 deg, 180 deg) structure and does NOT interconvert anti and syn - which is why every relaxation from it, including four starts, returned -169.744844941 Ha. That node is therefore not declared in this graph. THE ANTI<->SYN INTERCONVERSION BARRIER WAS NOT OBTAINED at this level in this budget: a two-torsion saddle (D(4,1,2,3) ~ 90 deg together with D(1,2,3,5) ~ 90 deg) is what the interconversion requires and was not computed. No barrier is declared and no via is given, because a via pointing at a saddle that provably does not lie on the path would be a stronger false claim than an absent one. The rotamer cost of 3.92 kcal/mol is in any case contained in the elimination barrier referenced to the anti minimum (68.9 = 64.9 + 3.9)."
+    },
+    {
+      "id": "direct_concerted_dehydration",
+      "from": "formamide",
+      "to": "HCN_H2O_complex",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            3,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "channel": "direct_concerted_dehydration",
+      "favored": false,
+      "description": "COMPETING one-step channel formamide -> HCN...H2O (both N-H protons delivered to O3 while C2-O3 ruptures and C2-N1 becomes C#N) recorded because it was explicitly investigated, NOT because it was verified: no barrier is declared and no via node is given. A 4-membered-ring double-proton-transfer OptTS started from the xTB path candidate (ts/ts_0003, retried with opt=(TS,calcfc,noeigentest,maxcycles=150)) relaxed back to the formamide minimum, and a relaxed C-H...O / C-O scan (runs/scan_hnc.log) rises to ~98 kcal/mol, so the saddle was not located. This channel is therefore not established either as competing or as inaccessible; it stays unresolved and carries no barrier_kcal_mol."
+    }
+  ]
+}

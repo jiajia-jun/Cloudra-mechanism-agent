@@ -1,0 +1,102 @@
+{
+  "nodes": [
+    {
+      "id": "1,2-dioxetane minimum",
+      "role": "reactant",
+      "smiles": [
+        "C1COO1"
+      ],
+      "properties": {
+        "name": "1,2-dioxetane minimum",
+        "description": "1,2-dioxetane minimum (planar Cs); the isolated reactant is its own pre-reaction complex",
+        "method": "Gaussian 16, PM7, gas phase",
+        "energy_hartree": 0.00310187937609,
+        "imaginary_frequencies_cm": [],
+        "evidence_log": ".cloudra/evidence/5e03d10bd86b4fc7_rc_optfreq.log",
+        "evidence_log_irc_endpoint": "jobs/ring_from_irc_endframe.log",
+        "note": "Lowest verified PM7 minimum of 1,2-dioxetane (18 real modes, 0 imaginary, lowest 198.9 cm-1). A puckered C2 start relaxes back to the same stationary point (jobs/puck_optfreq.log, 0.00310188868113 Ha, 0 imaginary). The IRC ring-side outer frame re-optimises to 0.0031019395295 Ha (jobs/ring_from_irc_endframe.log), consistent to 6e-8 Ha.",
+        "evidence_log_native": "jobs/rc_optfreq.log",
+        "dag_node_id": "sp_15cdade5"
+      },
+      "name": "1,2-dioxetane minimum"
+    },
+    {
+      "id": "dioxetane fragmentation TS",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "dioxetane fragmentation TS",
+        "description": "asynchronous retro-[2+2] fragmentation saddle, first-order (one imaginary frequency)",
+        "method": "Gaussian 16, PM7 scf=(tight), gas phase",
+        "energy_hartree": 0.0775531257819,
+        "imaginary_frequencies_cm": [
+          -2604.5
+        ],
+        "geometry_angstrom": "C-C 1.907, O-O 1.695, C1-O4 1.323, C2-O3 1.335, C1-O3 2.158, C2-O4 2.202",
+        "evidence_log": ".cloudra/evidence/0433a39c26b52213_frequency.log",
+        "evidence_opt_log": ".cloudra/evidence/8db1bdc47eb77ee8_refine.log",
+        "evidence_irc_log": ".cloudra/evidence/a8b776c441a71d4b9d29a058a4ce8f511b92270e163783759e79747be5ff238a/b1e3e640f4734d47_irc.log",
+        "note": "Proven by a converged OptTS (0.0775709859238 Ha) plus a normal-terminated frequency job at the same geometry with 17 real modes and exactly one imaginary mode at -2604.50 cm-1, plus a two-direction IRC (66 points one way, 200 the other) that reaches 1,2-dioxetane on one side and two separated HCHO on the other. The mode is dominated by the O-O/C-C cleavage coordinate with substantial H participation (pair projections C-C 1-2 0.502, C-O 1-4 0.441, O-O 3-4 0.433, C-O 2-3 0.392; heavy-atom fraction 0.43). No bond switching. smiles is empty, as the task's JSON format prescribes for transition-state nodes, because a saddle is not a graph-defined closed-shell species; the node is identified by the DAG species id/name recorded in dag_node_id.",
+        "evidence_log_native": "ts/ts_0001/jobs/declaration_0011/frequency/frequency.log",
+        "evidence_opt_log_native": "ts/ts_0001/jobs/declaration_0011/ts_opt/refine.log",
+        "evidence_irc_log_native": "ts/ts_0001/jobs/declaration_0011/irc/irc.log",
+        "smiles_note": "The transition-state node carries the ring connectivity string C1COO1 because a saddle is defined by its geometry, not by a different graph; this node is NOT a minimum of that species (it has exactly one imaginary frequency at -2604.50 cm-1). The minimum of C1COO1 is the reactant node.",
+        "dag_node_id": "sp_75b41344"
+      },
+      "name": "dioxetane fragmentation TS"
+    },
+    {
+      "id": "two formaldehyde molecules",
+      "role": "product",
+      "smiles": [
+        "C=O.C=O"
+      ],
+      "properties": {
+        "name": "two formaldehyde molecules",
+        "description": "two formaldehyde molecules (bound HCHO...HCHO minimum)",
+        "method": "Gaussian 16, PM7 scf=(qc), gas phase",
+        "energy_hartree": -0.0896888676954,
+        "imaginary_frequencies_cm": [],
+        "evidence_log": ".cloudra/evidence/1f8b2e8ff2017152_prod_dimer2_optfreq.log",
+        "evidence_log_irc_endpoint": "jobs/prod_from_irc_endframe3.log",
+        "note": "Bound HCHO...HCHO minimum (18 real modes, 0 imaginary, lowest 72.8 cm-1), -5.29 kcal/mol relative to 2 x free HCHO. Logs: jobs/prod_dimer2_optfreq.log = -0.0896888676954 Ha; the same complex reached by re-optimising the IRC outer frame (jobs/prod_from_irc_endframe3.log) = -0.0896600652059 Ha; the loose IRC product-side frame = -0.0849670 Ha; 2 x free HCHO = -0.0812597763 Ha (jobs/prod_hcho_optfreq.log). Product energies never enter the declared barrier, which is referenced to the ring minimum.",
+        "evidence_log_native": "jobs/prod_dimer2_optfreq.log",
+        "dag_node_id": "sp_5f874ad1"
+      },
+      "name": "two formaldehyde molecules"
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_78a03b6b",
+      "from": "1,2-dioxetane minimum",
+      "to": "two formaldehyde molecules",
+      "via": "dioxetane fragmentation TS",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 46.72,
+      "channel": "concerted, strongly asynchronous O-O/C-C cleavage (retro-[2+2]) with no bond switching: breaking O-O (map 3-4) and C-C (map 1-2), and the ring C-O bonds 1-4 and 2-3 rise from order 1 to 2 as the two C=O pi bonds form",
+      "favored": true
+    }
+  ]
+}

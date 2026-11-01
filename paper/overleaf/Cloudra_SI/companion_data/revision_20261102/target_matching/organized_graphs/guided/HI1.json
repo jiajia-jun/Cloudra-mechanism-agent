@@ -1,0 +1,252 @@
+{
+  "nodes": [
+    {
+      "id": "sp_threo_amineoxide",
+      "role": "reactant",
+      "smiles": "[C:1]([C@:2]([N+:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O-:6])([C@@:7]([C:8]([H:17])([H:18])[H:19])([c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[H:15])[H:20])([H:16])([H:21])[H:22]",
+      "properties": {
+        "energy_hartree": -598.235079154,
+        "evidence_log": "min_T/conf2.log",
+        "label": "threo (2S,3S) N,N-dimethyl-3-phenyl-2-butylamine oxide",
+        "verification": "freq: 0 imaginary; CIP from geometry C2(map2)=S, C3(map7)=S; lowest verified threo minimum, used as the barrier reference for both threo channels"
+      }
+    },
+    {
+      "id": "sp_erythro_amineoxide",
+      "role": "reactant",
+      "smiles": "[C:1]([C@:2]([N+:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O-:6])([C@:7]([C:8]([H:17])([H:18])[H:19])([c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[H:15])[H:20])([H:16])([H:21])[H:22]",
+      "properties": {
+        "energy_hartree": -598.23332171,
+        "evidence_log": "min_E/conf1.log",
+        "label": "erythro (2S,3R) N,N-dimethyl-3-phenyl-2-butylamine oxide",
+        "verification": "freq: 0 imaginary; CIP from geometry C2(map2)=S, C3(map7)=R; lowest verified erythro minimum, used as the barrier reference for both erythro channels"
+      }
+    },
+    {
+      "id": "ts_threo_regio",
+      "role": "transition_state",
+      "smiles": "[C:1]([C@:2]([N+:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O-:6])([C@@:7]([C:8]([H:17])([H:18])[H:19])([c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[H:15])[H:20])([H:16])([H:21])[H:22]",
+      "properties": {
+        "energy_hartree": -598.200298412,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0003/frequency/frequency.log",
+        "label": "threo regio (H-C2-methyl) saddle",
+        "verification": "Opt=TS converged; exactly one imaginary mode -887.61 cm-1 (H fraction 0.83; projections 0.878 on (1,16) and 0.985 on (6,16), C3-H 0.0008); bidirectional IRC from this same geometry in ts/ts_0003/jobs/declaration_0003/irc/irc.log"
+      }
+    },
+    {
+      "id": "ts_threo_main",
+      "role": "transition_state",
+      "smiles": "[C:1]([C@:2]([N+:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O-:6])([C@@:7]([C:8]([H:17])([H:18])[H:19])([c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[H:15])[H:20])([H:16])([H:21])[H:22]",
+      "properties": {
+        "energy_hartree": -598.208585687,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0010/frequency/frequency.log",
+        "label": "threo main syn-elimination (H-C3) saddle",
+        "verification": "Opt=TS converged; normal termination; exactly one imaginary mode -940.4942 cm-1 (H18 atom fraction 0.94; projections C3-H (2-18) = 0.998, O-H (14-18) = 1.053, C2-methyl H 0.005) -> H-C3 syn-elimination coordinate. IRC native bidirectional run ts/ts_0001/jobs/declaration_0010/irc/irc.log, normal termination, canonical outer frames ts/ts_0001/verdict/irc_end_a.xyz / irc_end_b.xyz. Both endpoints re-optimised with Freq: reactant side -598.235079184 Ha (ts/ts_0001/jobs/declaration_0013/reactant_opt/reactant_opt.log, 93 modes, 0 imaginary, geometry = threo (2S,3S)); product side -598.246098328 Ha (ep_B_main/prod_B_optfreq.log, 93 modes, 0 imaginary, geometry = (Z) complex). Workflow verdict candidate_only was a json/endpoint-source bookkeeping artefact, not a chemistry failure."
+      }
+    },
+    {
+      "id": "ts_erythro_main",
+      "role": "transition_state",
+      "smiles": "[C:1]([C@:2]([N+:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O-:6])([C@:7]([C:8]([H:17])([H:18])[H:19])([c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[H:15])[H:20])([H:16])([H:21])[H:22]",
+      "properties": {
+        "energy_hartree": -598.208059014,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0004/frequency/frequency.log",
+        "label": "erythro main syn-elimination (H-C3) saddle",
+        "verification": "Opt=TS converged; exactly one imaginary mode -1069.42 cm-1 dominated by the transferring C3 hydrogen (projections 14-18 = 1.032, 2-18 = 1.003)"
+      }
+    },
+    {
+      "id": "ts_erythro_regio",
+      "role": "transition_state",
+      "smiles": "[C:1]([C@:2]([N+:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O-:6])([C@:7]([C:8]([H:17])([H:18])[H:19])([c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[H:15])[H:20])([H:16])([H:21])[H:22]",
+      "properties": {
+        "energy_hartree": -598.199791733,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0004/frequency/frequency.log",
+        "label": "erythro regio (H-C2-methyl) saddle",
+        "verification": "Opt=TS converged; exactly one imaginary mode -843.59 cm-1 dominated by the C2-methyl hydrogen (fraction 0.81; projections 14-27 = 0.984, 10-27 = 0.851, C3-H 0.003)"
+      }
+    },
+    {
+      "id": "sp_prod_threo_regio",
+      "role": "product",
+      "smiles": "[C:1](=[C:2]([C@@:7]([C:8]([H:17])([H:18])[H:19])([c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[H:15])[H:20])([H:21])[H:22].[N:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O:6][H:16]",
+      "properties": {
+        "energy_hartree": -598.236249817,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0006/endpoint_b_optfreq_plain/endpoint_b_optfreq_plain.log",
+        "label": "(3R)-3-phenylbut-1-ene + dimethylhydroxylamine (threo regio product complex)",
+        "stereochemistry": "C3 (map 7) = R (RDKit AssignStereochemistryFrom3D on this optimised geometry)",
+        "verification": "0 imaginary frequencies (lowest real 17.22 cm-1); C1=C2 1.338 A, C2-N 3.71 A, N-O 1.428 A, O6-H16 0.973 A, C7-H15 1.11 A; this is the minimum reached from IRC outer frame B"
+      }
+    },
+    {
+      "id": "sp_prod_threo_main",
+      "role": "product",
+      "smiles": "[C:2]([H:20])(=[C:7]([C:8]([H:17])([H:18])[H:19])[c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[C:1]([H:16])([H:21])[H:22].[N:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O:6][H:15]",
+      "properties": {
+        "energy_hartree": -598.246098328,
+        "evidence_log": "ep_B_main/prod_B_optfreq.log",
+        "label": "(Z)-2-phenyl-2-butene + dimethylhydroxylamine (threo main-channel product complex)",
+        "stereochemistry": "alkene Z, read from the optimised geometry (RDKit rdCIPLabeler on the same graph gives the Z SMILES): dihedral CH3(on C2, atom 10)-C2(atom 9)-C3(atom 2)-CH3(on C3, atom 1) = +176.9 deg (methyls anti), so the CIP-high pair (CH3 on C2 vs Ph on C3) is syn.",
+        "verification": "Combined Opt Freq from the canonical IRC outer frame B (input block verified to 0.000 A against ts/ts_0001/verdict/irc_end_b.xyz): normal termination, 93 modes, 0 imaginary frequencies, E = -598.246098328 Ha; converged geometry is the (Z) complex (C2=C3 1.348 A, C2-N 3.571 A, N-O 1.432 A, O6-H18 0.974 A; dihedral CH3(C2)-C2-C3-CH3(C3) = 178.9 deg, CH3/Ph = -1.0 deg). An independent unconstrained conformer of the same (Z) complex is 0.25 kcal/mol lower (prod_T_main3/prod_T_main3.log, E = -598.246491770 Ha, 0 imaginary) and is recorded as an alternative minimum, not as the IRC-reached endpoint.",
+        "alternative_conformer": {
+          "evidence_log": "prod_T_main3/prod_T_main3.log",
+          "energy_hartree": -598.24649177,
+          "note": "independent (Z)-complex minimum, 0.25 kcal/mol below the IRC-reached endpoint; same species"
+        }
+      }
+    },
+    {
+      "id": "sp_prod_erythro_main",
+      "role": "product",
+      "smiles": "[C:2]([H:20])(=[C:7]([C:8]([H:17])([H:18])[H:19])[c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[C:1]([H:16])([H:21])[H:22].[N:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O:6][H:15]",
+      "properties": {
+        "energy_hartree": -598.245557173,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0006/endpoint_b_optfreq_plain/endpoint_b_optfreq_plain.log",
+        "label": "(E)-2-phenyl-2-butene + dimethylhydroxylamine (erythro main-channel product complex)",
+        "stereochemistry": "alkene E, read from the optimised geometry (RDKit rdCIPLabeler on the same graph agrees): dihedral CH3(on C2, atom 10)-C2(atom 9)-C3(atom 2)-CH3(on C3, atom 1) = +2.0 deg (methyls syn) and CH3(C2)-C2-C3-Ph(ipso, atom 3) = -179.5 deg, so the CIP-high pair (CH3 on C2 vs Ph on C3) is anti.",
+        "verification": "combined Opt Freq, normal termination (2x), 93 modes, 0 imaginary frequencies; C2=C3 1.352 A, C2-N 3.435 A, N-O 1.432 A, O-H 0.974 A; this is the minimum reached from IRC outer frame B of ts_0002 (the product side)"
+      }
+    },
+    {
+      "id": "sp_prod_erythro_regio",
+      "role": "product",
+      "smiles": "[C:1](=[C:2]([C@:7]([C:8]([H:17])([H:18])[H:19])([c:9]1[c:10]([H:23])[c:11]([H:24])[c:12]([H:25])[c:13]([H:26])[c:14]1[H:27])[H:15])[H:20])([H:21])[H:22].[N:3]([C:4]([H:28])([H:29])[H:30])([C:5]([H:31])([H:32])[H:33])[O:6][H:16]",
+      "properties": {
+        "energy_hartree": -598.237208389,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0006/endpoint_a_optfreq_plain/endpoint_a_optfreq_plain.log",
+        "label": "(3S)-3-phenylbut-1-ene + dimethylhydroxylamine (erythro regio product complex)",
+        "stereochemistry": "C3 (map 7; RDKit atom 2 in this run) = S by RDKit AssignStereochemistryFrom3D on this optimised geometry; canonical isomeric SMILES C=C[C@H](C)c1ccccc1.CN(C)O",
+        "verification": "plain Opt Freq, normal termination (2x), 93 modes, 0 imaginary (lowest real 20.61 cm-1); C1=C2 1.338 A, C2-N 3.708 A, N-O 1.431 A, O6-H16 0.974 A, C7-H15 1.106 A; minimum reached from IRC outer frame B of ts_0004 (the product side)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_threo_regio",
+      "from": "sp_threo_amineoxide",
+      "to": "sp_prod_threo_regio",
+      "via": "ts_threo_regio",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            16
+          ]
+        ],
+        "form": [
+          [
+            6,
+            16
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 21.83,
+      "barrier_reference_log": "min_T/conf2.log",
+      "note": "Regioisomeric syn elimination: the N-oxide oxygen (map 6) abstracts a hydrogen of the C2-methyl (map 1; transferring H = map 16) while C2-N (2,3) breaks and C1=C2 forms; N-O is retained. Saddle: C1-H16 1.30 A, O6-H16 1.31 A, C2-N 2.14 A, C7-H15 untouched at 1.10 A. Both IRC outer frames were re-optimised to frequency-verified minima (reactant side -598.230291027 Ha = the threo substrate conformer min_T/conf3; product side -598.236249817 Ha = the (3R)-alkene complex).",
+      "status": "ts_opt + frequency + short_irc supported (Supervisor-accepted, dec_c57ff40a)"
+    },
+    {
+      "id": "edge_threo_main",
+      "from": "sp_threo_amineoxide",
+      "to": "sp_prod_threo_main",
+      "via": "ts_threo_main",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            7,
+            15
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            6,
+            15
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.62,
+      "barrier_reference_log": "min_T/conf2.log",
+      "note": "Concerted syn elimination of the C3 hydrogen (map 15) to the N-oxide oxygen (map 6) with C2-N (2,3) breaking and C2=C7 (2,7) forming; N-O retained. Barrier = (E_TS - E_ref)*627.5095 = (-598.208585687 - (-598.235079154))*627.5094740631 = 16.62 kcal/mol against the task-mandated lowest verified substrate minimum min_T/conf2.log. The IRC-frame reactant endpoint ts/ts_0001/jobs/declaration_0013/reactant_opt/reactant_opt.log (-598.235079184 Ha) is the same minimum within 3e-8 Ha. Product is (Z)-2-phenyl-2-butene + HNMe2OH; product complex is 6.92 kcal/mol below the reference substrate. The form [[2,7]] order increase is added because the edge's own chemistry description (and the run's draft note) states 'C2=C7 forming'; the 21:27 draft bond_changes listed only form [[6,15]], presumably an omission. The other three edges' bond_changes are kept verbatim from the draft (outside the threo-main repair scope).",
+      "status": "ts_opt + frequency + native bidirectional IRC + both endpoint minima (reactant declaration_0013/reactant_opt.log 0 imag; product ep_B_main/prod_B_optfreq.log 0 imag) verified; Supervisor-accepted; pipeline candidate_only = provenance bookkeeping only"
+    },
+    {
+      "id": "edge_erythro_main",
+      "from": "sp_erythro_amineoxide",
+      "to": "sp_prod_erythro_main",
+      "via": "ts_erythro_main",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            7,
+            15
+          ]
+        ],
+        "form": [
+          [
+            6,
+            15
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 15.85,
+      "barrier_reference_log": "min_E/conf1.log",
+      "note": "Concerted syn elimination of the C3 hydrogen (map 15) to the N-oxide oxygen (map 6) with C2-N (2,3) breaking and C2=C7 forming; N-O retained. Saddle -1069.42 cm-1 dominated by that hydrogen; bidirectional IRC (161 points) from the intact substrate (C2-N 1.77 A) to the product complex (C2=C3 1.352, C2-N 3.435, N-O 1.432, O-H 0.974 A); both outer frames re-optimised to frequency-verified minima. Alkene (E): on the optimised product geometry the CH3(C2)-C2-C3-CH3(C3) dihedral is +2.0 deg (methyls syn) and CH3(C2)-C2-C3-Ph is -179.5 deg, so the CIP-high pair (CH3 on C2 vs Ph on C3) is anti; RDKit rdCIPLabeler on the same graph also gives E.",
+      "status": "ts_opt + frequency + short_irc supported (Supervisor-accepted, dec_f9c6557f)"
+    },
+    {
+      "id": "edge_erythro_regio",
+      "from": "sp_erythro_amineoxide",
+      "to": "sp_prod_erythro_regio",
+      "via": "ts_erythro_regio",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            16
+          ]
+        ],
+        "form": [
+          [
+            6,
+            16
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 21.04,
+      "barrier_reference_log": "min_E/conf1.log",
+      "note": "Regioisomeric syn elimination of a C2-methyl hydrogen (map 16) to the N-oxide oxygen (map 6) with C2-N (2,3) breaking and C1=C2 forming; N-O retained. Saddle -843.59 cm-1 dominated by that methyl hydrogen; bidirectional IRC (121 points) to the product complex (C1=C2 1.345, C2-N 2.560, N-O 1.407, O-H 0.987 A); both outer frames re-optimised to frequency-verified minima. C3 = S.",
+      "status": "ts_opt + frequency + short_irc supported (Supervisor-accepted, dec_a5bab9cf)"
+    }
+  ],
+  "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, EmpiricalDispersion=GD3BJ), gas phase, isolated neutral singlet amine oxide; energies are electronic only (no ZPE or thermal correction)",
+  "reference_doi": "10.1021/ja057523x",
+  "atom_map_convention": "All SMILES strings carry explicit atom-map numbers in the order of the user-supplied reactant SMILES CC([N+](C)(C)[O-])C(C)c1ccccc1: map 1 = CH3 on C2, map 2 = C2 (N-bearing), map 3 = N, maps 4/5 = N-methyls, map 6 = O of the N-oxide, map 7 = C3 (phenyl-bearing), map 8 = CH3 on C3, maps 9-14 = phenyl (9 = ipso), map 15 = H on C3, map 16 = the H of the C2-methyl that is transferred in the regio channel, maps 17-19 = H of the C3-methyl, map 20 = H on C2, maps 21-22 = the other two H of the C2-methyl, maps 23-27 = phenyl H, maps 28-33 = N-methyl H. The user SMILES numbers no hydrogens, so maps 15-33 are a documented extension of its heavy-atom numbering; every bond_changes pair below uses this numbering.",
+  "unresolved_channels": [
+    {
+      "channel": "threo (2S,3S) syn elimination of H-C3 -> (Z)-2-phenyl-2-butene + HNMe2OH",
+      "status": "saddle + frequency verified; bidirectional IRC running; endpoint minima still missing",
+      "detail": "TS ts/ts_0001/jobs/declaration_0010: E = -598.208585687 Ha, NImag = 1, imaginary mode -940.49 cm-1 with H on C3 (H15) carrying 0.94 of the displacement (projections 0.998 on C3-H and 1.053 on O-H, C2-methyl H 0.005), so it is the C3-H syn-elimination coordinate and not the regio channel. Provisional barrier +16.62 kcal/mol vs min_T/conf2.log. The product complex is verified: prod_T_main3/prod_T_main3.log (job 2053) is a normal-termination combined Opt Freq minimum at -598.246491770 Ha with 0 imaginary frequencies and RDKit reading exactly C/C=C(/C)c1ccccc1 (Z, i.e. the two methyls anti; dihedral (10,9,2,1) = +176.9 deg) plus intact CN(C)O (N-O 1.428 A, O-H 0.974 A, C2-N 3.57 A). What is still missing for this channel is only the connectivity proof: the bidirectional IRC (ts/ts_0001/jobs/declaration_0010/irc/irc.log) was still running at the time of writing, and no Opt Freq logs started from its two outer frames exist yet, and the substrate-side CIP has not been re-derived at an IRC reactant endpoint. The barrier therefore stays provisional; the (Z) assignment itself is geometry-derived."
+    }
+  ],
+  "notes": "Barriers are electronic Delta-E(double dagger) values in kcal/mol with no ZPE or thermal correction, each referred to the lowest verified minimum of its OWN substrate (threo min_T/conf2.log -598.235079154 Ha; erythro min_E/conf1.log -598.233321710 Ha). Energies are never subtracted across the two diastereomers; each diastereomer is its own reactant node. Four channels are recorded: the syn elimination of the C3 hydrogen (main channel, N-O retained, giving 2-phenyl-2-butene) and the regioisomeric elimination of a C2-methyl hydrogen (giving 3-phenylbut-1-ene), for each of the two substrates. Alkene E/Z and the C3 descriptor of 3-phenylbut-1-ene are read from the computed product geometries (RDKit AssignStereochemistryFrom3D), not assumed from the substrate configuration. Bond changes use the documented user-map numbering."
+}

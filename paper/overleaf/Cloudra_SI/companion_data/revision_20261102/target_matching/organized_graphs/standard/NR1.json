@@ -1,0 +1,136 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "NC=O"
+      ],
+      "properties": {
+        "energy_hartree": -169.772982771,
+        "evidence_log": "calc/g_formamide_optfreq.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -169.71475543,
+        "evidence_log": "calc/g_ts1.log"
+      }
+    },
+    {
+      "id": "I1",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.745424093,
+        "evidence_log": "calc/g_formimidic_A_optfreq.log"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": []
+    },
+    {
+      "id": "I2",
+      "role": "intermediate",
+      "smiles": [
+        "N=CO"
+      ],
+      "properties": {
+        "energy_hartree": -169.7448448,
+        "evidence_log": "calc/g_ts2.log"
+      }
+    },
+    {
+      "id": "TS3",
+      "role": "transition_state",
+      "smiles": []
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C#N.O"
+      ],
+      "properties": {
+        "energy_hartree": -169.720742486,
+        "evidence_log": "calc/g_prod_complex_optfreq.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "I1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 36.54
+    },
+    {
+      "id": "e2",
+      "from": "I1",
+      "to": "I2",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      }
+    },
+    {
+      "id": "e3",
+      "from": "I2",
+      "to": "P",
+      "via": "TS3",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            5
+          ]
+        ]
+      }
+    }
+  ]
+}

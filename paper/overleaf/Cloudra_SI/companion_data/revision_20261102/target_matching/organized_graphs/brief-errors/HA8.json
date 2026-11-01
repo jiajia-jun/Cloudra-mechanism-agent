@@ -1,0 +1,78 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C/C=C/C=C\\C=C\\C"
+      ],
+      "properties": {
+        "energy_hartree": -311.82575539,
+        "evidence_log": "work/rc/rc01_optfreq.log",
+        "note": "Pre-reaction complex = (2E,4Z,6E)-octa-2,4,6-triene in the reactive s-cis,s-cis (C-shaped) conformation, helically twisted by -32.7 deg about C3-C4 and C5-C6; B3LYP-D3(BJ)/def2-SVP gas-phase minimum (54 real modes, 0 imaginary). Lowest verified reactant conformer in the evidence: the methyl-rotamer conformer work/rc/rc02_optfreq.log is degenerate within 3e-9 Ha, and the reactant-side IRC frame relaxes onto a flat mirror-symmetric twist/methyl-torsion ridge (-50 cm-1, -311.823946 Ha, +1.1 kcal/mol) that connects the two enantiomeric helical conformers; work/ts/rc_endpoint3_optfreq.log (-311.825755379, 0 imaginary) returns to this same minimum from that ridge."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -311.793195942,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+        "note": "Disrotatory 6pi ring-closure saddle; first-order (one imaginary mode at -496.58 cm-1, forming-bond pair C2...C7 projected fraction 0.62, opposite-sense terminal twist). C2...C7 = 2.269 A, C2-C3 = C6-C7 = 1.407 A, C3=C4 = C5=C6 = 1.394 A. Barrier dE = +20.43 kcal/mol over RC, +40.3 over P. One imaginary frequency is the required signature for this transition_state role; the species-level 'geometry = local minimum' check does not apply to a TS node (tool limitation, reported as such, not a chemical gap). IRC direction: same-saddle bidirectional IRC (ts/ts_0001/jobs/declaration_0005/irc/irc.log) runs forward to the cis product side (work/ts/p_endpoint_optfreq.log) and backward onto a first-order twist/methyl-torsion ridge (work/ts/rc_endpoint_optfreq.log, -50 cm-1, +1.1 kcal/mol), from which the RC minimum is reached by displacement along that mode (work/ts/rc_endpoint3/4_optfreq.log); the reverse IRC itself does not reach RC. The harness IRC stage flag is therefore disclosed as skipped-by-construction, not repaired."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C[C@H]1C=CC=C[C@H]1C"
+      ],
+      "properties": {
+        "energy_hartree": -311.857321736,
+        "evidence_log": "work/p/p01_cis_optfreq.log",
+        "note": "cis-5,6-dimethylcyclohexa-1,3-diene (ring-junction methyls on the same face); 0 imaginary modes. Reference-only trans isomer: work/p/p02_trans_optfreq.log, -311.857630768 Ha."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          [
+            2,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 20.43,
+      "channel": "disrotatory 6pi electrocyclization (single channel computed; Woodward-Hoffmann allowed for a thermal ground-state 6pi system) -> cis ring junction"
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1CCC2OC2C1.[OH-]"
+      ],
+      "properties": {
+        "energy_hartree": -385.51010409,
+        "evidence_log": "qm/rc2_opt.log",
+        "note": "Anti-face encounter complex: hydroxide on the face ANTI to the epoxide oxygen (O18 4.05 A from the attacked carbon C4; 3.6-4.7 A from the epoxide carbons), epoxide and hydroxide intact, 0 imaginary frequencies. Loose ion-dipole complex, so a barrier referenced to it includes the complexation energy. Source of the backside (trans) channel. Same species as RC_anti_irc (a slightly lower conformer) and as RC_syn (the frontside conformer); the SMILES alone does not distinguish them - only the geometry/log does. SMILES is kept identical to the DAG declaration for this node (stereo-unspecified C1CCC2OC2C1.[OH-]); the meso epoxide stereochemistry is C1CC[C@H]2O[C@H]2C1.[OH-] as declared on RC_anti_irc and RC_syn."
+      }
+    },
+    {
+      "id": "RC_anti_irc",
+      "role": "reactant",
+      "smiles": [
+        "C1CC[C@H]2O[C@H]2C1.[OH-]"
+      ],
+      "properties": {
+        "energy_hartree": -385.510526848,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/reactant_frequency/reactant_frequency.log",
+        "note": "Anti-face encounter complex as actually reached by the reverse outer frame of the verified backside IRC: opt+freq, 0 imaginary frequencies, epoxide intact (O5-C4 1.440, O5-C6 1.445 A), hydroxide intact and separate at C4-O18 3.725 A on the anti face (O18-C4-C6-O5 = -155.5 deg). 0.27 kcal/mol below RC; this is the lowest verified reactant-state minimum of the system."
+      }
+    },
+    {
+      "id": "RC_syn",
+      "role": "reactant",
+      "smiles": [
+        "C1CC[C@H]2O[C@H]2C1.[OH-]"
+      ],
+      "properties": {
+        "energy_hartree": -385.503535038,
+        "evidence_log": "qm/syn_complex_opt.log",
+        "note": "Channel-specific FRONTSIDE encounter complex, reached (not freely located) as the reverse outer frame of the frontside IRC: hydroxide on the SAME face as the epoxide oxygen, C4-O18 3.16 A, epoxide intact, 0 imaginary frequencies. 4.12 kcal/mol above RC. Same species as RC, different conformer."
+      }
+    },
+    {
+      "id": "TS_anti",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.481296931,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/frequency/frequency.log",
+        "note": "Verified BACKSIDE (anti) first-order saddle: exactly one imaginary frequency -547.07 cm-1 whose top atom is C4 with pair projections C4-O18 1.008 / C4-O5 0.945 (heavy-atom fraction 0.74), so it is the C-O forming/breaking mode, not a protonic mode. Geometry: C4-O18 2.231 A (forming), C4-O5 1.810 A (breaking), C6-O5 1.409 A, O18 anti to O5 (O18-C4-C6-O5 = 169.0 deg; opposite ring faces +1.44 / -2.42 A). Bidirectional IRC (ts/ts_0002/jobs/declaration_0001/irc/irc.log) connects an anti-face encounter complex to trans-1,2-cyclohexanediolate. Superseded older attempts on a flat surface gave only an upper bound (-385.502920837 Ha, qm/ts_anti4.log; abandoned)."
+      }
+    },
+    {
+      "id": "TS_syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.449298041,
+        "evidence_log": "qm/syn_ts_freq_annot.log",
+        "note": "Frontside (syn) first-order saddle: exactly one imaginary frequency -492.4 cm-1 in the same log as the final geometry; C4-O18 2.397 A, C4-O5 2.024 A, C6-O5 1.402 A, O5-C4-O18 77.6 deg (both oxygens on the same face = frontside attack, retention at C4). Bidirectional IRC verified: ts/ts_0001/jobs/declaration_0007/irc/irc.log."
+      }
+    },
+    {
+      "id": "P_trans",
+      "role": "product",
+      "smiles": [
+        "[O-][C@@H]1CCCC[C@H]1O"
+      ],
+      "properties": {
+        "energy_hartree": -385.552611305,
+        "evidence_log": "qm/ptransRR_opt.log",
+        "note": "trans-1,2-cyclohexanediolate, lowest verified trans minimum found: both C-O bonds about 81 deg to the ring-plane normal, i.e. the trans-DIEQUATORIAL conformer; 0 imaginary frequencies. Attack at the symmetry-equivalent other epoxide carbon gives the (1S,2S) enantiomer with the same barrier, so the trans product is racemic. This conformer is NOT the one the IRC reaches (see P_trans_irc, 7.04 kcal/mol higher); it is the thermodynamic reference for the trans product."
+      }
+    },
+    {
+      "id": "P_trans_irc",
+      "role": "product",
+      "smiles": [
+        "[O-][C@@H]1CCCC[C@H]1O"
+      ],
+      "properties": {
+        "energy_hartree": -385.541388652,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/product_frequency/product_frequency.log",
+        "note": "trans-1,2-cyclohexanediolate as actually reached by the forward outer frame of the backside IRC: 0 imaginary frequencies; C4-O5 2.409 A (epoxide C-O broken), C4-O18 1.441 A (new C-O formed), O18-H19 0.968 A, dihedral O18-C4-C6-O5 169.3 deg (opposite ring faces = TRANS). This is the trans-DIAXIAL conformer (C-O bonds about 9.6 deg to the ring-plane normal), 7.04 kcal/mol above P_trans. Delivered as the IRC-reached node, not as the thermodynamic product."
+      }
+    },
+    {
+      "id": "P_cis",
+      "role": "product",
+      "smiles": [
+        "[O-][C@H]1CCCC[C@H]1O"
+      ],
+      "properties": {
+        "energy_hartree": -385.562411025,
+        "evidence_log": "qm/pcis_opt.log",
+        "note": "cis (meso) 1,2-cyclohexanediolate minimum (lowest cis minimum found; proton on the former epoxide oxygen, intramolecular O-H...O- bond, O...O 2.52 A), 0 imaginary frequencies. Same compound as P_cis_irc in a different conformer/protonation pattern (2.49 kcal/mol lower); neither is the IRC-reached node and neither is presented as a thermodynamic product."
+      }
+    },
+    {
+      "id": "P_cis_irc",
+      "role": "product",
+      "smiles": [
+        "[O-][C@@H]1CCCC[C@@H]1O"
+      ],
+      "properties": {
+        "energy_hartree": -385.558447215,
+        "evidence_log": "qm/syn_prod_opt.log",
+        "note": "cis (meso) 1,2-cyclohexanediolate as actually reached by the forward outer frame of the frontside IRC: 0 imaginary frequencies, lowest real mode 83.96 cm-1; nucleophile O keeps the proton (O18-H19 1.04 A, H-bonded to the alkoxide, O...O 2.41 A), the former epoxide O is the alkoxide, both oxygens on the same ring face (dihedral O18-C4-C6-O5 18.0 deg = cis)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "anti_opening_trans_irc",
+      "from": "RC_anti_irc",
+      "to": "P_trans_irc",
+      "via": "TS_anti",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 18.34,
+      "channel": "backside (anti) attack at C4 -> trans-1,2-diolate",
+      "favored": true,
+      "note": "IRC-verified backside (S_N2-like, inversion) opening: form O18-C4, break C4-O5, the nucleophile keeps its proton (no proton transfer) and the epoxide oxygen becomes the alkoxide. Barrier referenced to the complex the IRC actually reaches, RC_anti_irc (-385.510526848 Ha): E(TS_anti) - E(RC_anti_irc) = 0.029229917 Ha = 18.34 kcal/mol. Referenced to the alternative anti-face encounter complex RC (-385.510104090 Ha) the same saddle gives 18.08 kcal/mol. TS: E = -385.481296931 Ha, one imaginary frequency -547.07 cm-1 (C4-O18/C4-O5 heavy-atom mode)."
+    },
+    {
+      "id": "syn_opening_cis_irc",
+      "from": "RC_syn",
+      "to": "P_cis_irc",
+      "via": "TS_syn",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 34.03,
+      "channel": "frontside (syn) attack at C4 -> cis-1,2-diolate",
+      "favored": false,
+      "note": "IRC-verified frontside (retentive) opening from the channel-specific frontside encounter complex RC_syn (-385.503535038 Ha): E(TS_syn) - E(RC_syn) = 0.054237337 Ha = 34.03 kcal/mol. Referenced to the common encounter complex RC (-385.510104090 Ha) the same saddle gives 38.16 kcal/mol. TS: E = -385.449298041 Ha, one imaginary frequency -492.44 cm-1. Minor-minus-major barrier difference: 34.03 - 18.34 = 15.69 kcal/mol on channel-specific zeros, 38.16 - 18.08 = 20.08 kcal/mol on the common complex zero; the backside/anti channel is favoured by a measured barrier."
+    }
+  ]
+}

@@ -1,0 +1,229 @@
+{
+  "nodes": [
+    {
+      "id": "RC_erythro",
+      "role": "reactant",
+      "smiles": [
+        "C[C@@H](c1ccccc1)[C@H](C)[N+](C)(C)[O-]"
+      ],
+      "properties": {
+        "label": "erythro (2S,3S) amine oxide minimum",
+        "cip": [
+          "C2:S",
+          "C3:S"
+        ],
+        "energy_hartree": -598.235079183,
+        "evidence_log": "runs/erythro/sub/sub_from_irc_cart_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian16, gas phase",
+        "n_imag": 0,
+        "conformer": "folded conformer from the IRC reverse outer frame: O6...H15 2.122 A, C3-H15 1.098 A, C2-N3 1.565 A, N3-O6 1.350 A, C2-C3 1.543 A; 93 modes, 0 imaginary, lowest real mode 46.50 cm-1; CIP C2=S, C3=S read from the 3D geometry. It is 3.73 kcal/mol BELOW subconf01 (-598.229139077 Ha), which it supersedes as the erythro barrier reference; subconf00 (-598.229013613 Ha) is higher still. Distinct stationary point from subconf01: max |dfreq| 29.8 cm-1 over 93 modes, heavy-atom Kabsch RMSD 1.674 A."
+      }
+    },
+    {
+      "id": "TS_erythro_syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "syn-elimination TS on the erythro (2S,3S) substrate",
+        "energy_hartree": -598.208585681,
+        "evidence_log": "runs/erythro/ts/ts_syn_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian16, gas phase",
+        "n_imag": 1,
+        "imag_freq_cm-1": -940.3743,
+        "reaction_coordinate": "H15 -> O6 (beta-H transfer), C(atom2)-N(atom3) breaking, C(atom2)=C(atom7) forming",
+        "geometry": "O6...H15 1.288 A, N3-O6 1.333 A, C2-N3 2.140 A, C2=C7 1.426 A",
+        "barrier_reference": "runs/erythro/sub/sub_from_irc_cart_optfreq.log (-598.235079183 Ha); barrier 16.62 kcal/mol = 0.026493502 Ha x 627.509474. Any earlier erythro barrier referenced to the extended conformer subconf01 is SUPERSEDED and must not be quoted."
+      }
+    },
+    {
+      "id": "P_erythro",
+      "role": "product",
+      "smiles": [
+        "C/C=C(/C)c1ccccc1.CN(C)O"
+      ],
+      "properties": {
+        "label": "erythro product complex: (Z)-2-phenyl-2-butene + dimethylhydroxylamine, one bimolecular minimum",
+        "energy_hartree": -598.246440229,
+        "evidence_log": "runs/erythro/irc/hpc1764_fwdP3_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian16, gas phase",
+        "n_imag": 0,
+        "alkene_geometry": "C2=C3 1.348 A; E/Z by inter-substituent DISTANCES on the optimised coordinates (cis ~3.0-3.1 A, trans ~3.9 A): C2-methyl...C3-methyl 3.930 A (trans) and C2-methyl...phenyl ipso 3.050 A (cis), torsions 178.9 / -1.0 deg; CIP C2 CH3>H, C3 Ph>CH3 => higher-priority pair cis => (Z). RDKit bond+stereo perception on the raw geometry gives STEREOCIS for this file and for complexZ_optfreq.log, STEREOTRANS for complexE_optfreq.log.",
+        "superseded_conformer": "runs/erythro/prod/prod_from_irc_red_optfreq.log (-598.246098338 Ha, 0.215 kcal/mol higher) and runs/erythro/prod/complexZ_optfreq.log (-598.242027162 Ha, 2.55 kcal/mol higher) are earlier conformers of the SAME (Z) complex. The isomeric (E) complex runs/erythro/prod/complexE_optfreq.log is exploratory only.",
+        "conformer_provenance": "this node is the TARGET-side outer frame of the same-saddle bidirectional IRC runs/erythro/irc/irc_syn_hpc.log, re-optimised from that IRC's canonical end-b frame (0.000 A) with native opt+freq; 93 modes, 0 imaginary, lowest real mode 24.21 cm-1, E = -598.246440229 Ha. Because the node IS the IRC-coupled product minimum, the erythro channel has no endpoint-vs-node conformer mismatch (unlike threo, where the TARGET -598.245552544 is 0.909 kcal/mol above P_threo -598.247001773). Frame dump for independent measurement: runs/erythro/irc/hpc1764_fwdP3_last.xyz (derived artifact; the log is the evidence).",
+        "note": "product node, not a barrier reference: the erythro syn barrier is referenced to the folded substrate minimum -598.235079183 Ha (16.62 kcal/mol). Binding energy against separated monomers (-9.95 kcal/mol) is an un-counterpoised upper bound, not thermochemistry."
+      }
+    },
+    {
+      "id": "RC_threo",
+      "role": "reactant",
+      "smiles": [
+        "C[C@H](c1ccccc1)[C@H](C)[N+](C)(C)[O-]"
+      ],
+      "properties": {
+        "label": "threo (2S,3R) amine oxide minimum",
+        "cip": [
+          "C2:S",
+          "C3:R"
+        ],
+        "energy_hartree": -598.23332171,
+        "evidence_log": "runs/threo/sub/subconf04_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian16, gas phase",
+        "n_imag": 0,
+        "conformer": "subconf04 (lowest threo conformer completed so far)",
+        "folded_conformer_probe": "runs/threo/sub/sub_folded2_optfreq.log (-598.232126234 Ha, 93 modes, 0 imaginary) started from the erythro-like folded placement (O...H_beta 2.266 A, D1 +20 / D2 +40) relaxes to D1 +70.5 / D2 +51.5 with O...H_beta 3.354 A, i.e. to the subconf00 conformer (-598.232126506, RMSD 0.001 A), 0.750 kcal/mol above subconf04. The threo surface has no erythro-like folded minimum at this level, so this node is the lowest threo minimum that exists and the barriers below are referenced to it. Consequence: the erythro/threo conformer comparison is a stated limitation, not an unresolved question."
+      }
+    },
+    {
+      "id": "TS_threo_syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "syn-elimination TS on the threo (2S,3R) substrate (C3 beta-H -> O)",
+        "energy_hartree": -598.208059065,
+        "evidence_log": "runs/threo/ts/ts3_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian16, gas phase",
+        "n_imag": 1,
+        "imag_freq_cm-1": -1068.3261,
+        "reaction_coordinate": "H18 -> O14 dominant; C2(atom9)-N(atom11) stretching; C2(atom9)=C3(atom2) forming",
+        "geometry": "C2-N 2.097 A, H_beta...O 1.280 A, C3-H_beta 1.328 A, C2=C3 1.431 A, N-O 1.335 A",
+        "barrier_reference": "runs/threo/sub/subconf04_optfreq.log (-598.233321710 Ha); barrier 15.85 kcal/mol",
+        "superseded": "runs/threo/ts/ts2_optfreq.log (-598.207517839 Ha) failed the eigenvalue gate (Desired=1, Actual=2) and is not evidence; its 16.19 kcal/mol is superseded by 15.85"
+      }
+    },
+    {
+      "id": "P_threo",
+      "role": "product",
+      "smiles": [
+        "C/C=C(\\C)c1ccccc1.CN(C)O"
+      ],
+      "properties": {
+        "label": "threo product complex: (E)-2-phenyl-2-butene + dimethylhydroxylamine, one bimolecular minimum",
+        "energy_hartree": -598.247001773,
+        "evidence_log": "runs/threo/irc/fwd_endpoint_cart_optfreq.log",
+        "superseded_conformer": "runs/threo/prod/complex_E2_optfreq.log (-598.246801034 Ha) is an earlier, 0.13 kcal/mol higher conformer of the same (E) complex; the node now carries the lower IRC-derived conformer. Product node, not a barrier reference, so no barrier changes.",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian16, gas phase (route '#p opt=cartesian freq' for the delivered conformer, after Berny internals failed)",
+        "n_imag": 0,
+        "alkene_geometry": "C2=C3 1.353 A, C2-N 3.462 A (broken), alkene CIP from 3D perception = (E): methyl...methyl 3.110 A (cis), methyl...phenyl ~3.9 A, no phenyl/amine stacking (N...ring centroid 4.949 A)",
+        "interaction": "single O-H...pi hydrogen bond, H(O)...C 2.203 A; no covalent C...N or C...O contact (shortest C...N 3.373 A, C...O 3.057 A)",
+        "binding_energy_caveat": "-10.04 kcal/mol vs separated monomers (-388.042170053 + -210.188833713) is an un-counterpoised UPPER BOUND only (no ghost atoms, no continuum dielectric); not thermochemistry, never compared between channels"
+      }
+    },
+    {
+      "id": "TS_threo_regio",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "regio (C1-methyl) syn-elimination TS, threo substrate",
+        "energy_hartree": -598.205434997,
+        "evidence_log": "runs/regio/ts/ts_regio.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian16, gas phase",
+        "n_imag": 1,
+        "imag_freq_cm-1": -1001.0264,
+        "reaction_coordinate": "C1-methyl H transfer to the N-oxide O; C1=C2 double bond forming; C2-N3 breaking",
+        "geometry": "O...H 1.286 A, N-O 1.329 A, C2-N 2.147 A, C1=C2 1.416 A",
+        "barrier_reference": "runs/regio/sub/min_c04.log (-598.233321656 Ha); barrier 17.50 kcal/mol"
+      }
+    },
+    {
+      "id": "P_regio",
+      "role": "product",
+      "smiles": [
+        "C=C[C@H](C)c1ccccc1.CN(C)O"
+      ],
+      "properties": {
+        "label": "regio product complex: (S)-3-phenylbut-1-ene + dimethylhydroxylamine, one bimolecular minimum",
+        "energy_hartree": -598.234984045,
+        "evidence_log": "runs/regio/irc/fwd_min.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian16, gas phase",
+        "n_imag": 0,
+        "geometry": "regio alkene C1=C2 1.339 A, C2-N 3.084 A (broken), N-O 1.429 A, O-H 0.974 A, benzylic C3-H retained",
+        "stereochemistry": "C3 configuration retained geometrically from the (2S,3R) substrate but the CIP priority order changes because the former C2 becomes a vinyl carbon (Ph > vinyl C2 > C8 > H), so the descriptor flips R -> S: product is C=C[C@H](C)c1ccccc1",
+        "binding_energy_caveat": "-7.99 kcal/mol vs separated monomers (-598.222254802 Ha) is an UPPER BOUND only (def2-SVP, gas phase, no BSSE, no continuum dielectric); not thermochemistry, never compared across channels"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_ery_syn",
+      "from": "RC_erythro",
+      "to": "P_erythro",
+      "via": "TS_erythro_syn",
+      "barrier_kcal_mol": 16.62,
+      "note": "dE = -598.208585681 - (-598.235079183) = 0.026493502 Ha x 627.509474, referenced to THIS substrate's own lowest verified minimum (the folded erythro conformer, runs/erythro/sub/sub_from_irc_cart_optfreq.log). Any earlier erythro barrier referenced to the extended subconf01 conformer is superseded, not an alternative. Electronic only, no ZPE/thermal. Must never be placed side by side with the threo barriers (15.85 syn, 17.50 regio) as a competition: those are different molecules.",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            7,
+            15
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            6,
+            15
+          ]
+        ]
+      }
+    },
+    {
+      "id": "e_threo_syn",
+      "from": "RC_threo",
+      "to": "P_threo",
+      "via": "TS_threo_syn",
+      "barrier_kcal_mol": 15.85,
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            7,
+            15
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            6,
+            15
+          ]
+        ]
+      }
+    },
+    {
+      "id": "e_threo_regio",
+      "from": "RC_threo",
+      "to": "P_regio",
+      "via": "TS_threo_regio",
+      "barrier_kcal_mol": 17.5,
+      "note": "dE = -598.205434997 - (-598.233321656) = 0.027886659 Ha x 627.509474, referenced to THIS substrate's own minimum (threo min_c04 = subconf04, same molecule within 5e-8 Ha). Electronic only. The like-for-like regio-vs-syn comparison must be made only on the threo substrate and only once the threo syn saddle is verified.",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "note": "C1-methyl H (not a mapped atom in the reference mapping, which stops at map 15) is transferred to O6; therefore only the mapped changes are declared: C2-N3 bond order decreases (break) and C1=C2 bond order increases (form). The H transfer to O6 is described in properties."
+    }
+  ]
+}

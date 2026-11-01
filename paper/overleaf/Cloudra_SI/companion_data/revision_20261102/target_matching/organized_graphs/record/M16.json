@@ -1,0 +1,72 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -189.62249888,
+        "evidence_log": "calc/syn_optfreq.log",
+        "description": "syn (Z) formic acid, lowest-energy reactant minimum (B3LYP-D3(BJ)/def2-SVP, 0 imaginary frequencies). anti (E) conformer -189.61480030 (+4.83 kcal/mol) is the IRC-connected reactant minimum; both are the same reactant state."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -189.509282721,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+        "imaginary_frequency_cm": -2211.6732,
+        "description": "Concerted 1,2-dihydrogen elimination saddle, planar 4-membered ring C2-O1-H4-H5; exactly one imaginary mode (-2211.7 cm-1). IRC connects anti-HCOOH <-> CO2 + H2."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C(=O)=O.[H][H]"
+      ],
+      "properties": {
+        "energy_hartree": -189.620181901,
+        "evidence_log": "calc/prod_complex_irc_optfreq.log",
+        "evidence_log_components": [
+          "calc/co2_optfreq.log",
+          "calc/h2_optfreq.log"
+        ],
+        "description": "CO2...H2 product complex, genuine vdW minimum (0 imaginary frequencies), optimized from the IRC product outer frame. Binding vs separated CO2+H2 (-189.61861211) = -0.99 kcal/mol."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 71.04,
+      "channel": "dehydrogenation (concerted 1,2-H2 elimination)",
+      "favored": true
+    }
+  ]
+}

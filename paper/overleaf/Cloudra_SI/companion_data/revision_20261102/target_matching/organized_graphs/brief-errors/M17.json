@@ -1,0 +1,70 @@
+{
+ "nodes": [
+  {
+   "id": "RC_methyl_isocyanide",
+   "role": "reactant",
+   "smiles": [
+    "C[N+]#[C-]"
+   ],
+   "properties": {
+    "energy_hartree": -132.624289833,
+    "evidence_log": "rc/rc_optfreq.log",
+    "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16 (opt freq, empiricaldispersion=gd3bj)",
+    "note": "Methyl isocyanide minimum, 0 imaginary frequencies (lowest real 291.6 cm-1). Lowest-energy reactant conformer overall is the IRC-frame re-optimization endpoints/endA_rc_optfreq.log, E = -132.624290205 Ha; barrier is unchanged at 44.54 kcal/mol either way."
+   }
+  },
+  {
+   "id": "TS1_methyl_1_2_shift",
+   "role": "transition_state",
+   "smiles": [
+    "C[N+]#[C-]"
+   ],
+   "properties": {
+    "energy_hartree": -132.553312019,
+    "evidence_log": "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+    "imaginary_frequency_cm1": -457.6,
+    "geometry": "r(C1-N2)=1.819 A, r(C1-C3)=1.786 A, r(N2-C3)=1.195 A (three-membered ring, methyl bridging N and C)",
+    "evidence_frequency_log": "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log",
+    "evidence_irc_log": "ts/ts_0001/jobs/declaration_0004/irc/irc.log",
+    "note": "Concerted 1,2-methyl shift saddle; imaginary mode is the C1 motion between N2 and C3 (watch-pair projections 0.624 and 0.547)."
+   }
+  },
+  {
+   "id": "P_acetonitrile",
+   "role": "product",
+   "smiles": [
+    "CC#N"
+   ],
+   "properties": {
+    "energy_hartree": -132.659619573,
+    "evidence_log": "p/p_optfreq.log",
+    "note": "Acetonitrile minimum, 0 imaginary frequencies, linear C-C-N. IRC-frame re-optimization endpoints/endB_p_optfreq.log gives -132.659619579 Ha."
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "step1_methyl_1_2_shift",
+   "from": "RC_methyl_isocyanide",
+   "to": "P_acetonitrile",
+   "via": "TS1_methyl_1_2_shift",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      2
+     ]
+    ],
+    "form": [
+     [
+      1,
+      3
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 44.54,
+   "channel": "concerted 1,2-methyl migration",
+   "favored": true
+  }
+ ]
+}

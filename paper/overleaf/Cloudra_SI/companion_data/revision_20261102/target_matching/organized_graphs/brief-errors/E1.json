@@ -1,0 +1,100 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[F-].CCCl"
+      ],
+      "properties": {
+        "energy_hartree": -639.003421407,
+        "evidence_log": "rc_g/rc_a.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge -1, mult 1",
+        "description": "Ion-dipole pre-reaction complex: F- hydrogen-bonded to the beta-H (map H4) of CH3CH2Cl, antiperiplanar to C-Cl. F1...H5 1.780 A, C2-H5 1.125 A, C3-Cl4 1.889 A, dihedral H5-C2-C3-Cl4 -173.8 deg. Opt+Freq, 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -639.002077475,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log",
+        "opt_evidence_log": "ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log",
+        "imaginary_frequency_cm": -299.76,
+        "description": "Concerted anti-periplanar E2 saddle (the only imaginary mode, -299.76 cm-1, is dominated by H5 transfer with reaction-coordinate pair shares (1,5) 0.873, (2,5) 0.525, (4,5) 0.379). F1-H5 1.355, C2-H5 1.247, C3-Cl4 1.939 A.",
+        "notes": "Opt=(TS,CalcFC,NoEigentest,Tight) refine.log; frequency.log gives the same geometry with exactly one imaginary frequency. dE(TS1-RC) = 0.843 kcal/mol. Connectivity: same saddle in several IRC runs from this exact geometry - the fresh hand-written bidirectional IRC=(CalcFC,MaxPoints=60,StepSize=5) run (irc_fresh.log, 60 points forward / 40 backward, rx -2.84378 to +4.26786, ends -639.003407 and -639.016517 Ha), the bidirectional declaration_0005 run (100 forward / 40 backward, rx -2.84378 to +7.10960), and two single-direction runs (reverse 40 points to rx -2.844, outer frame -639.003407 Ha; forward 120 points to rx +8.53, outer frame -639.022387 Ha). Both outer frames are frequency-verified with 0 imaginary frequencies and reproduce RC (-639.003420935 Ha) and P_irc (-639.022951140 Ha); all IRC ends lie below E(TS1), so the saddle is a maximum along the path. No direction self-terminates on the product side (flat ion-dipole exit asymptote), so this is an IRC interval plus frequency-verified outer-frame minima, not a converged IRC.",
+        "irc_evidence_logs": [
+          "ts/ts_0001/jobs/irc_fresh/irc_fresh.log",
+          "ts/ts_0001/jobs/declaration_0005/irc/irc.log",
+          "ts/ts_0001/jobs/irc_split/irc_reverse.log",
+          "ts/ts_0001/jobs/irc_split/irc_forward.log"
+        ]
+      }
+    },
+    {
+      "id": "P_irc",
+      "role": "intermediate",
+      "smiles": [
+        "C=C.F.[Cl-]"
+      ],
+      "properties": {
+        "energy_hartree": -639.022951139,
+        "evidence_log": "ts/ts_0001/jobs/irc_fresh/end_b_optfreq/end_b_optfreq.log",
+        "description": "Product arrangement actually reached by the product-side IRC and verified as a minimum: loose C2H4 + HF + Cl- aggregate (F-H 0.950, H...Cl 5.035, F...Cl 5.87, C=C 1.349 A; 0 imaginary frequencies).",
+        "notes": "IRC-reached product side: bidirectional IRC interval (declaration_0005: 100 points forward to rx +7.11, 40 backward to rx -2.84; forward direction does not flatten within 100 points - a workflow limitation of the very flat ion-dipole exit channel, not a converged IRC). Outer frames re-optimized with Opt=(CalcFC,Tight) Freq: reactant side -639.003420935 Ha (RC, 0 imag), product side -639.022951140 Ha (P_irc, 0 imag); reproduced identically from two independent IRC runs. P_irc is a genuine shallow exit-channel minimum; it is separated from the bound product complex P by a small (~1.7 kcal/mol, coarse-scan) hurdle, so P_irc -> P is not barrierless.",
+        "distinct_minimum_note": "P_irc and P are TWO DISTINCT product-side minima of the SAME separated formula C2H4 + HF + Cl- (SMILES C=C.F.[Cl-]): P_irc = -639.022951140 Ha (H...Cl 5.035 A, loose aggregate, ts/ts_0001/jobs/declaration_0004/product_frequency/product_frequency.log) vs P = -639.057498250 Ha (H...Cl 1.870 A, bound [F-H...Cl]- complex, p_g2/p_opt2.log). They differ by 21.7 kcal/mol; they are not duplicates. P is the lowest product minimum but is NOT on the IRC path; P_irc is the arrangement the IRC actually reaches.",
+        "evidence_note": "Annotation fix only, no change of species or energy: the previously cited IRC product-branch log (ts/ts_0001/jobs/declaration_0004/product_frequency/product_frequency.log, -639.022951140 Ha, 0 imaginary) was produced by the TS workflow and its title carries no 'smiles:' line, so it failed the annotated-evidence geometry check. The bound evidence is now the combined Opt=(CalcFC,Tight) Freq job started from the fresh IRC's own product-side outer frame, which is the SAME minimum: E = -639.022951139 Ha (identical within 1e-9 Ha), 0 imaginary frequencies, F1-H5 0.950, H...Cl4 5.035, C2=C3 1.349 A, title annotated 'smiles: C=C.F.[Cl-]'.",
+        "energy_note": "Written exactly as printed in the cited evidence log (ts/ts_0001/jobs/irc_fresh/end_b_optfreq/end_b_optfreq.log: E = -639.022951139 Ha). Numerically identical to the earlier IRC-branch value -639.022951140 Ha within 1e-9 Ha; the earlier log (declaration_0004/product_frequency.log) is the same stationary point and is cited in evidence_note."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.F.[Cl-]"
+      ],
+      "properties": {
+        "energy_hartree": -639.05749825,
+        "evidence_log": "p_g2/p_opt2.log",
+        "description": "Lowest verified product minimum: [F-H...Cl]- hydrogen-bonded ion pair with C2H4 (F-H 0.991, H...Cl 1.870, C=C 1.335 A; 0 imaginary frequencies). It is the lower product-side minimum but it is NOT reached by the IRC: the product-side IRC outer frame relaxes to P_irc. Whether P_irc -> P is separated by a barrier is not established (a coarse Loose scan suggests a ~1.7 kcal/mol hump; no saddle was located). P is a distinct minimum from P_irc, not the same node under another name.",
+        "notes": "Reached from the IRC-reached aggregate P_irc by a relaxation that is NOT established as barrierless: a coarse relaxed scan along H(F)...Cl (p_g2/hcl_scan3.log, Opt=ModRedundant Loose, 0.40 A steps, H...Cl 5.035 -> 1.855 A) shows a shallow maximum of about +1.7 kcal/mol near H...Cl 4.24 A above P_irc, then a monotonic descent; its last point (-639.057432 Ha at this scan's resolution) coincides with E(P) within 0.04 kcal/mol. That hump is a coarse-scan feature, not a verified saddle, and is therefore NOT declared as a barrier on any edge. A tighter re-run (p_g2/hcl_scan_tight.log) is INCONCLUSIVE (normal termination false, opt not converged, scan keyword not honoured) and must not be cited.",
+        "distinct_minimum_note": "P_irc and P are TWO DISTINCT product-side minima of the SAME separated formula C2H4 + HF + Cl- (SMILES C=C.F.[Cl-]): P_irc = -639.022951140 Ha (H...Cl 5.035 A, loose aggregate, ts/ts_0001/jobs/declaration_0004/product_frequency/product_frequency.log) vs P = -639.057498250 Ha (H...Cl 1.870 A, bound [F-H...Cl]- complex, p_g2/p_opt2.log). They differ by 21.7 kcal/mol; they are not duplicates. P is the lowest product minimum but is NOT on the IRC path; P_irc is the arrangement the IRC actually reaches.",
+        "role_note": "Product node retained for the mechanism record: P is the lowest verified product-side minimum ([F-H...Cl]- + C2H4) but is NOT on the IRC path, and no elementary step edge is declared to it (the P_irc -> P association has no located saddle and no declared barrier)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P_irc",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0.843,
+      "channel": "concerted anti-periplanar E2 elimination - IRC-verified connection (source outer frame relaxes to RC, product outer frame relaxes to P_irc)",
+      "favored": true
+    }
+  ]
+}

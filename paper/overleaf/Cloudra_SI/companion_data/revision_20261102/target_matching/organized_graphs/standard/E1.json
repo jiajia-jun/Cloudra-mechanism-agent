@@ -1,0 +1,90 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[F-].CCCl"
+      ],
+      "properties": {
+        "energy_hartree": -639.003420895,
+        "evidence_log": "rc/rc_optfreq.log",
+        "description": "Pre-reaction ion-dipole complex: F- hydrogen-bonded to a beta-H of chloroethane (F...H 1.77 A, C-H 1.13 A, C-Cl 1.90 A). Optimized minimum, 21 real frequencies, lowest 9.89 cm-1, no imaginary frequency. Alternative bound F- arrangements at the same level lie higher (F- on the Cl side: -638.969249 Ha; a gauche F...H(beta) rotamer is degenerate to 0.0003 kcal/mol).",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, route B3LYP/def2SVP EmpiricalDispersion=GD3BJ), gas phase, charge -1, singlet",
+        "charge": -1,
+        "multiplicity": 1
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -639.002077475,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+        "description": "Concerted E2 saddle: H(beta) transferring from C(beta) to F- (F-H 1.355 A, C(beta)-H 1.247 A) while C(alpha)-Cl stretches to 1.934 A and C(alpha)=C(beta) shortens to 1.478 A. Exactly one imaginary frequency, -299.8075 cm-1, dominated by the transferring H with antiphase F/Cl motion.",
+        "imaginary_frequency_cm1": -299.8075,
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16), gas phase, charge -1, singlet",
+        "charge": -1,
+        "multiplicity": 1
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.F.[Cl-]"
+      ],
+      "properties": {
+        "energy_hartree": -639.022951126,
+        "evidence_log": "p/p_optfreq.log",
+        "description": "Product state: ethylene + HF + Cl- (H-F 0.950 A, C=C 1.348 A, Cl- separate). Optimized minimum, all real frequencies (lowest 45.67 cm-1). The product-side IRC endpoint relaxed to the same minimum (p_endpoint/p_ircend_optfreq.log, -639.022951049 Ha).",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16), gas phase, charge -1, singlet",
+        "charge": -1,
+        "multiplicity": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0.84,
+      "channel": "concerted E2 elimination (anti-periplanar H transfer to F-)",
+      "favored": true
+    }
+  ],
+  "meta": {
+    "atom_mapping": "1=F, 2=C(alpha, CH2 bearing Cl), 3=C(beta), 4=transferred beta H, 5=Cl (1-based, from [F-:1].[CH2:2]([H:4])[CH2:3][Cl:5])",
+    "connectivity_evidence": [
+      "ts/ts_0001/jobs/declaration_0001/irc/irc.log (forward IRC, monotone descent from TS into the product valley)",
+      "irc_reverse/ts1_irc_reverse.log (reverse IRC, descends back to the RC energies)"
+    ],
+    "competing_channel_noted": "SN2 saddle ts/ts_0002/jobs/declaration_0001/frequency/frequency.log: E = -639.000532682 Ha, one imaginary frequency -357.7587 cm-1, F...C(alpha) 2.150 A / C(alpha)-Cl 2.136 A; 0.97 kcal/mol above TS1. Not declared as a graph edge because the observed products are the elimination products.",
+    "note": "Barriers are electronic energy differences (no ZPE/thermal)."
+  }
+}

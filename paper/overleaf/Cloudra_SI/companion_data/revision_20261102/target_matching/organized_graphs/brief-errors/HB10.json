@@ -1,0 +1,144 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C=CC#N"
+      ],
+      "properties": {
+        "energy_hartree": -364.698790909,
+        "evidence_log": "rc_cand6.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP gas phase",
+        "note": "Common pre-reaction complex, single dot-joined complex, lowest verified minimum of the reactant state (0 imaginary, lowest real mode 11.9 cm-1). Binding relative to the separated monomers (-364.690304703 Ha) = -5.33 kcal/mol. Shared barrier reference for BOTH channels."
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -364.67605226,
+        "evidence_log": "endo/endo_ts_c.log",
+        "channel": "endo",
+        "note": "Concerted endo saddle: 1 imaginary frequency -457.39 cm-1 (concerted two-bond mode). Map-order ring 1-2 1.397 / 2-3 1.503 / 3-4 1.514 / 4-5 1.410 / 5-1 1.404 A; new bonds C2-C7 2.381 A, C4-C6 2.100 A; diastereoface d(CN...mid C1=C5)=3.21 A < d(CN...C3 methano)=3.80 A -> ENDO."
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -364.676423544,
+        "evidence_log": "exo/exo_ts_optfreq.log",
+        "channel": "exo",
+        "note": "Concerted exo saddle: 1 imaginary frequency -457.05 cm-1 (concerted two-bond mode, projections C4-C6 0.996 / C2-C7 0.762). Same ring/forming-bond pattern (C2-C7 2.385 A, C4-C6 2.098 A); diastereoface d(CN...mid C1=C5)=4.02 A > d(CN...C3 methano)=3.08 A -> EXO."
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "N#C[C@H]1C[C@H]2C=C[C@@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -364.735927937,
+        "evidence_log": "endo/endo_p_optfreq.log",
+        "note": "endo-bicyclo[2.2.1]hept-5-ene-2-carbonitrile, optimized from the forward endo-IRC outer frame; 0 imaginary frequencies (normal termination), E = -364.735927937 Ha. Preferentially formed kinetically? No: see barrier; thermodynamically 0.14 kcal/mol below P_exo at this level."
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "N#C[C@@H]1C[C@H]2C=C[C@@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -364.73570349,
+        "evidence_log": "exo/exo_p_optfreq_titled.log",
+        "note": "exo-bicyclo[2.2.1]hept-5-ene-2-carbonitrile, 0 imaginary (lowest real 108.0 cm-1); retained C1=C5 1.34 A, new sigma bonds C2-C7 1.58 A, C4-C6 1.56 A; EXO face 3.96 vs 3.09 A."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_endo",
+      "from": "RC",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            4,
+            6
+          ],
+          [
+            1,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.27,
+      "channel": "endo",
+      "favored": false
+    },
+    {
+      "id": "e_exo",
+      "from": "RC",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            4,
+            6
+          ],
+          [
+            1,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.04,
+      "channel": "exo",
+      "favored": false
+    }
+  ],
+  "notes": "Barriers are electronic energy differences (no ZPE) against the common pre-reaction complex RC (rc_cand6.log, E = -364.698790909 Ha). endo: -364.676052260 - (-364.698790909) = +0.0227386 Ha = +14.27 kcal/mol. exo: -364.676423544 - (-364.698790909) = +0.0223674 Ha = +14.04 kcal/mol. endo - exo = +0.23 kcal/mol (endo marginally higher at B3LYP-D3(BJ)/def2-SVP; degenerate within the method's accuracy, single conformer per channel, no ZPE). No favoured-channel assignment is claimed."
+}

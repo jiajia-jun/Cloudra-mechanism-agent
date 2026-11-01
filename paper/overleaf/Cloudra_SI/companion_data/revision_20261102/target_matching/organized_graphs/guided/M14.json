@@ -1,0 +1,73 @@
+{
+  "nodes": [
+    {
+      "id": "sp_c9d00ec0",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "conformer": "s-trans, dihedral C1-C2-C3-O = 180.0 deg",
+        "energy_hartree": -191.779652729,
+        "evidence_log": "runs/trans_opt_freq.log",
+        "dag_species_name": "s-trans acrolein (reactant complex)"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "conformer": "perpendicular C2-C3 torsion, dihedral C1-C2-C3-O = 92.1 deg",
+        "energy_hartree": -191.765230948,
+        "evidence_log": "runs/ts_opt_freq.log",
+        "imaginary_frequency_cm1": -230.7054
+      }
+    },
+    {
+      "id": "sp_c772adb5",
+      "role": "product",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "conformer": "s-cis, dihedral C1-C2-C3-O = 0.0 deg (planar s-cis is a genuine minimum)",
+        "energy_hartree": -191.777486987,
+        "evidence_log": "runs/cis_opt_freq.log",
+        "dag_species_name": "s-cis acrolein (product)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_3a338c0a",
+      "from": "sp_c9d00ec0",
+      "to": "sp_c772adb5",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 9.05,
+      "channel": "internal rotation about the C2-C3 single bond (s-trans -> s-cis)",
+      "properties": {
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16 (EmpiricalDispersion=GD3BJ)",
+        "barrier_definition": "E(TS1) - E(RC, s-trans minimum), electronic energies only, no ZPE",
+        "barrier_hartree_difference": 0.014421781,
+        "irc_bidirectional_log": "runs/irc_both.log",
+        "irc_forward_log": "runs/irc_fwd.log",
+        "irc_reverse_log": "runs/irc_rev.log",
+        "irc_outer_frame_opt_freq": [
+          "runs/trans_irc2_opt_freq.log",
+          "runs/cis_irc2_opt_freq.log"
+        ],
+        "forward_irc_dihedral_range_deg": "92.1 -> 177.2",
+        "reverse_irc_dihedral_range_deg": "92.1 -> 0.4",
+        "product_minus_reactant_kcal_mol": 1.359
+      },
+      "name": "C2-C3 torsional rotation s-trans -> s-cis"
+    }
+  ]
+}

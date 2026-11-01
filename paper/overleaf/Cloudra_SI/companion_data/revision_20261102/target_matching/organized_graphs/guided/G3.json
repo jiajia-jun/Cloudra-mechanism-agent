@@ -1,0 +1,94 @@
+{
+  "nodes": [
+    {
+      "id": "Reactant Complex",
+      "role": "reactant",
+      "smiles": [
+        "C=CC.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -196.370768889,
+        "evidence_log": "ts/rc_min.log",
+        "method": "B3LYP/def2-SVP + EmpiricalDispersion=GD3BJ (Gaussian g16), gas phase, charge 0, singlet",
+        "description": "Propene-ethene van der Waals pre-reaction complex (single dot-joined complex node), 0 imaginary frequencies; loose encounter complex, C1...C4 = 3.86 A; binding energy -2.61 kcal/mol vs the separated monomers.",
+        "separated_monomer_reference_hartree": -196.3666101534
+      }
+    },
+    {
+      "id": "Ene Transition State",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -196.322809899,
+        "evidence_log": "ts/ts_freq.log",
+        "imaginary_frequency_cm1": -1156.36,
+        "description": "Concerted suprafacial Alder-ene saddle: H6 transfer C3->C5 (dominant 0.766), C3-H6 breaking, C1...C4 bond formation, C1=C2/C2=C3 pi shift. Exactly one imaginary frequency (-1156.36 cm-1)."
+      }
+    },
+    {
+      "id": "Product pent-1-ene",
+      "role": "product",
+      "smiles": [
+        "C=CCCC"
+      ],
+      "properties": {
+        "energy_hartree": -196.411432435,
+        "evidence_log": "ts/product_min.log",
+        "description": "Pent-1-ene (CH2=CH-CH2-CH2-CH3), the IRC forward endpoint re-optimized; 0 imaginary frequencies. A second pent-1-ene conformer at -196.410332397 Ha is min/pent1ene_optfreq.log (0.69 kcal/mol higher)."
+      }
+    },
+    {
+      "id": "Pent-2-ene isomer (extra investigated C5H10)",
+      "role": "product",
+      "smiles": [
+        "CC=CCC"
+      ],
+      "properties": {
+        "energy_hartree": -196.415673459,
+        "evidence_log": "min/pent2ene_optfreq.log",
+        "description": "Extra investigated C5H10 isomer (pent-2-ene), 0 imaginary frequencies. NOT connected to the IRC path and NOT the ene adduct; recorded only because it is the more stable C5H10 isomer (3.35 kcal/mol below pent-1-ene) and was examined as a possible alternative product."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "Concerted Alder-ene addition",
+      "from": "Reactant Complex",
+      "to": "Product pent-1-ene",
+      "via": "Ene Transition State",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 30.09,
+      "channel": "concerted suprafacial Alder-ene (propene = ene, ethene = enophile)",
+      "favored": true
+    }
+  ]
+}

@@ -1,0 +1,72 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -155.872632471,
+        "evidence_log": "calc/cb_min_optfreq.log",
+        "note": "Cyclobutene minimum, B3LYP-D3(BJ)/def2-SVP gas phase, Opt+Freq, 0 imaginary frequencies (lowest 324.3 cm-1); only cyclobutene minimum found, hence the barrier reference. Reactant-side IRC outer frame re-optimises to the same structure (calc/irc2_react_endpoint_optfreq.log, -155.872632455 Ha, 0 imaginary)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -155.816517634,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log",
+        "note": "First-order saddle, exactly one imaginary frequency -728.19 cm-1 (largest declared-pair projection on the breaking C3-C4 bond, 0.400, coupled to same-sense CH2 rotation). C1=C2 1.379, C2-C3 1.429, C1-C4 1.429, C3-C4 2.143 A, C2-symmetric. Opt log ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log; same saddle re-converged in run ts_0002 (ts/ts_0002/jobs/declaration_0002/frequency/frequency.log, -155.816517634 Ha, one imaginary -728.19 cm-1)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -155.886887285,
+        "evidence_log": "calc/prod_endpoint_optfreq.log",
+        "note": "Butadiene minimum delivered by the conrotatory IRC: twisted-trans, C2-symmetric non-planar conformer (Opt+Freq from the forward IRC outer frame, 0 imaginary, lowest 138.1 cm-1; C3-C4 3.09 A, C1=C4 = C2=C3 1.341 A, C1-C2 1.470 A, torsion -26.9 deg). Same minimum as calc/irc2_prod_endpoint_optfreq.log (-155.886887307) and calc/bd_skew_optfreq.log. 3.30 kcal/mol above planar s-trans (-155.892148996); planar s-cis (-155.886564572) is a saddle (-107.0 cm-1), not a minimum."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 35.21,
+      "channel": "conrotatory",
+      "favored": true,
+      "note": "Conrotatory 4-pi electrocyclic ring opening. Bond changes on the user atom map [CH:1]1=[CH:2][CH2:3][CH2:4]1: C3-C4 sigma bond cleaves (1->0) and the endocyclic C1=C2 pi bond becomes the central single bond (2->1), two new pi bonds close up (C1=C4, C2=C3, 1->2 each). Electronic barrier dE(TS1 - RC) = 0.056114837 Ha = 35.21 kcal/mol, no ZPE/thermal; reverse 44.2 kcal/mol; reaction -8.94 kcal/mol to the IRC product, -12.25 to planar s-trans. IRC ts/ts_0002/jobs/declaration_0002/irc/irc.log, IRC=(Calcfc,MaxPoints=150,StepSize=5,Recorrect=never): both directions converged from the same verified saddle (61 forward, 90 backward); both outer frames re-optimised unconstrained at the same level (calc/irc2_prod_endpoint_optfreq.log, calc/irc2_react_endpoint_optfreq.log)."
+    }
+  ]
+}

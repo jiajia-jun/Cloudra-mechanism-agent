@@ -1,0 +1,145 @@
+{
+ "nodes": [
+  {
+   "id": "RC",
+   "role": "reactant",
+   "smiles": [
+    "C=CC=CC=C"
+   ],
+   "properties": {
+    "energy_hartree": -233.248473353,
+    "evidence_log": "qm/rc_min.log",
+    "conformer": "Extended all-s-trans hexatriene, lowest-energy hexatriene minimum (0 imaginary, 36 modes) and therefore the barrier reference required by the lowest-conformer rule. The folded s-cis,s-cis conformer (RC_folded) is +9.29 kcal/mol higher."
+   }
+  },
+  {
+   "id": "RC_folded",
+   "role": "intermediate",
+   "smiles": [
+    "C=CC=CC=C"
+   ],
+   "properties": {
+    "energy_hartree": -233.233672607,
+    "evidence_log": "qm/big_end_a_cf.log",
+    "note": "Folded s-cis,s-cis hexatriene minimum (+9.29 kcal/mol above RC), same species, connected to RC by methylene rotation. It is the conformer the bidirectional IRC from the saddle reaches: qm/canon_end_a.log started exactly at the reverse outer frame of qm/irc_both.log (C1...C6 2.615 A), 36 modes, 0 imaginary; independent optimum qm/folded_min.log -233.233672607 Ha, 0 imaginary, lowest mode 49.4 cm-1."
+   }
+  },
+  {
+   "id": "TS1",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -233.203414189,
+    "evidence_log": "qm/ts_opt2.log",
+    "note": "First-order saddle, opt converged, normal termination, exactly 1 imaginary frequency -566.4 cm-1; Cs/suprafacial channel (both inner CH2 H same face, inner H...H 1.69 A), NOT conrotatory. C2 conrotatory searches tried-and-failed (qm/ts_c2.log, qm/seed_c2_225.log, qm/seed_c2_245.log, qm/seed_c2free_215.log) - attempted, not proof of nonexistence. qm/irc_both.log starts at exactly this geometry (RMSD 0.000 A)."
+   }
+  },
+  {
+   "id": "P",
+   "role": "product",
+   "smiles": [
+    "C1=CC=CCC1"
+   ],
+   "properties": {
+    "energy_hartree": -233.274556881,
+    "evidence_log": "qm/big_end_b.log",
+    "note": "1,3-Cyclohexadiene minimum as the IRC reaches it: qm/canon_end_b.log is the unconstrained Opt+Freq begun exactly at the forward outer frame of qm/irc_both.log, normal termination, opt converged, 36 modes, 0 imaginary, E = -233.274556853 Ha. Same minimum as the independent optimum qm/p_min.log (-233.274561065 Ha, 0.003 kcal/mol apart)."
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "from": "RC",
+   "to": "P",
+   "via": "TS1",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      2
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "form": [
+     [
+      1,
+      6
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      4,
+      5
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 28.27,
+   "channel": "Cs / suprafacial (Woodward-Hoffmann-forbidden disrotatory 6pi electrocyclic closure)",
+   "favored": false,
+   "note": "DECLARED BARRIER OF THE MECHANISM: 28.27 kcal/mol electronic = E(TS -233.203414189) - E(lowest reactant minimum including connected conformers, extended all-s-trans RC -233.248473353); no ZPE/thermal corrections. The same saddle entered from the folded conformer gives 18.99 kcal/mol (edge e2), which is NOT the declared barrier. Product -16.37 kcal/mol on the same reference."
+  },
+  {
+   "id": "e_conf",
+   "from": "RC",
+   "to": "RC_folded",
+   "via": null,
+   "bond_changes": {
+    "break": [],
+    "form": []
+   },
+   "channel": "conformational (s-trans -> s-cis,s-cis methylene rotation)",
+   "favored": true,
+   "note": "Purely conformational interconversion of the same species; two empty bond_changes lists because no bond is made or broken. No conformational saddle was computed and none is claimed: the only numbers are the two verified minima, whose electronic energy difference is 9.29 kcal/mol (-233.248473353 -> -233.233672605 Ha). Preserved because the electrocyclic IRC actually runs from the folded conformer."
+  },
+  {
+   "id": "e2",
+   "from": "RC_folded",
+   "to": "P",
+   "via": "TS1",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      2
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "form": [
+     [
+      1,
+      6
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      4,
+      5
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 18.99,
+   "channel": "Cs / suprafacial (same saddle as e1, entered from the folded conformer the IRC reaches)",
+   "favored": false,
+   "note": "Same elementary closure and same saddle as e1, entered from RC_folded: local barrier 18.99 kcal/mol = E(TS) - E(RC_folded); this is NOT the declared barrier - the mechanism barrier stays 28.27 kcal/mol vs the global lowest conformer (edge e1). Justifies the real IRC connection: qm/irc_both.log (20 points each way, range [-1.8405, 1.84047], C1...C6 2.615 > 2.277 > 1.945 A) with endpoints optimized from its canonical outer frames (qm/canon_end_a.log -233.233672605, qm/canon_end_b.log -233.274556853; both 0 imaginary, 36 modes). IRC note: the submitted bidirectional interval is qm/irc_both.log (non-convergent on the flat surface). A later, genuinely convergent bidirectional IRC was also obtained - qm/irc_big.log (calcfc, stepsize=10, maxpoints=60, recalc=5; both directions converged, 33 fwd + 34 rev points, range [-6.25647, 6.04782]) - whose product-side outer frame optimizes to P (-233.274556881 Ha, 0 imaginary) and whose reactant-side outer frame sits on a -50.4 cm-1 methylene-rotation conformational saddle (qm/big_end_a.log); an unconstrained Opt=(CalcFC,Tight,maxcycles=200)+Freq started at exactly that same outer frame crosses it and reaches the folded minimum (qm/big_end_a_cf.log: Stationary point found, -233.233672607 Ha, 36 modes, 0 imaginary, identical to qm/canon_end_a.log; a plain Opt from the same frame parks on the saddle, qm/big_end_a.log, and a 0.3 A mode-displaced restart also reaches the minimum, qm/big_end_a_kick.log -233.233672571 Ha). So the converged IRC plus frame-exact Opt/Freq chain is available in the evidence set even though the harness stage flag does not register it."
+  }
+ ]
+}

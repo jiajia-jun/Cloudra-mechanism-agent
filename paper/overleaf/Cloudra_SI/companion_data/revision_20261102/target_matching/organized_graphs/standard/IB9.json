@@ -1,0 +1,101 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=[N+]=[N-].C=C"
+      ],
+      "properties": {
+        "description": "pre-reaction complex, diazomethane + ethylene"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "concerted 1,3-dipolar cycloaddition TS"
+      }
+    },
+    {
+      "id": "INT",
+      "role": "intermediate",
+      "smiles": [
+        "C1N=NCC1"
+      ],
+      "properties": {
+        "description": "1-pyrazoline",
+        "evidence_log": "calc/int_pyrazoline_optfreq.log"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "concerted cheletropic N2 extrusion TS"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1CC1.N#N"
+      ],
+      "properties": {
+        "description": "cyclopropane + N2"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "id": "e2",
+      "from": "INT",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ]
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C/C=C/C=C\\C=C\\C"
+      ],
+      "properties": {
+        "energy_hartree": -311.825755379,
+        "evidence_log": "rc/rc.log",
+        "name": "(2E,4Z,6E)-octa-2,4,6-triene",
+        "description": "s-cis,s-cis folded pre-reaction conformer used as the reactant node of the elementary step (C2...C7 = 3.35 A). B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16; optimization + frequency, 0 imaginary frequencies (lowest 51.3 cm^-1). Checked against the folded conformers of the searched ensemble: single-point energies of those conformers are 2.7 kcal/mol higher (-311.821465501 / -311.821465520 Eh), so RC is the lowest-energy minimum of the folded reactant manifold."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -311.793195944,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0004/ts_opt/refine.log",
+        "imag_freq_cm1": -496.5891,
+        "n_imag": 1,
+        "description": "Concerted 6pi electrocyclization saddle of the allowed disrotatory channel; Opt=(TS,CalcFC,NoEigenTest) followed by Freq, exactly one imaginary frequency (-496.5891 cm^-1). C2...C7 = 2.27 A in the saddle. IRC started from this saddle runs downhill to the cis diastereomer (ts_0003/jobs/declaration_0004/irc/irc.log)."
+      }
+    },
+    {
+      "id": "P_cis",
+      "role": "product",
+      "smiles": [
+        "C[C@H]1C=CC=C[C@H]1C"
+      ],
+      "properties": {
+        "energy_hartree": -311.857321736,
+        "evidence_log": "products/cis_opt.log",
+        "name": "cis-5,6-dimethylcyclohexa-1,3-diene (meso, 5R,6S)",
+        "description": "Both methyl groups on the same ring face (signed out-of-plane methyl distances from the ring least-squares plane are equal in sign, +1.5/+1.5 A). Minimum, 0 imaginary frequencies (lowest 116.7 cm^-1); IRC endpoint of TS1. Reaction energy relative to RC = -12.42 kcal/mol."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P_cis",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ],
+          [
+            2,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 20.43,
+      "channel": "disrotatory 6pi electrocyclization (thermal, Woodward-Hoffmann allowed)",
+      "favored": true,
+      "evidence": {
+        "ts_log": "ts/ts_0003/jobs/declaration_0004/ts_opt/refine.log",
+        "irc_log": "ts/ts_0003/jobs/declaration_0004/irc/irc.log"
+      },
+      "description": "Single concerted elementary step: bond C2=C3 and the C4=C5, C6=C7 formal double bonds are reorganized while the new sigma bonds C3-C4, C5-C6 and the ring-closing bond C2-C7 are formed. Atom map: [CH3:1]/[CH:2]=[CH:3]/[CH:4]=[CH:5]\\[CH:6]=[CH:7]\\[CH3:8]. dE(dagger) = E(TS1) - E(RC) = -311.793195944 - (-311.825755379) Eh = 0.032559435 Eh = 20.43 kcal/mol (electronic, no ZPE or thermal correction). IRC displaces the C2...C7 distance from 2.27 A down to 1.60 A with both methyls staying on the same ring face, i.e. disrotatory motion."
+    }
+  ]
+}

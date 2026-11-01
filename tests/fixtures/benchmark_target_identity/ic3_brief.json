@@ -1,0 +1,64 @@
+{
+  "nodes": [
+    {
+      "id": "T1_3A2",
+      "role": "reactant",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "properties": {
+        "state": "phenylnitrene triplet 3A2 ground state",
+        "singlet_triplet_gap_kcal_mol": "NOT DETERMINABLE within the allowed methods (xtb, pm7). The open-shell 1A2 singlet, which is the true lowest singlet, cannot be treated: the permitted PM7 input path rejects the UHF route keyword that an unrestricted Ms=0 SCF requires, and GFN2-xTB exposes only --uhf = multiplicity-1. The only computable singlet is the restricted closed-shell 1A1, which is NOT the lowest singlet: PM7 puts it +45.9 kcal/mol above 3A2 while GFN2-xTB puts its restricted singlet -1.7 kcal/mol below 3A2 - the two allowed levels disagree in sign, so neither value is declared as the singlet-triplet gap."
+      }
+    },
+    {
+      "id": "S1_1A1",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "accessible": true,
+      "properties": {
+        "state": "phenylnitrene closed-shell (zwitterionic) singlet 1A1 - characterized branch, NOT the lowest singlet"
+      }
+    },
+    {
+      "id": "S2_1A2",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "accessible": false,
+      "properties": {
+        "state": "phenylnitrene open-shell singlet 1A2 - the true lowest singlet, declared but NOT computed"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1_T1_to_S1",
+      "from": "T1_3A2",
+      "to": "S1_1A1",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "interstate (electronic state change / intersystem crossing), no bond-order change",
+      "note": "Interstate (spin-surface) transition, not an activated elementary step: no first-order saddle exists on a single PES, so ts_opt/frequency/short_irc do not apply; the two endpoint states are delivered as species minima instead. No barrier is declared. The PM7 closed-shell 1A1 relative energy (+45.9 kcal/mol) is a semiempirical value for a state that is not the lowest singlet and is not a singlet-triplet gap; the GFN2-xTB restricted singlet lies below the triplet, i.e. the level dependence is unresolved."
+    },
+    {
+      "id": "e2_T1_to_S2",
+      "from": "T1_3A2",
+      "to": "S2_1A2",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "interstate (electronic state change / intersystem crossing), no bond-order change",
+      "accessible": false,
+      "note": "Interstate (spin-surface) transition with no single-PES saddle (ts_opt/frequency/short_irc inapplicable); the target 1A2 open-shell singlet additionally cannot be computed through the permitted input path (UHF route keyword policy-blocked; xTB offers only --uhf = multiplicity-1). Edge marked accessible: false; no barrier and no gap are declared."
+    }
+  ]
+}

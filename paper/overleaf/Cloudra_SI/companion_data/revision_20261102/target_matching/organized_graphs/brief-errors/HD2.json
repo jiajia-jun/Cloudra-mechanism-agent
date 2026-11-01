@@ -1,0 +1,119 @@
+{
+  "nodes": [
+    {
+      "id": "RC_anti",
+      "role": "reactant",
+      "smiles": [
+        "[OH-].C1CC[C@H]2O[C@H]2C1"
+      ],
+      "properties": {
+        "energy_hartree": -385.510103977,
+        "evidence_log": "work/anti/rc/rc_optfreq.log",
+        "description": "Pre-reaction complex of the anti/backside channel: hydroxide on the face opposite to the epoxide oxygen, O1...C2 = 4.05 A, O1-C2-O3 ~146 deg; combined opt+freq, 0 imaginary frequencies (a loose C-H...O ion-dipole complex, so the barrier below contains approach work). Two independent seeds relax to this same minimum; the IRC reactant outer frame re-optimizes here (-385.510104018 Ha)."
+      }
+    },
+    {
+      "id": "TS_anti",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.480785864,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0009/frequency/frequency.log",
+        "description": "Concerted anti (backside) SN2-type opening: O1-C2 forming 2.223 A, C2-O3 breaking 1.805 A, O1-C2-O3 = 151 deg; exactly one imaginary frequency, -555.82 cm-1, whose mode is the O1-C2/C2-O3 motion. Bidirectional IRC (LQA, 120 points per direction, converged) connects it to RC_anti and to the trans diolate."
+      }
+    },
+    {
+      "id": "P_trans_diolate_RR",
+      "role": "product",
+      "smiles": [
+        "[O-][C@@H]1CCCC[C@H]1O"
+      ],
+      "properties": {
+        "energy_hartree": -385.541388254,
+        "evidence_log": "endpoints/irc_end_b_optfreq.log",
+        "description": "trans-1,2-Cyclohexanediol anion (1R,2R), the product of anti attack at the mapped carbon C2; its enantiomer (1S,2S) = [O-][C@H]1CCCC[C@@H]1O forms by the symmetry-equivalent attack at the other epoxide carbon of this meso substrate. Combined opt+freq of the IRC product outer frame: 0 imaginary frequencies, diaxial (a,a) chair, O-C-C-O ~173 deg, the two C-O bonds on opposite ring faces. The diequatorial (e,e) ring-flip conformer is 12.4 kcal/mol lower (work/anti/prod/prod_ee_optfreq.log, -385.561127993 Ha)."
+      }
+    },
+    {
+      "id": "RC_syn",
+      "role": "reactant",
+      "smiles": [
+        "[OH-].C1CC[C@H]2O[C@H]2C1"
+      ],
+      "properties": {
+        "energy_hartree": -385.504411059,
+        "evidence_log": "work/syn/rc/rc_probe_frontside.log",
+        "description": "Pre-reaction complex of the syn/frontside channel: hydroxide on the same face as the epoxide oxygen, O1...C2 = 4.36 A, O1-C2-O3 = 85.8 deg; opt=verytight+freq, 0 imaginary frequencies. Also a loose solvent-separated ion-dipole pair."
+      }
+    },
+    {
+      "id": "TS_syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.424706684,
+        "evidence_log": "work/syn/scan/point_th80d245.log",
+        "description": "No first-order saddle exists for frontside (retention) attack at this level: this node records the highest constrained frontside point actually computed (d(O1-C2)=2.45 A and O1-C2-O3=80 deg frozen, epoxide intact) = +50.0 kcal/mol above RC_syn, i.e. an UPPER BOUND on the syn barrier, not a stationary point. Two TS optimizations and a formal ts_prepare attempt failed (dissociation, or a libration-only saddle); at shorter O1...C2 the hydroxide transfers its proton to the epoxide O and the manifold rearranges to a lactone instead of giving the cis diolate."
+      }
+    },
+    {
+      "id": "P_cis_diolate",
+      "role": "product",
+      "smiles": [
+        "[O-][C@H]1CCCC[C@H]1O"
+      ],
+      "properties": {
+        "energy_hartree": -385.562411025,
+        "evidence_log": "work/syn/prod/prod_cis_optfreq.log",
+        "description": "cis-1,2-Cyclohexanediol anion, meso (1S,2R); O-C-C-O = -42.3 deg, both C-O bonds on the same ring face; combined opt+freq, 0 imaginary frequencies. NOTE: in this model it is marginally (0.8 kcal/mol) below the trans diequatorial conformer, so the stereochemical outcome must be read from the kinetic barriers, not from product thermodynamics."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_efe1d169",
+      "from": "RC_anti",
+      "to": "P_trans_diolate_RR",
+      "via": "TS_anti",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 18.4,
+      "channel": "anti (backside, inversion) -> trans-1,2-cyclohexanediol",
+      "favored": true
+    },
+    {
+      "id": "step_e263c467",
+      "from": "RC_syn",
+      "to": "P_cis_diolate",
+      "via": "TS_syn",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "channel": "syn (frontside, retention) -> cis-1,2-cyclohexanediol",
+      "favored": false
+    }
+  ]
+}

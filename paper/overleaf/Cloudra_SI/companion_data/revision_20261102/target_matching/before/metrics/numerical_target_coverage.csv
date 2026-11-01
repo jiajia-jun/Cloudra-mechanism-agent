@@ -1,0 +1,217 @@
+arm,task,tier,gold_edge,gold_barrier_kcal_mol,original_numeric_note_present,final_aligned_native_numeric_observation,in_four_arm_common_cohort,in_gold_input_corroborated_common_cohort,disposition
+guided,D1,easy,D1_E1,18.83,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,D1,easy,D1_E1,18.83,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,D1,easy,D1_E1,18.83,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,D1,easy,D1_E1,18.83,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,D3,easy,D3_E1,14.65,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,D3,easy,D3_E1,14.65,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,D3,easy,D3_E1,14.65,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,D3,easy,D3_E1,14.65,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,D4,easy,D4_E1,11.3,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,D4,easy,D4_E1,11.3,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,D4,easy,D4_E1,11.3,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,D4,easy,D4_E1,11.3,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,E1,easy,E1_E1,0.88,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,E1,easy,E1_E1,0.88,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,E1,easy,E1_E1,0.88,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,E1,easy,E1_E1,0.88,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,F1,easy,F1_E1,39.41,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,F1,easy,F1_E1,39.41,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,F1,easy,F1_E1,39.41,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,F1,easy,F1_E1,39.41,True,True,False,False,Observed uncapped error from original matched native energy pair
+guided,F4,easy,F4_E1,16.02,False,False,False,False,"Final F4 replay notes exist separately; no original DB numeric note, excluded from this uniformly sourced cohort (not a calculation-failure label)"
+standard,F4,easy,F4_E1,16.02,False,False,False,False,"Final F4 replay notes exist separately; no original DB numeric note, excluded from this uniformly sourced cohort (not a calculation-failure label)"
+record,F4,easy,F4_E1,16.02,False,False,False,False,"Final F4 replay notes exist separately; no original DB numeric note, excluded from this uniformly sourced cohort (not a calculation-failure label)"
+brief-errors,F4,easy,F4_E1,16.02,False,False,False,False,"Final F4 replay notes exist separately; no original DB numeric note, excluded from this uniformly sourced cohort (not a calculation-failure label)"
+guided,G2,easy,G2_E1,0.87,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,G2,easy,G2_E1,0.87,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,G2,easy,G2_E1,0.87,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,G2,easy,G2_E1,0.87,True,True,False,False,Observed uncapped error from original matched native energy pair
+guided,G3,easy,G3_E1,30.15,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,G3,easy,G3_E1,30.15,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,G3,easy,G3_E1,30.15,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,G3,easy,G3_E1,30.15,True,True,False,False,Observed uncapped error from original matched native energy pair
+guided,L1,easy,L1_E1,35.17,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,L1,easy,L1_E1,35.17,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,L1,easy,L1_E1,35.17,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,L1,easy,L1_E1,35.17,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,L2,easy,L2_E1,29.77,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,L2,easy,L2_E1,29.77,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,L2,easy,L2_E1,29.77,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,L2,easy,L2_E1,29.77,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,M1,easy,M1_E1,15.1,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,M1,easy,M1_E1,15.1,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,M1,easy,M1_E1,15.1,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,M1,easy,M1_E1,15.1,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,M14,easy,M14_E1,9.05,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,M14,easy,M14_E1,9.05,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,M14,easy,M14_E1,9.05,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,M14,easy,M14_E1,9.05,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,M15,easy,M15_E1,14.54,True,True,True,False,Observed uncapped error from original matched native energy pair
+standard,M15,easy,M15_E1,14.54,True,True,True,False,Observed uncapped error from original matched native energy pair
+record,M15,easy,M15_E1,14.54,True,True,True,False,Observed uncapped error from original matched native energy pair
+brief-errors,M15,easy,M15_E1,14.54,True,True,True,False,Observed uncapped error from original matched native energy pair
+guided,M16,easy,M16_E1,70.97,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,M16,easy,M16_E1,70.97,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,M16,easy,M16_E1,70.97,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,M16,easy,M16_E1,70.97,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,M17,easy,M17_E1,44.5,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,M17,easy,M17_E1,44.5,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,M17,easy,M17_E1,44.5,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,M17,easy,M17_E1,44.5,True,True,False,False,Observed uncapped error from original matched native energy pair
+guided,M3,easy,M3_E1,5.94,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,M3,easy,M3_E1,5.94,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,M3,easy,M3_E1,5.94,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,M3,easy,M3_E1,5.94,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,M8,easy,M8_E1,12.0,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,M8,easy,M8_E1,12.0,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,M8,easy,M8_E1,12.0,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,M8,easy,M8_E1,12.0,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,P2,easy,P2_E1,26.55,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,P2,easy,P2_E1,26.55,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,P2,easy,P2_E1,26.55,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,P2,easy,P2_E1,26.55,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,P3,easy,P3_E1,30.23,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,P3,easy,P3_E1,30.23,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,P3,easy,P3_E1,30.23,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,P3,easy,P3_E1,30.23,True,True,False,False,Observed uncapped error from original matched native energy pair
+guided,X1,easy,X1_E1,40.9,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,X1,easy,X1_E1,40.9,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,X1,easy,X1_E1,40.9,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,X1,easy,X1_E1,40.9,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,HA8,hard,HA8_E1,29.48,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,HA8,hard,HA8_E1,29.48,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,HA8,hard,HA8_E1,29.48,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,HA8,hard,HA8_E1,29.48,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,HB10,hard,HB10_E1,14.34,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,HB10,hard,HB10_E1,14.34,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,HB10,hard,HB10_E1,14.34,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,HB10,hard,HB10_E1,14.34,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,HB10,hard,HB10_EM1,14.12,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,HB10,hard,HB10_EM1,14.12,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,HB10,hard,HB10_EM1,14.12,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,HB10,hard,HB10_EM1,14.12,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,HD2,hard,HD2_E1,16.42,True,True,True,False,Observed uncapped error from original matched native energy pair
+standard,HD2,hard,HD2_E1,16.42,True,True,True,False,Observed uncapped error from original matched native energy pair
+record,HD2,hard,HD2_E1,16.42,True,True,True,False,Observed uncapped error from original matched native energy pair
+brief-errors,HD2,hard,HD2_E1,16.42,True,True,True,False,Observed uncapped error from original matched native energy pair
+guided,HH1,hard,HH1_E1,23.01,True,True,True,False,Observed uncapped error from original matched native energy pair
+standard,HH1,hard,HH1_E1,23.01,True,True,True,False,Observed uncapped error from original matched native energy pair
+record,HH1,hard,HH1_E1,23.01,True,True,True,False,Observed uncapped error from original matched native energy pair
+brief-errors,HH1,hard,HH1_E1,23.01,True,True,True,False,Observed uncapped error from original matched native energy pair
+guided,HI1,hard,HI1_e1_erythro_syn,16.62,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,HI1,hard,HI1_e1_erythro_syn,16.62,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,HI1,hard,HI1_e1_erythro_syn,16.62,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,HI1,hard,HI1_e1_erythro_syn,16.62,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,HI1,hard,HI1_e2_threo_syn,15.85,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,HI1,hard,HI1_e2_threo_syn,15.85,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,HI1,hard,HI1_e2_threo_syn,15.85,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,HI1,hard,HI1_e2_threo_syn,15.85,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,HL1,hard,e_exo,16.18,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,HL1,hard,e_exo,16.18,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,HL1,hard,e_exo,16.18,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,HL1,hard,e_exo,16.18,True,False,False,False,Exact matched native TS/reference pair did not recover original selected log-derived value or linkage; excluded without selecting a replacement
+guided,HL1,hard,e_endo,10.77,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,HL1,hard,e_endo,10.77,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,HL1,hard,e_endo,10.77,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,HL1,hard,e_endo,10.77,True,False,False,False,Exact matched native TS/reference pair did not recover original selected log-derived value or linkage; excluded without selecting a replacement
+guided,IB9,impossible,IB9_E1,5.65,True,False,False,False,Mixed Impossible target retained separately; excluded from positive numerical cohorts
+standard,IB9,impossible,IB9_E1,5.65,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,IB9,impossible,IB9_E1,5.65,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,IB9,impossible,IB9_E1,5.65,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NB1,normal,NB1_E1,27.94,True,True,True,False,Observed uncapped error from original matched native energy pair
+standard,NB1,normal,NB1_E1,27.94,True,True,True,False,Observed uncapped error from original matched native energy pair
+record,NB1,normal,NB1_E1,27.94,True,True,True,False,Observed uncapped error from original matched native energy pair
+brief-errors,NB1,normal,NB1_E1,27.94,True,True,True,False,Observed uncapped error from original matched native energy pair
+guided,NI1,normal,NI1_E1,27.9,True,True,True,False,Observed uncapped error from original matched native energy pair
+standard,NI1,normal,NI1_E1,27.9,True,True,True,False,Observed uncapped error from original matched native energy pair
+record,NI1,normal,NI1_E1,27.9,True,True,True,False,Observed uncapped error from original matched native energy pair
+brief-errors,NI1,normal,NI1_E1,27.9,True,True,True,False,Observed uncapped error from original matched native energy pair
+guided,NI1,normal,NI1_E2,57.67,True,True,True,False,Observed uncapped error from original matched native energy pair
+standard,NI1,normal,NI1_E2,57.67,True,True,True,False,Observed uncapped error from original matched native energy pair
+record,NI1,normal,NI1_E2,57.67,True,True,True,False,Observed uncapped error from original matched native energy pair
+brief-errors,NI1,normal,NI1_E2,57.67,True,True,True,False,Observed uncapped error from original matched native energy pair
+guided,NI5,normal,NI5_E1,0.93,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NI5,normal,NI5_E1,0.93,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NI5,normal,NI5_E1,0.93,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NI5,normal,NI5_E1,0.93,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NI5,normal,NI5_E2,3.59,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NI5,normal,NI5_E2,3.59,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NI5,normal,NI5_E2,3.59,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NI5,normal,NI5_E2,3.59,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NI5,normal,NI5_E3,31.2,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NI5,normal,NI5_E3,31.2,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,NI5,normal,NI5_E3,31.2,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NI5,normal,NI5_E3,31.2,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NQ1,normal,NQ1_E1,37.75,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NQ1,normal,NQ1_E1,37.75,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,NQ1,normal,NQ1_E1,37.75,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,NQ1,normal,NQ1_E1,37.75,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NQ1,normal,NQ1_E2,53.3,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NQ1,normal,NQ1_E2,53.3,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,NQ1,normal,NQ1_E2,53.3,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,NQ1,normal,NQ1_E2,53.3,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NQ5,normal,NQ5_E1,30.96,True,True,True,False,Observed uncapped error from original matched native energy pair
+standard,NQ5,normal,NQ5_E1,30.96,True,True,True,False,Observed uncapped error from original matched native energy pair
+record,NQ5,normal,NQ5_E1,30.96,True,True,True,False,Observed uncapped error from original matched native energy pair
+brief-errors,NQ5,normal,NQ5_E1,30.96,True,True,True,False,Observed uncapped error from original matched native energy pair
+guided,NR1,normal,NR1_E1,46.32,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NR1,normal,NR1_E1,46.32,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NR1,normal,NR1_E1,46.32,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,NR1,normal,NR1_E1,46.32,True,True,False,False,Observed uncapped error from original matched native energy pair
+guided,NR1,normal,NR1_E2,22.8,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NR1,normal,NR1_E2,22.8,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NR1,normal,NR1_E2,22.8,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,NR1,normal,NR1_E2,22.8,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NR1,normal,NR1_E3,7.25,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NR1,normal,NR1_E3,7.25,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NR1,normal,NR1_E3,7.25,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NR1,normal,NR1_E3,7.25,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NR1,normal,NR1_E4,68.85,True,False,False,False,Exact matched native TS/reference pair did not recover original selected log-derived value or linkage; excluded without selecting a replacement
+standard,NR1,normal,NR1_E4,68.85,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NR1,normal,NR1_E4,68.85,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,NR1,normal,NR1_E4,68.85,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NU3,normal,NU3_E1,1.7,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NU3,normal,NU3_E1,1.7,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NU3,normal,NU3_E1,1.7,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NU3,normal,NU3_E1,1.7,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NU3,normal,NU3_E2,55.81,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NU3,normal,NU3_E2,55.81,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NU3,normal,NU3_E2,55.81,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NU3,normal,NU3_E2,55.81,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NU3,normal,NU3_E3,23.76,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NU3,normal,NU3_E3,23.76,True,False,False,False,Original run components differ from the final publication record; excluded from final-aligned numerical cohort
+record,NU3,normal,NU3_E3,23.76,True,False,False,False,Original run components differ from the final publication record; excluded from final-aligned numerical cohort
+brief-errors,NU3,normal,NU3_E3,23.76,True,False,False,False,Original run components differ from the final publication record; excluded from final-aligned numerical cohort
+guided,NU5,normal,NU5_E1,8.21,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NU5,normal,NU5_E1,8.21,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,NU5,normal,NU5_E1,8.21,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,NU5,normal,NU5_E1,8.21,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NU5,normal,NU5_E2,1.544,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NU5,normal,NU5_E2,1.544,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NU5,normal,NU5_E2,1.544,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NU5,normal,NU5_E2,1.544,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NU5,normal,NU5_E3,31.7,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NU5,normal,NU5_E3,31.7,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+record,NU5,normal,NU5_E3,31.7,True,True,False,False,Observed uncapped error from original matched native energy pair
+brief-errors,NU5,normal,NU5_E3,31.7,True,True,False,False,Observed uncapped error from original matched native energy pair
+guided,NU6,normal,NU6_E1,2.66,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NU6,normal,NU6_E1,2.66,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,NU6,normal,NU6_E1,2.66,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NU6,normal,NU6_E1,2.66,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NU6,normal,NU6_E2,15.72,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+standard,NU6,normal,NU6_E2,15.72,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,NU6,normal,NU6_E2,15.72,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NU6,normal,NU6_E2,15.72,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+guided,NY3,normal,NY3_E1,36.79,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NY3,normal,NY3_E1,36.79,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,NY3,normal,NY3_E1,36.79,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NY3,normal,NY3_E1,36.79,True,True,False,False,Observed uncapped error from original matched native energy pair
+guided,NY3,normal,NY3_E2,11.06,True,True,True,True,Observed uncapped error from original matched native energy pair
+standard,NY3,normal,NY3_E2,11.06,True,True,True,True,Observed uncapped error from original matched native energy pair
+record,NY3,normal,NY3_E2,11.06,True,True,True,True,Observed uncapped error from original matched native energy pair
+brief-errors,NY3,normal,NY3_E2,11.06,True,True,True,True,Observed uncapped error from original matched native energy pair
+guided,NY3,normal,NY3_E3,43.13,True,True,False,False,Observed uncapped error from original matched native energy pair
+standard,NY3,normal,NY3_E3,43.13,True,True,False,False,Observed uncapped error from original matched native energy pair
+record,NY3,normal,NY3_E3,43.13,False,False,False,False,No original scorer log-derived-vs-Gold note for this numerical target; not assigned zero error
+brief-errors,NY3,normal,NY3_E3,43.13,True,True,False,False,Observed uncapped error from original matched native energy pair

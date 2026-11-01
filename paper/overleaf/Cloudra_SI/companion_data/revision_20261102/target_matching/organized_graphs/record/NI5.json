@@ -1,0 +1,177 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.59825432,
+        "evidence_log": "jobs/rc_min.log",
+        "charge": 0,
+        "multiplicity": 1,
+        "description": "pre-reaction complex: formaldehyde + methylamine + one explicit water (aqueous medium), B3LYP-D3(BJ)/def2-SVP CPCM(water), 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=O.CN.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.573862211,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "imaginary_frequency_cm1": -33.5,
+        "charge": 0,
+        "multiplicity": 1,
+        "description": "nucleophilic addition of the amine lone pair to the carbonyl carbon (Burgi-Dunitz approach); very flat, early saddle, C...N about 2.0 A"
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.618192102,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0002/reactant_opt/reactant_opt.log",
+        "frequency_log": "ts/ts_0004/jobs/declaration_0002/reactant_frequency/reactant_frequency.log",
+        "charge": 0,
+        "multiplicity": 1,
+        "description": "carbinolamine (N-methylaminomethanol) + water, 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.537186998,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0002/frequency/frequency.log",
+        "imaginary_frequency_cm1": -607,
+        "charge": 0,
+        "multiplicity": 1,
+        "description": "C-O heterolysis of the carbinolamine coupled to C=N formation, giving the zwitterionic iminium/hydroxide contact pair"
+      }
+    },
+    {
+      "id": "INT2",
+      "role": "intermediate",
+      "smiles": [
+        "C=[NH+]C.[OH-].O"
+      ],
+      "properties": {
+        "energy_hartree": -286.560790768,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0002/product_opt/product_opt.log",
+        "frequency_log": "ts/ts_0004/jobs/declaration_0002/product_frequency/product_frequency.log",
+        "charge": 0,
+        "multiplicity": 1,
+        "description": "iminium ion CH2=N+(H)CH3 with hydroxide and water (ion pair), 0 imaginary frequencies; high-energy species in water"
+      }
+    },
+    {
+      "id": "TS3",
+      "role": "transition_state",
+      "smiles": [
+        "C=[NH+]C.[OH-].O"
+      ],
+      "properties": {
+        "energy_hartree": -286.560790768,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0002/product_frequency/product_frequency.log",
+        "charge": 0,
+        "multiplicity": 1,
+        "description": "N-H deprotonation of the iminium by hydroxide; barrierless (xTB GFN2/ALPB-water N-H scan 1.01->1.90 A is monotonically downhill), so the transition state is degenerate with INT2 (barrier taken as 0.0 kcal/mol)"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=NC.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.619736075,
+        "evidence_log": "jobs/p_min.log",
+        "charge": 0,
+        "multiplicity": 1,
+        "description": "N-methylmethanimine + 2 H2O, 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 15.31,
+      "channel": "nucleophilic addition",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "INT2",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 50.83,
+      "channel": "unassisted C-O heterolysis (zwitterionic iminium + hydroxide)",
+      "favored": false
+    },
+    {
+      "id": "e3",
+      "from": "INT2",
+      "to": "P",
+      "via": "TS3",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0,
+      "channel": "proton transfer iminium N-H -> hydroxide",
+      "favored": true
+    }
+  ]
+}

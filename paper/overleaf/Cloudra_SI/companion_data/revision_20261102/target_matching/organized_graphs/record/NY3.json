@@ -1,0 +1,180 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N=C=O.O"
+      ],
+      "properties": {
+        "energy_hartree": -244.935406879,
+        "evidence_log": "runs/rc_0.log",
+        "note": "lowest verified HNCO...H2O minimum (0 imaginary frequencies, N-H donated to water O); B3LYP-D3(BJ)/def2-SVP gas phase"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0002/jobs/declaration_0012/ts_opt/refine.log",
+        "status": "unresolved",
+        "note": "water-addition saddle not converged in the budget spent (multiple guesses, scans, xTB path and 2D grid all failed); no energy declared because no first-order saddle was obtained"
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.96649599,
+        "evidence_log": "runs_sub/ca/ca_1.log",
+        "note": "carbamic acid, O-H anti conformer (lowest verified carbamic-acid minimum, 0 imaginary frequencies)"
+      }
+    },
+    {
+      "id": "TS_conf",
+      "role": "transition_state",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.948873072,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0001/frequency/frequency.log",
+        "note": "verified O-H torsional saddle of carbamic acid, exactly one imaginary frequency (-465.9 cm-1), bidirectional IRC with both outer frames reoptimised to zero-imaginary minima"
+      }
+    },
+    {
+      "id": "INT2",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.953791454,
+        "evidence_log": "runs_sub/ca/ca_syn.log",
+        "note": "carbamic acid, O-H syn conformer (hydroxyl H 2.31 A from N, 0 imaginary frequencies)"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0003/jobs/declaration_0007/ts_opt/refine.log",
+        "status": "unresolved",
+        "note": "C-N cleavage / O-H -> N proton-transfer saddle not converged"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "N.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -244.955374509,
+        "evidence_log": "runs/comp_nh3b.log",
+        "status": "component_evidence",
+        "component_logs": [
+          "runs/comp_nh3b.log",
+          "runs/comp_co2.log"
+        ],
+        "component_energies": {
+          "NH3": -56.5106949156,
+          "CO2": -188.444679593
+        },
+        "note": "NH3 + CO2; the loose NH3...CO2 complex is not a clean minimum at this level (one imaginary mode -12.8 cm-1), so the two separated products are delivered as component evidence, each with 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "INT_imidic",
+      "role": "intermediate",
+      "smiles": [
+        "N=C(O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.929128933,
+        "evidence_log": "runs_sub/imid/imid.log",
+        "note": "competing channel: 1,1-dihydroxymethanimine (imidic acid of carbamic acid), verified minimum; its formation saddle was not located"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            4
+          ],
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "channel": "carbamic acid (stepwise)",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "INT2",
+      "via": "TS_conf",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 11.06,
+      "channel": "conformational (O-H torsion)",
+      "favored": true
+    },
+    {
+      "id": "e3",
+      "from": "INT2",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            7
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "channel": "carbamic acid decomposition",
+      "favored": true
+    }
+  ]
+}

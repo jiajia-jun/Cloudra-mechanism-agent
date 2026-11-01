@@ -1,0 +1,149 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -189.622498829,
+        "evidence_log": "rc/rc_opt.log",
+        "name": "syn(Z)-formic acid minimum (global minimum of the reactant)",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16",
+        "frequencies_min_cm1": 637.98,
+        "imaginary_frequencies": 0,
+        "note": "Lowest-energy verified formic acid minimum; used as the barrier reference. The IRC connects TS1 to the slightly higher E/anti conformer (RC_anti, +4.8 kcal/mol) but the H-O-C-H torsion is a free conformational coordinate.",
+        "conformer_penalty_kcal_mol": 4.83
+      }
+    },
+    {
+      "id": "RC_anti",
+      "role": "reactant",
+      "smiles": [
+        "OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -189.614799947,
+        "evidence_log": "rc/rc_anti_opt.log",
+        "name": "E(anti)-formic acid minimum, re-optimized IRC reactant-side outer frame",
+        "imaginary_frequencies": 0
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -189.509282223,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+        "name": "concerted 1,2-H2 elimination saddle (planar 4-membered-ring H-C-O-H)",
+        "imaginary_frequency_cm1": -2211.95,
+        "irc_log": "ts/ts_0001/jobs/declaration_0003/irc/irc.log",
+        "imaginary_mode": "H4-H5 forming with O1-H4 and C2-H5 breaking; unweighted displacement H4 0.83 / H5 0.16",
+        "ts_geometry_angstrom": {
+          "O1-H4": 1.301,
+          "C2-H5": 1.47,
+          "H4-H5": 1.05,
+          "O1-C2": 1.254,
+          "C2-O3": 1.169
+        }
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C(=O)=O.[H][H]"
+      ],
+      "properties": {
+        "energy_hartree": -189.620181925,
+        "evidence_log": "p/p_complex_opt.log",
+        "name": "CO2...H2 product complex (weakly bound, 1.0 kcal/mol below separated CO2 + H2)",
+        "imaginary_frequencies": 0,
+        "component_logs": {
+          "CO2": {
+            "smiles": "C(=O)=O",
+            "energy_hartree": -188.444679588,
+            "log": "p/co2_opt.log"
+          },
+          "H2": {
+            "smiles": "[H][H]",
+            "energy_hartree": -1.17393253712,
+            "log": "p/h2_opt.log"
+          }
+        },
+        "separated_fragments_energy_hartree": -189.618612125
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 71,
+      "channel": "concerted 1,2-H2 elimination (unimolecular)",
+      "favored": true,
+      "note": "dE‡ = E(TS1) - E(RC) = (-189.509282223 + 189.622498829) Ha * 627.5095 = 71.0 kcal/mol; electronic only."
+    },
+    {
+      "id": "e2",
+      "from": "RC_anti",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 66.2,
+      "channel": "same saddle, referenced to the IRC-connected E/anti conformer",
+      "favored": false,
+      "note": "dE‡ = (-189.509282223 + 189.614799947) Ha * 627.5095 = 66.2 kcal/mol."
+    }
+  ],
+  "reaction_energy_kcal_mol": 1.45
+}

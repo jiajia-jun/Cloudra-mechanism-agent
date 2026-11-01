@@ -1,0 +1,85 @@
+{
+  "nodes": [
+    {
+      "id": "sp_a37c6b7c",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "name": "RC_cyclopentadiene",
+        "energy_hartree": -193.978501467,
+        "evidence_log": "cpH/endpoint_b_optfreq.log",
+        "note": "Cyclopentadiene minimum on the reactant side of the [1,5] IRC: unconstrained opt+freq started from the canonical IRC outer frame end-b, 0 imaginary frequencies (lowest real 339.15 cm-1), H6 on C3 (C3-H6 1.107 A, C4-H6 2.177 A), E = -193.978501467 Ha. An independently built conformer of the same minimum (cpH/reactant_optfreq.log, E = -193.978501557 Ha, 0 imaginary) is 0.00000009 Ha lower and is the barrier reference energy; both give dE(double dagger) = 26.58 kcal/mol."
+      }
+    },
+    {
+      "id": "sp_ace4f316",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "name": "TS1_H_shift",
+        "energy_hartree": -193.936142367,
+        "evidence_log": "cpH/ts_optfreq.log",
+        "note": "Cs-symmetric [1,5]-H shift saddle: opt=(TS,CalcFC,NoEigentest)+freq, exactly 1 imaginary frequency -1195.42 cm-1 (90.8% of the unweighted squared displacement on the migrating H6, symmetric C3-H6/C4-H6 projections 0.647/0.645); C3-H6 = C4-H6 = 1.316 A, H6 1.06 A above the ring plane, ring bonds 1.404/1.412/1.490/1.412/1.404 A. IRC proof in cpH/irc_both_v2.log. The node's declared SMILES is the cyclopentadiene connectivity of the saddle (H bridging C3/C4), the same annotation written in the TS input title."
+      }
+    },
+    {
+      "id": "sp_64d22e76",
+      "role": "product",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "name": "P_cyclopentadiene",
+        "energy_hartree": -193.978501467,
+        "evidence_log": "cpH/endpoint_a_optfreq.log",
+        "note": "Degenerate product cyclopentadiene with H6 migrated to C4 (C4-H6 1.107 A, C3-H6 2.177 A), pi pattern C2=C3 / C5=C1; unconstrained opt+freq started from the canonical IRC outer frame end-a, 0 imaginary frequencies (lowest real 339.15 cm-1), E = -193.978501467 Ha, degenerate with the reactant minimum within 9e-8 Ha."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_8ec9e109",
+      "from": "sp_a37c6b7c",
+      "to": "sp_64d22e76",
+      "via": "sp_ace4f316",
+      "name": "s1_1_5_H_shift",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 26.58,
+      "channel": "concerted suprafacial [1,5]-sigmatropic H shift (H6 C3 -> C4)",
+      "favored": true
+    }
+  ]
+}

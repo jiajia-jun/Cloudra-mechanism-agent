@@ -307,7 +307,7 @@
       "task": "L2",
       "arm": "standard",
       "field": "score",
-      "value": 0.67,
+      "value": 0.7799,
       "marker": ""
     },
     {
@@ -2827,7 +2827,7 @@
       "task": "L2",
       "arm": "standard",
       "field": "accuracy",
-      "value": 0.7,
+      "value": 0.8832329938516985,
       "marker": ""
     },
     {

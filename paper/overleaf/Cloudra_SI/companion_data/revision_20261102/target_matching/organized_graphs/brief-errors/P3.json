@@ -1,0 +1,87 @@
+{
+  "name": "Allyl vinyl ether Claisen rearrangement ([3,3]-sigmatropic)",
+  "level_of_theory": "B3LYP/def2-SVP with EmpiricalDispersion=GD3BJ, gas phase, electronic energies only (no ZPE/thermal corrections)",
+  "atom_mapping_convention": "[CH2:1]=[CH:2][CH2:3][O:4][CH:5]=[CH2:6]",
+  "barrier_reference": "lowest verified reactant minimum (jobs/rc_c1.log)",
+  "nodes": [
+    {
+      "id": "RC_allyl_vinyl_ether",
+      "role": "reactant",
+      "smiles": [
+        "C=CCOC=C"
+      ],
+      "label": "allyl vinyl ether (s-cis, lowest verified conformer)",
+      "properties": {
+        "energy_hartree": -270.330333496,
+        "evidence_log": "jobs/rc_c1.log",
+        "imaginary_frequencies": 0
+      }
+    },
+    {
+      "id": "TS1_claisen",
+      "role": "transition_state",
+      "smiles": [
+        "C=CCOC=C"
+      ],
+      "label": "chair-like [3,3] Claisen transition state (C1...C6 2.41 A forming, C3-O4 1.97 A breaking); one imaginary frequency -434.66 cm-1",
+      "properties": {
+        "energy_hartree": -270.278268313,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0007/frequency/frequency.log",
+        "imaginary_frequencies": 1
+      }
+    },
+    {
+      "id": "P_pent_4_enal",
+      "role": "product",
+      "smiles": [
+        "O=CCCC=C"
+      ],
+      "label": "pent-4-enal (lowest verified conformer)",
+      "properties": {
+        "energy_hartree": -270.357465907,
+        "evidence_log": "jobs/p_c0.log",
+        "imaginary_frequencies": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step1_claisen_33",
+      "from": "RC_allyl_vinyl_ether",
+      "to": "P_pent_4_enal",
+      "via": "TS1_claisen",
+      "type": "concerted [3,3]-sigmatropic rearrangement",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            6
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 32.7
+    }
+  ]
+}

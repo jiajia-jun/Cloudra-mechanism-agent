@@ -1,0 +1,120 @@
+{
+  "nodes": [
+    {
+      "id": "M-1,1'-binaphthyl (twisted minimum)",
+      "name": "M-1,1'-binaphthyl (twisted minimum)",
+      "species_id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "name": "M-1,1'-binaphthyl, twisted axial minimum (pre-reaction complex: the reaction is unimolecular, so the pre-reaction complex is the M enantiomer minimum itself, not separated reactants)",
+        "stereochemistry": "M (left-handed) helix. tau(C2-C10-C11-C12) = -109.49 deg, C10-C11 = 1.4913 A, C2...C12 = 5.191 A, read from the final geometry of runs/m_min_optfreq.log and independently re-verified from that raw log. Axial chirality cannot be expressed in a plain isomeric SMILES; the M/P label is a conventional helical descriptor, and the verified fact is that this structure and the P node are non-superimposable mirror images: their 34x34 internal-distance matrices agree to 0.0001 A (bonded pairs 0.0000 A) while the biaryl dihedral has opposite sign, and they have identical energies and identical frequency lists. (A bare reflection through x is NOT the right test here - the mirror plane is the molecular plane, so a bare x-reflection gives 10+ A; the internal-distance congruence plus opposite dihedral sign is the reproducible statement.)",
+        "energy_hartree": -770.125109345,
+        "evidence_log": "runs/m_min_optfreq.log",
+        "n_imag": 0,
+        "method": "Gaussian 16, #p B3LYP/Def2SVP EmpiricalDispersion=GD3BJ Int=UltraFine Opt=(CalcFC) Freq, gas phase, charge 0, multiplicity 1"
+      }
+    },
+    {
+      "id": "P-1,1'-binaphthyl (twisted minimum, mirror image)",
+      "name": "P-1,1'-binaphthyl (twisted minimum, mirror image)",
+      "species_id": "P",
+      "role": "product",
+      "smiles": [
+        "c1ccc2c(-c3cccc4ccccc34)cccc2c1"
+      ],
+      "properties": {
+        "name": "P-1,1'-binaphthyl, twisted axial minimum - the mirror image of the reactant, i.e. the racemized product",
+        "stereochemistry": "P (right-handed) helix, the enantiomer of the reactant: tau(C2-C10-C11-C12) = +109.49 deg, C10-C11 = 1.4913 A, C2...C12 = 5.191 A from the final geometry of runs/p_min_optfreq.log; E(M) - E(P) = 0.000000000 Ha; the enantiomeric relation to the M minimum is verified by internal-distance-matrix congruence (34x34 matrices agree to 0.0001 A, bonded pairs 0.0000 A) together with the opposite sign of the biaryl dihedral; a bare x-reflection is not the correct test (the mirror plane is the molecular plane, which gives 10+ A).",
+        "energy_hartree": -770.125109345,
+        "evidence_log": "runs/p_min_optfreq.log",
+        "n_imag": 0,
+        "method": "Gaussian 16, #p B3LYP/Def2SVP EmpiricalDispersion=GD3BJ Int=UltraFine Opt=(CalcFC) Freq, gas phase, charge 0, multiplicity 1"
+      }
+    },
+    {
+      "id": "TS_cis",
+      "name": "cisoid planar (coplanar) biaryl-rotation transition state, tau ~ 0 deg",
+      "transition_state_of": "Racemization via cisoid planar rotational TS",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "name": "cisoid planar (coplanar) biaryl-rotation transition state, tau ~ 0 deg",
+        "stereochemistry": "achiral coplanar structure, tau(C2-C10-C11-C12) = -7.57 deg, C2...C12 = 4.223 A, C10-C11 = 1.4970 A; it joins the M helix to the P helix, i.e. it is the racemization transition state",
+        "energy_hartree": -770.087695782,
+        "evidence_log": "runs/ts_cis_optfreq.log",
+        "n_imag": 1,
+        "imaginary_frequency_cm1": -38.6904,
+        "mode_character": "biaryl counter-rotation about C10-C11: cos(mode, rigid counter-rotation of the two naphthyl halves) = 0.749; displacing +/-0.2 along the mode changes tau by -1.6/+1.6 deg; not an H wag",
+        "barrier_kcal_mol": 23.4774,
+        "method": "Gaussian 16, #p B3LYP/Def2SVP EmpiricalDispersion=GD3BJ Int=UltraFine Opt=(TS,CalcFC,NoEigenTest) Freq, gas phase"
+      }
+    },
+    {
+      "id": "TS_trans",
+      "name": "transoid-region racemization saddle (M -> P), puckering-dominated transition vector, 32.8401 kcal/mol above M",
+      "transition_state_of": "Racemization via transoid planar rotational TS",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "name": "transoid-region racemization saddle (M -> P), puckering-dominated transition vector, 32.8401 kcal/mol above M",
+        "stereochemistry": "transoid arrangement: C10-C11 = 1.5211 A, C2...C12 = 5.994 A (versus 4.223 A at the cisoid saddle), biaryl torsion C2-C10-C11-C12 near 155 deg (i.e. rotated ~25 deg away from exact coplanarity), read from the final geometry of runs/ts_trans_pt5_optfreq_v2.log",
+        "energy_hartree": -770.072775261,
+        "evidence_log": "runs/ts_trans_pt5_optfreq_v2.log",
+        "n_imag": 1,
+        "imaginary_frequency_cm1": -57.5487,
+        "barrier_kcal_mol": 32.8401,
+        "barrier_derivation": "dE = E(TS_trans) - E(M) = -770.072775261 - (-770.125109345) = 0.052334084 Ha = 32.8401 kcal/mol = 137.40 kJ/mol, electronic only, no ZPE and no thermal correction; referenced to the lowest verified minimum (M/P, -770.125109345 Ha). This is 9.3627 kcal/mol above the cisoid barrier of 23.4774 kcal/mol.",
+        "how_obtained": "Opt=(TS,CalcFC,NoEigenTest) Freq started from the converged frame of scan point 5 (tau -157.80 deg) of the relaxed 150-180 deg scan: runs/trans_pt5_frame.xyz, extracted by runs/extract_pt5.py with elements taken from the atomic-number column (20 C + 14 H), input runs/ts_trans_pt5_optfreq_v2.gjf. Converged in 8 optimization steps, 'Stationary point found', normal termination, 96 frequencies = 3N-6 with exactly one imaginary frequency.",
+        "history": "This supersedes the earlier UNRESOLVED status, which rested on two failed probes: the unrelaxed planar transoid frequency probe (runs/freq_trans_probe.log: 3 negative Hessian eigenvalues, Maximum Force 0.027795 vs 0.000450, no stationary point - an instability diagnostic whose -770.078059234 Ha is NOT a saddle, barrier or barrier reference) and a non-converged OptTS from the GFN2 transoid frame (runs/ts_trans_optfreq.log). The relaxed 150-180 deg scan (runs/scan_trans_150_180_optfreq.log) is discontinuous (24.86 kcal/mol jump between frames 4 and 5), which is why the saddle could only be found by starting from a scan frame rather than from the planar probe. Note also that the first attempt at this probe (job 1681) optimized an all-carbon C34 frame and is void as a tooling/input error, documented in runs/RESULTS.md.",
+        "connectivity_status": "ESTABLISHED by two-flank descent plus a one-point-per-direction LQA IRC; never by an IRC path. (a) Flank test: the saddle was displaced by +/-2.0 along its printed -57.5487 cm-1 normal mode (runs/make_trans_flanks.py -> runs/trans_flank_plus.xyz, runs/trans_flank_minus.xyz) and both flank optimizations are complete Opt=(Tight,CalcFC) Freq jobs that converged to frequency-verified minima: runs/trans_flank_minus.log on the M minimum and runs/trans_flank_plus.log on the P minimum, each with 96 modes, ZERO imaginary frequencies and E = -770.125109351 Ha. (b) IRC chain: runs/irc_trans_lqa.log (IRC=(CalcFC,LQA,StepSize=10,MaxPoints=20)) terminates normally with both directions initialised but advances only ONE point per direction (Rx coordinate [-0.219,+0.219] amu^1/2 bohr, both endpoint energies equal to the saddle energy), so it is an outer-frame generator, not a descent path; its two outer frames were minimised without constraints and give frequency-verified minima - runs/irc_end_opt_b.log is the M minimum (det=+1 Kabsch RMSD 0.0004 A vs runs/m_min_optfreq.log, 2.59 A vs P) and runs/irc_end_opt_a.log the P minimum (0.0004 A vs runs/p_min_optfreq.log, 2.59 A vs M). A StepSize=20 repeat (runs/irc_trans_lqa_v2.log) again advanced exactly one point per direction. So this is a genuine transoid racemization saddle at 32.8401 kcal/mol, 9.3627 kcal/mol above the cisoid channel (23.4774 kcal/mol), and the IRC never descends.",
+        "method": "Gaussian 16, #p freq=analytic B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int=UltraFine Opt=(TS,CalcFC,NoEigenTest), gas phase, charge 0, multiplicity 1",
+        "mode_character": "Single imaginary frequency at -57.5487 cm-1, a transoid twist with strong out-of-plane ring/H participation (heavy-atom displacement fraction 0.34; biaryl watch pairs 2-10/10-11/11-12 carry 0.0007 of the pair-projected displacement) - not a pure counter-rotation like the cisoid saddle (cos 0.749 there), which is consistent with its higher energy. Its connectivity is nevertheless established by two-flank descent (see connectivity_status).",
+        "is_transition_state": true,
+        "not_a_stationary_point": false,
+        "barrier_note": "Racemization saddle connecting M and P (two-flank descent, frequency-verified enantiomer minima): flank runs/trans_flank_minus.log lands on the M minimum (tau -109.46 deg, 96 modes, 0 imaginary) and runs/trans_flank_plus.log on the P minimum (tau +109.46 deg, 96 modes, 0 imaginary), both at E = -770.125109351 Ha. dE = E(TS_trans) - E(M) = 0.052334084 Ha = 32.8401 kcal/mol = 137.40 kJ/mol electronic against E(M) = -770.125109345 Ha, 9.3627 kcal/mol above the cisoid saddle. Transition vector puckering-dominated with only a minor biaryl-rotation component (heavy-atom displacement fraction 0.34, biaryl watch-pair fraction 0.0007, top-displaced atoms peripheral hydrogens), so it is not a pure rotation barrier - but it is a genuine racemization saddle, established by descent, which does not depend on the transition vector being a torsion."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "Racemization via cisoid planar rotational TS",
+      "name": "Racemization via cisoid planar rotational TS",
+      "from": "M-1,1'-binaphthyl (twisted minimum)",
+      "to": "P-1,1'-binaphthyl (twisted minimum, mirror image)",
+      "via": "TS_cis",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 23.4774,
+      "channel": "CISOID planar rotation about the C1-C1' (C10-C11) biaryl axis through tau = 0 deg: M (tau -109.49) -> P (tau +109.49). Stereochemical outcome: racemization, M enantiomer -> P enantiomer. Purely conformational elementary step: the biaryl bond is a single bond whose bond order does not change and no other bond is made or broken, hence the two empty bond_changes lists. dE = E(TS_cis) - E(RC) = -770.087695782 - (-770.125109345) = 0.037413563 Ha = 23.4774 kcal/mol = 98.23 kJ/mol (1 Hartree = 627.5095 kcal/mol; 1 kcal = 4.184 kJ), electronic only, no ZPE and no thermal correction.",
+      "favored": true,
+      "barrier_uncertainty_kcal_mol": 1.5,
+      "barrier_uncertainty_note": "Numerical error <0.01 kcal/mol (SCF converged <1e-6 Ha); the quoted uncertainty is methodological: functional/basis 1-2 kcal/mol, no ZPE (would lower both barriers by ~1-2 kcal/mol, shifting their difference by <1 kcal/mol), and no solvent correction (unknown, 1-3 kcal/mol plausible), so these are electronic gas-phase values not comparable to the ~22-24 kcal/mol experimental free energy at ~50 degC in DMF."
+    },
+    {
+      "id": "Racemization via transoid planar rotational TS",
+      "name": "Racemization via transoid planar rotational TS",
+      "from": "M-1,1'-binaphthyl (twisted minimum)",
+      "to": "P-1,1'-binaphthyl (twisted minimum, mirror image)",
+      "via": "TS_trans",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 32.8401,
+      "channel": "TRANS-OID biaryl rotation about the same C1-C1' axis through the transoid arrangement, M -> P - the competing racemization channel. Saddle runs/ts_trans_pt5_optfreq_v2.log: E = -770.072775261 Ha, exactly one imaginary frequency -57.5487 cm-1, transoid geometry (C10-C11 1.5211 A, C2...C12 5.994 A vs 4.223 A at the cisoid saddle), normal termination, 96 modes. Barrier dE = 0.052334084 Ha = 32.8401 kcal/mol = 137.40 kJ/mol electronic against E(M) = -770.125109345 Ha, i.e. 9.3627 kcal/mol above the cisoid channel. Connectivity by two-flank descent (not an IRC): flank runs/trans_flank_minus.log relaxes to the M minimum (tau +70.54 vs +70.51 deg) and flank runs/trans_flank_plus.log to the P minimum (tau -70.54 vs -70.51 deg), both frequency-verified minima with 0 imaginary frequencies at E = -770.125109351 Ha. Because 32.8401 > 23.4774, this channel is not favored; the cisoid edge carries the rate-determining barrier.",
+      "favored": false,
+      "barrier_note": "Declared barrier 32.8401 kcal/mol = 137.40 kJ/mol electronic (no ZPE, no thermal correction), referenced to E(M) = E(P) = -770.125109345 Ha; verified connectivity by two frequency-verified flank descents onto the M and P minima.",
+      "barrier_uncertainty_kcal_mol": 2,
+      "barrier_uncertainty_note": "Numerical error <0.01 kcal/mol (SCF converged <1e-6 Ha); the quoted uncertainty is methodological: functional/basis 1-2 kcal/mol, no ZPE (would lower both barriers by ~1-2 kcal/mol, shifting their difference by <1 kcal/mol), and no solvent correction (unknown, 1-3 kcal/mol plausible), so these are electronic gas-phase values not comparable to the ~22-24 kcal/mol experimental free energy at ~50 degC in DMF."
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "O=C1OCC1"
+      ],
+      "properties": {
+        "energy_hartree": -266.965167962,
+        "evidence_log": "rc_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16; EmpiricalDispersion=GD3BJ Int(UltraFine)), gas phase",
+        "note": "Reactant complex = intact beta-propiolactone (unimolecular, so the pre-reaction complex is the molecule itself). Combined Opt+Freq, normal termination, 0 imaginary frequencies (lowest real mode 185.1 cm-1). Independently reproduced from the IRC reverse outer frame: ts/ts_0001/jobs/declaration_0005/reactant_frequency/reactant_frequency.log gives -266.965168320 (delta 3.6e-7 Ha), 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -266.899927563,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -893.9344,
+        "note": "Concerted, strongly asynchronous retro-[2+2] (cheletropic) CO2 extrusion. Opt=(TS,CalcFC,NoEigenTest) Freq, stationary point found; separate analytic Freq stage ts/ts_0001/jobs/declaration_0003/frequency/frequency.log gives the same energy and exactly one imaginary frequency -893.9344 cm-1 (heavy-atom fraction 0.825; pair projections C2-C5 0.974, O3-C4 0.638). TS geometry: C2-C5 1.845, O3-C4 2.067, C2-O3 1.247, C4-C5 1.404, O1-C2 1.185 A. A rejected first guess converged to an H-transfer pseudo-saddle (-920.3 cm-1, -266.853187524 Ha, ~70 kcal/mol) and is documented in PROCESS.md, not used."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -266.98490395,
+        "evidence_log": "prod_endA_optfreq.log",
+        "note": "Ethylene + CO2 as a single dot-joined product complex (kept as ONE node per contract). This is the minimum obtained by re-optimising the forward IRC outer frame: Opt=(VeryTight) Freq, normal termination, 0 imaginary frequencies (lowest real mode 30.2 cm-1); geometry C4-C5 1.334, C2-O3 1.163, O1-C2 1.163 A, closest inter-fragment heavy contact 3.26 A. Separated-product energies for reference: prod_c2h4_optfreq.log -78.535523973 and prod_co2_optfreq.log -188.444679570 (sum -266.980203543 Ha, both 0 imaginary frequencies)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            4,
+            5
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 40.94,
+      "channel": "concerted retro-[2+2] CO2 extrusion (cheletropic)",
+      "favored": true
+    }
+  ]
+}

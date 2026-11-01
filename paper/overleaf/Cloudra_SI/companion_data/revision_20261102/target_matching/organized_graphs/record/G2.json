@@ -1,0 +1,79 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N=N.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -189.098621312,
+        "evidence_log": "rc_scan/C4_stack_trans_optfreq.log",
+        "note": "Pre-reaction complex HN=NH...H2C=CH2 (0 imaginary frequencies, 24 modes, lowest 41.2 cm-1). This is the lowest-energy verified minimum of the reactant complex (trans-diimide stacked conformer), used as the barrier reference. The cis-diimide six-membered-arrangement conformer that the concerted IRC actually reaches is rc_scan/C1_sideon_cis_optfreq.log (E = -189.094518683, 0 imag), i.e. +2.57 kcal/mol above this reference; from that cis complex the same TS1 barrier is 0.84 kcal/mol."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -189.093173143,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/frequency/frequency.log",
+        "note": "Concerted six-membered-ring cis H-transfer saddle; one imaginary frequency -446.5 cm-1 with equal displacement of the two transferring H (H3->C5, H4->C6); N-N 1.197, N-H 1.129, C...H 1.688, C=C 1.371 A. Bidirectional GS2 IRC verified (ts/ts_0003)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "N#N.CC"
+      ],
+      "properties": {
+        "energy_hartree": -189.21923419,
+        "evidence_log": "prod/B1_N2_above_optfreq.log",
+        "note": "N2 + C2H6 product state (0 imaginary frequencies); the IRC product direction leads to separated N2 + ethane, each also verified independently (rc_scan/mon_N2_optfreq.log, rc_scan/mon_ethane_optfreq.log)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ],
+          [
+            4,
+            6
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 3.42,
+      "channel": "concerted",
+      "favored": true
+    }
+  ]
+}

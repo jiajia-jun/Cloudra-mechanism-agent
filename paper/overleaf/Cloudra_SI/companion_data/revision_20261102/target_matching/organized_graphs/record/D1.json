@@ -1,0 +1,76 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=C.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -234.426859803,
+        "evidence_log": "runs/rc_complex_v3_tight_optfreq.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, EmpiricalDispersion=GD3BJ, int=ultrafine), gas phase, charge 0, multiplicity 1",
+        "note": "pre-reaction pi complex: s-cis butadiene + ethylene, one non-covalently bound complex (shortest interfragment C...C 3.63 A), 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -234.401779338,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/frequency/frequency.log",
+        "note": "concerted [4+2] saddle, exactly one imaginary frequency at -516.5 cm^-1 (forming-bond mode), forming C1-C11 = C4-C12 = 2.271 A"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1CC=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -234.504281936,
+        "evidence_log": "runs/cylcohexene_optfreq.log",
+        "note": "cyclohexene, 0 imaginary frequencies, E(P)-E(RC) = -48.6 kcal/mol (electronic)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 15.74,
+      "channel": "concerted [4+2] suprafacial cycloaddition (endofacial = exofacial, degenerate for the parent system)",
+      "favored": true
+    }
+  ]
+}

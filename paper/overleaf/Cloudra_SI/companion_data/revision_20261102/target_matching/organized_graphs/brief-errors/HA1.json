@@ -1,0 +1,119 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "CC1CC=C1"
+      ],
+      "properties": {
+        "description": "3-methylcyclobutene pre-reaction complex (unimolecular reactant minimum); B3LYP-D3(BJ)/def2-SVP gas phase Opt+Freq, 0 imaginary frequencies, E = -195.165893758 Ha; ring-pucker conformer conf/meb_puck.log reproduces this minimum (-195.165893776 Ha, 0 imaginary); the methyl rotamers conf/meb_m0|m120|m240.log lie ~4.5 kcal/mol higher and are NOT degenerate with it; barrier reference = -195.165893758 Ha (dft/RC_min.log), each channel also has a frame-started IRC-connected copy of this same minimum (dft/ep_E/end_b_optfreq.log -195.165893747 Ha, dft/ep_Z/end_b_optfreq.log -195.165893748 Ha, both within 1e-8 Ha)",
+        "evidence_log": "dft/RC_min.log"
+      }
+    },
+    {
+      "id": "TS_E",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "E (methyl-outward) conrotatory ring-opening saddle: C2-C3 = 2.15 A, C2=C5 = C3=C4 = 1.43 A, C4-C5 = 1.38 A, torsion C1-C2-C5-C4 = -143 deg; exactly one imaginary frequency -633.3 cm-1 dominated by the C2-C3 separation; E = -195.113158603 Ha. Connected by the bidirectionally converged IRC ts/ts_0001/jobs/declaration_0009/irc/irc.log (normal termination, both directions converged, 52 fwd / 89 bwd points) to the intact ring (frame-started Opt+Freq dft/ep_E/end_b_optfreq.log, -195.165893747 Ha, 0 imaginary) and to the open (E)-diene (dft/ep_E/end_a_optfreq.log, -195.182551992 Ha, 0 imaginary, dihedral C1-C2=C5-C4 = -178.3 deg); barrier 33.1 kcal/mol electronic",
+        "evidence_log": "dft/ep_E/TS_optfreq.log"
+      }
+    },
+    {
+      "id": "P_E",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C"
+      ],
+      "properties": {
+        "description": "(E)-penta-1,3-diene. The evidence_log here is the s-trans minimum, E = -195.187896064 Ha, 0 imaginary frequencies: lowest conformer of the (E) isomer and the reference for the quoted reaction energy (-13.8 kcal/mol). The IRC-connected minimum is the s-cis rotamer, bound separately as frame-started evidence: dft/ep_E/end_a_optfreq.log, -195.182551992 Ha, 0 imaginary, dihedral C1-C2=C5-C4 = -178.7 deg, 3.35 kcal/mol above the s-trans minimum",
+        "evidence_log": "conf/epd_strans_m0.log"
+      }
+    },
+    {
+      "id": "TS_Z",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "Z (methyl-inward) conrotatory ring-opening saddle: C2-C3 = 2.19 A, C2=C5 = C3=C4 = 1.43 A, C4-C5 = 1.38 A, torsion C1-C2-C5-C4 = -72 deg; exactly one imaginary frequency -682.7 cm-1 dominated by the C2-C3 separation (C2 0.296, C3 0.227 of the mass-weighted mode); E = -195.104048316 Ha. Connected by the bidirectionally converged IRC ts/ts_0005/jobs/declaration_0005/irc/irc.log (normal termination, both directions converged, 46 fwd / 74 bwd points) to the intact ring (frame-started Opt+Freq dft/ep_Z/end_b_optfreq.log, -195.165893748 Ha, 0 imaginary) and to the open (Z)-diene (dft/ep_Z/end_a_optfreq.log, -195.180953774 Ha, 0 imaginary, dihedral C1-C2=C5-C4 = -1.5 deg); barrier 38.8 kcal/mol electronic. The same saddle geometry and its imaginary frequency also exist in one combined annotated file, tsZ/annot/TS_annot.log (opt=(TS,CalcFC,NoEigenTest) freq, 32 modes, one imaginary -682.6675 cm-1, E = -195.104048316 Ha), which the Supervisor verified and accepted as the combined TS material for this channel",
+        "evidence_log": "ts/ts_0005/jobs/declaration_0001/frequency/frequency.log"
+      }
+    },
+    {
+      "id": "P_Z",
+      "role": "product",
+      "smiles": [
+        "C/C=C\\C=C"
+      ],
+      "properties": {
+        "description": "(Z)-penta-1,3-diene. The evidence_log here is the s-trans minimum, E = -195.186154851 Ha, 0 imaginary frequencies: reference for the quoted reaction energy (-12.7 kcal/mol). The IRC-connected minimum is the s-cis rotamer, bound separately as frame-started evidence: dft/ep_Z/end_a_optfreq.log, -195.180953774 Ha, 0 imaginary, dihedral C1-C2=C5-C4 = -1.5 deg, 3.26 kcal/mol above the s-trans minimum",
+        "evidence_log": "conf/zpd_strans_m0.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_E",
+      "from": "RC",
+      "to": "P_E",
+      "via": "TS_E",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 33.1,
+      "channel": "conrotatory, C2-methyl rotates outward -> (E)-penta-1,3-diene",
+      "favored": true
+    },
+    {
+      "id": "e_Z",
+      "from": "RC",
+      "to": "P_Z",
+      "via": "TS_Z",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 38.8,
+      "channel": "conrotatory, C2-methyl rotates inward -> (Z)-penta-1,3-diene",
+      "favored": false
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=C.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -234.426858196,
+        "evidence_log": "qm/rc_slipped_opt.log",
+        "description": "s-cis butadiene + ethylene pre-reaction pi-complex, B3LYP-D3(BJ)/def2-SVP gas phase, 0 imaginary frequencies (lowest 28.7 cm-1), diene torsion C1C2C3C4 = -25.9 deg, both fragment contacts 3.61-3.66 A. This is the lowest verified minimum of the reactant state found in the evidence; the idealised 3.55 A stack (qm/rc_opt.log, -234.426247937) is a second-order saddle (+0.38 kcal/mol, two small imaginary modes) and is not used as the reference."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -234.401779402,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0007/frequency/frequency.log",
+        "opt_log": "ts/ts_0001/jobs/declaration_0007/ts_opt/refine.log",
+        "description": "concerted [4+2] saddle, exactly one imaginary frequency -516.08 cm-1 whose mode is the symmetric C1-C11/C4-C12 bond formation (pair projections 0.809/0.809); forming distances 2.272 A, diene 1.383/1.409/1.383 A, C11-C12 1.386 A."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1CC=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -234.504281922,
+        "evidence_log": "qm/p_opt.log",
+        "description": "cyclohexene minimum, B3LYP-D3(BJ)/def2-SVP gas phase, 0 imaginary frequencies (lowest 169.6 cm-1)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 15.74,
+      "channel": "concerted [4+2] cycloaddition (gas phase)",
+      "favored": true
+    }
+  ]
+}

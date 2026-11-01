@@ -1,0 +1,163 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=[N+]=[N-].C=C"
+      ],
+      "properties": {
+        "description": "Pre-reaction complex of diazomethane (C1=N2=N3) and ethylene (C4=C5) approaching for the 1,3-dipolar cycloaddition.",
+        "energy_hartree": 0.1112661911,
+        "energy_reference": "sum of the two independently optimised components (no whole-complex minimum exists at PM7)",
+        "evidence_log": [
+          "calc/dzm_optfreq.log",
+          "calc/ethene_optfreq.log"
+        ],
+        "component_evidence": "PM7 optimisation+frequencies of the complex itself converge only to a very flat, unbound van der Waals contact: calc/rc_optfreq.log and calc/rc2_optfreq.log hit the 78/100-cycle limit, the 'loose' optimisation of the IRC outer frame (ts/ts_0001/jobs/declaration_0007/reactant_opt/reactant_opt.log + .../reactant_frequency/reactant_frequency.log) ends on a structure with a single -1.9 cm-1 numerical mode, so the species is annotated per component: diazomethane (calc/dzm_optfreq.log, 9 real modes) and ethylene (calc/ethene_optfreq.log, 12 real modes).",
+        "complex_binding_kcal_mol": "about 0.3-1.5 (shallow, not a converged minimum)"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "Concerted, suprafacial 1,3-dipolar cycloaddition saddle point; the single imaginary mode (-679.4 cm-1) is the C1-C4 / N3-C5 forming motion.",
+        "energy_hartree": 0.14498551333,
+        "imaginary_frequency_cm1": -679.4,
+        "evidence_log": [
+          "ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log",
+          "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log"
+        ],
+        "irc_log": "ts/ts_0001/jobs/declaration_0005/irc/irc.log"
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "C1CCN=N1"
+      ],
+      "properties": {
+        "description": "1-Pyrazoline (4,5-dihydro-1H-pyrazole): the cyclic azo primary cycloadduct, a genuine minimum at PM7 (27 real modes).",
+        "energy_hartree": 0.0497598520525,
+        "evidence_log": [
+          "calc/py_optfreq.log"
+        ]
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": false,
+      "properties": {
+        "description": "Cheletropic N2 extrusion saddle point. Not accessible with trustworthy accuracy at PM7: the PM7 PES makes the extrusion endothermic by +13.8 kcal/mol, a synchronous constrained relaxation at C1-N2 = C5-N3 = 2.00 A already lies +63.8 kcal/mol above 1-pyrazoline, and the only stationary point the TS optimiser finds on the product side (C1-N2 = 3.72 A, C5-N3 = 3.69 A) has a numerically meaningless -4.1 cm-1 imaginary mode. Exploratory numbers only; no barrier is claimed.",
+        "exploratory_energy_hartree": 0.0701984371368,
+        "evidence_log": [
+          "ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log",
+          "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log"
+        ],
+        "exploration_logs": [
+          "calc/ts2_constr2.log",
+          "calc/ts2_scan2.log",
+          "calc/ts2_scan3.log"
+        ]
+      }
+    },
+    {
+      "id": "PC",
+      "role": "product",
+      "smiles": [
+        "C1CC1.N#N"
+      ],
+      "properties": {
+        "description": "Cyclopropane + N2. Not bound as a complex at PM7 (the only stationary point found for the dot-joined species carries a -19 cm-1 H-libration mode), so the species is annotated per component.",
+        "energy_hartree": 0.0717200444589,
+        "energy_reference": "sum of the two independently optimised products",
+        "evidence_log": [
+          "calc/cp_optfreq.log",
+          "calc/n2_optfreq.log"
+        ],
+        "complex_evidence_log": "calc/pc_optfreq.log (stationary point with 1 small imaginary mode, not a minimum)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 21.2,
+      "channel": "concerted 1,3-dipolar cycloaddition",
+      "favored": true,
+      "properties": {
+        "barrier_definition": "E(TS1) - E(RC) = 0.1449855 - 0.1112662 Ha; RC energy is the sum of the two verified component minima because no whole-complex minimum exists at PM7",
+        "irc_endpoints_hartree": {
+          "source_side": 0.110836,
+          "target_side": 0.049746
+        },
+        "note": "C1=N2 and N2=N3 both lose bond order (2 -> 1) and C1-C4 / N3-C5 form, giving the 1-pyrazoline ring."
+      }
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "PC",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "channel": "concerted cheletropic N2 extrusion",
+      "favored": true,
+      "accessible": false,
+      "properties": {
+        "note": "No barrier declared: the PM7 saddle for this step is not trustworthy (see TS2). Exploratory completed-path values: 1-pyrazoline -> cyclopropane + N2 is +13.8 kcal/mol endothermic at PM7 and no converged, physically meaningful saddle was found.",
+        "exploratory_barrier_kcal_mol": null
+      }
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "conformer": "chair (D3d)",
+        "energy_hartree": -235.737329582,
+        "evidence_log": "j2_chairmin_optfreq.log",
+        "imaginary_frequencies": 0
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "conformer": "half-chair (C2), ring inversion saddle",
+        "energy_hartree": -235.718026707,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log",
+        "imaginary_frequencies": -243.1261
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "conformer": "twist-boat (D2)",
+        "energy_hartree": -235.726931059,
+        "evidence_log": "j1_chair_optfreq.log",
+        "imaginary_frequencies": 0
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "conformer": "enantiomeric half-chair (C2)",
+        "energy_hartree": -235.718026707,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/frequency/frequency.log",
+        "imaginary_frequencies": -243.1259
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "conformer": "flipped chair (D3d)",
+        "energy_hartree": -235.737321142,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/product_frequency/product_frequency.log",
+        "imaginary_frequencies": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 12.11,
+      "channel": "chair_flip_first_half"
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 5.59,
+      "channel": "chair_flip_second_half"
+    },
+    {
+      "id": "e3",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 12.11,
+      "channel": "overall_ring_inversion_composite"
+    }
+  ]
+}

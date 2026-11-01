@@ -1,0 +1,189 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[CH2-][PH3+].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -496.696986463,
+        "evidence_log": "runs/m1_rc_optfreq.log",
+        "note": "Pre-reaction complex of H3P=CH2 with HCHO (C2H7OP, gas phase): both fragments essentially undistorted (P=C 1.691 A, C=O 1.212 A) with the two pi units parallel, C(ylide)...C(carbonyl) 2.801 A and P...O 3.118 A. 0 imaginary frequencies (lowest real mode 62.1 cm-1). Manually verified by the DAG Supervisor; the automatic identity check reports 'incomplete' only because a dot-joined two-fragment van der Waals complex cannot be machine-identified."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "[CH2-][PH3+].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -496.694323995,
+        "evidence_log": "runs/ts1_optfreq.log",
+        "note": "Ambimodal saddle of the encounter complex: both new bonds are engaged (C...C 2.056 A, P...O 2.304 A) with P=C 1.763 and C=O 1.281 A, which is the geometry expected for the 4-electron ring closure. 1 imaginary frequency -279.5 cm-1. Bidirectional IRC (runs/ts1_irc_fwd.log / runs/ts1_irc_rev.log): the RC-side branch returns to RC (runs/ep_m1_from_ts1.log), the product-side branch descends into the proton-transfer valley to INT_PT rather than to OAP - i.e. the saddle is ambimodal and at this level of theory the P-H -> O transfer wins over P-O bond formation. This limitation is documented, not hidden. NOTE: TS1 is shared with the competing RC -> INT_PT edge; its 1.67 kcal/mol barrier is declared only there."
+      }
+    },
+    {
+      "id": "OAP",
+      "role": "intermediate",
+      "smiles": [
+        "C1CO[PH3]1"
+      ],
+      "properties": {
+        "energy_hartree": -496.741704935,
+        "evidence_log": "runs/oap_irc_endpoint_min.log",
+        "note": "lambda5-oxaphosphetane: closed 4-membered P-O-C-C ring, P-O 1.705, O-C 1.446, C-C 1.520, P-C 1.951 A (long, product-like P-C); pentacoordinate P(V) with 3 H. 0 imaginary frequencies (lowest real 118.6 cm-1). This is the lowest verified OAP minimum and the basin the bidirectional-IRC OAP-side terminus relaxes into; runs/m2_oap_optfreq.log (-496.741704283, 0 imaginary) is the same minimum at convergence precision."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "C1CO[PH3]1"
+      ],
+      "properties": {
+        "energy_hartree": -496.703825863,
+        "evidence_log": "runs/ts2_optfreq.log",
+        "note": "Cycloreversion saddle: all four changes mid-way (C=C 1.368 and P=O 1.481 A forming; P-C 2.266 and C-O 2.016 A breaking). 1 imaginary frequency -624.7 cm-1. Bidirectional IRC reaches OAP and the product complex; both outer frames re-optimise to 0-imaginary minima (runs/oap_irc_endpoint_min.log, runs/ep_m3_from_ts2.log)."
+      }
+    },
+    {
+      "id": "PC",
+      "role": "product",
+      "smiles": [
+        "C=C.O=[PH3]"
+      ],
+      "properties": {
+        "energy_hartree": -496.755894801,
+        "evidence_log": "runs/epA70_optfreq.log",
+        "note": "Product complex ethylene + H3P=O in its lowest verified conformer: C=C 1.335 A, P=O 1.50 A, 27 real modes (lowest 37.3 cm-1), 0 imaginary frequencies. This is the conformer reached by both IRC terminus re-optimisations (runs/epA70_optfreq.log from the bidirectional-IRC product frame, identical to runs/ep_m3_from_ts2.log -496.755894804). The 0.74 kcal/mol higher conformer runs/m3_pc_optfreq.log (-496.754721039) is retained in the evidence set but is not the delivered PC minimum."
+      }
+    },
+    {
+      "id": "INT_PT",
+      "role": "intermediate",
+      "smiles": [
+        "OCC[PH2]"
+      ],
+      "properties": {
+        "energy_hartree": -496.791889348,
+        "evidence_log": "runs/int_phosphine_alcohol_optfreq.log",
+        "note": "Competing off-path channel: 2-hydroxyethylphosphine HOCH2CH2PH2 (neutral P(III), P-H 1.43 x2, P-C 1.88, O-H 0.97, C-O 1.41, C-C 1.53 A), 0 imaginary frequencies. The zwitterion H3P+CH2CH2O- is NOT a minimum at this level: the C-C bonded adduct transfers a P-H hydrogen to oxygen. It is 59.6 kcal/mol below RC, but that ordering is method-limited (P=O is strongly basis-sensitive at def2-SVP)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "OAP",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "channel": "Wittig [2+2] ring closure of the ylide/formaldehyde encounter complex to the lambda5-oxaphosphetane. Single first-order saddle not located: this edge carries NO declared barrier. The relaxed P...O scan profiles suggest the C-C / P-H->O coupled saddle (TS1) is ambimodal and that the oxaphosphetane is reached from it by a non-steepest-descent path - this is inferred from the profiles and is not computed. e1 and e3 legitimately share the TS1 node. Profile values and the failed saddle searches are documented in runs/RESULTS.md, not in this graph.",
+      "favored": true,
+      "properties": {
+        "energy_hartree": -496.694323995,
+        "evidence_log": "runs/ts1_optfreq.log",
+        "note": "TS1 energy (ambimodal saddle shared with e3); no barrier declared for this edge."
+      }
+    },
+    {
+      "id": "e2",
+      "from": "OAP",
+      "to": "PC",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 23.77,
+      "channel": "oxaphosphetane cycloreversion (rate-determining step). Barrier 23.77 kcal/mol = E(TS2) - E(OAP lowest minimum); reverse barrier 32.66 kcal/mol vs the lowest verified product-complex minimum (runs/epA70_optfreq.log).",
+      "favored": true,
+      "properties": {
+        "energy_hartree": -496.703825863,
+        "evidence_log": "runs/ts2_optfreq.log",
+        "note": "TS2 energy -496.703825863. Barrier 23.77 kcal/mol = E(TS2) - E(OAP, runs/oap_irc_endpoint_min.log -496.741704935) = 0.037879072 Ha; reverse barrier 32.66 kcal/mol = E(PC, runs/epA70_optfreq.log -496.755894801) - E(TS2). Direction proof: single bidirectional IRC runs/ts2_irc_both70.log, both directions converged."
+      }
+    },
+    {
+      "id": "e3",
+      "from": "RC",
+      "to": "INT_PT",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            5,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 1.67,
+      "channel": "Competing proton-transfer / phosphine-alcohol channel (not on the delivery path): C-C bond formation coupled to a P-H -> O proton transfer. Verified against the delivered INT_PT geometry: atom H5 is 0.968 A from O4's oxygen and P carries only two H (1.43 A each) plus C (1.88 A), so the transferred hydrogen is genuinely on oxygen. This edge and e1 share TS1, which is the ambimodal situation described on the TS1 node: the same saddle is the highest point reached from RC, and its two IRC branches leave towards RC and towards INT_PT.",
+      "favored": false,
+      "properties": {
+        "energy_hartree": -496.694323995,
+        "evidence_log": "runs/ts1_optfreq.log",
+        "note": "TS1 energy; 1.67 kcal/mol = E(TS1) - E(RC)."
+      }
+    }
+  ]
+}

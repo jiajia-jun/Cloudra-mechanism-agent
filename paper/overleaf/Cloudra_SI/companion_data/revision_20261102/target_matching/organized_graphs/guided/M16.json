@@ -1,0 +1,203 @@
+{
+  "nodes": [
+    {
+      "id": "HCOOH reactant complex",
+      "name": "HCOOH reactant complex",
+      "role": "reactant",
+      "smiles": [
+        "OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -189.62249888,
+        "evidence_log": "work/main_path/minA_optfreq.log",
+        "note": "Pre-reaction complex of the unimolecular channel = lowest verified monomer minimum, Z(syn)-formic acid (tau(H4-O1-C2-O3)=0 deg), B3LYP-D3(BJ)/def2-SVP, gas phase, charge 0, multiplicity 1. Barrier reference required by the task (lowest minimum of the reactant state, even though the IRC reaches the anti conformer). r(C2=O3)=1.217, r(O1-H4)=0.980, r(H4...H5)=2.800 A; 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "anti-E HCOOH conformer",
+      "name": "anti-E HCOOH conformer",
+      "role": "intermediate",
+      "smiles": [
+        "OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -189.614800299,
+        "evidence_log": "work/main_path/confE_optfreq.log",
+        "note": "Same molecule, antiperiplanar (E) conformer, +4.83 kcal/mol above the reactant complex, 0 imaginary frequencies (free O-H stretch 3795 cm-1, r(H4...H5)=1.987 A). This is the minimum the IRC reverse outer frame actually re-optimises to (independently reproduced by job 587, work/main_path/src_end_optfreq.log, E=-189.614799931). It is a separate node only so the real IRC connection stays explicit: it is the SAME reactant species as the Z minimum, reached by a barrierless rotation about C2-O1, not an intermediate of the mechanism."
+      }
+    },
+    {
+      "id": "TS1",
+      "name": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -189.509282114,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0007/frequency/frequency.log",
+        "note": "First-order saddle of the concerted 4-centre H2 elimination: exactly one imaginary frequency -2212.4 cm-1 (squared displacement H4 0.83 / H5 0.16; pair projections 4-5 = 0.87, 1-4 = 0.81, 2-5 = 0.44). Opt log ts/ts_0001/jobs/declaration_0007/ts_opt/refine.log; bidirectional short IRC (12+12 points) ts/ts_0001/jobs/declaration_0007/irc/irc.log, monotone in energy and in r(O1-H4), r(C2-H5), r(H4...H5)."
+      }
+    },
+    {
+      "id": "CO2 + H2 product complex",
+      "name": "CO2 + H2 product complex",
+      "role": "product",
+      "smiles": [
+        "C(=O)=O.[H][H]"
+      ],
+      "properties": {
+        "energy_hartree": -189.620181926,
+        "evidence_log": "work/main_path/prod_complex_optfreq.log",
+        "note": "Very loose CO2...H2 aggregate, one frequency-verified minimum (0 imaginary, lowest real mode 75.2 cm-1): r(H-H)=0.761 A, both C-O=1.163 A, O=C=O=180.0 deg, shortest H...O=3.006 A, H...C=2.926 A. +1.45 kcal/mol above the reactant complex (electronic). Never replace by separated-monomer numbers."
+      }
+    },
+    {
+      "id": "cyclic (HCOOH)2 dimer",
+      "name": "cyclic (HCOOH)2 dimer",
+      "role": "reactant",
+      "smiles": [
+        "C(=O)O.C(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -379.282900034,
+        "evidence_log": "work/dimer_path/dimer_optfreq.log",
+        "note": "Reactant complex of the bimolecular (formic-acid-assisted) channel: planar cyclic eight-membered-ring dimer, two O-H...O=C hydrogen bonds (O3...O7 = 2.620 A, H5...O7 = 1.639 A), 0 imaginary frequencies (24 real, lowest 83.09 cm-1). 23.8 kcal/mol below two isolated Z-HCOOH molecules at this level of theory (2 x -189.622498880 Ha); this binding energy is a def2-SVP/dispersion overestimate, not a measured quantity. Never replace by separated monomers."
+      }
+    },
+    {
+      "id": "TS2",
+      "name": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -379.20250923,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0004/frequency/frequency.log",
+        "note": "First-order saddle of the concerted eight-membered-ring double H transfer of the dimer-assisted channel: exactly one imaginary frequency -1101.9 cm-1 (squared displacement H10 0.60 / H4 0.21 / H5 0.14; pair projections 4-10 = 0.83, 8-10 = 0.83, 1-4 = 0.57, 3-5 = 0.39; heavy-atom fraction 0.05). Shuttle O-H hydrogen H10 and donor formyl hydrogen H4 leave as H2 (H4...H10 = 0.976 A); donor O-H hydrogen H5 has transferred to the shuttle carbonyl O7 (H5-O7 = 1.064 A). Opt ts/ts_0002/jobs/declaration_0004/ts_opt/refine.log; bidirectional IRC 30+30 points ts/ts_0002/jobs/declaration_0004/irc/irc.log, and a larger-budget bidirectional IRC (121 points, irc=(calcfc,maxpoints=60,stepsize=5,recalc=10,maxcycle=60)) work/dimer_path/irc_long.log whose two exported outer frames were each re-optimised unconstrained."
+      }
+    },
+    {
+      "id": "CO2 + H2 + HCOOH product complex",
+      "name": "CO2 + H2 + HCOOH product complex",
+      "role": "product",
+      "smiles": [
+        "C(=O)=O.[H][H].OC=O"
+      ],
+      "properties": {
+        "energy_hartree": -379.256178132,
+        "evidence_log": "work/dimer_path/prod_end3_optfreq.log",
+        "note": "Product side of the dimer-assisted channel, ONE dot-joined very loose ternary complex (0 imaginary, 24 real modes, lowest 30.78 cm-1): H2 = H4-H10 = 0.763 A, regenerated HCOOH (H5-O7 = 0.980, C6-O8 = 1.207, C6-O7 = 1.328 A), donor unit CO2 (C1-O2 = 1.157 A, C1-O3 = 1.165 A), with the H2 unit 2.91 A from the CO2 carbon (C1...H4) - i.e. the CO2...H2 contact is a loose van der Waals aggregate of the same kind as in the unimolecular channel. +16.77 kcal/mol above the cyclic dimer; naive additivity (monomer reaction +1.45 plus dimer binding 23.8) would give 25.2, so the aggregate carries ~8.5 kcal/mol of binding at this level. NOTE the dimer-channel IRC reaches a SECOND, frame-connected conformer of this same ternary aggregate, E = -379.253540480 Ha, 0 imaginary (work/dimer_path/prod_frame_optfreq.log, H2 at 2.50 A from the CO2 carbon), 1.66 kcal/mol above the node energy declared here (H2 at 2.91 A); both are legitimate minima of the same CO2 + H2 + HCOOH complex and the node energy quoted is the lower-lying one."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "HCOOH reactant complex",
+      "to": "CO2 + H2 product complex",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            4,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 71.04,
+      "channel": "unimolecular concerted H2 elimination",
+      "favored": true,
+      "note": "PRIMARY, rate-determining step. Barrier = E(TS1) - E(reactant complex) = -189.509282114 - (-189.622498880) = 0.113216766 Ha = 71.04 kcal/mol (electronic only), referenced to the lowest verified reactant minimum (Z conformer) as the task requires. break O1-H4 and C2-H5; form H4-H5 and form [1,2] for the C2-O1 single->double change into CO2. Edges e1 and e2 are the SAME elementary step through the SAME saddle TS1 (e1 referenced to the lowest minimum Z, e2 to the IRC-reached anti conformer, which is one and the same reactant species connected by a barrierless C2-O1 rotation). They are NOT competing channels or two steps; the highest declared barrier, 71.04 kcal/mol, is the rate-determining value."
+    },
+    {
+      "id": "e2",
+      "from": "anti-E HCOOH conformer",
+      "to": "CO2 + H2 product complex",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            4,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 66.21,
+      "channel": "same step, IRC-connected conformer",
+      "note": "Same elementary step, same saddle, same bond changes as e1, recorded from the conformer the IRC reverse frame actually reaches: E(TS1) - E(anti-E) = 0.105518185 Ha = 66.21 kcal/mol. Source minimum = reverse IRC outer frame re-optimised (work/main_path/src_end_optfreq.log, E=-189.614799931, 0 imaginary); target minimum = forward IRC outer frame re-optimised (work/main_path/tgt_end_optfreq.log, E=-189.620181914, 0 imaginary). Not a second or competing channel."
+    },
+    {
+      "id": "d1",
+      "from": "cyclic (HCOOH)2 dimer",
+      "to": "CO2 + H2 + HCOOH product complex",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            5
+          ],
+          [
+            8,
+            10
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            4,
+            10
+          ],
+          [
+            5,
+            7
+          ],
+          [
+            1,
+            3
+          ],
+          [
+            6,
+            8
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 50.45,
+      "channel": "formic-acid-assisted concerted double H transfer",
+      "note": "Second, bimolecular channel (only accessible when a second HCOOH is present); same one-saddle/one-step wording. Barrier = E(TS2) - E(cyclic dimer minimum) = -379.202509230 - (-379.282900034) = 0.080391 Ha = 50.45 kcal/mol (electronic only), referenced to the lowest verified reactant-complex minimum. Bond changes use the dimer's own 1-10 atom order (the user's 1-based map fixes only the monomer): break C1-H4 (formyl H leaves as H2), O3-H5 (donor O-H H transfers to the shuttle), O8-H10 (shuttle O-H H leaves as H2) and C6-O7 (partial double -> single after H5 transfer); form H4-H10 (H2), H5-O7, and the two C-O order increases C1-O3 (form [1,3]) and C6-O8 (form [6,8]). IRC connection (verified from the frame-connected jobs, work/dimer_path/irc_long.log): the reverse outer frame re-optimises unconstrained to an OPEN singly H-bonded (HCOOH)2 conformer, work/dimer_path/rev_frame_optfreq.log, E = -379.261195790 Ha, 0 imaginary (24 real modes, lowest 31.29 cm-1), +13.62 kcal/mol above the cyclic dimer - i.e. a higher conformer of the same reactant species, not a separate channel (the shallow -379.253184 Ha index-1 shoulder was never bound as a minimum); the forward outer frame re-optimises to work/dimer_path/prod_frame_optfreq.log, E = -379.253540480 Ha, 0 imaginary, the same CO2 + H2 + HCOOH ternary complex, 1.66 kcal/mol above the lower-lying isomer that is bound as the species node (work/dimer_path/prod_end3_optfreq.log). As with edges e1/e2, the declared barrier is referenced to the lowest verified reactant-complex minimum (the cyclic dimer) rather than to the conformer the IRC reaches; the intrinsic value relative to the open conformer (36.83 kcal/mol) is context only and is deliberately NOT declared. This bimolecular channel is a real, fully evidenced alternative but is not the rate-determining path delivered here: at this level it lies 20.6 kcal/mol below the unimolecular barrier, but it needs a second HCOOH molecule (23.8 kcal/mol of dimer binding at def2-SVP) and the gas-phase reference state of the task is the monomer."
+    }
+  ]
+}

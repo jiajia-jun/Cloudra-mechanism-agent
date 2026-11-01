@@ -24,8 +24,8 @@
   },
   "sources": [
     {
-      "path": "/Users/cloudrayyy/Documents/Codex/2026-11-01/task/cloudra_gold_final_20261101/staged_repo/paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv",
-      "sha256": "0e118fb4a4e342f47806a487e4df5d706ff98edd29f15d441950a5b2001e3f6c"
+      "path": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv",
+      "sha256": "bcc3d1807240d8993705e68da7dd90c2cb79d362a13111775ffa5e5f6b6a7372"
     }
   ],
   "p2_run_observations": [
@@ -521,12 +521,12 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/IA5/batch_1807f734104147cb",
       "source": "rescue",
-      "score": "0.3667",
+      "score": "0.9667",
       "graph_publication": "0.6666666666666667",
       "selfc_all_publication": "1.0",
-      "accuracy_publication": "0.0",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.3666666666666667",
+      "accuracy_publication": "1.0",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "0.9666666666666667",
       "rounding_difference": "-3.333333333332966e-05"
     },
     {
@@ -621,12 +621,12 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/IC3/batch_1807f734104147cb",
       "source": "rescue",
-      "score": "0.4",
+      "score": "1.0",
       "graph_publication": "1.0",
       "selfc_all_publication": "1.0",
-      "accuracy_publication": "0.0",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.4",
+      "accuracy_publication": "1.0",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "1.0",
       "rounding_difference": "0.0"
     },
     {
@@ -1771,12 +1771,12 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA5/batch_94084d85d0634ca0",
       "source": "rescue",
-      "score": "0.4",
+      "score": "1.0",
       "graph_publication": "1.0",
       "selfc_all_publication": "1.0",
-      "accuracy_publication": "0.0",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.4",
+      "accuracy_publication": "1.0",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "1.0",
       "rounding_difference": "0.0"
     },
     {
@@ -3021,12 +3021,12 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/IA5/batch_76e567788441411d",
       "source": "snapshot",
-      "score": "0.4",
+      "score": "1.0",
       "graph_publication": "1.0",
       "selfc_all_publication": "1.0",
-      "accuracy_publication": "0.0",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.4",
+      "accuracy_publication": "1.0",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "1.0",
       "rounding_difference": "0.0"
     },
     {
@@ -4521,13 +4521,13 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/standard/r1/sandboxes/L2/batch_8b2051b670f348ba",
       "source": "snapshot",
-      "score": "0.67",
+      "score": "0.7799",
       "graph_publication": "1.0",
       "selfc_all_publication": "0.5",
-      "accuracy_publication": "0.7",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.6699999999999999",
-      "rounding_difference": "-1.1102230246251565e-16"
+      "accuracy_publication": "0.8832329938516985",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "0.7799397963110191",
+      "rounding_difference": "3.97963110190247e-05"
     },
     {
       "campaign": "cloudra-p2c-20261025",

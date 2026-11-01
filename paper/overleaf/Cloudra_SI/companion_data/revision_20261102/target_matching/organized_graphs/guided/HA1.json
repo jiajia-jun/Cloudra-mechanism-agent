@@ -1,0 +1,219 @@
+{
+  "delivery_targets": [
+    {"id": "sp_3cdbea19", "type": "node", "name": "Reactant 3-methylcyclobutene",
+      "dag_id": "sp_3cdbea19", "artifact_node": "RC"},
+    {"id": "sp_ae92f962", "type": "node", "name": "Product (E)-1,3-pentadiene",
+      "dag_id": "sp_ae92f962", "artifact_node": "PE_cis"},
+    {"id": "sp_ccfc0217", "type": "node", "name": "Product (Z)-1,3-pentadiene",
+      "dag_id": "sp_ccfc0217", "artifact_node": "PZ_cis"},
+    {"id": "step_bd0b97ee", "type": "edge", "name": "Conrotatory ring opening to E diene", "artifact_edge": "e1"},
+    {"id": "step_71d3bd2f", "type": "edge", "name": "Conrotatory ring opening to Z diene", "artifact_edge": "e2"}
+  ],
+  "nodes": [
+    {
+      "id": "RC",
+      "name": "Reactant 3-methylcyclobutene",
+      "role": "reactant",
+      "smiles": [
+        "CC1CC=C1"
+      ],
+      "properties": {
+        "label": "3-methylcyclobutene, pre-reaction minimum (methyl rotamer; both seeds converge to this same minimum)",
+        "energy_hartree": -195.165893758,
+        "evidence_log": "qm/r1_b.log"
+      }
+    },
+    {
+      "id": "TS_E",
+      "name": "TS conrotatory E",
+      "role": "transition_state",
+      "smiles": [
+        "C/C=C/C=C"
+      ],
+      "properties": {
+        "channel": "conrotatory-E (outward methyl rotation)",
+        "reactant_configuration": "C[C@@H]1C=CC1",
+        "energy_hartree": -195.113158601,
+        "imaginary_frequency_cm": -633.32,
+      "imaginary_mode_pair_projections": {"2-3": 0.401, "2-5": 0.108, "3-4": 0.101, "4-5": 0.080},
+      "saddle_bond_lengths_ang": {"C2-C3": 2.154, "C2-C5": 1.434, "C3-C4": 1.429, "C4=C5": 1.377},
+        "evidence_log": "ts/ts_0004/jobs/declaration_0001/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0004/jobs/declaration_0001/frequency/frequency.log",
+        "irc_log": "ts/ts_0004/jobs/declaration_0001/irc/irc.log",
+        "reactant_endpoint_log": "ts/ts_0004/jobs/declaration_0001/reactant_frequency/reactant_frequency.log",
+        "product_endpoint_log": "ts/ts_0004/jobs/declaration_0001/product_frequency/product_frequency.log",
+        "verified_chain": "ts/ts_0004 declaration_0001 (single declaration; run verifier outcome=verified)",
+        "supporting_evidence": "ts_0001 declaration_0004/0005 and qm/xb_E_reac.log + qm/xa_E_prod.log carry identical energies",
+        "evidence_smiles_annotation": "C[C@@H]1C=CC1"
+      }
+    },
+    {
+      "id": "PE_cis",
+      "name": "Product (E)-1,3-pentadiene",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C"
+      ],
+      "properties": {
+        "label": "(E)-1,3-pentadiene, s-cis (IRC endpoint; not the thermodynamic minimum)",
+        "energy_hartree": -195.18255201,
+        "evidence_log": "qm/pe_cis.log"
+      }
+    },
+    {
+      "id": "PE_trans",
+      "name": "PE trans (E)-1,3-pentadiene s-trans",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C"
+      ],
+      "properties": {
+        "label": "(E)-1,3-pentadiene, s-trans (global minimum of the E isomer)",
+        "energy_hartree": -195.187896036,
+        "evidence_log": "qm/pe_trans.log"
+      }
+    },
+    {
+      "id": "TS_Z",
+      "name": "TS conrotatory Z",
+      "role": "transition_state",
+      "smiles": [
+        "C/C=C\\C=C"
+      ],
+      "properties": {
+        "channel": "conrotatory-Z (inward methyl rotation)",
+        "reactant_configuration": "C[C@@H]1C=CC1",
+        "energy_hartree": -195.104048267,
+        "imaginary_frequency_cm": -682.68,
+      "imaginary_mode_pair_projections": {"2-3": 0.411, "2-5": 0.095, "3-4": 0.093, "4-5": 0.073},
+      "saddle_bond_lengths_ang": {"C2-C3": 2.191, "C2-C5": 1.434, "C3-C4": 1.425, "C4=C5": 1.379},
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0003/jobs/declaration_0001/frequency/frequency.log",
+        "irc_log": "ts/ts_0003/jobs/declaration_0001/irc/irc.log",
+        "reactant_endpoint_log": "qm/xa_Z_reac.log",
+        "product_endpoint_log": "qm/xa_Z_prod.log",
+        "verified_chain": "ts/ts_0003 declaration_0001 (single declaration on the (S) substrate; run verifier outcome=verified; accepted by review rev_38e49b92)",
+        "degenerate_mirror_cross_check": "ts/ts_0002/jobs/declaration_0001/ts_opt/refine.log is the (R)-enantiomer saddle (-195.104048267 Ha, -682.6791 cm-1, identical energies; C2 signed volume +2.843 at its reactant endpoint vs -2.845 in qm/r1_opt.xyz); kept only as the degenerate cross-check, not as the bound saddle",
+        "evidence_smiles_annotation": "C[C@@H]1C=CC1"
+      }
+    },
+    {
+      "id": "PZ_cis",
+      "name": "Product (Z)-1,3-pentadiene",
+      "role": "product",
+      "smiles": [
+        "C/C=C\\C=C"
+      ],
+      "properties": {
+        "label": "(Z)-1,3-pentadiene, s-cis (IRC endpoint; not the thermodynamic minimum)",
+        "energy_hartree": -195.180953796,
+        "evidence_log": "qm/pz_cis.log"
+      }
+    },
+    {
+      "id": "PZ_trans",
+      "name": "PZ trans (Z)-1,3-pentadiene s-trans",
+      "role": "product",
+      "smiles": [
+        "C/C=C\\C=C"
+      ],
+      "properties": {
+        "label": "(Z)-1,3-pentadiene, s-trans",
+        "energy_hartree": -195.186154811,
+        "evidence_log": "qm/pz_trans.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "name": "Conrotatory ring opening to E diene",
+      "dag_step_id": "step_bd0b97ee",
+      "from": "RC",
+      "to": "PE_cis",
+      "via": "TS_E",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 33.09,
+      "channel": "conrotatory-E",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "name": "Conrotatory ring opening to Z diene",
+      "dag_step_id": "step_71d3bd2f",
+      "from": "RC",
+      "to": "PZ_cis",
+      "via": "TS_Z",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 38.81,
+      "channel": "conrotatory-Z",
+      "favored": false
+    },
+    {
+      "id": "e3",
+      "name": "PE s-cis to s-trans conformational change",
+      "from": "PE_cis",
+      "to": "PE_trans",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "s-cis/s-trans conformer change"
+    },
+    {
+      "id": "e4",
+      "name": "PZ s-cis to s-trans conformational change",
+      "from": "PZ_cis",
+      "to": "PZ_trans",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "s-cis/s-trans conformer change"
+    }
+  ]
+}

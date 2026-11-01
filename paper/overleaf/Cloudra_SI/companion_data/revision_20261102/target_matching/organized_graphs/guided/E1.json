@@ -1,0 +1,92 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[F-].CCCl"
+      ],
+      "properties": {
+        "energy_hartree": -639.003420935,
+        "evidence_log": "qm/rc/rc_endpoint_tight.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, EmpiricalDispersion=GD3BJ), gas phase, charge -1, multiplicity 1",
+        "imaginary_frequencies": 0,
+        "lowest_frequencies_cm1": [
+          10.76,
+          122.71,
+          273.44,
+          312.57,
+          335.22
+        ],
+        "description": "Pre-reaction ion-dipole complex [F-]...HCH2CH2Cl, anti-periplanar (tau H4-C2-C3-Cl5 = -179.9 deg); r(F1-H4)=1.75, r(C2-H4)=1.128, r(C3-Cl5)=1.895, r(C2-C3)=1.504 A."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -639.002078076,
+        "evidence_log": "qm/ts/ts1_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, EmpiricalDispersion=GD3BJ), gas phase, charge -1, multiplicity 1",
+        "imaginary_frequencies": 1,
+        "imaginary_mode_cm1": -299.79,
+        "description": "Concerted anti-periplanar E2 saddle: r(F1-H4)=1.355, r(C2-H4)=1.247, r(C2-C3)=1.478, r(C3-Cl5)=1.934 A; tau(H4-C2-C3-Cl5)=180.0 deg. IRC (ts/ts_0001/jobs/declaration_0003/irc/irc.log, bidirectional) connects RC and the product complex."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.F.[Cl-]"
+      ],
+      "properties": {
+        "energy_hartree": -639.022952554,
+        "evidence_log": "qm/prod/p_endpoint_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, EmpiricalDispersion=GD3BJ), gas phase, charge -1, multiplicity 1",
+        "imaginary_frequencies": 0,
+        "lowest_frequencies_cm1": [
+          46.13,
+          66.88,
+          83.06,
+          169.6,
+          215.7
+        ],
+        "description": "Product complex ethylene...HF...Cl- (SMILES 'C=C.F.[Cl-]' as given for the reaction; the bound H4 is carried by F as hydrogen fluoride): r(C2-C3)=1.349 A (C=C), r(F1-H4)=0.950 A (free HF), r(C3-Cl5)=2.909 A (Cl-)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0.84,
+      "channel": "concerted E2 elimination",
+      "favored": true
+    }
+  ]
+}

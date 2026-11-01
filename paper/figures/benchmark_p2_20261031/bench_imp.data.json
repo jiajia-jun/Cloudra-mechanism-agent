@@ -1,5 +1,5 @@
 {
-  "source_data_dir": "/Users/cloudrayyy/Documents/Codex/2026-11-01/task/cloudra_gold_final_20261101/staged_repo/paper/figures/benchmark_p2_20261031/source_data",
+  "source_data_dir": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/benchmark_p2_20261031/source_data",
   "figure_mm": [
     180,
     120
@@ -34,7 +34,7 @@
     "IF3",
     "IG8"
   ],
-  "score_source": "/Users/cloudrayyy/Documents/Codex/2026-11-01/task/cloudra_gold_final_20261101/staged_repo/paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv",
+  "score_source": "/Users/cloudrayyy/Desktop/Desktop_Archive/Projects/Cloudra-mechanism-agent-master/paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv",
   "score_track": "Common complete offline organization and scoring track for totals and components.",
   "heatmap_metrics": [
     "score",
@@ -101,12 +101,12 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/IA5/batch_1807f734104147cb",
       "source": "rescue",
-      "score": "0.3667",
+      "score": "0.9667",
       "graph_publication": "0.6666666666666667",
       "selfc_all_publication": "1.0",
-      "accuracy_publication": "0.0",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.3666666666666667",
+      "accuracy_publication": "1.0",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "0.9666666666666667",
       "rounding_difference": "-3.333333333332966e-05"
     },
     {
@@ -201,12 +201,12 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/brief-errors/r1/sandboxes/IC3/batch_1807f734104147cb",
       "source": "rescue",
-      "score": "0.4",
+      "score": "1.0",
       "graph_publication": "1.0",
       "selfc_all_publication": "1.0",
-      "accuracy_publication": "0.0",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.4",
+      "accuracy_publication": "1.0",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "1.0",
       "rounding_difference": "0.0"
     },
     {
@@ -351,12 +351,12 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA5/batch_94084d85d0634ca0",
       "source": "rescue",
-      "score": "0.4",
+      "score": "1.0",
       "graph_publication": "1.0",
       "selfc_all_publication": "1.0",
-      "accuracy_publication": "0.0",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.4",
+      "accuracy_publication": "1.0",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "1.0",
       "rounding_difference": "0.0"
     },
     {
@@ -601,12 +601,12 @@
       "neg_class": "",
       "sandbox": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/IA5/batch_76e567788441411d",
       "source": "snapshot",
-      "score": "0.4",
+      "score": "1.0",
       "graph_publication": "1.0",
       "selfc_all_publication": "1.0",
-      "accuracy_publication": "0.0",
-      "component_source": "final offline score table",
-      "recomputed_publication": "0.4",
+      "accuracy_publication": "1.0",
+      "component_source": "final offline score table; Accuracy: target-identity postprocessing",
+      "recomputed_publication": "1.0",
       "rounding_difference": "0.0"
     },
     {
@@ -1063,170 +1063,110 @@
   "task_deltas": [
     {
       "task": "IA1",
-      "task_name": "cyclobutadiene D4h automerization",
-      "brief_final": "1.0",
-      "guided_final": "0.1717",
-      "brief_minus_guided": "0.8283",
+      "brief_final": 1.0,
+      "guided_final": 0.1717,
+      "brief_minus_guided": 0.8283,
       "task_winner": "brief-errors",
-      "delta_graph_weighted": "0.033333333333333326",
-      "delta_selfc_weighted": "0.195",
-      "delta_accuracy_weighted": "0.6",
-      "brief_accuracy": "1.0",
-      "guided_accuracy": "0.0",
-      "same_accuracy": "False",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": 0.033333333333333326,
+      "delta_selfc_weighted": 0.195,
+      "delta_accuracy_weighted": 0.6
     },
     {
       "task": "IA5",
-      "task_name": "cyclobutene disrotatory ring opening",
-      "brief_final": "0.3667",
-      "guided_final": "0.4",
-      "brief_minus_guided": "-0.033299999999999996",
+      "brief_final": 0.9667,
+      "guided_final": 1.0,
+      "brief_minus_guided": -0.033299999999999996,
       "task_winner": "guided",
-      "delta_graph_weighted": "-0.033333333333333326",
-      "delta_selfc_weighted": "0.0",
-      "delta_accuracy_weighted": "0.0",
-      "brief_accuracy": "0.0",
-      "guided_accuracy": "0.0",
-      "same_accuracy": "True",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": -0.033333333333333326,
+      "delta_selfc_weighted": 0.0,
+      "delta_accuracy_weighted": 0.0
     },
     {
       "task": "IA7",
-      "task_name": "Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",
-      "brief_final": "0.2583",
-      "guided_final": "0.2583",
-      "brief_minus_guided": "0.0",
+      "brief_final": 0.2583,
+      "guided_final": 0.2583,
+      "brief_minus_guided": 0.0,
       "task_winner": "tie",
-      "delta_graph_weighted": "0.0",
-      "delta_selfc_weighted": "0.0",
-      "delta_accuracy_weighted": "0.0",
-      "brief_accuracy": "0.0",
-      "guided_accuracy": "0.0",
-      "same_accuracy": "True",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": 0.0,
+      "delta_selfc_weighted": 0.0,
+      "delta_accuracy_weighted": 0.0
     },
     {
       "task": "IA9",
-      "task_name": "1,2-dioxetane thermolysis to two formaldehyde",
-      "brief_final": "0.9333",
-      "guided_final": "0.3667",
-      "brief_minus_guided": "0.5666",
+      "brief_final": 0.9333,
+      "guided_final": 0.3667,
+      "brief_minus_guided": 0.5666,
       "task_winner": "brief-errors",
-      "delta_graph_weighted": "-0.03333333333333334",
-      "delta_selfc_weighted": "0.0",
-      "delta_accuracy_weighted": "0.6",
-      "brief_accuracy": "1.0",
-      "guided_accuracy": "0.0",
-      "same_accuracy": "False",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": -0.03333333333333335,
+      "delta_selfc_weighted": 0.0,
+      "delta_accuracy_weighted": 0.6
     },
     {
       "task": "IB9",
-      "task_name": "diazomethane and ethylene to cyclopropane via 1-pyrazoline",
-      "brief_final": "0.77",
-      "guided_final": "0.82",
-      "brief_minus_guided": "-0.04999999999999993",
+      "brief_final": 0.77,
+      "guided_final": 0.82,
+      "brief_minus_guided": -0.04999999999999993,
       "task_winner": "guided",
-      "delta_graph_weighted": "0.0",
-      "delta_selfc_weighted": "-0.04999999999999999",
-      "delta_accuracy_weighted": "0.0",
-      "brief_accuracy": "0.7",
-      "guided_accuracy": "0.7",
-      "same_accuracy": "True",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": 0.0,
+      "delta_selfc_weighted": -0.04999999999999999,
+      "delta_accuracy_weighted": 0.0
     },
     {
       "task": "IC3",
-      "task_name": "phenylnitrene open-shell singlet state",
-      "brief_final": "0.4",
-      "guided_final": "0.4",
-      "brief_minus_guided": "0.0",
-      "task_winner": "tie",
-      "delta_graph_weighted": "0.0",
-      "delta_selfc_weighted": "0.0",
-      "delta_accuracy_weighted": "0.0",
-      "brief_accuracy": "0.0",
-      "guided_accuracy": "0.0",
-      "same_accuracy": "True",
-      "brief_repair": "reference_repair",
-      "guided_repair": "none"
+      "brief_final": 1.0,
+      "guided_final": 0.4,
+      "brief_minus_guided": 0.6,
+      "task_winner": "brief-errors",
+      "delta_graph_weighted": 0.0,
+      "delta_selfc_weighted": 0.0,
+      "delta_accuracy_weighted": 0.6
     },
     {
       "task": "ID2",
-      "task_name": "anomalous bonding in dioxygen difluoride (FOOF)",
-      "brief_final": "0.1839",
-      "guided_final": "0.3339",
-      "brief_minus_guided": "-0.14999999999999997",
+      "brief_final": 0.1839,
+      "guided_final": 0.3339,
+      "brief_minus_guided": -0.14999999999999997,
       "task_winner": "guided",
-      "delta_graph_weighted": "0.0",
-      "delta_selfc_weighted": "-0.15",
-      "delta_accuracy_weighted": "0.0",
-      "brief_accuracy": "0.0",
-      "guided_accuracy": "0.0",
-      "same_accuracy": "True",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": 0.0,
+      "delta_selfc_weighted": -0.15,
+      "delta_accuracy_weighted": 0.0
     },
     {
       "task": "IE2",
-      "task_name": "nitrogen triple-bond dissociation curve",
-      "brief_final": "0.1833",
-      "guided_final": "0.3333",
-      "brief_minus_guided": "-0.15",
+      "brief_final": 0.1833,
+      "guided_final": 0.3333,
+      "brief_minus_guided": -0.15,
       "task_winner": "guided",
-      "delta_graph_weighted": "0.0",
-      "delta_selfc_weighted": "-0.15",
-      "delta_accuracy_weighted": "0.0",
-      "brief_accuracy": "0.0",
-      "guided_accuracy": "0.0",
-      "same_accuracy": "True",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": 0.0,
+      "delta_selfc_weighted": -0.15,
+      "delta_accuracy_weighted": 0.0
     },
     {
       "task": "IF3",
-      "task_name": "triangulene triplet ground state and singlet-triplet gap",
-      "brief_final": "0.4",
-      "guided_final": "0.3667",
-      "brief_minus_guided": "0.033299999999999996",
+      "brief_final": 0.4,
+      "guided_final": 0.3667,
+      "brief_minus_guided": 0.033299999999999996,
       "task_winner": "brief-errors",
-      "delta_graph_weighted": "0.033333333333333326",
-      "delta_selfc_weighted": "0.0",
-      "delta_accuracy_weighted": "0.0",
-      "brief_accuracy": "0.0",
-      "guided_accuracy": "0.0",
-      "same_accuracy": "True",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": 0.033333333333333326,
+      "delta_selfc_weighted": 0.0,
+      "delta_accuracy_weighted": 0.0
     },
     {
       "task": "IG8",
-      "task_name": "chromium dimer ground-state dissociation curve",
-      "brief_final": "0.3339",
-      "guided_final": "1.0",
-      "brief_minus_guided": "-0.6661",
+      "brief_final": 0.3339,
+      "guided_final": 1.0,
+      "brief_minus_guided": -0.6661,
       "task_winner": "guided",
-      "delta_graph_weighted": "-0.06606712633459695",
-      "delta_selfc_weighted": "0.0",
-      "delta_accuracy_weighted": "-0.6",
-      "brief_accuracy": "0.0",
-      "guided_accuracy": "1.0",
-      "same_accuracy": "False",
-      "brief_repair": "none",
-      "guided_repair": "none"
+      "delta_graph_weighted": -0.06606712633459695,
+      "delta_selfc_weighted": 0.0,
+      "delta_accuracy_weighted": -0.6
     }
   ],
   "arm_means": [
     {
       "arm": "guided",
       "n": 10,
-      "composite_mean": 0.44506
+      "composite_mean": 0.50506
     },
     {
       "arm": "standard",
@@ -1236,66 +1176,31 @@
     {
       "arm": "record",
       "n": 10,
-      "composite_mean": 0.2325
+      "composite_mean": 0.2925
     },
     {
       "arm": "brief-errors",
       "n": 10,
-      "composite_mean": 0.48294
+      "composite_mean": 0.60294
     }
   ],
   "summary": {
-    "n_tasks": 10,
-    "comparison_direction": "brief-errors minus guided",
-    "official_mean_difference": 0.03788000000000001,
-    "paired_bootstrap_ci": {
-      "low": -0.18822000000000005,
-      "high": 0.28397000000000006,
-      "source": "/private/tmp/cloudra_mining/paired/tier_pairwise.csv",
-      "reused_existing_sample": true
-    },
+    "official_mean_difference": 0.09788000000000001,
     "task_wins": {
-      "brief-errors": 3,
+      "brief-errors": 4,
       "guided": 5,
-      "tie": 2
+      "tie": 1
     },
     "weighted_component_mean_deltas": {
       "graph": -0.006606712633459697,
       "selfc": -0.015499999999999996,
-      "accuracy": 0.06
+      "accuracy": 0.12
     },
-    "same_accuracy_tasks": [
-      "IA5",
-      "IA7",
-      "IB9",
-      "IC3",
-      "ID2",
-      "IE2",
-      "IF3"
-    ],
-    "same_accuracy_mean_difference": -0.04999999999999998,
-    "same_accuracy_wins": {
-      "brief-errors": 1,
-      "guided": 4,
-      "tie": 2
-    },
-    "hindsight_pair_oracle_mean": 0.58788,
-    "hindsight_four_arm_oracle_mean": 0.58788,
-    "selfc_1_accuracy_0_total": 14,
-    "accuracy_histogram": {
-      "0": 33,
-      "0.5": 1,
-      "0.7": 2,
-      "1": 4
-    },
-    "scope": "Final saved scores only; no new runs, native-log replays, threshold changes, or rescores. Scores are not scientific acceptance rates.",
-    "claim_cautions": [
-      "The brief/guided final refusal trajectories for IMP are absent from this local package.",
-      "record/IA5 is a documented correct refusal under-scored by duplicate-endpoint matching.",
-      "brief/IC3 explicitly refuses the requested open-shell state and numerical gap but retains an accessible closed-shell branch; its accuracy zero is not sufficient evidence of a wrong scientific refusal.",
-      "brief/IC3 .4 is a reference repair already folded into the source fair column; standard/IA9 .2583 is post-hoc graph reconstruction used by official track."
-    ]
+    "paired_bootstrap_ci": {
+      "low": -0.15983999999999998,
+      "high": 0.36136025000000016
+    }
   },
-  "component_rounding_note": "Mean component contributions sum to +0.0378933; saved composite delta is +0.0378800 because final scores are rounded.",
+  "component_rounding_note": "Mean component contributions sum to +0.0978933; saved composite delta is +0.0978800 because final scores are rounded.",
   "interpretation": "Scores are not scientific acceptance rates. Accuracy zero does not universally mean an incorrect refusal. All totals and components use the complete offline organization track in the local publication CSV."
 }

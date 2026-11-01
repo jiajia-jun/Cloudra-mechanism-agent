@@ -1,0 +1,178 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.604321708,
+        "evidence_log": "calc/back/gjf/rc_min.log",
+        "note": "Pre-reaction complex HCHO.CH3NH2.H2O as a GENUINE, frequency-verified minimum of composition C2H7NO.H2O (SMILES C=O.CN.O): calc/back/gjf/rc_min.log is a combined independent Opt+Freq (B3LYP-D3(BJ)/def2-SVP, Int=UltraFine, SMD water) that converged to a stationary point at E = -286.604321708 Ha in one cycle and terminated normally with 36 = 3N-6 modes and ZERO imaginary frequencies (lowest real 19.3983 cm-1). Identity: C3-O4 1.29 A carbonyl intact, both N-H retained, no O-H, intact water, 1.65 A non-bonded C...N contact. Wording, as required: this is the only frequency-verified 0-imaginary structure of this composition on the REACTANT side, a LOOSELY BOUND ENCOUNTER COMPLEX whose water makes no H-bond with the solute; it is NOT the composition's global minimum - calc/front/smd/RC_G.log (-286.623568459 Ha) is 12.1 kcal/mol lower and C-N bonded - so RC is only the lowest NON-BONDED structure found, which is the distinct non-bonded state this node represents (lowest-conformer rule respected). The 12.1 kcal/mol gap to INT1 is neither a reaction energy nor a barrier: the two states sit in different, differently solvated basins. The earlier constrained 2.800 A log (calc/front/smd/RC_constr.log, one imaginary frequency -39.5 cm-1) is retained only as supplementary evidence that this minimum is a maximum along the frozen C-N coordinate, and no barrier references either structure. PERMANENT CAVEAT (Supervisor, dec_94d8ad41): the C...N contact is 1.65 A, only ~0.18 A longer than a normal C-N single bond, with a well bottom there and a 19.4 cm-1 softest mode, so this is a FLOPPY, BARELY-SEPARATED ADDUCT and 'non-bonded' is a labelling convenience at the edge of what the geometry supports. What the evidence establishes is narrower: (i) no H-bonded pre-reaction complex of this composition is a minimum under SMD water - the lowest structure of the stoichiometry is the C-N bonded hemiformal (calc/front/smd/RC_G.log, -286.623568459 Ha, 12.1 kcal/mol lower), which is why RC has no conventional pre-reaction minimum; (ii) the reactant-side state that IS frequency-verified is this high-lying adduct; (iii) the s1 barrier remains unquantified, so nothing may be referenced to either RC structure. WORKFLOW LIMITATION recorded, not an evidence defect: the automatic geometry check still reports incomplete on this accepted submission, most likely because a 1.65 A C...N contact is perceived as a covalent bond so the checker cannot confirm the node's separated-species reading; the graph therefore must not present RC as a bound reactant complex."
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "C[NH2+]C[O-].O"
+      ],
+      "properties": {
+        "energy_hartree": -286.623568459,
+        "evidence_log": "calc/front/smd/RC_G.log",
+        "note": "Zwitterionic hemiformal CH3-NH2(+)-CH2-O(-) + H2O, lowest conformer of composition C2H7NO.H2O (C1-N3 1.583 A, 0 imaginary frequencies). calc/front/smd/INT1.log (-286.622045075 Ha) is a second conformer 0.96 kcal/mol higher. This species exists only because water stabilises the separated charges: in vacuum the same seed collapses onto the neutral complex (calc/front/jobs/INT1_a.log)."
+      }
+    },
+    {
+      "id": "INT2",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.632231979,
+        "evidence_log": "calc/front/smd/INT2.log",
+        "note": "Neutral carbinolamine HO-CH2-NH-CH3 + H2O, 0 imaginary frequencies; C1-N3 1.45 A, C1-O2 1.40 A, the relayed proton H5 sits on O2. Thermodynamic sink of the addition (5.44 kcal/mol below INT1)."
+      }
+    },
+    {
+      "id": "INT3",
+      "role": "intermediate",
+      "smiles": [
+        "CNC[OH2+].O.O"
+      ],
+      "properties": {
+        "energy_hartree": -363.472037994,
+        "evidence_log": "calc/back/gjf/r_p220_freq.log",
+        "note": "O-protonated carbinolamine + 2 H2O (CNC[OH2+].O.O, 18 atoms, charge +1), 48 = 3N-6 real modes, 0 imaginary frequencies (lowest 50.5 cm-1). Computed with DEFAULT Gaussian convergence criteria (NOT Opt=Tight like the rest of the network) - the earlier opt=tight attempt was force-limited on a very flat surface and died in link-9999; the point is nonetheless a genuine minimum (0 imaginary modes, lowest real mode 50.5 cm-1). ATOM-ORDER PERMUTATION: the delivered geometry is NOT in the fixed map order. File sequence is C,O,N,C,H,H,O,H,H, then five H on C1/C4, then O,H,H,H - so MAP ATOM 10 (the hydronium O, here the water that donates to O2) = FILE ATOM 15 and MAP ATOM 11 (the donated proton) = FILE ATOM 16. The e3 bond_changes break [[10,11]] / form [[2,11]] are correct in MAP terms but cannot be read off this file by position. The input title's wording 'H2O + H3O+' is legacy label text; the true content is CNC[OH2+].O.O - two waters plus a protonated carbinolamine hydroxyl, NOT a hydronium. Source minimum of the acid-catalysed dehydration e4 and therefore the barrier reference for it. CONFORMER CAVEAT (from calc/back/gjf/r_p220.log): that job was intended as a relaxed C1-O2 scan at 2.20 A but its modredundant section was closed as empty, so it fully relaxed to C1-O2 1.478 A and gave a second INT3-type 18-atom minimum at E = -363.472037994 Ha, i.e. 0.05 kcal/mol BELOW the delivered INT3 energy. It has NO frequency section, so it cannot be the node energy or a barrier reference; if a future run verifies its 0-imaginary-mode character, the INT3 node energy and any e4 barrier referenced to it shift by +0.05 kcal/mol (a negligible amount, but it must be restated rather than silently ignored). Provenance of this lower conformer: it was obtained BY ACCIDENT - the job was written as a relaxed C1-O2 scan at 2.20 A and its modredundant section was closed as empty, so the coordinate was never held and the structure simply relaxed; it is NOT a planned conformer search, was not optimised under Opt=Tight, and the 0.054 kcal/mol difference is below any meaningful threshold of this level - it changes nothing mechanistically and must not be presented as an energy refinement of the mechanism, only as the lowest verified conformer of the same species. The atom-order permutation also applies to this frame (sequence C,O,N,C,H,H,O,H,H,H,H,H,H,H,O,H,H,H): map atom 10 = file atom 15, map atom 11 = file atom 16."
+      }
+    },
+    {
+      "id": "INT4",
+      "role": "intermediate",
+      "smiles": [
+        "C=[NH+]C.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -287.090567679,
+        "evidence_log": "calc/back/gjf/smd_iminium15.log",
+        "note": "Iminium CH2=N(+)(H)-CH3 + 2 H2O (15 atoms, +1), 39 modes, 0 imaginary frequencies. C1=N3 1.275 A, N3-C4 1.454 A, N3-H6 1.070 A, H6...O7 1.631 A (the N-H is already donated to the spectator water O7). Product of the acid-catalysed dehydration e4 and source of the deprotonation e5. Note: calc/back/gjf/smd_P.log (-287.090763865 Ha, 0 imaginary) is an independent second conformation/confirmation of this same iminium tautomer, 0.12 kcal/mol lower; the node keeps the accepted log because that input carries the exact node SMILES line (its own input was annotated with the product composition)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=NC.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.617391717,
+        "evidence_log": "calc/front/smd/P_imine2.log",
+        "note": "N-methylmethanimine + 2 H2O (14 atoms, charge 0) - the true product of the net reaction, with the acid proton returned to the bulk base which is not part of the cluster. 0 imaginary frequencies. C1=N3 1.272 A (double bond), N3-C4 1.448 A, NO hydrogen on N3 (shortest N...H 2.055 A), two intact waters. Chosen over the 15-atom imine + H3O+ cluster because that cluster is not a bound minimum at this level (it returns to the iminium tautomer, calc/back/gjf/smd_P.log). e5 removes H6 to the bulk base, so no proton is in the cluster. Sanity note: P (-286.617391717) lies 3.9 kcal/mol ABOVE the zwitterionic hemiformal INT1 (-286.623568459) at the same 14-atom stoichiometry - the expected endergonicity of imine formation in a closed cluster; the real reaction is pulled forward by dehydration and by the bulk proton transfer. Its energy must not be compared with INT4's different composition/charge."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "channel": "nucleophilic addition of free methylamine to the neutral carbonyl",
+      "note": "C-N addition of free methylamine to the carbonyl; nothing enters or leaves the cluster (form [[1,3]]). NO BARRIER IS DECLARED and the barrier is UNQUANTIFIED. No saddle was VERIFIED by any attempt: a stationary point with exactly one imaginary mode (-39.5167 cm-1, with 53% of the pair displacement on C1-N3) at C1-N3 = 2.800 A remains an UNVERIFIED SADDLE CANDIDATE, not a verified saddle, and no non-existence claim is made - all three searches (constraint relaxation plus the TS1 search, the formal workflow run ts_0001, and the mapped-path run ts_0002) died at NON-STATIONARY geometries, two of them by drifting toward separated monomers (ts_0002: link-9999 after 62 cycles, last SCF -286.600858071 Ha, C1-O2 1.21 A carbonyl intact, N 3.44 A from C1, no frequency section). A relaxed scan of the forming C3...N2 contact from the frequency-verified encounter complex (calc/back/gjf/scan_cn2.log, 7 points 1.652 -> 1.472 A, SMD water, Normal termination) RISES monotonically: -286.604321708, -286.604171, -286.604231, -286.603891, -286.604244, and -286.599097337 Ha at the shortest point, i.e. +3.28 kcal/mol, with the carbonyl stretching 1.290 -> 1.309 A and the methylamine C-N fixed at 1.473 A. No maximum was passed inside the scanned range, so that +3.28 kcal/mol is a BOUNDARY VALUE and a lower-bound indicator, NOT a barrier value. Conclusion: s1 is NOT barrierless, but neither is a barrier demonstrated; a small addition barrier is not excluded, and reaching the zwitterionic hemiformal (12.1 kcal/mol below the encounter complex) requires a coupled proton/H-bond/solvation reorganization that a one-coordinate scan cannot traverse. One unverified saddle candidate exists at 2.800 A; no barrier may be referenced to RC."
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "INT2",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "channel": "water-mediated relay of the N-H proton onto the alkoxide oxygen",
+      "note": "No TS computed (budget). The two verified minima give dE = -6.39 kcal/mol (reaction energy, not a barrier). EXCHANGE: nothing enters or leaves - H5 relays from N3 to O2 via the water O7. All composition changes across an edge are therefore bulk species exchanged with an unmodelled solvent/acid-base pool - the only sensible reading at pH 4-6 and how the mechanism is conventionally written; the same convention covers the pre-reaction complex (1 water) versus the product (2 waters) difference. SADDLE SEARCH THROUGH THE FORMAL TS WORKFLOW (run ts_0001, not attained): reactant C[NH2+]C[O-].O and product CNCO.O declared as the SAME 14-atom composition, mapping candidate 0 of 11, reaction-centre pairs (2,9) and (4,9) in the bound reactant's 1-based order, which in map terms is run index 2 = map atom 3 (N3), run index 4 = map atom 2 (O2), run index 9 = map atom 5 (H5) - i.e. exactly this edge's break [[3,5]] / form [[2,5]]. Guess stage used GFN2-xTB/alpb water (xtb for the path guess only, never as evidence). Attempt 3 [ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log] ran 72 cycles, reached converged forces (Max Force 2.8e-4 YES, RMS 5.2e-5 YES) but never satisfied the displacement test and hit the cycle limit at -286.604339690 Ha with no frequency section - a NON-STATIONARY point about 12 kcal/mol above INT1, so it is not an upper bound to any barrier. Attempt 4 [ts/ts_0001/jobs/declaration_0004/frequency/frequency.log] continued from that frame with MaxCycles=400 and converged to a MINIMUM, not a saddle: E = -286.604321708 Ha, 0 imaginary frequencies (lowest real mode 19.40 cm-1). That minimum is NOT a carbinolamine: in ts/ts_0001/jobs/declaration_0004/frequency/optimized.xyz C1 carries N2 at 1.47 A plus three H and N2 carries two H (methylamine), C3-O4 is a 1.29 A carbonyl with no H on O4, C3...N2 is a 1.65 A partially formed contact, and O12 keeps two H at 0.97 A (intact water). It is therefore a REACTANT-SIDE ENCOUNTER COMPLEX - formaldehyde + methylamine + water with a stretched C...N contact - lying 12.1 kcal/mol above INT1 and ~17.5 kcal/mol above INT2. Run stopped; per the Supervisor's ruling there is no third campaign. The relay saddle is therefore NOT ATTAINED and this edge carries no barrier_kcal_mol."
+    },
+    {
+      "id": "e3",
+      "from": "INT2",
+      "to": "INT3",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            10,
+            11
+          ]
+        ],
+        "form": [
+          [
+            2,
+            11
+          ]
+        ]
+      },
+      "channel": "acid catalysis: hydronium from the aqueous bulk protonates the carbinolamine hydroxyl oxygen (atoms 10/11 are that hydronium, which is not part of the 14-atom INT2 node)",
+      "note": "No TS computed (budget); a proton transfer, not expected to be rate-limiting. Atom-map vs file order for the INT3 endpoint log: map atom 10 (donor O) = file atom 15, map atom 11 (donated H) = file atom 16 in calc/back/gjf/r_int3_v2.log, so the break/form pairs above are map-index statements, not file positions. EXCHANGE: one H3O+ enters from the unmodelled bulk acid pool (+4 atoms, +1 charge); map atoms 10/11 are that hydronium and are NOT part of the 14-atom INT2 node. All composition changes across an edge are therefore bulk species exchanged with an unmodelled solvent/acid-base pool - the only sensible reading at pH 4-6 and how the mechanism is conventionally written; the same convention covers the pre-reaction complex (1 water) versus the product (2 waters) difference."
+    },
+    {
+      "id": "e4",
+      "from": "INT3",
+      "to": "INT4",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "channel": "acid-catalysed dehydration: C1-O2 cleavage with C1-N3 tightening to the iminium double bond - expected rate-determining step",
+      "note": "NO BARRIER DECLARED - the step is unverified at this level, twice over. Attempt 1 (calc/back/gjf/smd_ts4.log): saddle search never terminated, drifted down the product side of C1-O2 (C1-O2 2.23 A, C1-N3 1.30 A), link-9999 error after 82 cycles, no frequency section. Attempt 2 (calc/back/gjf/r_ts4.log, job 790: opt=(ts,calcfc,noeigentest) freq, guess = INT3 minimum with C1-O2 pre-stretched to 2.15 A): 42 optimisation cycles, also no convergence and no frequency section - the energy oscillated in a narrow band -363.4647 to -363.4708 Ha (1.1-3.3 kcal/mol above INT3 at -363.472037994 Ha) while C1-O2 wandered 2.05-2.61 A with the C=N bond already formed (C1-N3 1.27-1.32 A) and the departing water receded to O-H 1.93 A; final Max Force 2.6e-3 vs the 4.5e-4 threshold. Job cancelled at cycle 42 to free the shared node. The scan frames are NOT barriers and are not reported as barrier_kcal_mol: r_scan12.log is a scan frame, and r_p220.log (intended as a scan frame at C1-O2 2.20 A) actually relaxed to a completely different species - C1-O2 1.478 A, E = -363.472037994 Ha, a second INT3-type minimum 0.05 kcal/mol below the node energy, with no frequency section - so it is neither a scan point nor a saddle nor a barrier. Interpretation (a plausible expectation, NOT a result): the only direct observation is the unconverged r_ts4 trajectory, which stayed in a narrow band ~1 kcal/mol above INT3 with C1-O2 2.4-2.6 A; that is consistent with a flat region and a good protonated leaving group, but neither a flat surface nor a saddle height follows from it, and the earlier 'extremely flat, ~1 kcal/mol' reading that rested on r_p220.log has been withdrawn with that job's reclassification. Unsuccessful searches do not establish that no saddle exists, and no IRC was run, so the declared reaction coordinate of this step remains computationally undemonstrated. MASS BALANCE: this edge is 18 atoms on the left (CNC[OH2+].O.O) and 15 atoms on the right (C=[NH+]C.O.O), so breaking C1-O2 releases the protonated hydroxyl O2 together with its two hydrogens as ONE WATER MOLECULE that leaves to the solvent; the graph writes that as an implicit solvent-released H2O and does not draw a node for it. The alternative representation - an explicit 18-atom product INT3 -> iminium + 3 H2O node ('INT4_W_expelled_water' in the DAG, followed by a separate water-release step) - was declared for IRC endpoint bookkeeping but never computed, so it is not in mechanism_graph.json. No barrier is attached to either representation. EXCHANGE: one H2O leaves to the unmodelled solvent pool (O2 with its two hydrogens H5 and H11); the INT4 node is written as iminium + the remaining 2 H2O. All composition changes across an edge are therefore bulk species exchanged with an unmodelled solvent/acid-base pool - the only sensible reading at pH 4-6 and how the mechanism is conventionally written; the same convention covers the pre-reaction complex (1 water) versus the product (2 waters) difference."
+    },
+    {
+      "id": "e5",
+      "from": "INT4",
+      "to": "P",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            6
+          ]
+        ],
+        "form": []
+      },
+      "channel": "deprotonation of the iminium N-H by the aqueous base",
+      "note": "No TS computed. The proton H6 leaves N3 to the bulk base, so nothing forms inside this 14-atom cluster. Note that a single water molecule is not a strong enough base to remove this proton in the model (calc/back/gjf/smd_P.log converges back to the iminium tautomer); in reality the acceptor is the bulk base (free amine / buffer / hydroxide) and the transfer is diffusion-controlled, hence not rate-limiting. Unverified here. EXCHANGE: one H+ leaves to the unmodelled bulk base (-1 atom, -1 charge); the cluster keeps the neutral imine and the two waters. All composition changes across an edge are therefore bulk species exchanged with an unmodelled solvent/acid-base pool - the only sensible reading at pH 4-6 and how the mechanism is conventionally written; the same convention covers the pre-reaction complex (1 water) versus the product (2 waters) difference."
+    }
+  ]
+}

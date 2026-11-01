@@ -1,0 +1,110 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -196.369420795,
+        "evidence_log": "reactant_side/RC_c1_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase; zero imaginary frequencies (verified minimum)",
+        "description": "propene...ethene pre-reaction complex, perpendicular C-H...pi contact (closest 2.838 A vinylic C-H...C, C=C planes 87.9 deg), binding -1.76 kcal/mol vs the separated monomers"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -196.264554974,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0013/frequency/frequency.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase; exactly ONE imaginary frequency -408.66 cm-1 (next lowest real mode 111.44 cm-1) -> verified first-order saddle",
+        "description": "first-order saddle for allylic H transfer from the propene methyl to the ethene: H6 is already 1.191 A from C5 while the C3-C4 bond is still 2.810 A; C3-H6 1.869, C4=C5 1.433, C2=C3 1.359, C2-C3 1.426 A; C3-H6-C5 129.0, H6-C5-C4 107.9 deg",
+        "geometry_evidence": "ts/ts_0001/jobs/declaration_0013/frequency/optimized.xyz",
+        "ts_optimization_log": "ts/ts_0001/jobs/declaration_0013/ts_opt/refine.log",
+        "imaginary_mode": "H-transfer dominated: signed bond-axis projections d(r)/d(mode) C3-H6 +0.4395 (stretching), H6-C5 -0.2854 (new H-C forming), C3-C4 only -0.0755 (small contraction), C4=C5 +0.0390, C1=C2 +0.0569, with methyl torsion admixture C3-H7 +0.4466 / C3-H8 -0.3409",
+        "connectivity": "bidirectional IRC (irc=(calcfc,stepsize=20), 10 points each way, ts/ts_0001/jobs/declaration_0015/irc/irc.log) gives propene + ethene on one side (C3-H6 1.107, C4=C5 1.343 A, E = -196.344385) and an allyl/ethyl radical-pair-like structure on the other (C3-C4 2.604, H6-C5 1.121, C4=C5 1.475 A, E = -196.275342); NEITHER branch reaches 1-pentene, so this saddle is a hydrogen-transfer/radical-pair saddle, NOT the concerted Alder-ene transition state. Load-bearing asymmetry over the same |Rx| ~ 2.36: the reactant branch descends 50.09 kcal/mol while the H-transferred branch descends only 6.77 of the 92.2 kcal/mol available down to 1-pentene, with C3-C4 still 2.604 A and C4=C5 already 1.475 A - independent corroboration that the branches lead to different species rather than a truncation artefact",
+        "note": "converged from the geometrically validated guess ts_alt/t116_d210.xyz (all CH3 H-C-H 109.5 deg) in run ts_0001 input_revision 13. Superseded/rejected attempts: ts_alt/con_P.log (-196.280155326 Ha) had TWO imaginary frequencies (-248.5, -220.3 cm-1) and an invalid methyl group (H-C-H 64.6 deg); IDPP interpolation, GFN2-xTB restrained scans and methyl-face relaxed scans all led to strained or dissociative structures."
+      }
+    },
+    {
+      "id": "INT_pair",
+      "role": "intermediate",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -196.275341842,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0015/irc/irc.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase; IRC endpoint frame (10-point cap), NOT frequency-verified",
+        "description": "product-side IRC endpoint of TS1: closed-shell description of an essentially broken C3-C4 bond (2.604 A) with the H already on C5 (1.121 A) and the pi bond consumed (C4=C5 1.475 A); allyl-like C1=C2 1.358 / C2-C3 1.440 A. Best described as an allyl...ethyl radical-pair-like contact, +59.04 kcal/mol above RC",
+        "note": "not a frequency-verified minimum and not described as one; recorded because it is the actual connectivity of TS1 on the product side. Radical recombination of this pair to 1-pentene was not computed."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CCCC"
+      ],
+      "properties": {
+        "energy_hartree": -196.4114324,
+        "evidence_log": "product_side/pentene_b3lyp_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase; zero imaginary frequencies (verified minimum)",
+        "description": "1-pentene (anti/skew conformer), -26.37 kcal/mol below RC"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT_pair",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            6
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 65.8,
+      "channel": "allylic hydrogen transfer (H6 C3->C5) with the C4=C5 pi bond consumed; C3-C4 not yet formed",
+      "favored": true,
+      "note": "Barrier = E(TS1) - E(RC) from the two declared native Gaussian logs: (-196.264554974 + 196.369420795) Ha x 627.5095 = 65.80 kcal/mol. Atom-map indices: break C3-H6 and the C4=C5 double bond (order decrease), form C2=C3 (order increase) and C5-H6. The C3-C4 bond remains unformed at the saddle (2.810 A), so this step is NOT the concerted ene step."
+    },
+    {
+      "id": "e2",
+      "from": "INT_pair",
+      "to": "P",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": [
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "channel": "radical (or closed-shell biradicaloid) recombination forming the C3-C4 bond, C4=C5 re-forming the pi bond to C2=C3 shift",
+      "favored": true,
+      "note": "Not computed: no barrier was calculated for this step. Recorded because the product-side IRC branch of TS1 ends at this pair, not at 1-pentene."
+    }
+  ]
+}

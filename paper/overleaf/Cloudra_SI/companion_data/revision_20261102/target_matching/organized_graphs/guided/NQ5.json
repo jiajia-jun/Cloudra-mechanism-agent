@@ -1,0 +1,144 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC(O)CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.627491834,
+        "evidence_log": "jobs/rc_c2/rc_c2_optfreq.log",
+        "note": "1,5-hexadien-3-ol, lowest-energy conformer of the B3LYP-D3(BJ)/def2-SVP gas-phase screen; 0 imaginary frequencies. This minimum is both the barrier reference and the conformer the TS1 IRC actually reaches: re-optimising the reactant-side IRC outer frame gives -309.627491845 Ha (jobs/ts1/ts1_epB_rc.log), i.e. the same minimum."
+      }
+    },
+    {
+      "id": "TS1",
+      "dag_id": "sp_2e5fae50",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC(O)CC=C>>OC=CCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.564972134,
+        "evidence_log": "jobs/ts1/ts1_tsB_optfreq.log",
+        "note": "Concerted chair [3,3]-sigmatropic oxy-Cope saddle; exactly one imaginary frequency -461.04 cm-1 dominated by the coupled C3-C5 (map 3-4, breaking) and C1-C7 (map 1-6, forming) motion; dE‡ = 39.2 kcal/mol vs rc_c2."
+      }
+    },
+    {
+      "id": "INT1-enol",
+      "role": "intermediate",
+      "smiles": [
+        "OC=CCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.631745145,
+        "evidence_log": "jobs/enol_c0/enol_c0_optfreq.log",
+        "note": "hexa-1,5-dien-1-ol, the [3,3] product enol; 0 imaginary frequencies; the OH is synperiplanar to the C=C (H-O-C=C = 0.3 deg), preorganized for the 1,3-H shift."
+      }
+    },
+    {
+      "id": "TS2",
+      "dag_id": "sp_c6341173",
+      "role": "transition_state",
+      "smiles": [
+        "OC=CCCC=C>>O=CCCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.539179465,
+        "evidence_log": "jobs/ts2/ts2_ts_optfreq.log",
+        "note": "Uncatalysed 4-membered suprafacial 1,3-H shift saddle; one imaginary frequency -2122.81 cm-1 (93.5% H8); dE‡ = 58.1 kcal/mol vs the enol minimum."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=CCCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.649483745,
+        "evidence_log": "jobs/prod_c0/prod_c0_optfreq.log",
+        "note": "hex-5-enal, lowest conformer (prod_c0); 0 imaginary frequencies. The step2 IRC reaches a conformer 2.78 kcal/mol higher (jobs/ts2/ep/ts2_epA_ald.log, -309.645051789); the declared product energy stays prod_c0."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "dag_id": "step_d4a19ce7",
+      "dag_name": "step1-cope",
+      "from": "RC",
+      "to": "INT1-enol",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 39.2,
+      "channel": "concerted [3,3] oxy-Cope (chair)",
+      "favored": true,
+      "note": "Barrier reference is the reactant minimum rc_c2 (E = -309.627491834, jobs/rc_c2/rc_c2_optfreq.log); dE = E(TS1) - E(rc_c2) = 39.2 kcal/mol, electronic only (no ZPE/thermal). The bidirectional IRC (jobs/ts1/ts1_irc4.log) leaves the saddle in both directions; re-optimising its reactant-side outer frame gives -309.627491845 Ha (jobs/ts1/ts1_epB_rc.log), i.e. the same rc_c2 minimum, and its enol-side outer frame gives -309.631467076 Ha (jobs/ts1/ts1_epA_enol.log), an enol conformer 0.17 kcal/mol above the declared enol reference enol_c0 (-309.631745145)."
+    },
+    {
+      "id": "e2",
+      "dag_id": "step_8d87f19c",
+      "dag_name": "step2-taut",
+      "from": "INT1-enol",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            7,
+            8
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            2,
+            8
+          ],
+          [
+            3,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 58.1,
+      "channel": "uncatalysed intramolecular 1,3-H shift (enol-keto)",
+      "favored": true,
+      "note": "Barrier reference is the enol minimum enol_c0 (E = -309.631745145, jobs/enol_c0/enol_c0_optfreq.log); dE = E(TS2) - E(enol_c0) = 58.1 kcal/mol, electronic only, and this is the rate-determining step of the network. Both IRC directions (jobs/ts2/ts2_irc.log) leave the saddle: the enol-side outer frame re-optimises to -309.631745132 Ha, the same enol_c0 minimum, while the product-side outer frame re-optimises to the hex-5-enal conformer -309.645051789 Ha (jobs/ts2/ep/ts2_epA_ald.log), 2.78 kcal/mol above the declared product reference prod_c0 (-309.649483745). The declared product energy stays prod_c0."
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "O=C(O)CC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -417.360029573,
+        "evidence_log": "work/opt_RC_lowest.log",
+        "note": "lowest malonic acid minimum at B3LYP-D3(BJ)/def2-SVP (syn conformation, IRC-derived); zero imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "O=C(O)CC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -417.31546958,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -409.4,
+        "note": "six-membered cyclic TS: O7-H11 proton transferred to O1 while C4-C5 breaks and C2=C4 forms"
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "C=C(O)O.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -417.33227452,
+        "evidence_log": "work/opt_INT1.log",
+        "note": "enol of acetic acid (1,1-ethenediol) weakly bound to CO2"
+      }
+    },
+    {
+      "id": "TS1b",
+      "role": "transition_state",
+      "smiles": [
+        "O=C(O)CC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -417.242249242,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0001/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -2115.2,
+        "note": "four-membered TS in which O7-H11 goes directly to C4 (competing one-step channel)"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CC(=O)O.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -417.377463438,
+        "evidence_log": "work/opt_P.log",
+        "note": "acetic acid + CO2"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "C=C(O)O.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -417.260736202,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0003/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -1991.2,
+        "note": "1,3-H shift TS of the enol: O3-H8 (1.26 A) transfers to C4 (1.52 A); C2-O3 shortens to 1.28 A, C2-C4 stretches from 1.34 to 1.44 A"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            7,
+            11
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            11
+          ],
+          [
+            2,
+            4
+          ],
+          [
+            5,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 27.96,
+      "channel": "six-membered cyclic decarboxylation (concerted, proton-late)",
+      "favored": true
+    },
+    {
+      "id": "e3",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1b",
+      "bond_changes": {
+        "break": [
+          [
+            7,
+            11
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            4,
+            11
+          ],
+          [
+            5,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 73.91,
+      "channel": "four-membered direct decarboxylation (one-step, no enol)",
+      "favored": false
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            8
+          ],
+          [
+            2,
+            4
+          ]
+        ],
+        "form": [
+          [
+            4,
+            8
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 44.89,
+      "channel": "enol->keto 1,3-H shift (intramolecular, four-membered)",
+      "favored": true
+    }
+  ]
+}

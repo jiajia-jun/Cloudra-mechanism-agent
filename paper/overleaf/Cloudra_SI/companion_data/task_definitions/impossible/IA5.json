@@ -101,7 +101,7 @@
           "accessible": false,
           "barrier_kcal_mol": null,
           "weight": 1.0,
-          "channel": null,
+          "channel": "disrotatory",
           "favored": null
         }
       ]

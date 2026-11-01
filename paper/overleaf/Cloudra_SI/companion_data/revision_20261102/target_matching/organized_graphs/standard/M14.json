@@ -1,0 +1,88 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "name": "acrolein s-trans rotamer (O=C-C=C anti-periplanar, global/ lowest-energy minimum)",
+        "energy_hartree": -191.779652694,
+        "evidence_log": "conf_s_trans_min.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, '#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ')",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "n_imaginary_frequencies": 0,
+        "dihedral_O4_C3_C2_C1_deg": 180,
+        "note": "single molecule; started the graph at this conformer"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "name": "twisted (perpendicular) torsion saddle for the C2-C3 single-bond rotation",
+        "energy_hartree": -191.765230939,
+        "evidence_log": "ts_rotation.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, opt=(ts,calcfc,noeigentest) freq)",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "n_imaginary_frequencies": 1,
+        "imaginary_frequency_cm": -230.7139,
+        "dihedral_O4_C3_C2_C1_deg": 92.1,
+        "note": "single imaginary mode is the C2-C3 torsion (dominant displacements H5/H7/H8); IRC downhill paths from both sides lead to the s-cis and s-trans minima"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "name": "acrolein s-cis rotamer (O=C-C=C syn-periplanar, higher-energy local minimum)",
+        "energy_hartree": -191.777487557,
+        "evidence_log": "conf_s_cis_min.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, '#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ')",
+        "charge": 0,
+        "multiplicity": 1,
+        "phase": "gas",
+        "n_imaginary_frequencies": 0,
+        "dihedral_O4_C3_C2_C1_deg": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 9.05,
+      "channel": "conformational C2-C3 torsion (s-trans -> s-cis)",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "P",
+      "to": "RC",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 7.69,
+      "channel": "conformational C2-C3 torsion (s-cis -> s-trans), reverse of e1"
+    }
+  ]
+}

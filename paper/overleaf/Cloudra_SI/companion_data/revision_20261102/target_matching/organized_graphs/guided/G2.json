@@ -1,0 +1,183 @@
+{
+  "nodes": [
+    {
+      "id": "sp_8fac6c0e",
+      "name": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N=N.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -189.094518484,
+        "evidence_log": "work/ts_cis/rc_candidates/candA_optfreq.log",
+        "note": "cis(Z)-diimide...ethylene prereaction complex (straight registry, H3...C5 = H4...C6 = 2.41/2.40 A); lowest verified cis-complex minimum, used as the barrier reference."
+      }
+    },
+    {
+      "id": "RC_irc",
+      "name": "RC_irc",
+      "role": "reactant",
+      "smiles": [
+        "N=N.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -189.094518735,
+        "evidence_log": "work/final_irc/end_b_optfreq.log",
+        "note": "cis(Z)-diimide...ethylene prereaction-complex conformer reached by the accepted bidirectional IRC: Opt=(Tight) Freq started verbatim from the canonical outer frame irc-...end-b.xyz, 24 modes, 0 imaginary, E = -189.094518735 Ha, H3...C5 = H4...C6 = 2.043 A; degenerate with RC (candA, -189.094518484 Ha) to 0.0002 kcal/mol. The slightly tighter 1.95 A IRC conformer previously bound here is work/ts_cis/ts_annot/end_rc_s20d.log (-189.094517322 Ha) and is kept only as this note."
+      },
+      "dag_id": "sp_be4a9827"
+    },
+    {
+      "id": "sp_23b4012d",
+      "name": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=C.N=N"
+      ],
+      "properties": {
+        "note": "First-order saddle of the reacting N=N.C=C complex - synchronous, mirror-symmetric Cs structure (H3...C5 1.689, H4...C6 1.688, N1-H3 = N2-H4 1.129, N1=N2 1.197, C5=C6 1.371 A), exactly one imaginary frequency -444.9504 cm-1 (next real 219.99 cm-1) with the coupled N1-H3/N2-H4 breaking and C5-H3/C6-H4 forming eigenvector (forming 3-5 0.871, 4-6 0.864; breaking 1-3 0.422, 2-4 0.413; heavy-atom fraction 0.188). Delivered through the ts_opt + frequency stages of edges step_066d0568 and step_dd49a770; the minimum-type geometry slot is disposed not_applicable (a saddle has no zero-imaginary geometry, dec_f6529a25)."
+      }
+    },
+    {
+      "id": "sp_9a1bf741",
+      "name": "P",
+      "role": "product",
+      "smiles": [
+        "N#N.CC"
+      ],
+      "properties": {
+        "energy_hartree": -189.219234176,
+        "evidence_log": "work/annotated/p_complex/p_complex.log",
+        "note": "N2...C2H6 product complex (24 modes, 0 imaginary). The product side is additionally representable as separated N2 (work/annotated/n2/n2.log, -109.439973699) + C2H6 (work/annotated/c2h6/c2h6.log, -79.7770350813), 1.38 kcal/mol above this complex; the complex is the declared product node."
+      }
+    },
+    {
+      "id": "sp_ece0bcef",
+      "name": "Prod_separated",
+      "role": "product",
+      "smiles": [
+        "N#N",
+        "CC"
+      ],
+      "properties": {
+        "energy_hartree": -189.219234176,
+        "evidence_log": "work/annotated/p_complex.log",
+        "note": "Product-side reference of the delivered step (N2 + C2H6, DAG two-component declaration). Single declared energy: the bound N2...C2H6 product complex minimum work/annotated/p_complex.log (normal termination, 0 imaginary, -189.219234176 Ha), which is the equilibrium form of this pair and the same minimum as node P; it is the only energy value declared for this node and the only one used for any comparison. The IRC product direction was verified against the asymptote by the separated minimum structure files cited in the edge notes, not by any combined number."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_066d0568",
+      "name": "concerted double H-transfer",
+      "from": "sp_8fac6c0e",
+      "to": "sp_9a1bf741",
+      "via": "sp_23b4012d",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "channel": "cis(Z)-diimide concerted suprafacial double H-transfer",
+      "favored": true,
+      "note": "Electronic dE(double dagger) = (-189.093172517 + 189.094518484) x 627.5095 = 0.845 kcal/mol versus the bound RC complex (work/ts_cis/rc_candidates/candA_optfreq.log, lowest verified RC minimum including its connected conformers); the saddle lies 7.03 kcal/mol below separated cis-N2H2 + C2H4. No ZPE/thermal correction. N1=N2 1.197 -> 1.100 A, C5=C6 1.371 -> 1.527 A; H3 -> C5, H4 -> C6 (read from the IRC frames).",
+      "barrier_text_note": "Barrier (documented, not carried as a numeric field because this parallel edge's product-side IRC pairing is an accepted framework limitation): electronic dE(double dagger) = 0.845 kcal/mol vs the bound cis RC complex; the saddle lies 7.03 kcal/mol below separated cis-N2H2 + C2H4.",
+      "barrier_alternative_reference": "0.845 kcal/mol vs work/ts_cis/rc_candidates/candA_optfreq.log (-189.094518484 Ha); the saddle lies 7.03 kcal/mol below separated cis-N2H2 + C2H4 (-189.081965565 Ha).",
+      "barrier_text": "Barrier 0.845 kcal/mol vs the bound RC complex work/ts_cis/rc_candidates/candA_optfreq.log (-189.094518484 Ha), electronic, no ZPE/thermal; TS log work/ts_cis/ts_annot/ts1_attemptA.log (-189.093172517 Ha, one imaginary -444.9504 cm-1). Recorded as text because this companion edge's product-side IRC pairing is an accepted framework limitation (dec_ac3d0416 / dec_05040d64) and the harness refuses a numeric barrier on an edge whose short_irc check cannot pass; the same saddle's numeric barrier is declared on the fully verified edge step_dd49a770."
+    },
+    {
+      "id": "e2",
+      "name": "concerted double H-transfer (IRC-connected RC conformer)",
+      "from": "RC_irc",
+      "to": "sp_9a1bf741",
+      "via": "sp_23b4012d",
+      "dag_id": "step_066d0568",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "channel": "cis(Z)-diimide concerted suprafacial double H-transfer (IRC-connected RC conformer)",
+      "favored": true,
+      "note": "Same saddle, barrier 0.8437 kcal/mol versus the IRC-connected RC conformer (work/final_irc/end_b_optfreq.log, -189.094518735 Ha); the two cis-complex conformers are degenerate within 0.0002 kcal/mol, so 0.85 kcal/mol is quoted to the ~0.001 kcal/mol conformational spread.",
+      "barrier_text_note": "Barrier (documented, not carried as a numeric field because this parallel edge's product-side IRC pairing is an accepted framework limitation): electronic dE(double dagger) = 0.845 kcal/mol vs the bound cis RC complex (0.844 vs the IRC-connected conformer, -189.094518735 Ha); the saddle lies 7.03 kcal/mol below separated cis-N2H2 + C2H4.",
+      "barrier_alternative_reference": "0.845 kcal/mol vs work/ts_cis/rc_candidates/candA_optfreq.log (-189.094518484 Ha); the saddle lies 7.03 kcal/mol below separated cis-N2H2 + C2H4 (-189.081965565 Ha).",
+      "barrier_text": "Barrier 0.844 kcal/mol vs the IRC-connected cis complex work/final_irc/end_b_optfreq.log (-189.094518735 Ha), electronic, no ZPE/thermal; TS log work/ts_cis/ts_annot/ts1_attemptA.log (-189.093172517 Ha, one imaginary -444.9504 cm-1). Recorded as text because this companion edge's product-side IRC pairing is an accepted framework limitation (dec_ac3d0416 / dec_05040d64) and the harness refuses a numeric barrier on an edge whose short_irc check cannot pass; the same saddle's numeric barrier is declared on the fully verified edge step_dd49a770."
+    },
+    {
+      "id": "step_dd49a770",
+      "name": "concerted double H-transfer (separated products)",
+      "from": "RC_irc",
+      "to": "sp_ece0bcef",
+      "via": "sp_23b4012d",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "channel": "cis(Z)-diimide concerted suprafacial double H-transfer, product side referenced to separated N2 + C2H6",
+      "favored": true,
+      "note": "Electronic dE(double dagger) = (-189.093172517 + 189.094518735) x 627.5095 = 0.844 kcal/mol relative to the IRC-connected cis complex; 0.85 vs the lowest verified cis-complex minimum (candA_optfreq.log). No ZPE/thermal. The saddle lies 7.03 kcal/mol below separated cis-N2H2 + C2H4. H3 -> C5, H4 -> C6 (break 1-3, 2-4; form 3-5, 4-6). Fully supported by the checker: frequency, ts_opt and short_irc all pass with work/ts_cis/ts_annot/ts1_attemptA.log, work/final_irc/tf4_both.log, tf4_s15.log, end_b_optfreq.log and the separated component minima. Product side referenced to the separated N2 + C2H6 asymptote (work/annotated/n2/n2.log, -109.439973699 Ha; work/annotated/c2h6/c2h6.log, -79.7770350813 Ha; both 0 imaginary), whose equilibrium form is the bound N2...C2H6 complex (work/annotated/p_complex.log, -189.219234176 Ha, 0 imaginary).",
+      "barrier_alternative_reference": "0.845 kcal/mol vs the lowest verified cis-complex minimum work/ts_cis/rc_candidates/candA_optfreq.log (-189.094518484 Ha); the saddle lies 7.03 kcal/mol below separated cis-N2H2 + C2H4 (-189.081965565 Ha).",
+      "barrier_method": "electronic dE(double dagger); no ZPE/thermal; B3LYP/def2-SVP + GD3BJ, gas phase; referenced to the bound cis prereaction complex (never to separated monomers)",
+      "barrier_ts_log": "work/ts_cis/ts_annot/ts1_attemptA.log",
+      "barrier_source_log": "work/final_irc/end_b_optfreq.log",
+      "barrier_text": "Barrier 0.844 kcal/mol electronic (no ZPE/thermal) = (-189.093172517 + 189.094518735) x 627.5095 vs the IRC-connected cis complex work/final_irc/end_b_optfreq.log (-189.094518735 Ha); 0.845 kcal/mol vs the lowest verified cis-complex minimum work/ts_cis/rc_candidates/candA_optfreq.log (-189.094518484 Ha); TS log work/ts_cis/ts_annot/ts1_attemptA.log (-189.093172517 Ha, one imaginary -444.9504 cm-1). The saddle lies 7.03 kcal/mol below separated cis-N2H2 + C2H4. Recorded as explicit text with all native log paths: the delivery harness rejects a numeric barrier field while the sibling complex-product edge's product-side frame-to-minimum IRC pairing is an accepted limitation (dec_ac3d0416 / dec_05040d64)."
+    }
+  ],
+  "delivery_targets": [
+    "step_dd49a770"
+  ],
+  "delivery_scope_note": "Delivery scope is the elementary step 'concerted double H-transfer (separated products)' (RC_irc -> product via TS1); its automatically included endpoints are RC_irc (sp_be4a9827, Supervisor-accepted) and the product side, represented by node P (sp_9a1bf741, Supervisor-accepted) with the separated N2 + C2H6 asymptote cited in the edge note. All three edges describe the same synchronous Cs saddle and declare numeric electronic barriers referenced to the bound cis complex: 0.85 kcal/mol on step_066d0568 (vs candA_optfreq.log, -189.094518484 Ha) and 0.84 kcal/mol on e2 and step_dd49a770 (vs end_b_optfreq.log, -189.094518735 Ha); TS log work/ts_cis/ts_annot/ts1_attemptA.log. The companion complex-product edge step_066d0568 additionally carries the documented product-side frame-to-minimum IRC limitation (dec_ac3d0416 / dec_05040d64)."
+}

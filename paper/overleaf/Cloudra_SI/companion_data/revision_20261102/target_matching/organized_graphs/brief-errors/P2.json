@@ -1,0 +1,169 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -193.978501557,
+        "evidence_log": "runs/reactant_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16",
+        "note": "cyclopentadiene minimum; 0 imaginary frequencies; sp3 carbon = map C3 carrying the migrating H6",
+        "name": "Cyclopentadiene RC",
+        "dag_role": "species"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -193.936142234,
+        "evidence_log": "runs/ts2_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16",
+        "note": "aromatic-like five-centre saddle of the suprafacial [1,5]-H shift; one imaginary frequency -1195.1 cm-1 dominated by the migrating H; ring bonds 1.404/1.412/1.411/1.404 and C2-C3 1.490 A; migrating H 1.315 A from C2 and 1.315 A from C3",
+        "name": "Cyclopentadiene TS1 (suprafacial 1,5-H shift)",
+        "dag_role": "step 'Suprafacial 1,5-H shift' via"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -193.978501745,
+        "evidence_log": "runs/irc_fwd_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16",
+        "note": "re-optimised product-side IRC endpoint; same molecule as RC (degenerate shift); 0 imaginary frequencies; C2 is the sp3 carbon (H7 and H6/H8 at 1.11 A), ring bonds 1-2 1.504, 2-3 1.504, 3=4 1.353, 4-5 1.470, 5=1 1.353 A",
+        "name": "Cyclopentadiene product",
+        "dag_role": "species"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            1
+          ],
+          [
+            2,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 26.6,
+      "channel": "suprafacial [1,5]-sigmatropic H shift; H6 transfers from C3 to C2 (IRC-verified: forward IRC puts H on C2, reverse IRC returns H to C3)",
+      "favored": true,
+      "properties": {
+        "dag_step": "Suprafacial 1,5-H shift",
+        "note": "elementary step of the DAG delivery graph"
+      }
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            5,
+            1
+          ],
+          [
+            4,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 26.6,
+      "channel": "mirror-image labelling of the same saddle (suprafacial [1,5]-H shift with H6 to C4); C2/C4 are exchanged by the molecular mirror plane, so this channel has the identical TS energy and the same barrier; same evidence logs",
+      "favored": false,
+      "properties": {
+        "dag_step": "Suprafacial 1,5-H shift",
+        "note": "elementary step of the DAG delivery graph"
+      }
+    },
+    {
+      "id": "e3",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "channel": "alternative reading of the conventional cyclopentadiene numbering (H6 to C1, only one ring double bond reorganised). NOT supported by the computation: a TS guess with the H bridging C1 and C3 collapsed to the C2/C3-bridging saddle, and this edge has no saddle of its own, so no barrier is declared for it",
+      "favored": false,
+      "properties": {
+        "dag_step": "Suprafacial 1,5-H shift",
+        "note": "elementary step of the DAG delivery graph"
+      }
+    }
+  ]
+}

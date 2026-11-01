@@ -1,0 +1,79 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N=N.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -189.094518011,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/reactant_frequency/reactant_frequency.log",
+        "note": "Pre-reaction complex HN=NH...C2H4 (both N-H hydrogens pointing at the two alkene carbons; N-N 1.221, N1-H3 1.068, C=C 1.346, H...C 2.043 A). B3LYP-D3(BJ)/def2-SVP, gas phase, 0 imaginary frequencies (lowest 133.5 cm-1)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -189.093173082,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/frequency/frequency.log",
+        "note": "Six-membered cyclic concerted H-transfer saddle; one imaginary frequency -446.59 cm-1 aligned with the H3-C5/H4-C6 forming pairs. N1-N2 1.197, N1-H3 1.130, C5-C6 1.371, H3...C5 = H4...C6 1.689 A."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "N#N.CC"
+      ],
+      "properties": {
+        "energy_hartree": -189.219233775,
+        "evidence_log": "prod_complex2/product_complex_vtight.log",
+        "note": "Product state N2 + ethane. The N2...C2H6 contact pair has no clean minimum at B3LYP-D3(BJ)/def2-SVP (every stationary point is a flat librational saddle, one imaginary mode -25.0 or -4.9 cm-1), so the frequency-verified minimum evidence is per component: components/n2_optfreq.log (one real mode, 2490.4 cm-1, E = -109.439973699 Ha) and components/ethane_optfreq.log (18 real modes, lowest 318.5 cm-1, E = -79.7770351284 Ha). The declared whole-complex energy is that of the normally terminated product-complex log delivered for this node."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            3,
+            5
+          ],
+          [
+            4,
+            6
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 0.844,
+      "channel": "concerted suprafacial cis H transfer",
+      "favored": true
+    }
+  ]
+}

@@ -36,7 +36,7 @@ L1,easy,standard,Standard,0.9749,1.0,0.9166666666666666,0.9999001065595352
 L1,easy,record,Record,0.9999,1.0,1.0,0.9999000562958816
 L1,easy,brief-errors,Brief,0.9999,1.0,1.0,0.9998992236370234
 L2,easy,guided,Guided,0.745,1.0,0.75,0.7
-L2,easy,standard,Standard,0.67,1.0,0.5,0.7
+L2,easy,standard,Standard,0.7799,1.0,0.5,0.8832329938516985
 L2,easy,record,Record,0.8549,1.0,0.75,0.8832305081044819
 L2,easy,brief-errors,Brief,0.8799,1.0,0.8333333333333334,0.8832390700297313
 M1,easy,guided,Guided,0.9478,1.0,1.0,0.913061907917538
@@ -163,10 +163,10 @@ IA1,impossible,guided,Guided,0.1717,0.6666666666666667,0.35,0.0
 IA1,impossible,standard,Standard,0.1717,0.6666666666666667,0.35,0.0
 IA1,impossible,record,Record,0.1717,0.6666666666666667,0.35,0.0
 IA1,impossible,brief-errors,Brief,1.0,1.0,1.0,1.0
-IA5,impossible,guided,Guided,0.4,1.0,1.0,0.0
+IA5,impossible,guided,Guided,1.0,1.0,1.0,1.0
 IA5,impossible,standard,Standard,0.1417,0.6666666666666667,0.25,0.0
-IA5,impossible,record,Record,0.4,1.0,1.0,0.0
-IA5,impossible,brief-errors,Brief,0.3667,0.6666666666666667,1.0,0.0
+IA5,impossible,record,Record,1.0,1.0,1.0,1.0
+IA5,impossible,brief-errors,Brief,0.9667,0.6666666666666667,1.0,1.0
 IA7,impossible,guided,Guided,0.2583,0.3333333333333333,0.75,0.0
 IA7,impossible,standard,Standard,0.1383,0.3333333333333333,0.35,0.0
 IA7,impossible,record,Record,0.2583,0.3333333333333333,0.75,0.0
@@ -182,7 +182,7 @@ IB9,impossible,brief-errors,Brief,0.77,1.0,0.8333333333333334,0.7
 IC3,impossible,guided,Guided,0.4,1.0,1.0,0.0
 IC3,impossible,standard,Standard,0.1833,0.3333333333333333,0.5,0.0
 IC3,impossible,record,Record,0.2167,0.6666666666666667,0.5,0.0
-IC3,impossible,brief-errors,Brief,0.4,1.0,1.0,0.0
+IC3,impossible,brief-errors,Brief,1.0,1.0,1.0,1.0
 ID2,impossible,guided,Guided,0.3339,0.3392436312341828,1.0,0.0
 ID2,impossible,standard,Standard,0.0,0.0,0.0,0.0
 ID2,impossible,record,Record,0.0,0.0,0.0,0.0

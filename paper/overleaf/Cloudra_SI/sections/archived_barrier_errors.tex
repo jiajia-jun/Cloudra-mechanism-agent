@@ -7,7 +7,7 @@ For the positive targets, 156 observations were reproduced from normally termina
 
 For an observed pair, we calculate the signed difference as $(E_{\mathrm{TS}}-E_{\mathrm{ref}})\,627.509474-\Delta E^{\ddagger}_{\mathrm{Gold}}$, in kcal~mol$^{-1}$, using native Hartree energies and the frozen task-file reference. Mean absolute error (MAE), root-mean-square error (RMSE), median absolute error, and maximum absolute error have no Gaussian transformation or penalty cap. Each observed reference edge has equal weight.
 
-The intersection shared by all four workflows contains 26 reference edges from 23 positive tasks, giving 104 run--edge observations (Table~\ref{tab:si-uncapped-common}). Their native TS and reference pairs use B3LYP-D3(BJ)/def2-SVP with no explicit continuum keyword in the original input routes. These are conditional numerical comparisons on the same recoverable edges. They retain the archived matcher's target assignments, including the local-reference L2 edge, and describe neither unobserved numerical targets nor complete reaction-path support. Guided/G2 is excluded because its final structured delivery omits the numerical barrier and TS energy/log bindings, although its historical native calculations support an approximately 0.845-kcal~mol$^{-1}$ value.
+The intersection shared by all four workflows contains 26 reference edges from 23 positive tasks, giving 104 run--edge observations (Table~\ref{tab:si-uncapped-common}). Their native TS and reference pairs use B3LYP-D3(BJ)/def2-SVP with no explicit continuum keyword in the original input routes. These are numerical comparisons on the same recoverable edges. Edge assignments follow the task's specified reaction and energy-reference definitions, and the subset describes neither unobserved numerical targets nor complete reaction-path support. Guided/G2 is excluded because its final structured delivery omits the numerical barrier and TS energy/log bindings, although its historical native calculations support an approximately 0.845-kcal~mol$^{-1}$ value.
 
 \begin{table}[!htbp]
 \centering
@@ -19,7 +19,7 @@ The intersection shared by all four workflows contains 26 reference edges from 2
 Workflow & MAE & RMSE & Median absolute error & Maximum absolute error \\
 \midrule
 Guided & 1.1676 & 2.8566 & 0.0573 & 10.7826 \\
-Standard & 1.8995 & 5.0883 & 0.0574 & 21.4713 \\
+Standard & 1.54 & 4.64 & 0.0574 & 21.4713 \\
 Record & 1.5763 & 5.7082 & 0.0731 & 28.6373 \\
 Brief & 1.1310 & 2.3080 & 0.0985 & 9.0486 \\
 \bottomrule

@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "id": "FOOF",
+      "role": "reactant",
+      "smiles": [
+        "FOOF"
+      ],
+      "properties": {
+        "f_o_bond_length_angstrom": 1.485,
+        "o_o_bond_length_angstrom": 1.212,
+        "f_o_bond_dissociation_energy_kcal_mol": 43.6,
+        "f_o_o_bond_angle_degree": 108.8,
+        "dihedral_f_o_o_f_degree": 91.6,
+        "point_group": "C2 (gauche)",
+        "method": "Gaussian 16, PM7 (semiempirical), gas phase, SCF=tight, opt+freq",
+        "zero_point_corrected": "BDE D0(0 K) = 43.6 kcal/mol; dH(298.15 K) = 44.0 kcal/mol",
+        "harmonic_frequencies_cm-1": "197.1, 467.0, 538.4, 781.9, 943.5, 1057.8 (all real -> minimum)",
+        "accuracy_note": "PM7 reproduces the O-O length well (1.212 A) but over-binds the very long F-O bond (1.485 A vs about 1.575 A experimentally); the F-O BDE is therefore a semiempirical estimate, not a benchmark-quality number.",
+        "gfn2_xtb_cross_check": "F-O 1.518 A, O-O 1.211 A (GFN2-xTB geometry cross-check only; xtb total energies of isolated atoms are not reference-consistent, so no xtb BDE was used)",
+        "evidence_log": [
+          "calc/foof_tight.log",
+          "calc/foof_opt.log",
+          "calc/foof_tight.gjf",
+          "calc/f2_val.log"
+        ],
+        "pm7_validation": "PM7 validation on F2 (calc/f2_val.log): D0(F-F) = 51.7 kcal/mol vs 37.0 kcal/mol experimental, i.e. PM7 over-binds F-X bonds by ~40%; the PM7 F-O BDE of 43.6 kcal/mol probably carries a similar positive bias (a corrected estimate would be ~30 kcal/mol). D0(F2) from the same PM7 atom energies was used as the internal consistency check of the atom reference."
+      },
+      "accessible": true
+    },
+    {
+      "id": "F_OF",
+      "role": "product",
+      "smiles": [
+        "[F].[O]F"
+      ],
+      "properties": {
+        "description": "Products of homolytic F-O bond fission: free F atom (doublet) + FO radical (doublet)",
+        "r_fo_in_FO_radical_angstrom": 1.382,
+        "fo_radical_frequency_cm-1": 1207.9,
+        "f_atom_pm7_energy_hartree": "0.0301031315",
+        "fo_radical_pm7_energy_hartree": "0.0514192032",
+        "evidence_log": [
+          "calc/of_tight.log",
+          "calc/f_atom_tight.log",
+          "calc/of_opt.log",
+          "calc/f_atom_opt.log"
+        ]
+      },
+      "accessible": true
+    },
+    {
+      "id": "FO_2",
+      "role": "product",
+      "smiles": [
+        "F[O].F[O]"
+      ],
+      "properties": {
+        "description": "Products of O-O homolysis; an additional characterized channel, not the requested quantity",
+        "o_o_bond_dissociation_energy_kcal_mol": 58.7,
+        "note": "D0(0 K) = 58.7 kcal/mol, dH(298.15 K) = 59.7 kcal/mol from the same PM7 evidence",
+        "evidence_log": [
+          "calc/of_tight.log",
+          "calc/of_opt.log"
+        ]
+      },
+      "accessible": true
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "FOOF",
+      "to": "F_OF",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "barrier_kcal_mol": 43.6,
+      "channel": "homolytic F-O fission, barrierless (barrier = BDE at 0 K)",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "FOOF",
+      "to": "FO_2",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": []
+      },
+      "barrier_kcal_mol": 58.7,
+      "channel": "homolytic O-O fission, barrierless (secondary channel)",
+      "favored": false
+    }
+  ]
+}

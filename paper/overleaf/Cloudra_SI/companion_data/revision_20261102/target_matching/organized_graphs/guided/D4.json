@@ -1,0 +1,170 @@
+{
+ "nodes": [
+  {
+   "id": "sp_49eb300d",
+   "role": "reactant",
+   "smiles": [
+    "C1=CCC=C1.C=CC=O"
+   ],
+   "properties": {
+    "energy_hartree": -385.765024986,
+    "evidence_log": "round6_reactant/rc_end_b_optfreq.log",
+    "description": "Pre-reaction pi-complex of cyclopentadiene and acrolein, minimum reached from the actual IRC reactant-side outer frame: unconstrained Opt+Freq started from the harness-exported outer frame, normal termination, Stationary point found, 0 imaginary frequencies (lowest 35.6 cm-1). Stacked complex (closest diene-dienophile contacts C2...C6 3.19 A, C4...C7 3.34 A; C1=C2 1.35, C6=C7 1.34, C8=O 1.21 A; no new sigma bond). Identical to the independently optimized rc_complex/rc_scis_endo.log minimum (delta 5e-8 Ha, distance-multiset max 0.004 A). Barrier reference for the cycloaddition edge.",
+    "alternative_evidence_log": "endpoint_opt/rc_from_irc_end_optfreq.log"
+   },
+   "name": "Reactant Complex",
+   "dag_id": "sp_49eb300d",
+   "alias": "RC"
+  },
+  {
+   "id": "TS1",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -385.74807781,
+    "evidence_log": "round6_ts2/ts_optfreq.log",
+    "description": "Concerted but strongly asynchronous [4+2] saddle: normal termination, Stationary point found, exactly one imaginary frequency -445.93 cm-1. Mode composition (native mode data): dominated by C6 (0.35) and C2 (0.31) with pair projections C2-C6 = 1.148 and C4-C7 = 0.495, i.e. one new C-C bond well advanced while the second contributes about half as much. It is ONE saddle connecting the pi-complex to the product along one path with no intermediate - concerted in the topological sense, NOT a symmetric synchronous two-bond formation. Geometry: d(C2-C6)=2.02 A, d(C4-C7)=2.57 A, d(C1-C5)=1.41 A, d(C6-C7)=1.40 A. B3LYP-D3(BJ)/def2-SVP, gas phase.",
+    "alternative_evidence_log": "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log"
+   },
+   "name": "TS_endo"
+  },
+  {
+   "id": "sp_c23d94d2",
+   "role": "product",
+   "smiles": [
+    "O=CC1CC2C=CC1C2"
+   ],
+   "properties": {
+    "energy_hartree": -385.79995623,
+    "evidence_log": "round6_product/prod_end_a_optfreq.log",
+    "description": "5-Norbornene-2-carbaldehyde product minimum (bicyclo[2.2.1]hept-5-ene-2-carbaldehyde) reached from the actual IRC product-side outer frame (combined Opt+Freq: normal termination, Stationary point found, 0 imaginary frequencies over 51 modes, lowest 72.62 cm-1, E = -385.799956230 Ha; reproduced exactly by round6_product/prod_end_a_optfreq.log started on the harness-exported end-a frame, distance-multiset deviation 0.0000 A). Lowest verified product minimum on disk (0.67 kcal/mol below product_min/endo_product_B_optfreq.log, 0.32 below product_min/endo_product_optfreq.log). Descriptors, quoted instead of an endo/exo LABEL: fixed-role chirality volume at CH(CHO) = +2.738 (job 16 +2.648, the exo adduct -2.905); formyl O...former dienophile C=C 3.78/3.48 A; O...C7 2.42 A, dihedral O-C8-C7-C6 = 1.1 deg; new sigma bonds 1.563/1.564 A, retained C1=C5 1.343 A, bridgehead-bridgehead 2.252 A.",
+    "alternative_evidence_log": "endpoint_opt/prod_from_irc_end_optfreq.log"
+   },
+   "name": "Product",
+   "dag_id": "sp_c23d94d2",
+   "alias": "P"
+  },
+  {
+   "id": "RC_exo",
+   "role": "reactant",
+   "smiles": [
+    "C1=CCC=C1.C=CC=O"
+   ],
+   "properties": {
+    "energy_hartree": -385.765951485,
+    "evidence_log": "ts/ts_0002/jobs/declaration_0007/reactant_frequency/reactant_frequency.log",
+    "description": "Exo-channel pre-reaction pi-complex reached from the exo IRC reactant-side outer frame (Opt+Freq, normal termination, 0 imaginary frequencies); E = -385.765951485 Ha."
+   },
+   "name": "Reactant Complex (exo)"
+  },
+  {
+   "id": "TS_exo",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -385.747972557,
+    "evidence_log": "ts/ts_0002/jobs/declaration_0005/frequency/frequency.log",
+    "description": "Second, distinct first-order saddle of the same [4+2] reaction with the formyl anti to the diene (O...C1 = 4.79 A, O...C5 = 4.55 A; TS1: 3.13/3.01 A); exactly one imaginary frequency -430.10 cm-1; d(C2-C6) = 2.06, d(C4-C7) = 2.48, d(C1-C5) = 1.40 A. Distinct from TS1 (distance multiset max 0.40 A / mean 0.036 A); its normally terminated IRC (declaration_0006, 30/30 points, point-limited) reaches the P_exo configuration on the product side."
+   },
+   "name": "TS_exo"
+  },
+  {
+   "id": "P_exo",
+   "role": "product",
+   "smiles": [
+    "O=CC1CC2C=CC1C2"
+   ],
+   "properties": {
+    "energy_hartree": -385.800675133,
+    "evidence_log": "ts/ts_0002/jobs/declaration_0007/product_frequency/product_frequency.log",
+    "description": "Exo-channel product minimum reached from the exo IRC product-side outer frame (Opt+Freq, normal termination, 0 imaginary frequencies); E = -385.800675133 Ha, the most stable product minimum found (0.45 kcal/mol below the endo-channel product minimum P)."
+   },
+   "name": "Product (exo)"
+  }
+ ],
+ "edges": [
+  {
+   "id": "step_4b1e2415",
+   "from": "sp_49eb300d",
+   "to": "sp_c23d94d2",
+   "via": "TS1",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      2
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      6,
+      7
+     ]
+    ],
+    "form": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      4,
+      7
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 10.63,
+   "channel": "concerted [4+2] (endo approach)",
+   "favored": true,
+   "note": "Delivered endo channel. Single elementary step: one first-order saddle, one IRC path, no intermediate. The saddle is strongly asynchronous (imaginary mode -445.9261 cm-1 dominated by C2-C6, pair projection 1.148, with about half as much C4-C7, 0.495), not a symmetric synchronous two-bond formation. Certifications: ts_opt and frequency PASS on the single-job logs (ts_file round6_ts2/ts_optfreq.log: normal termination, Stationary point found, E = -385.748077810 Ha, exactly one imaginary frequency -445.9261 cm-1, 50 real modes, geometry and frequency in one annotated job); IRC ts/ts_0001/jobs/declaration_0004/irc/irc.log is normally terminated with 25 forward + 25 reverse points (RxCoord -3.92 -> +3.92) as POINT-LIMITED interval evidence, not a converged path. Both outer frames optimize as single-job combined Opt+Freq to frequency-verified minima: source round6_reactant/rc_end_b_optfreq.log (-385.765024986 Ha, 0 imaginary, lowest 35.56 cm-1, started at 0.0000 A from the harness canonical end-b frame) and target round6_product/prod_end_a_optfreq.log (-385.799956230 Ha, 0 imaginary, lowest 72.62 cm-1, started at 0.0000 A from the canonical end-a frame). Barrier dE = E(TS) - E(RC) = 0.016947 Ha = 10.63 kcal/mol with the endo-channel complex as reference; a verified conformer of the same dot-joined complex lies 0.58 kcal/mol lower, so under the 'lowest minimum including connected conformers' reading the barrier would be 11.22 kcal/mol (about 0.6 kcal/mol reference ambiguity). Reaction dE = -21.9 kcal/mol. RESIDUAL GAP, reported and not waived: the harness short_irc stage cannot be certified because it resolves its endpoint candidates from the run declaration's endpoint stage (.cloudra/evidence/24b7e729d21bd49d_reactant_opt.log and f72c083371de40c7_product_opt.log, the ts_prepare split Opt jobs, which contain no frequency block by construction) and the plain IRC snapshot as a 'TS candidate ... n_imag=None', instead of the combined annotated logs that are bound in the step's endpoint_refs and accepted as the Reactant Complex and Product species evidence. Four controlled rounds with identical minima (0.0000 A frame start, identical energies) reproduced the same message, and the same product log passes the species-level zero-imaginary geometry check in the same harness. No log was relabelled, substituted or re-described. The multi-link parsing defect is limited to chained_ts_irc/chained_tsfreq_irc.log and does NOT affect ts_opt or frequency.",
+   "name": "Diels-Alder cycloaddition (endo)",
+   "dag_id": "step_4b1e2415"
+  },
+  {
+   "id": "e2",
+   "from": "RC_exo",
+   "to": "P_exo",
+   "via": "TS_exo",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      2
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      6,
+      7
+     ]
+    ],
+    "form": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      4,
+      7
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 11.28,
+   "channel": "exo approach (diastereofacial alternative)",
+   "favored": false,
+   "note": "Exploratory alternative channel, outside the declared delivery scope. TS_exo is a genuine distinct first-order saddle (vs TS1: permutation-invariant interatomic-distance multiset max 0.40 A / mean 0.036 A; one imaginary frequency -430.10 cm-1; E = -385.747972557 Ha). The normally terminated (point-limited, 30/30 points) exo IRC ts/ts_0002/jobs/declaration_0006/irc/irc.log gives a product-side outer frame that matches P_exo (product_min/endo_product_optfreq.log) with max 0.305 A / mean 0.026 A, i.e. the same configuration, and differs from the endo product (max 0.540 A / mean 0.214 A). The reactant-side outer frame matches the exo-type complex (max 0.249 A / mean 0.088 A vs rc_scis_exo). Barriers: endo-type 10.63 vs exo-type 11.28 kcal/mol against their own channel complexes; this 0.65 kcal/mol ordering is qualitative only at B3LYP-D3(BJ)/def2-SVP and is not a quantitative selectivity claim.",
+   "name": "Diels-Alder cycloaddition (exo)"
+  }
+ ]
+}

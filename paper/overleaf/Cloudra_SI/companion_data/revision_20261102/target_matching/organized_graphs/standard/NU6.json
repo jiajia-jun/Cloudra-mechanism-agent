@@ -1,0 +1,112 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=C=O.C=N"
+      ],
+      "properties": {
+        "energy_hartree": -247.061426688,
+        "evidence_log": "sp/rc_optfreq.log",
+        "note": "pre-reaction complex (ketene + methanimine); genuine minimum, lowest real mode 26.7 cm-1; 5.4 kcal/mol below the separated monomers (-247.0528457)"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -247.056018732,
+        "evidence_log": "stepwise/ts1b_n5c2.log",
+        "note": "N5-C2 bond-forming saddle (Opt=TS,CalcFC,NoEigenTest + Freq); 1 imaginary frequency -283.4 cm-1 whose mode is dominated by the C2-N5 pair; bracketed by a relaxed scan at +2.50 vs ZW"
+      }
+    },
+    {
+      "id": "ZW",
+      "role": "intermediate",
+      "smiles": [
+        "C=C([O-])[NH+]=C"
+      ],
+      "properties": {
+        "energy_hartree": -247.060061092,
+        "evidence_log": "stepwise/zw_optfreq.log",
+        "note": "iminium/enolate zwitterion; genuine minimum, lowest real mode 195.3 cm-1"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -247.030042357,
+        "evidence_log": "stepwise/ts2_ringclosure_C1C4.log",
+        "note": "ring-closure saddle; 1 imaginary frequency -450.2 cm-1 (C1-C4 forming mode, r(C1-C4)=2.41 A); IRC in stepwise/irc_ts2_v2.log connects the zwitterion and the lactam"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=C1CCN1"
+      ],
+      "properties": {
+        "energy_hartree": -247.119105221,
+        "evidence_log": "sp/prod_optfreq.log",
+        "note": "2-azetidinone; genuine minimum"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "ZW",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 3.39,
+      "channel": "stepwise: N5 attack on the ketene carbonyl carbon C2",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "ZW",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 18.84,
+      "channel": "stepwise: ring closure (C1-C4 bond formation), rate-determining",
+      "favored": true
+    }
+  ]
+}

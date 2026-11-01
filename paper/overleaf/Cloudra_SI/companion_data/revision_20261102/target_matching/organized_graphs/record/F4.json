@@ -1,0 +1,91 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[BH3].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -141.041124692,
+        "evidence_log": "rc_min_m.log",
+        "imaginary_frequencies": 0,
+        "additional_evidence_logs": [
+          "irc_end_rc_optfreq.log",
+          "ircb_end_rc_optfreq.log"
+        ],
+        "note": "Pre-reaction Lewis adduct H3B<-O=CH2 (B-O 1.666 A, C=O 1.217 A); lowest-energy minimum of a four-start conformer survey. Two IRC-endpoint re-optimizations from the bidirectional IRC outer frames reproduce the same minimum (E = -141.041123993 Ha)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "[BH3].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -141.015601126,
+        "evidence_log": "ts1_optfreq_v2.log",
+        "imaginary_frequencies": 1,
+        "imaginary_wavenumber_cm1": -398.5917,
+        "note": "Four-membered B-H-C-O hydride-transfer saddle: B-O 1.772, C-O 1.235, B-H(hydride) 1.238, H...C 2.134 A. Imaginary mode is the B-H breaking / C-H forming coordinate. Reproduced independently in the ts_prepare run (-398.5894 cm-1)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "COB"
+      ],
+      "properties": {
+        "energy_hartree": -141.113508748,
+        "evidence_log": "p_conf1.log",
+        "imaginary_frequencies": 0,
+        "additional_evidence_logs": [
+          "irc_end_p_optfreq.log",
+          "ircb_end_p_optfreq.log"
+        ],
+        "note": "Methoxyborane CH3-O-BH2: B-O 1.340 A, C-O 1.415 A, B...H(hydride) 3.14 A. Four rotamers surveyed; single relevant minimum. IRC-endpoint re-optimizations reproduce it at E = -141.113509073 Ha."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.02,
+      "channel": "hydride transfer (concerted, four-membered B-H-C-O ring)",
+      "favored": true,
+      "properties": {
+        "reaction_energy_kcal_mol": -45.42,
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, Gaussian 16 (opt+freq, IRC)",
+        "irc_log": "irc_both.log",
+        "irc_forward_log": "irc_fwd2.log",
+        "irc_reverse_log": "irc_rev2.log",
+        "endpoint_source_log": "ircb_end_rc_optfreq.log",
+        "endpoint_target_log": "ircb_end_p_optfreq.log",
+        "note": "Bidirectional IRC (26 frames per direction) from the verified saddle: one side relaxes to the H3B<-O=CH2 adduct, the other to CH3-O-BH2; outer frames re-optimized with frequencies give 0-imaginary minima identical to RC and P."
+      }
+    }
+  ]
+}

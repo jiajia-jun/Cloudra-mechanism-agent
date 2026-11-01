@@ -1,0 +1,207 @@
+{
+ "nodes": [
+  {
+   "id": "RC_threo",
+   "role": "reactant",
+   "smiles": [
+    "C[C@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1"
+   ],
+   "properties": {
+    "name": "threo-(2S,3R) N,N-dimethyl-3-phenyl-2-butylamine oxide, lowest verified minimum (electronically isolated, gas phase); reference for this channel only",
+    "energy_hartree": -598.233321656,
+    "evidence_log": "threo/dft/sub_c1.log",
+    "imaginary_frequencies": [],
+    "n_real_modes": 93,
+    "cip_from_geometry": "(2S,3R) = threo"
+   }
+  },
+  {
+   "id": "TS_threo",
+   "role": "transition_state",
+   "smiles": [
+    "C[C@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1"
+   ],
+   "properties": {
+    "name": "threo syn-elimination TS (concerted, 5-membered ring O-H15-C7-C2-N3)",
+    "energy_hartree": -598.208059069,
+    "evidence_log": "threo/dft/ts2.log",
+    "imaginary_frequency_cm1": -1068.454,
+    "n_imaginary": 1,
+    "ts_geometry": "r(C2-N3)=2.097 A, r(C7-H15)=1.328 A, r(O6-H15)=1.280 A, r(C2=C7)=1.431 A, dih(N3-C2-C7-H15)=-2.7 deg (syn-periplanar)"
+   }
+  },
+  {
+   "id": "P_threo",
+   "role": "product",
+   "smiles": [
+    "C/C=C(\\C)c1ccccc1.CN(C)O"
+   ],
+   "properties": {
+    "name": "products of the threo channel: (E)-2-phenyl-2-butene + dimethylhydroxylamine (the two fragments do not form a bound complex in the gas phase at this level of theory, so the evidence is given per component species)",
+    "energy_hartree": -388.042170053,
+    "evidence_log": "threo/dft/prod_alkE.log",
+    "energy_scope": "electronic energy of the (E)-alkene component as delivered in this log",
+    "component_evidence_log": [
+     "threo/dft/prod_alkE.log",
+     "threo/dft/prod_amine.log"
+    ],
+    "component_energies_hartree": {
+     "C/C=C(\\C)c1ccccc1": -388.042170053,
+     "CN(C)O": -210.188833713
+    },
+    "ez_evidence": "dih C1(Me-on-C2)-C2=C3-Cipso(Ph) = -179.5 deg in threo/dft/prod_alkE.log (the (Z) reference threo/dft/prod_alkZ.log gives +3.5 deg) => E"
+   }
+  },
+  {
+   "id": "RC_erythro",
+   "role": "reactant",
+   "smiles": [
+    "C[C@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1"
+   ],
+   "properties": {
+    "name": "erythro-(2S,3S) N,N-dimethyl-3-phenyl-2-butylamine oxide, lowest verified minimum; reference for this channel only",
+    "energy_hartree": -598.235079154,
+    "evidence_log": "erythro/dft/sub_c3.log",
+    "imaginary_frequencies": [],
+    "n_real_modes": 93,
+    "cip_from_geometry": "(2S,3S) = erythro"
+   }
+  },
+  {
+   "id": "TS_erythro",
+   "role": "transition_state",
+   "smiles": [
+    "C[C@H]([N+](C)(C)[O-])[C@@H](C)c1ccccc1"
+   ],
+   "properties": {
+    "name": "erythro syn-elimination TS (concerted, 5-membered ring O-H3-C3-C2-N)",
+    "energy_hartree": -598.208585414,
+    "evidence_log": "erythro/ts/ts1.log",
+    "imaginary_frequency_cm1": -938.0024,
+    "n_imaginary": 1,
+    "ts_geometry": "r(C2-N)=2.140 A, r(C3-H3)=1.310 A, r(O-H3)=1.289 A, r(C2=C3)=1.426 A, dih(N-C2-C3-H)=1.06 deg (syn-periplanar), dih(C1-C2-C3-Ph)=+3.6 deg"
+   }
+  },
+  {
+   "id": "P_erythro",
+   "role": "product",
+   "smiles": [
+    "C/C=C(/C)c1ccccc1.CN(C)O"
+   ],
+   "properties": {
+    "name": "products of the erythro channel: (Z)-2-phenyl-2-butene + dimethylhydroxylamine (evidence per component species)",
+    "energy_hartree": -388.041751598,
+    "evidence_log": "erythro/prod2/alkene.log",
+    "energy_scope": "electronic energy of the (Z)-alkene component as delivered in erythro/prod2/alkene.log; the two fragments of the erythro product-side relaxation were optimised separately (0 imaginary frequencies each)",
+    "component_evidence_log": [
+     "erythro/prod2/alkene.log",
+     "erythro/prod2/amine.log"
+    ],
+    "component_energies_hartree": {
+     "C/C=C(/C)c1ccccc1": -388.041751598,
+     "CN(C)O": -210.188833719
+    },
+    "ez_evidence": "RDKit AssignStereochemistryFrom3D on the optimised geometry in erythro/prod2/alkene.log returns STEREOZ; dihedral Me(C2)-C2=C3-Ph(ipso) = +3.5 deg, r(C=C) = 1.347 A; the same dihedral is +1.2 to +3.7 deg in the erythro product-side relaxation erythro/ep/prod_side.log => (Z)-2-phenyl-2-butene"
+   }
+  },
+  {
+   "id": "TS_regio_threo",
+   "role": "transition_state",
+   "smiles": [
+    "C[C@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1"
+   ],
+   "properties": {
+    "name": "EXPLORATORY, NOT A VERIFIED SADDLE POINT: alternative regioisomeric elimination (C2-N3 cleavage with H transfer from the C1 methyl to O6, giving 3-phenylbut-1-ene + Me2N-OH). Search did not converge; highest sampled electronic energy quoted.",
+    "energy_hartree": -598.156542049,
+    "evidence_log": "threo/dft/tsreg.log",
+    "verified_saddle": false
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e_threo_syn",
+   "from": "RC_threo",
+   "to": "P_threo",
+   "via": "TS_threo",
+   "bond_changes": {
+    "break": [
+     [
+      2,
+      3
+     ],
+     [
+      7,
+      15
+     ]
+    ],
+    "form": [
+     [
+      2,
+      7
+     ],
+     [
+      6,
+      15
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 15.85,
+   "channel": "syn (Cope, 5-membered) elimination of the threo (2S,3R) amine oxide -> (E)-2-phenyl-2-butene + Me2N-OH",
+   "favored": true
+  },
+  {
+   "id": "e_erythro_syn",
+   "from": "RC_erythro",
+   "to": "P_erythro",
+   "via": "TS_erythro",
+   "bond_changes": {
+    "break": [
+     [
+      2,
+      3
+     ],
+     [
+      7,
+      15
+     ]
+    ],
+    "form": [
+     [
+      2,
+      7
+     ],
+     [
+      6,
+      15
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 16.62,
+   "channel": "syn (Cope, 5-membered) elimination of the erythro (2S,3S) amine oxide -> (Z)-2-phenyl-2-butene + Me2N-OH",
+   "favored": false
+  },
+  {
+   "id": "e_threo_regio",
+   "from": "RC_threo",
+   "to": "P_threo",
+   "via": "TS_regio_threo",
+   "bond_changes": {
+    "break": [
+     [
+      2,
+      3
+     ]
+    ],
+    "form": [
+     [
+      1,
+      2
+     ]
+    ]
+   },
+   "channel": "alternative regioisomeric elimination (Hofmann-type, C1=C2) giving 3-phenylbut-1-ene + Me2N-OH; NOT a verified saddle point, no barrier declared (highest sampled point ~31 kcal/mol above RC_threo, i.e. strongly disfavoured)",
+   "favored": false
+  }
+ ]
+}

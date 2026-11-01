@@ -1,0 +1,105 @@
+{
+ "nodes": [
+  {
+   "id": "RC",
+   "role": "reactant",
+   "smiles": [
+    "N=N.C=C"
+   ],
+   "properties": {
+    "energy_hartree": -189.098621313,
+    "evidence_log": "work/stepwise/RC2_optfreq.log",
+    "note": "Pre-reaction complex: cis(Z)-HN=NH + C2H4 in one non-covalent complex (single Gaussian job, opt+freq, 0 imaginary frequencies, normal termination). Lowest-energy verified reactant-complex minimum in the project evidence (a second, 2.6 kcal higher conformer is work/concerted/RC_seed_optfreq.log at -189.094517955).",
+    "method": "B3LYP-D3(BJ)/def2-SVP (B3LYP/def2SVP EmpiricalDispersion=GD3BJ), Gaussian 16, gas phase, charge 0, singlet"
+   }
+  },
+  {
+   "id": "TS1",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "energy_hartree": -189.093173116,
+    "evidence_log": "work/concerted/TS1b_optfreq.log",
+    "imaginary_frequency_cm": -449.3928,
+    "note": "Concerted synchronous double H transfer; symmetric six-membered-ring-like TS, r(H3-C5)=r(H4-C6)=1.687 A, r(N1-H3)=1.130, r(N2-H4)=1.129, r(N1-N2)=1.197, r(C5-C6)=1.371 A. Exactly one imaginary frequency (-449.4 cm-1) with both H...C pairs carrying the mode equally (pair projections 3-5 = 0.860, 4-6 = 0.860).",
+    "irc_note": "IRC (calcfc) from this TS, work/concerted/IRC_TS1_lowres.log: reverse branch (12 points) ends at E = -189.094543 Ha = the RC complex region (straddling conformer work/concerted/RC_seed_optfreq.log, -189.094517955); forward branch (25 points, point limit) descends to E = -189.205983 Ha on the N2 + C2H6 side. Direction of the connection is therefore RC -> N2 + C2H6.",
+    "irc_endpoint_a": {
+     "log": "work/concerted/IRCendA_RC_optfreq.log",
+     "energy_hartree": -189.09451798,
+     "note": "Reverse IRC outer frame re-optimized (opt+freq, 0 imaginary frequencies, normal termination) = the cis-diimide + C2H4 pre-reaction complex minimum (r(H3-C5)=r(H4-C6)~2.03 A, N1-N2 1.22, C5-C6 1.35)."
+    },
+    "irc_endpoint_b": {
+     "log": "work/concerted/IRCendB_P2_optfreq.log",
+     "energy_hartree": -189.219234192,
+     "note": "Forward IRC outer frame displaced 60 deg off the floppy N2-ethane libration and re-optimized unconstrained (0 imaginary frequencies, normal termination) = the N2 + C2H6 product-complex minimum, identical to node P (work/concerted/P2_optfreq.log) to 1e-9 Ha. Raw IRC endpoint energy -189.205983 Ha (work/concerted/IRC_TS1_lowres.log)."
+    }
+   }
+  },
+  {
+   "id": "P",
+   "role": "product",
+   "smiles": [
+    "N#N.CC"
+   ],
+   "properties": {
+    "energy_hartree": -189.219234191,
+    "evidence_log": "work/concerted/P2_optfreq.log",
+    "note": "Product state N2 + C2H6 in one complex (single Gaussian job, opt+freq, 0 imaginary frequencies, normal termination). An earlier product-complex optimization (work/concerted/P_optfreq.log) retained one -24.4 cm-1 intermolecular libration; this displaced-start re-optimization is the clean minimum.",
+    "irc_endpoint_note": "forward IRC endpoint -189.205983 Ha (work/concerted/IRC_TS1_lowres.log) is on the way to this product complex; P is the fully optimized N2 + C2H6 minimum."
+   }
+  },
+  {
+   "id": "INT_diazetidine",
+   "role": "intermediate",
+   "smiles": [
+    "C1NNC1"
+   ],
+   "properties": {
+    "energy_hartree": -189.102284747,
+    "evidence_log": "work/stepwise/INT4_optfreq.log",
+    "note": "Extra pathway that was investigated and rejected: 1,2-diazetidine (four-membered ring N1-N2-C6-C5) is a genuine minimum (0 imaginary frequencies) only 2.3 kcal/mol below RC, but no first-order saddle connects it to either RC or P at this level (ring-closure ridge sampled +39 to +46 kcal/mol above RC; N-H -> C-H retro transfer is monotonic, >= +72 kcal/mol above INT). No elementary step is therefore attached to this node; see PROCESS.md and work/stepwise/REPORT.md."
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e1",
+   "from": "RC",
+   "to": "P",
+   "via": "TS1",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      3
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "form": [
+     [
+      3,
+      5
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      1,
+      2
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 3.4,
+   "channel": "concerted",
+   "favored": true
+  }
+ ]
+}

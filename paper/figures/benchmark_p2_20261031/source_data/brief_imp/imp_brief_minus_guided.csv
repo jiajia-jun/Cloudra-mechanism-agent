@@ -1,10 +1,10 @@
 task,task_name,brief_final,guided_final,brief_minus_guided,task_winner,delta_graph_weighted,delta_selfc_weighted,delta_accuracy_weighted,brief_accuracy,guided_accuracy,same_accuracy,brief_repair,guided_repair
 IA1,cyclobutadiene D4h automerization,1.0,0.1717,0.8283,brief-errors,0.033333333333333326,0.195,0.6,1.0,0.0,False,none,none
-IA5,cyclobutene disrotatory ring opening,0.3667,0.4,-0.033299999999999996,guided,-0.033333333333333326,0.0,0.0,0.0,0.0,True,none,none
+IA5,cyclobutene disrotatory ring opening,0.9667,1.0,-0.033299999999999996,guided,-0.033333333333333326,0.0,0.0,1.0,1.0,True,none,none
 IA7,"Bergman cyclization of (Z)-hex-3-ene-1,5-diyne",0.2583,0.2583,0.0,tie,0.0,0.0,0.0,0.0,0.0,True,none,none
-IA9,"1,2-dioxetane thermolysis to two formaldehyde",0.9333,0.3667,0.5666,brief-errors,-0.03333333333333334,0.0,0.6,1.0,0.0,False,none,none
+IA9,"1,2-dioxetane thermolysis to two formaldehyde",0.9333,0.3667,0.5666,brief-errors,-0.03333333333333335,0.0,0.6,1.0,0.0,False,none,none
 IB9,diazomethane and ethylene to cyclopropane via 1-pyrazoline,0.77,0.82,-0.04999999999999993,guided,0.0,-0.04999999999999999,0.0,0.7,0.7,True,none,none
-IC3,phenylnitrene open-shell singlet state,0.4,0.4,0.0,tie,0.0,0.0,0.0,0.0,0.0,True,reference_repair,none
+IC3,phenylnitrene open-shell singlet state,1.0,0.4,0.6,brief-errors,0.0,0.0,0.6,1.0,0.0,False,reference_repair,none
 ID2,anomalous bonding in dioxygen difluoride (FOOF),0.1839,0.3339,-0.14999999999999997,guided,0.0,-0.15,0.0,0.0,0.0,True,none,none
 IE2,nitrogen triple-bond dissociation curve,0.1833,0.3333,-0.15,guided,0.0,-0.15,0.0,0.0,0.0,True,none,none
 IF3,triangulene triplet ground state and singlet-triplet gap,0.4,0.3667,0.033299999999999996,brief-errors,0.033333333333333326,0.0,0.0,0.0,0.0,True,none,none

@@ -1,0 +1,69 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[CH2]=[O+][BH3-]"
+      ],
+      "properties": {
+        "energy_hartree": -141.041124147,
+        "evidence_log": "jobs/RC_rot60_optfreq.log",
+        "description": "Lewis acid-base pre-reaction complex H2C=O->BH3 (single dot-free bound complex; B-O 1.61 A, C=O 1.22 A, C...H(B) 2.62 A). B3LYP-D3(BJ)/def2-SVP, gas phase, 18 real frequencies, 0 imaginary. Lowest verified conformer of the adduct; the planar Cs arrangement is a BH3-libration saddle (-211.6 cm-1) and was discarded."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "[CH2]=[O+][BH3-]"
+      ],
+      "properties": {
+        "energy_hartree": -141.015601449,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "description": "Four-centre B-H-C-O hydride-transfer saddle. The declared SMILES is the reacting-system connectivity (the same Lewis-adduct connectivity as RC, since the saddle is a point on that PES and no single bond-order assignment describes it); the node's identity is fixed by its native evidence. C=O 1.234, B-O 1.772, B-H8 1.238, C...H8 2.136 A; exactly one imaginary frequency -398.9 cm-1 (next real mode 186.0 cm-1) dominated by the hydride moving from B3 to C1; OptTS log ts/ts_0001/jobs/declaration_0006/ts_opt/refine.log; bidirectional IRC ts/ts_0001/jobs/declaration_0006/irc/irc.log connects RC and P."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "COB"
+      ],
+      "properties": {
+        "energy_hartree": -141.113508758,
+        "evidence_log": "jobs/P_optfreq2.log",
+        "description": "Methoxyborane H2B-O-CH3 (C-O 1.416 A, O-B 1.341 A), B3LYP-D3(BJ)/def2-SVP gas phase, 18 real frequencies, 0 imaginary."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.02,
+      "channel": "hydride_transfer",
+      "favored": true
+    }
+  ]
+}

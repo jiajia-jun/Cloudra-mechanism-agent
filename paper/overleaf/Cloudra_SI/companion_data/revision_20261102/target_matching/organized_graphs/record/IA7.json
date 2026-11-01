@@ -1,0 +1,79 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C#C/C=C\\C#C"
+      ],
+      "properties": {
+        "energy_hartree_pm7": 0.201059781868,
+        "level_of_theory": "Gaussian16 PM7 (RPM7), gas phase, charge 0, singlet",
+        "evidence_log": [
+          "rc/rc_opt.log",
+          "irc_end/end_a_rc_opt.log"
+        ],
+        "note": "Isolated (Z)-hex-3-ene-1,5-diyne minimum; unimolecular reaction, so this minimum is the pre-reaction (reactant) state. Lowest-energy verified minimum (0 imaginary frequencies, 24 real modes, lowest 107.8 cm-1). A second starting conformer (rc2/conf2_opt.log, rotated 180 deg about C2-C3) relaxed back to the same minimum."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree_pm7": 0.250763421904,
+        "imaginary_frequency_cm1": -427.9159,
+        "evidence_log": [
+          "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+          "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log"
+        ],
+        "note": "Single imaginary mode -427.92 cm-1 dominated by C1...C6 closing (each 0.349 of the squared displacement). TS geometry: C1-C6 1.578, C1-C2 = C5-C6 1.297, C2-C3 = C4-C5 1.357, C3-C4 1.429 A."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "[c]1cc[c]cc1"
+      ],
+      "properties": {
+        "energy_hartree_pm7": 0.25045822305,
+        "reaction_energy_kcal_mol": 31,
+        "evidence_log": [
+          "prod/prod_opt.log",
+          "irc_end/end_b_prod_opt.log"
+        ],
+        "note": "p-benzyne (1,4-didehydrobenzene) minimum, 0 imaginary frequencies (24 real modes, lowest 346.6 cm-1). Radical centres at the two didehydro carbons (map atoms 2 and 5 in the reactant numbering; ring positions 1 and 4 of the product). PM7 is a closed-shell semiempirical description, so the biradical is represented by one closed-shell determinant."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.19,
+      "channel": "concerted Bergman cyclization (single elementary step)",
+      "favored": true
+    }
+  ]
+}

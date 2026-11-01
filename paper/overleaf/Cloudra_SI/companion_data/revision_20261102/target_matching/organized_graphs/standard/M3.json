@@ -1,0 +1,55 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5106949583,
+        "evidence_log": "nh3_min/nh3_min.log",
+        "note": "gas-phase NH3 minimum (C3v, pyramidal), B3LYP-D3(BJ)/def2-SVP opt+freq, 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5012517266,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/ts_opt/refine.log",
+        "imaginary_frequency_cm": -830.8,
+        "note": "planar D3h umbrella-inversion saddle, one imaginary frequency (-830.8 cm^-1) with all three H and N displaced"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.510694959,
+        "evidence_log": "nh3_prod/nh3_prod.log",
+        "note": "inverted NH3 minimum, identical to RC by symmetry, 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 5.93,
+      "channel": "umbrella inversion (single-step, degenerate reactant/product)"
+    }
+  ]
+}

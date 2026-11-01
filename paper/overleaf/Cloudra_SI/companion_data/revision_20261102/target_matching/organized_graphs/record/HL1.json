@@ -1,0 +1,151 @@
+{
+  "nodes": [
+    {
+      "id": "RC_exo",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "label": "exo-face pre-reaction (contact) complex: HCNO stacked over the C4=C5 face on the same side as the C10 methano bridge",
+        "channel": "exo",
+        "energy_hartree": -441.019350284,
+        "evidence_log": "work/gjf/rc_exo_optfreq_c.log",
+        "geometry": "d(C1...C5)=3.59 A, d(O3...C4)=3.26 A, alkene C4=C5=1.34 A; 0 imaginary frequencies (lowest 3 modes -0.7 cm-1, numerical noise)",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, charge 0, multiplicity 1"
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "exo-face concerted (asynchronous) 1,3-dipolar cycloaddition saddle point",
+        "channel": "exo",
+        "energy_hartree": -441.002183897,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log",
+        "imaginary_frequency_cm1": -375.54,
+        "geometry": "C1-C5=2.26 A, O3-C4=2.47 A, C4=C5=1.38 A; dipole syn to the C10 bridge (exo face); single imaginary mode is the coupled C1-C5/O3-C4 formation",
+        "barrier_kcal_mol": 10.77,
+        "reference": "RC_exo (own contact minimum, -441.019350284 Ha)"
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12"
+      ],
+      "properties": {
+        "label": "exo cycloadduct: 2-isoxazoline ring fused cis at C4-C5 and syn to the C10 methano bridge (exo); this is the enantiomer actually reached from the exo saddle. Its mirror image C1=NO[C@@H]2[C@H]3CC[C@H](C3)[C@H]12 (work/gjf/p_exo_optfreq.log, E=-441.098273570 Ha) is formed equally (racemic).",
+        "channel": "exo",
+        "energy_hartree": -441.098273071,
+        "evidence_log": "work/gjf/p_exo_enf_optfreq.log",
+        "stereo_assignment": "RDKit AssignStereochemistryFrom3D on this optimised geometry gives C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12; the isoxazoline ring lies on the same side of the C4-C5-C6-C9 plane as C10 (exo)",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, charge 0, multiplicity 1"
+      }
+    },
+    {
+      "id": "RC_endo",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "label": "endo-face pre-reaction (contact) complex: HCNO stacked over the C4=C5 face anti to the C10 methano bridge",
+        "channel": "endo",
+        "energy_hartree": -441.020086813,
+        "evidence_log": "work/gjf/rc_endo_optfreq.log",
+        "geometry": "d(C1...C5)=3.59 A, d(O3...C4)=3.26 A, alkene C4=C5=1.34 A; 0 imaginary frequencies",
+        "note": "the IRC reactant endpoint of the same minimum is -441.020095464 Ha (ts/ts_0001/jobs/declaration_0004/reactant_frequency/reactant_frequency.log); the contact conformers differ by 0.46 kcal/mol (endo lower) and are compared separately from the barriers",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, charge 0, multiplicity 1"
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "endo-face concerted (asynchronous) 1,3-dipolar cycloaddition saddle point",
+        "channel": "endo",
+        "energy_hartree": -440.99431665,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+        "imaginary_frequency_cm1": -426.17,
+        "geometry": "C1-C5=2.21 A, O3-C4=2.48 A, C4=C5=1.38 A; dipole anti to the C10 bridge (endo face); IRC (ts/ts_0001/jobs/declaration_0004/irc/irc.log) is monotonic in both branches, i.e. no intermediate on this pathway",
+        "barrier_kcal_mol": 16.17,
+        "reference": "RC_endo (own contact minimum, -441.020086813 Ha)"
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12"
+      ],
+      "properties": {
+        "label": "endo cycloadduct: 2-isoxazoline ring fused cis at C4-C5 and anti to the C10 methano bridge (endo); enantiomer C1=NO[C@H]2[C@H]3CC[C@H](C3)[C@@H]12 formed equally",
+        "channel": "endo",
+        "energy_hartree": -441.09568936,
+        "evidence_log": "work/gjf/p_endo_optfreq.log",
+        "stereo_assignment": "RDKit AssignStereochemistryFrom3D on the optimised geometry reproduces this SMILES; identical to the IRC product endpoint (ts/ts_0001/verdict/irc_end_a.xyz)",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase, charge 0, multiplicity 1"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_exo",
+      "from": "RC_exo",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 10.77,
+      "channel": "exo",
+      "favored": true
+    },
+    {
+      "id": "e_endo",
+      "from": "RC_endo",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.17,
+      "channel": "endo",
+      "favored": false
+    }
+  ]
+}

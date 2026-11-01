@@ -1,0 +1,62 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "properties": {
+        "energy_hartree": -541.60890788,
+        "evidence_log": "rc_min_v2.log",
+        "name": "2,2'-dimethylbiphenyl twisted minimum (reactant conformer)",
+        "torsion_dihedral_deg": 88.47,
+        "lowest_freq_cm1": 39.42,
+        "notes": "B3LYP-D3(BJ)/def2-SVP gas phase, q=0, M=1, opt+freq, 78 real frequencies (true minimum)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -541.582800291,
+        "evidence_log": "ts_anti_v2.log",
+        "name": "aryl-aryl rotation saddle, coplanar trans arrangement (Me/Me anti)",
+        "torsion_dihedral_deg": 180,
+        "imag_freq_cm1": -105.42,
+        "notes": "B3LYP-D3(BJ)/def2-SVP opt=(ts,calcfc) freq; exactly one imaginary frequency; C1-C1' = 1.513 A."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "properties": {
+        "energy_hartree": -541.608907898,
+        "evidence_log": "p_min_rev_v2.log",
+        "name": "mirror-related twisted minimum (rotated conformer)",
+        "torsion_dihedral_deg": -88.5,
+        "lowest_freq_cm1": 39.34,
+        "notes": "isoenergetic with RC (dE = 1.8e-8 Ha); 78 real frequencies."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 16.38,
+      "channel": "aryl-aryl (C1-C1') torsion through the coplanar trans arrangement; relaxed 15-degree torsion scans over 0-180 deg show the only maximum at tau = 180 deg",
+      "favored": true
+    }
+  ]
+}

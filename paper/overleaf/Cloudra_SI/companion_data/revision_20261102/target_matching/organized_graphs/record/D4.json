@@ -1,0 +1,79 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -385.765025059,
+        "evidence_log": "species/RC_optfreq.log",
+        "note": "pre-reaction pi-complex, B3LYP-D3(BJ)/def2-SVP, 0 imaginary frequencies, forming C2--C12 3.19 A / C4--C13 3.34 A"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.74807782,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -445.9657
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=CC1CC2C=CC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -385.799956272,
+        "evidence_log": "species/P_optfreq.log",
+        "note": "endo-bicyclo[2.2.1]hept-5-ene-2-carbaldehyde; 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 10.63,
+      "channel": "endo",
+      "favored": true
+    }
+  ]
+}

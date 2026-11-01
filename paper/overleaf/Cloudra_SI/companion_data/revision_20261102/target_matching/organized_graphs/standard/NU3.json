@@ -1,0 +1,137 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.[CH2-][PH3+]"
+      ],
+      "properties": {
+        "energy_hartree": -496.696104441,
+        "evidence_log": "main/rc_opt.log",
+        "freq_log": "main/rc_freq.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP, gas phase, charge 0, singlet",
+        "note": "Pre-reaction complex (ylide + formaldehyde), single dot-joined complex node; C...C 2.80 A, P...O 3.12 A. The loose complex is not a clean minimum: the only imaginary mode of the complex is a floppy intermolecular motion (-93.94 cm-1), reproduced independently in two runs; per-component minima are coord/ylide_optfreq.log (-382.264893733 Ha, 0 imag) and coord/hcho_optfreq.log (-114.417332518 Ha, 0 imag), complexation -8.7 kcal/mol."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=O.[CH2-][PH3+]"
+      ],
+      "properties": {
+        "energy_hartree": -496.694323997,
+        "evidence_log": "ts1_hedge/ts1_optfreq.log",
+        "freq_log": "ts1_hedge/ts1_optfreq.log",
+        "n_imag": 1,
+        "imaginary_cm": -279.26,
+        "note": "Concerted [2+2] cycloaddition saddle on the RC -> oxaphosphetane path (bond formation is strongly coupled: C...C and P...O close together). B3LYP-D3BJ/def2-SVP gas phase is extremely flat here; this is the only first-order saddle found along the path (every gradient TS search from C...C 1.93-2.05 / P...O 2.21-2.63 A funnels to it). Short IRC (forward) from this saddle descends monotonically back to the reactant-complex region (C...C 2.16 -> 2.38 A, P...O 2.84 -> 2.95 A, C=O 1.250 -> 1.227 A at +0.34 kcal/mol); the reverse side was not completed. The relaxed C...C scan gives an upper bound of +4.7 kcal/mol for the shoulder region.",
+        "irc_forward_log": "ts1_hedge/irc_probe_279.log"
+      }
+    },
+    {
+      "id": "INT",
+      "role": "intermediate",
+      "smiles": [
+        "C1C[PH3]O1"
+      ],
+      "properties": {
+        "energy_hartree": -496.741704918,
+        "evidence_log": "betaine/bet_freq.log",
+        "freq_log": "betaine/bet_freq.log",
+        "n_imag": 0,
+        "note": "Oxaphosphetane, 4-membered P-C-C-O ring, pentacoordinate P (P-C 1.870, C-C 1.535, C-O 1.412, P-O 1.784 A); verified minimum, lowest real mode 118.99 cm-1."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "C=C.O=[PH3]"
+      ],
+      "properties": {
+        "energy_hartree": -496.703825973,
+        "evidence_log": "main/ts2_freq.log",
+        "freq_log": "main/ts2_freq.log",
+        "n_imag": 1,
+        "imaginary_cm": -624.66,
+        "note": "Retro-[2+2] cycloreversion saddle: C-O and P-C break while C=C (1.406 A) and P=O (1.566 A) close; C-O 1.868, P-C 2.390 A at the saddle. Imaginary mode pair projections: C...O 0.61, P...C 0.41."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.O=[PH3]"
+      ],
+      "properties": {
+        "energy_hartree": -496.7547211,
+        "evidence_log": "main/p_opt.log",
+        "freq_log": "main/p_freq.log",
+        "n_imag": 0,
+        "note": "Product complex ethylene + phosphine oxide; C=C 1.34, P=O 1.51, P...C 3.42 A; verified minimum (lowest mode 41.63 cm-1)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 1.12,
+      "channel": "concerted [2+2] cycloaddition",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "INT",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 23.77,
+      "channel": "retro-[2+2] cycloreversion",
+      "favored": true
+    }
+  ]
+}

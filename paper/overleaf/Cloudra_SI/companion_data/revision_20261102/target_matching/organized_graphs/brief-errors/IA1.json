@@ -1,0 +1,173 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CC=C1"
+      ],
+      "accessible": true,
+      "properties": {
+        "description": "Rectangular D2h Kekule ground state of cyclobutadiene (C1=C2, C3=C4). The bare molecule is the pre-reaction complex for this unimolecular automerization (no other partners in the gas phase / matrix-isolation model).",
+        "method": "Gaussian 16, PM7 (gas phase)",
+        "n_imag": 0,
+        "electronic_energy_hartree": 0.152592140379,
+        "key_geometry": "R(1,2)=R(3,4)=1.3464 A, R(1,4)=R(2,3)=1.5509 A, planar D2h, C-H 1.053 A",
+        "evidence_log": [
+          "pm7_rc_optfreq.log"
+        ]
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": false,
+      "properties": {
+        "description": "Square D4h bond-alternation (b2g) structure, i.e. the automerization transition structure of the reference mechanism.",
+        "method": "Gaussian 16, PM7 (gas phase)",
+        "reason_inaccessible": "PM7 never returns a negative b2g curvature: NImag=0 from analytic Hessians at the D4h square (1.44 A: 438.1 cm-1; 1.4307 A: 384.57 cm-1), from NUMERICAL Hessians at the D4h square (384.58 cm-1) and at a planar C2h alternation point (1.400/1.470 A: 420.1 cm-1), and at a puckered alternation point (446.9 cm-1). Chained constrained alternation scans with carried density (guess=read, single checkpoint) rise monotonically from 0.152593 to 0.180966 Ha with no interior maximum, and every TS search collapsed to the C2v rhombic minimum (0.190598958205 Ha, NImag=0), failed in Berny, or diverged. The PM7 surface near D4h is additionally SCF-branch ambiguous: the same square geometry is 0.180966 (lower branch) or 0.190518/0.192570583206 Ha (upper branch), i.e. the PM7 'square energy' carries a ~6-9 kcal/mol branch ambiguity. Hence no PM7 saddle and no defensible PM7 barrier; the earlier ~+17 kcal/mol lower-branch figure was an extrapolation from rigid single points and is NOT a computed barrier. GFN2-xTB does give a genuine saddle (NImag=1, -4612.5 cm-1, 22.50 kcal/mol) but xTB logs are not scoreable.",
+        "n_imag_pm7": 0,
+        "electronic_energy_hartree_pm7_square_1431": 0.192872241239,
+        "electronic_energy_hartree_pm7_square_144": 0.194314159844,
+        "electronic_energy_hartree_gfn2xtb_square": -10.408998799436,
+        "n_imag_gfn2xtb_square": 1,
+        "imaginary_frequency_gfn2xtb_cm": -4612.52,
+        "evidence_log": [
+          "pm7_d4h_freq.gjf",
+          "pm7_d4h_freq.log",
+          "pm7_d4h_freq4.log",
+          "pm7_rigq_q0000.log",
+          "pm7_rigq_q0060.log",
+          "pm7_rigq_n0030.log",
+          "pm7_ts_optfreq.log",
+          "square_guess.out",
+          "pm7_c2h_freq.log",
+          "pm7_d4h_freqnum.log",
+          "pm7_c2h_freqnum.log",
+          "pm7_puck_freq.log",
+          "pm7_chain_l00.log",
+          "pm7_chain_l08.log",
+          "pm7_pathp_00.log",
+          "pm7_pathp_01.log",
+          "pm7_pathp_02.log",
+          "pm7_pathp_03.log",
+          "pm7_pathp_04.log",
+          "pm7_pathp_05.log",
+          "pm7_pathp_06.log",
+          "pm7_pathp_07.log",
+          "pm7_pathp_08.log"
+        ],
+        "decisive_test": "Numerical Hessian (freq=(numerical), scf=(tight,xqc)) at the exact D4h square, C-C 1.4307 A, C-H 1.067 A: E(RPM7)=0.192872283001 Ha, NImag=0, 18 real modes, lowest 384.6 cm-1. Analytic Hessians at C-C 1.44 (NImag=0, 438.1 cm-1) and 1.4307 A (NImag=0, 384.6 cm-1), the numerical Hessian, and a partial-alternation C2h point (1.400/1.470 A, NImag=0, 420.2 cm-1) all give positive b2g curvature, and the density-chained relaxed alternation scan is strictly monotonic (0.152593 -> 0.180966 Ha) with no interior maximum. Consistent reading: PM7 gives NO negative b2g curvature anywhere, so there is no Hessian-consistent, branch-consistent PM7 stationary point that could serve as the automerization transition structure. Neither the withdrawn 'branch artefact' reading nor a claim that the square is a genuine, well-defined PM7 minimum is defensible: rigid points only 0.003-0.006 A off the square lie 6-9 kcal/mol lower, far too large for genuine harmonic curvature, which marks SCF-branch ambiguity in the square region rather than clean curvature.",
+        "caveat": "PM7 does not reproduce the reference picture of this reaction: instead of a square transition structure the PM7 square region is SCF-branch ambiguous (the same square geometry is 0.180966 Ha on the lower branch and 0.190518 / 0.192570583206 Ha on the upper branch, i.e. ~6-9 kcal/mol of branch ambiguity for displacements of a few thousandths of an Angstrom), and no geometry tested gives a negative b2g curvature. No Hessian-consistent, branch-consistent PM7 stationary point can serve as the automerization TS, so no PM7 barrier may be declared. The physical automerization barrier must therefore be judged from higher-level work (a few kcal/mol in matrix isolation); the only semiempirical saddle we could verify is the GFN2-xTB one at 22.50 kcal/mol, which is not scoreable evidence. Exploratory PM7 numbers (+25.09 at the rigid 1.4307 A square, +26.20 at the D4h 1.44 A square, +23.85 at the rhombic minimum) are reported ONLY as exploratory and are NOT the activation barrier.",
+        "final_tests": "Three final tests, all negative. (a) NUMERICAL Hessian at the planar C2h alternation point (C-C 1.400/1.470 A): E=0.165544355947 Ha, NImag=0, lowest 420.1 cm-1 - so that point lies BEFORE the alternation maximum and is not a saddle. (b) Chained constrained alternation scan with carried density (single checkpoint, guess=read from RC, four ring bonds frozen at interpolated values; pm7_chain_l00..l08.log): 0.152593, 0.153021, 0.154304, 0.156456, 0.159490, 0.163429, 0.168299, 0.174132, 0.180966 Ha - monotonic rise with no interior maximum; the chained endpoint (0.180966 Ha) is the LOWER SCF branch at the square geometry, 6.0 kcal/mol below the 0.190518 Ha upper-branch endpoint of the unchained series. (c) Puckered alternation seed (ring twist +-0.10 A): E=0.179468676338 Ha, NImag=0. No negative b2g curvature could be produced anywhere, so no PM7 saddle exists to start an IRC from. (d) RC->rhombic-minimum permuted Cartesian interpolation, 9 PM7 single points (pm7_pathp_00..08.log, frame t=0..1): 0.152592, 0.153116, 0.154609, 0.156998, 0.160258, 0.164405, 0.169488, 0.175577, 0.190599 Ha - also strictly monotonic with no maximum, even though its endpoint is the C2v rhombic PM7 minimum (0.190598956314 Ha). A barrier-free monotonic path into a Hessian-verified minimum is only possible if the RC branch and the square/rhombic branch are not continuously connected, so this independently confirms the SCF-branch discontinuity documented above rather than revealing a saddle."
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [],
+      "accessible": false,
+      "properties": {
+        "description": "C2v rhombic near-square PM7 stationary point (all four C-C 1.4307 A, ring angles 93.03/86.93 deg, C-H 1.067/1.043 A, H slightly out of plane). It is a PM7 MINIMUM (NImag=0), not an intermediate of the real automerization - recorded only to document the PM7 failure and the fact that a TS search started at the square collapses into it.",
+        "method": "Gaussian 16, PM7 (gas phase)",
+        "n_imag": 0,
+        "electronic_energy_hartree": 0.190598958205,
+        "evidence_log": [
+          "pm7_ts_optfreq.log",
+          "pm7_rhombus_sp_tight.log"
+        ]
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1=CC=C1"
+      ],
+      "accessible": true,
+      "properties": {
+        "description": "Degenerate rectangular D2h product: same molecule with the double bonds on the other pair of ring bonds (C2=C3, C4=C1); the RC rectangle rotated by 90 deg with the carbon labels shifted by one position.",
+        "method": "Gaussian 16, PM7 (gas phase)",
+        "n_imag": 0,
+        "electronic_energy_hartree": 0.152592140535,
+        "key_geometry": "R(1,2)=1.5509 A, R(2,3)=1.3464 A, planar, degenerate with RC to 1.6e-10 Ha",
+        "evidence_log": [
+          "pm7_p_optfreq.log"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "accessible": false,
+      "channel": "concerted b2g ring-bond alternation through the square D4h structure",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "properties": {
+        "description": "Thermal automerization of cyclobutadiene. bond_changes use the atom-map indices of [CH:1]1=[CH:2][CH:3]=[CH:4]1: the C1=C2 and C3=C4 double bonds lose bond order while C2-C3 and C4-C1 gain bond order.",
+        "barrier_status": "NOT DECLARED. No PM7 barrier exists: PM7 returns no negative b2g curvature at any geometry tested (analytic and numerical Hessians at the D4h square and at planar/puckered alternation points), the density-chained relaxed alternation profile is monotonic (0.152593 -> 0.180966 Ha) with no maximum, and the square geometry itself is SCF-branch ambiguous by ~6-9 kcal/mol (0.180966 lower branch vs 0.190518/0.192570583206 upper branch). Labelled exploratory values only, all UPPER-branch unless stated: +25.09 kcal/mol (rigid 1.4307 A square single point), +26.20 (D4h 1.44 A square), +23.85 (C2v rhombic minimum), +23.71 (unchained relaxed constrained q=0), +17.8 (0.180966 Ha chained lower-branch square endpoint minus RC; quoted ONLY as an upper-bound extrapolation along the lower SCF branch - because the chained profile is monotonic this is NOT a maximum and NOT a barrier). The RC->rhombic-minimum interpolation (9 PM7 single points, pm7_pathp_00..08.log) is likewise monotonic (0.152592 -> 0.190599 Ha) with no maximum although its endpoint is a Hessian-verified minimum, confirming that the RC branch and the square/rhombic branch are joined by an SCF discontinuity rather than by a saddle. GFN2-xTB saddle 22.50 kcal/mol is a secondary, non-scoreable cross-check. Physical expectation: a few kcal/mol in matrix isolation.",
+        "evidence_log": [
+          "pm7_rc_optfreq.log",
+          "pm7_rigq_q0000.log",
+          "pm7_q_l08.log",
+          "pm7_d4h_freq.log",
+          "pm7_d4h_freq4.log",
+          "rc_final.out",
+          "square_guess.out",
+          "pm7_c2h_freq.log",
+          "pm7_c2h_freqnum.log",
+          "pm7_chain_l08.log",
+          "pm7_puck_freq.log",
+          "pm7_p_optfreq.log",
+          "pm7_d4h_freqnum.log",
+          "pm7_ts_optfreq.log",
+          "pm7_rhombus_sp_tight.log",
+          "pm7_rigq_n0030.log",
+          "pm7_chain_l00.log",
+          "pm7_chain_l01.log",
+          "pm7_chain_l02.log",
+          "pm7_chain_l03.log",
+          "pm7_chain_l04.log",
+          "pm7_chain_l05.log",
+          "pm7_chain_l06.log",
+          "pm7_chain_l07.log",
+          "pm7_pathp_00.log",
+          "pm7_pathp_01.log",
+          "pm7_pathp_02.log",
+          "pm7_pathp_03.log",
+          "pm7_pathp_04.log",
+          "pm7_pathp_05.log",
+          "pm7_pathp_06.log",
+          "pm7_pathp_07.log",
+          "pm7_pathp_08.log"
+        ],
+        "supervisor_verdict": "Supervisor decision dec_63a4a32837374c66a08c8d845b4862ea: accepted as a documented inaccessibility record. The failed step-level 'frequency' check is the intended, correct result. No barrier may be declared; TS1 and edge e1 must stay accessible:false. PM7 branch discontinuity ~6-9 kcal/mol is the stated reason; GFN2-xTB 22.50 kcal/mol is an unscored cross-check only. Second decision dec_6a30532131a34d808ce0ef9b145dad9f (request req_cd9c5436915b49d6b63208942f156b16): the ts_opt / frequency / short_irc stages are accepted as unattainable (not abandoned) at the only scoreable method, since Gaussian PM7 admits no first-order b2g saddle and the MethodPolicy permits only xtb/pm7; administrative acceptance only - no stage result was waived, no barrier becomes declarable, TS1/e1 stay accessible:false, and the delivery is a partial delivery of an inaccessible target."
+      }
+    }
+  ]
+}

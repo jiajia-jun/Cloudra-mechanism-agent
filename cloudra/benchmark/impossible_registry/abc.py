@@ -67,6 +67,7 @@ TASKS = {
             {
                 "out": "[CH2:4]=[CH:1][CH:2]=[CH2:3]",
                 "type": "disrotatory electrocyclic ring opening to 1,3-butadiene",
+                "channel": "disrotatory",
                 "with_ts": True,
                 "ts_accessible": False,
                 "node_accessible": True,
@@ -204,12 +205,14 @@ TASKS = {
         "products": ["[N]c1ccccc1"],
         "mapped_reactants": "[N:1][c:2]1[cH:3][cH:4][cH:5][cH:6][cH:7]1",
         "reactant_accessible": True,
+        "reactant_properties": {"state": "triplet"},
         "steps": [
             {
                 "out": "[N:1][c:2]1[cH:3][cH:4][cH:5][cH:6][cH:7]1",
                 "type": "vertical spin-state change: triplet ground state to open-shell singlet of the same species",
                 "conformational": True,
                 "node_accessible": False,
+                "node_properties": {"state": "open-shell singlet"},
             },
         ],
     },

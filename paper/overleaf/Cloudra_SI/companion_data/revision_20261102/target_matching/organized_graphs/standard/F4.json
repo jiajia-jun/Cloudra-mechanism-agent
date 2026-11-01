@@ -1,0 +1,63 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[BH3].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -141.041124245,
+        "evidence_log": "inputs/ep_rc_optfreq.log",
+        "description": "Lewis acid-base pre-reaction complex H3B<-O=CH2 formed by BH3 and formaldehyde (B-O dative contact 1.609 A, C-O 1.221 A, B-O-C 124.5 deg, pyramidal BH3). B3LYP-D3(BJ)/def2-SVP (Gaussian 16, #p opt=tight freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, gas phase, charge 0, multiplicity 1); 0 imaginary frequencies; lowest of 9 conformer seeds that all collapse to this single minimum. This complex is also the minimum reached by the reverse eigenvector-displacement relaxation of TS1 and by the reverse side of the IRC."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -141.015601444,
+        "evidence_log": "ts_work/qm/ts_ts_optfreq.log",
+        "description": "Hydride-transfer saddle of the adduct: concerted B1-H2 cleavage with H2 attachment to the carbonyl carbon C5 through the four-membered ring B1-H2-C5-O6 (TS B-O 1.772, C-O 1.234, B-H 1.238, C-H 2.136 A; early, reactant-like saddle). Opt=(TS,CalcFC,NoEigentest)+Freq at B3LYP-D3(BJ)/def2-SVP, gas phase; 1 imaginary frequency -398.83 cm^-1 whose mode couples the migrating H (atom 2) with the carbonyl side (dominant pair H2...H8, H2...C5). Connectivity: relaxation of the TS geometry displaced by +0.30/+0.50 along that mode runs downhill to methoxyborane, displacement by -0.30/-0.50 gives exactly the adduct minimum (-141.041124245 Ha); the Gaussian IRC from this TS (ts_work/qm/ts_irc_v3.log, IRC=(CalcFC,MaxPoints=40,Stepsize=10): 38 points on one arm, 40 on the other, normal termination) runs one way back to the adduct (B-H 1.22, C-H 2.62, B-O 1.609 A) and the other way through the full hydride transfer to methoxyborane (B-H 2.57, C-H 1.10, B-O 1.341 A), and both IRC outer frames re-optimize to the two frequency-verified minima listed here (ts_work/qm/ts_ep_adduct.log, ts_work/qm/ts_ep_product.log)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "COB"
+      ],
+      "properties": {
+        "energy_hartree": -141.113508768,
+        "evidence_log": "inputs/ep_p_optfreq.log",
+        "description": "Methoxyborane CH3-O-BH2 with a covalent B-O bond (B-O 1.340, C-O 1.415 A, planar BH2, sp3 CH3). Same level; 0 imaginary frequencies. Reached from TS1 both by forward IRC (and by the +0.30/+0.50 eigenvector relaxations, best electronic energy -141.113497537 Ha)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.02,
+      "channel": "intramolecular hydride transfer inside the Lewis adduct (4-membered ring)",
+      "favored": true
+    }
+  ]
+}

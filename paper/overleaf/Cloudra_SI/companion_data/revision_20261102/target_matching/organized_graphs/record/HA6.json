@@ -1,0 +1,168 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C[C@H]1C=C[C@@H]1C"
+      ],
+      "properties": {
+        "evidence_log": "opt/reac_optfreq.log",
+        "note": "trans-3,4-dimethylcyclobutene ((1S,2S)); B3LYP-D3(BJ)/def2-SVP, gas phase; E=-234.459198 Ha; 0 imaginary frequencies (IRC-frame re-optimisation: ts/ts_0002/jobs/declaration_0003/reactant_frequency/reactant_frequency.log)"
+      }
+    },
+    {
+      "id": "TS_con_EE",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log",
+        "note": "conrotatory TS: E=-234.409313 Ha, one imaginary frequency -521.17 cm-1, IRC-verified RC<->P_EE"
+      }
+    },
+    {
+      "id": "TS_con_ZZ",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log",
+        "note": "opposite-sense conrotatory TS: E=-234.391682 Ha, one imaginary frequency -631.58 cm-1, IRC-verified RC<->P_ZZ"
+      }
+    },
+    {
+      "id": "TS_dis_EZ",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "note": "no separate disrotatory first-order saddle located; every disrotatory seed relaxed onto TS_con_EE or TS_con_ZZ (see PROCESS.md)"
+      }
+    },
+    {
+      "id": "P_EE",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C/C"
+      ],
+      "properties": {
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/product_frequency/product_frequency.log",
+        "note": "(2E,4E)-hexa-2,4-diene; IRC-connected conformer E=-234.477892 Ha; global conformer minimum of this species E=-234.483262 Ha (opt/pEE_optfreq.log), 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "P_ZZ",
+      "role": "product",
+      "smiles": [
+        "C/C=C\\C=C/C"
+      ],
+      "properties": {
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/product_frequency/product_frequency.log",
+        "note": "(2Z,4Z)-hexa-2,4-diene; IRC-connected conformer E=-234.475967 Ha; global conformer minimum E=-234.479938 Ha (opt/pZZ_optfreq.log), 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "P_EZ",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C\\C"
+      ],
+      "properties": {
+        "evidence_log": "opt/pEZ_optfreq.log",
+        "note": "(2E,4Z)-hexa-2,4-diene minimum E=-234.481712 Ha, 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P_EE",
+      "via": "TS_con_EE",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.3,
+      "channel": "conrotatory -> (2E,4E)-hexa-2,4-diene",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "P_ZZ",
+      "via": "TS_con_ZZ",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 42.4,
+      "channel": "opposite conrotatory sense -> (2Z,4Z)-hexa-2,4-diene",
+      "favored": false
+    },
+    {
+      "id": "e3",
+      "from": "RC",
+      "to": "P_EZ",
+      "via": "TS_dis_EZ",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "channel": "disrotatory -> (2E,4Z)-hexa-2,4-diene",
+      "favored": false
+    }
+  ]
+}

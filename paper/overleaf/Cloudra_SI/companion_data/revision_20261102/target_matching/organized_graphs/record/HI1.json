@@ -1,0 +1,236 @@
+{
+  "nodes": [
+    {
+      "id": "sp_1f003cb4",
+      "role": "reactant",
+      "smiles": "C[C@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1",
+      "properties": {
+        "name": "Threo substrate complex",
+        "stereochemistry": "(2S,3R)-N,N-dimethyl-3-phenylbutan-2-amine N-oxide; CIP read from the optimized 3D geometry",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -598.233321725,
+        "imaginary_frequencies": 0,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/reactant_frequency/.cloudra/execution-1073/results/reactant_frequency.log"
+      }
+    },
+    {
+      "id": "sp_4580097b",
+      "role": "transition_state",
+      "smiles": "C/C=C(\\C)c1ccccc1.CN(C)O",
+      "properties": {
+        "name": "Threo Cope TS",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -598.208059064,
+        "imaginary_frequencies": 1,
+        "imaginary_mode_cm1": -1068.5295,
+        "reaction_coordinate": "concerted syn transfer of H15 from C7 to O6 with C2-N3 cleavage through a five-membered O6-N3-C2-C7-H15 ring; C2-N 2.097 A, O6-H25 1.280 A, C7-H25 1.328 A, C2-C7 1.431 A, N-O 1.335 A",
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/frequency/.cloudra/execution-1068/results/frequency.log",
+        "evidence_opt_log": "ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-1063/results/refine.log",
+        "evidence_irc_log": "ts/ts_0001/jobs/declaration_0005/irc/.cloudra/execution-1070/results/irc.log"
+      }
+    },
+    {
+      "id": "sp_038b3dcc",
+      "role": "product",
+      "smiles": "C/C=C(\\C)c1ccccc1.CN(C)O",
+      "properties": {
+        "name": "Threo product complex",
+        "alkene_geometry": "(E)-2-phenyl-2-butene; dihedral C1-C2-C3-C9 = -155.4 deg at the threo IRC product endpoint, and the threo TS geometry itself resolves to C/C=C(\\C)c1ccccc1",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -598.245557153,
+        "energy_note": "optimized two-fragment product complex minimum obtained by independently optimizing the threo IRC product outer frame; frequency-verified with 0 imaginary modes",
+        "imaginary_frequencies": 0,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0007/product_frequency/.cloudra/execution-1098/results/product_frequency.log",
+        "evidence_opt_log": "ts/ts_0001/jobs/declaration_0007/product_opt/product_opt.log",
+        "component_energies_hartree": {
+          "E_2_phenyl_2_butene": -388.042170053,
+          "dimethylhydroxylamine": -210.188831878
+        }
+      }
+    },
+    {
+      "id": "sp_447243fb",
+      "role": "reactant",
+      "smiles": "C[C@@H]([N+](C)(C)[O-])[C@H](C)c1ccccc1",
+      "properties": {
+        "name": "Erythro substrate complex",
+        "stereochemistry": "(2R,3R)-N,N-dimethyl-3-phenylbutan-2-amine N-oxide; CIP read from the optimized 3D geometry",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -598.235079201,
+        "imaginary_frequencies": 0,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0005/reactant_frequency/reactant_frequency.log"
+      }
+    },
+    {
+      "id": "sp_122e94c5",
+      "role": "transition_state",
+      "smiles": "C/C=C(/C)c1ccccc1.CN(C)O",
+      "properties": {
+        "name": "Erythro Cope TS",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -598.208585699,
+        "imaginary_frequencies": 1,
+        "imaginary_mode_cm1": -940.5512,
+        "reaction_coordinate": "concerted syn transfer of H15 from C7 to O6 with C2-N3 cleavage; C2-N 2.140 A, O6-H25 1.288 A, C7-H25 1.310 A, C2-C7 1.426 A, N-O 1.333 A",
+        "evidence_log": "ts/ts_0002/jobs/declaration_0004/frequency/.cloudra/execution-1069/results/frequency.log",
+        "evidence_opt_log": "ts/ts_0002/jobs/declaration_0004/ts_opt/.cloudra/execution-1062/results/refine.log",
+        "evidence_irc_log": "ts/ts_0002/jobs/declaration_0004/irc/.cloudra/execution-1071/results/irc.log"
+      }
+    },
+    {
+      "id": "sp_ffaec509",
+      "role": "product",
+      "smiles": "C/C=C(/C)c1ccccc1.CN(C)O",
+      "properties": {
+        "name": "Erythro product complex",
+        "alkene_geometry": "(Z)-2-phenyl-2-butene; dihedral C1-C2-C3-C9 = -2.9 deg at the erythro IRC product endpoint, and the erythro TS geometry itself resolves to C/C=C(/C)c1ccccc1",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -598.246098269,
+        "energy_note": "optimized two-fragment product complex minimum obtained by independently optimizing the erythro IRC product outer frame; frequency-verified with 0 imaginary modes",
+        "imaginary_frequencies": 0,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0005/product_frequency/.cloudra/execution-1094/results/product_frequency.log",
+        "evidence_opt_log": "ts/ts_0002/jobs/declaration_0005/product_opt/product_opt.log",
+        "component_energies_hartree": {
+          "Z_2_phenyl_2_butene": -388.041751586,
+          "dimethylhydroxylamine": -210.188831878
+        }
+      }
+    },
+    {
+      "id": "sp_regio_ts",
+      "role": "transition_state",
+      "smiles": "C=C[C@H](C)c1ccccc1.CN(C)O",
+      "properties": {
+        "name": "Threo alternative regioisomeric Cope TS",
+        "channel": "C1 methyl C-H transferred to O6 instead of the C7 C-H; gives the non-conjugated alkene",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -598.202962006,
+        "imaginary_frequencies": 1,
+        "imaginary_mode_cm1": -914.9506,
+        "reaction_coordinate": "C1-H -> O6 proton transfer with C2-N3 cleavage and C1=C2 formation; C1-H17 1.304 A, O6-H17 1.309 A, C2-N3 2.141 A, C1=C2 1.419 A, N3-O6 1.329 A",
+        "evidence_log": "regio/alt_ts_optfreq.log",
+        "limitation": "no IRC was run for this saddle; connectivity rests on the TS geometry, the imaginary-mode composition and an xTB relaxed path"
+      }
+    },
+    {
+      "id": "sp_regio_prod",
+      "role": "product",
+      "smiles": "C=C[C@H](C)c1ccccc1.CN(C)O",
+      "properties": {
+        "name": "3-phenylbut-1-ene + dimethylhydroxylamine",
+        "alkene_geometry": "(3S)-3-phenylbut-1-ene, stereodescriptor read from the optimized 3D geometry (same physical C7 centre as the 3R substrate; CIP label inverts because vinyl and phenyl swap priority)",
+        "level": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine), gas phase, charge 0, multiplicity 1",
+        "energy_hartree": -598.222252966,
+        "energy_note": "sum of the two independently optimized component minima",
+        "component_energies_hartree": {
+          "3_phenylbut_1_ene": -388.033421088,
+          "dimethylhydroxylamine": -210.188831878
+        },
+        "imaginary_frequencies": 0,
+        "evidence_log": "regio/alt_alkene_optfreq.log",
+        "component_evidence_logs": [
+          "regio/alt_alkene_optfreq.log",
+          "species/hydroxylamine.log"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_5d9a0feb",
+      "from": "sp_1f003cb4",
+      "to": "sp_038b3dcc",
+      "via": "sp_4580097b",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            7,
+            15
+          ]
+        ],
+        "form": [
+          [
+            6,
+            15
+          ],
+          [
+            2,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 15.85,
+      "channel": "threo syn Cope elimination -> (E)-2-phenyl-2-butene (conjugated)",
+      "favored": false
+    },
+    {
+      "id": "step_f2dd034f",
+      "from": "sp_447243fb",
+      "to": "sp_ffaec509",
+      "via": "sp_122e94c5",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            7,
+            15
+          ]
+        ],
+        "form": [
+          [
+            6,
+            15
+          ],
+          [
+            2,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.62,
+      "channel": "erythro syn Cope elimination -> (Z)-2-phenyl-2-butene (conjugated)",
+      "favored": false
+    },
+    {
+      "id": "step_regio_threo",
+      "from": "sp_1f003cb4",
+      "to": "sp_regio_prod",
+      "via": "sp_regio_ts",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            16
+          ]
+        ],
+        "form": [
+          [
+            6,
+            16
+          ],
+          [
+            1,
+            2
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 19.05,
+      "channel": "threo alternative regioisomeric elimination -> 3-phenylbut-1-ene (non-conjugated)",
+      "favored": false
+    }
+  ],
+  "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1; barriers are electronic energy differences (no ZPE, no thermal correction); bond_changes use the 1-based atom indices of the mapped reactant SMILES [CH3:1][CH:2]([N+:3]([CH3:4])([CH3:5])[O-:6])[C:7]([H:15])([CH3:8])[c:9]1[cH:10][cH:11][cH:12][cH:13][cH:14]1",
+  "notes": "Product-node energies for the two main channels are optimized two-fragment complex minima (about 7 kcal/mol below the separated components: hydroxylamine/alkene complexation); the alternative regioisomeric product node instead uses the sum of its component minima because no complex optimization was run for that branch, so reaction energies across branches are not directly comparable. Substrate numbering: C1 methyl hydrogens are atoms 16-18 (C1 methyl H not explicitly mapped); the regioisomeric edge lists atom 16 as the transferred methyl hydrogen, and the three methyl hydrogens are symmetry-equivalent for that transfer.",
+  "reference": "doi:10.1021/ja057523x"
+}

@@ -1,0 +1,181 @@
+{
+ "nodes": [
+  {
+   "id": "RC",
+  "name": "Reactant Complex",
+   "role": "reactant",
+   "smiles": "C1=CCC=C1.O=C1OC(=O)C=C1",
+   "properties": {
+    "description": "pre-reaction pi-complex of cyclopentadiene and maleic anhydride (one dot-joined complex node; the two fragments are separate molecules, closest heavy-atom contact ~3.1 A). B3LYP-D3(BJ)/def2-SVP, SMD(benzene), 0 imaginary frequencies (lowest mode 14.2 cm-1).",
+    "energy_hartree": -573.031426948,
+    "evidence_log": "jobs/rc_endo.log",
+    "conformers": "jobs/rc_exo.log is a second, higher-lying conformer of the same complex (exo-oriented stacking, E = -573.029711344 Ha, i.e. +1.08 kcal/mol); it is not a distinct barrier reference. Both channel barriers are referred to the lowest complex minimum (jobs/rc_endo.log, -573.031426948 Ha), as the barrier rule requires."
+   }
+  },
+  {
+   "id": "TS_endo",
+  "name": "TS_endo",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "description": "concerted [4+2] transition state of the endo channel: the anhydride ring is folded toward the diene/alkene bridge (secondary orbital overlap). Forming C-C distances 2.20 A; exactly one imaginary frequency -408.3 cm-1; IRC (LQA) converged in both directions and its outer frames optimize to the declared pi-complex and the declared endo adduct.",
+    "energy_hartree": -573.014127588,
+    "evidence_log": "ts/ts_0001/jobs/declaration_0001/ts_opt/refine.log",
+    "frequency_log": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+    "irc_log": "ts/ts_0001/jobs/declaration_0003/irc/irc.log",
+    "irc_status": "converged both directions (87 points, normal termination); outer frames optimized+freq-checked: reactant slot -573.031426923 (0 imag) and product slot -573.065947807 (0 imag), matching the declared pi-complex and endo adduct",
+    "endpoint_short_irc_logs": [
+     "work/endpoint_optfreq/endo_complex/endo_complex.log",
+     "work/endpoint_optfreq/endo_adduct/endo_adduct.log"
+    ],
+    "endpoint_logs": [
+     "ts/ts_0001/jobs/declaration_0003/reactant_opt/reactant_opt.log",
+     "ts/ts_0001/jobs/declaration_0003/reactant_frequency/reactant_frequency.log",
+     "ts/ts_0001/jobs/declaration_0003/product_opt/product_opt.log",
+     "ts/ts_0001/jobs/declaration_0003/product_frequency/product_frequency.log"
+    ]
+   }
+  },
+  {
+   "id": "P_endo",
+  "name": "endo-Adduct",
+   "role": "product",
+   "smiles": "C1[C@@H]2C=C[C@H]1[C@@H]3[C@H]2C(=O)OC3=O",
+   "properties": {
+    "description": "endo-bicyclo[2.2.1]hept-5-ene-2,3-dicarboxylic anhydride (carbic anhydride); meso (Cs), so one SMILES describes the compound. InChIKey from the optimised geometry KNDQHSIWLOJIGP-UMRXKNAASA-N.",
+    "energy_hartree": -573.065947741,
+    "evidence_log": "jobs/p_endo.log"
+   }
+  },
+  {
+   "id": "TS_exo",
+  "name": "TS_exo",
+   "role": "transition_state",
+   "smiles": [],
+   "properties": {
+    "description": "concerted [4+2] transition state of the exo channel: the anhydride ring is folded toward the C7 methylene bridge, away from the diene. Forming C-C distances 2.22 A; exactly one imaginary frequency -402.0 cm-1; IRC (LQA) converged in both directions; its complex-side outer frame optimizes to the exo-oriented pi-complex conformer (jobs/rc_exo.log, +1.08 kcal/mol relative to the lowest conformer used as the single barrier reference) and its product-side frame to the exo adduct (jobs/p_exo.log).",
+    "energy_hartree": -573.011307245,
+    "evidence_log": "ts/ts_0002/jobs/declaration_0001/ts_opt/refine.log",
+    "frequency_log": "ts/ts_0002/jobs/declaration_0001/frequency/frequency.log",
+    "irc_log": "ts/ts_0002/jobs/declaration_0003/irc/irc.log",
+    "irc_status": "converged both directions (56 forward / 39 backward points, normal termination); outer frames optimized+freq-checked: complex side -573.029711475 (0 imag, the exo-oriented conformer of the pi-complex) and product side -573.066034930 (0 imag, the exo adduct)",
+    "endpoint_short_irc_logs": [
+     "work/endpoint_optfreq/exo_complex/exo_complex.log",
+     "work/endpoint_optfreq/exo_adduct/exo_adduct.log"
+    ],
+    "endpoint_logs": [
+     "ts/ts_0002/jobs/declaration_0003/reactant_opt/reactant_opt.log",
+     "ts/ts_0002/jobs/declaration_0003/reactant_frequency/reactant_frequency.log",
+     "ts/ts_0002/jobs/declaration_0003/product_opt/product_opt.log",
+     "ts/ts_0002/jobs/declaration_0003/product_frequency/product_frequency.log"
+    ]
+   }
+  },
+  {
+   "id": "P_exo",
+  "name": "exo-Adduct",
+   "role": "product",
+   "smiles": "C1[C@@H]2C=C[C@H]1[C@H]3[C@@H]2C(=O)OC3=O",
+   "properties": {
+    "description": "exo-bicyclo[2.2.1]hept-5-ene-2,3-dicarboxylic anhydride; meso (Cs), one SMILES. InChIKey from the optimised geometry KNDQHSIWLOJIGP-RNGGSSJXSA-N.",
+    "energy_hartree": -573.066035016,
+    "evidence_log": "jobs/p_exo.log"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "e_endo",
+  "name": "endo Cycloaddition",
+   "from": "RC",
+   "to": "P_endo",
+   "via": "TS_endo",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      2
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      11,
+      12
+     ]
+    ],
+    "form": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      11
+     ],
+     [
+      4,
+      12
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 10.86,
+   "channel": "endo",
+   "favored": true,
+   "properties": {
+    "note": "atom-map indices of the task: diene C1=C2-C5=C4 (map3 = CH2) and dienophile C11=C12. The two diene pi bonds (1-2, 4-5) and the dienophile pi bond (11-12) become single; the diene central single bond (1-5) becomes the new C=C; two new sigma bonds form (2-11, 4-12). Both stereochemical channels share this pattern.",
+    "barrier_definition": "dE = E(TS_endo) - E(RC, lowest complex minimum) = -573.014127588 - (-573.031426948) Ha",
+    "irc_connection": "IRC converged in both directions (ts/ts_0001/jobs/declaration_0003/irc/irc.log, 87 points, normal termination); the two outer frames were optimized and frequency-checked to the pi-complex (declared source) and the endo adduct (declared target).",
+    "evidence_log": "ts/ts_0001/jobs/declaration_0001/ts_opt/refine.log"
+   }
+  },
+  {
+   "id": "e_exo",
+  "name": "exo Cycloaddition",
+   "from": "RC",
+   "to": "P_exo",
+   "via": "TS_exo",
+   "bond_changes": {
+    "break": [
+     [
+      1,
+      2
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      11,
+      12
+     ]
+    ],
+    "form": [
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      11
+     ],
+     [
+      4,
+      12
+     ]
+    ]
+   },
+   "barrier_kcal_mol": 12.63,
+   "channel": "exo",
+   "favored": false,
+   "properties": {
+    "note": "same bond changes as the endo channel; only the stereochemical approach differs",
+    "barrier_definition": "dE = E(TS_exo) - E(RC, lowest complex minimum) = -573.011307245 - (-573.031426948) Ha",
+    "irc_connection": "IRC converged in both directions (ts/ts_0002/jobs/declaration_0003/irc/irc.log, 56 forward / 39 backward points, normal termination). Complex-side endpoint = the exo-oriented pi-complex conformer (jobs/rc_exo.log, -573.029711344 Ha); this is a different conformer of the same complex from the single barrier reference jobs/rc_endo.log (-573.031426948 Ha), which is allowed: the barrier rule asks for the lowest verified minimum including connected conformers, while the IRC connection is preserved as computed. Product-side endpoint = the exo adduct (jobs/p_exo.log).",
+    "evidence_log": "ts/ts_0002/jobs/declaration_0001/ts_opt/refine.log",
+    "note_barrier_alt": "if the exo channel is referred to its own pre-organised complex (jobs/rc_exo.log) the barrier is lower by the complex-complex difference"
+   }
+  }
+ ]
+}

@@ -1,0 +1,138 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C=CC#N"
+      ],
+      "properties": {
+        "energy_hartree": -364.698789837,
+        "evidence_log": "chan_A_endostart/complex_min_A.log",
+        "description": "pre-reaction pi-complex (cyclopentadiene/acrylonitrile, centroid separation 3.46 A), B3LYP-D3(BJ)/def2-SVP gas phase, opt+freq, 0 imaginary frequencies; used as the common reactant-complex reference for both channels. The endo-oriented precursor complex (chan_B_exostart/complex_B_opt.log, E=-364.698081587, same species, 0 imag) lies 0.44 kcal/mol higher."
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -364.676423643,
+        "evidence_log": "chan_A_endostart/ts_A.log",
+        "description": "first-order saddle, 1 imaginary frequency -457.2441 cm-1; forming bonds C2-C6 2.10 A, C4-C7 2.38 A; nitrile points away from the diene"
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "N#C[C@H]1C[C@@H]2C=C[C@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -364.735703491,
+        "evidence_log": "chan_A_endostart/prod_min_A.log",
+        "description": "exo bicyclo[2.2.1]hept-5-ene-2-carbonitrile, opt+freq, 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -364.676052162,
+        "evidence_log": "chan_B_exostart/ts_B2.log",
+        "description": "first-order saddle, 1 imaginary frequency -457.2671 cm-1; forming bonds C2-C6 2.10 A, C4-C7 2.38 A; nitrile tucked over the diene pi face"
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "N#C[C@@H]1C[C@@H]2C=C[C@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -364.735927867,
+        "evidence_log": "chan_B_exostart/prod_min_B2.log",
+        "description": "endo bicyclo[2.2.1]hept-5-ene-2-carbonitrile, opt+freq, 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_exo",
+      "from": "RC",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.035,
+      "channel": "exo"
+    },
+    {
+      "id": "e_endo",
+      "from": "RC",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.268,
+      "channel": "endo"
+    }
+  ]
+}

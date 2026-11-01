@@ -1,0 +1,261 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N#N"
+      ],
+      "properties": {
+        "name": "N2 molecule, X 1Sigma_g+ ground state",
+        "charge": 0,
+        "multiplicity": 1,
+        "method": "GFN2-xTB (xTB 6.5.0), gas phase",
+        "electronic_state": "closed-shell singlet (spin-restricted)",
+        "bond_dissociation_energy_kcal_mol": 341.6,
+        "bond_dissociation_energy_d0_kcal_mol": 338.1,
+        "bond_dissociation_energy_definition": "De = E(separated N...N pair at 20 A asymptote) - E(N2 equilibrium minimum), same level for both terms; D0 = De - ZPE(N2).",
+        "equilibrium_bond_length_angstrom": 1.099,
+        "harmonic_frequency_cm1": 2437.6,
+        "zero_point_energy_kcal_mol": 3.48,
+        "minimum_energy_hartree": -5.76393542,
+        "asymptote_energy_hartree": -5.219550739,
+        "bond_dissociation_energy_isolated_atom_kcal_mol": 346.6,
+        "bond_dissociation_energy_isolated_atom_note": "2*E(N atom, 4S, uhf=3) - E(N2) = 346.57 kcal/mol (atoms/N_atom.out); 5.0 kcal/mol above the restricted-singlet asymptote of the scanned curve, the usual spin-restriction artifact for the separated pair.",
+        "experimental_bond_dissociation_energy_kcal_mol": 225,
+        "accuracy_note": "GFN2-xTB overestimates the N2 triple bond (341.6 vs 225.0 kcal/mol experiment). The declared value is the internally consistent result of the computed curve at the allowed level of theory, not a quantitative thermochemical prediction.",
+        "dissociation_curve": {
+          "method": "GFN2-xTB single points at fixed N-N distance (rigid scan; for a diatomic this is equivalent to a relaxed scan), charge 0, multiplicity 1, gas phase",
+          "energy_reference": "E(N2) at the optimized minimum = -5.76393542 Eh",
+          "points": [
+            {
+              "bond_length_angstrom": 1,
+              "relative_energy_kcal_mol": 21.971
+            },
+            {
+              "bond_length_angstrom": 1.05,
+              "relative_energy_kcal_mol": 4.64
+            },
+            {
+              "bond_length_angstrom": 1.1,
+              "relative_energy_kcal_mol": 0.006
+            },
+            {
+              "bond_length_angstrom": 1.15,
+              "relative_energy_kcal_mol": 4.164
+            },
+            {
+              "bond_length_angstrom": 1.2,
+              "relative_energy_kcal_mol": 14.285
+            },
+            {
+              "bond_length_angstrom": 1.25,
+              "relative_energy_kcal_mol": 28.321
+            },
+            {
+              "bond_length_angstrom": 1.3,
+              "relative_energy_kcal_mol": 44.795
+            },
+            {
+              "bond_length_angstrom": 1.35,
+              "relative_energy_kcal_mol": 62.644
+            },
+            {
+              "bond_length_angstrom": 1.4,
+              "relative_energy_kcal_mol": 81.103
+            },
+            {
+              "bond_length_angstrom": 1.45,
+              "relative_energy_kcal_mol": 99.625
+            },
+            {
+              "bond_length_angstrom": 1.5,
+              "relative_energy_kcal_mol": 117.82
+            },
+            {
+              "bond_length_angstrom": 1.6,
+              "relative_energy_kcal_mol": 152.226
+            },
+            {
+              "bond_length_angstrom": 1.7,
+              "relative_energy_kcal_mol": 183.064
+            },
+            {
+              "bond_length_angstrom": 1.8,
+              "relative_energy_kcal_mol": 209.966
+            },
+            {
+              "bond_length_angstrom": 1.9,
+              "relative_energy_kcal_mol": 233.089
+            },
+            {
+              "bond_length_angstrom": 2,
+              "relative_energy_kcal_mol": 252.821
+            },
+            {
+              "bond_length_angstrom": 2.2,
+              "relative_energy_kcal_mol": 283.711
+            },
+            {
+              "bond_length_angstrom": 2.4,
+              "relative_energy_kcal_mol": 305.302
+            },
+            {
+              "bond_length_angstrom": 2.6,
+              "relative_energy_kcal_mol": 319.872
+            },
+            {
+              "bond_length_angstrom": 2.8,
+              "relative_energy_kcal_mol": 329.168
+            },
+            {
+              "bond_length_angstrom": 3,
+              "relative_energy_kcal_mol": 334.864
+            },
+            {
+              "bond_length_angstrom": 3.25,
+              "relative_energy_kcal_mol": 338.925
+            },
+            {
+              "bond_length_angstrom": 3.5,
+              "relative_energy_kcal_mol": 340.764
+            },
+            {
+              "bond_length_angstrom": 3.75,
+              "relative_energy_kcal_mol": 341.333
+            },
+            {
+              "bond_length_angstrom": 4,
+              "relative_energy_kcal_mol": 341.477
+            },
+            {
+              "bond_length_angstrom": 4.5,
+              "relative_energy_kcal_mol": 341.543
+            },
+            {
+              "bond_length_angstrom": 5,
+              "relative_energy_kcal_mol": 341.569
+            },
+            {
+              "bond_length_angstrom": 6,
+              "relative_energy_kcal_mol": 341.593
+            }
+          ]
+        },
+        "evidence_note": "Input geometries (scan/*.xyz, min2/N2.xyz, far/*.xyz, atoms/N_atom.xyz) each carry an explicit 'smiles:' comment line. xTB does not echo xyz comments into its .out files, so the annotation lives in the unchanged input files of the same jobs; each .out is the native output of the job run on the identically named .xyz.",
+        "evidence_log": [
+          "min2/N2.xyz",
+          "min2/N2.out",
+          "min2/g98.out",
+          "far/N2_2N_20A.xyz",
+          "far/N2_2N_20A.out",
+          "atoms/N_atom.xyz",
+          "atoms/N_atom.out",
+          "scan/N2_d1.00.xyz",
+          "scan/N2_d1.05.xyz",
+          "scan/N2_d1.10.xyz",
+          "scan/N2_d1.15.xyz",
+          "scan/N2_d1.20.xyz",
+          "scan/N2_d1.25.xyz",
+          "scan/N2_d1.30.xyz",
+          "scan/N2_d1.35.xyz",
+          "scan/N2_d1.40.xyz",
+          "scan/N2_d1.45.xyz",
+          "scan/N2_d1.50.xyz",
+          "scan/N2_d1.60.xyz",
+          "scan/N2_d1.70.xyz",
+          "scan/N2_d1.80.xyz",
+          "scan/N2_d1.90.xyz",
+          "scan/N2_d2.00.xyz",
+          "scan/N2_d2.20.xyz",
+          "scan/N2_d2.40.xyz",
+          "scan/N2_d2.60.xyz",
+          "scan/N2_d2.80.xyz",
+          "scan/N2_d3.00.xyz",
+          "scan/N2_d3.25.xyz",
+          "scan/N2_d3.50.xyz",
+          "scan/N2_d3.75.xyz",
+          "scan/N2_d4.00.xyz",
+          "scan/N2_d4.50.xyz",
+          "scan/N2_d5.00.xyz",
+          "scan/N2_d6.00.xyz",
+          "scan/N2_d1.00.out",
+          "scan/N2_d1.05.out",
+          "scan/N2_d1.10.out",
+          "scan/N2_d1.15.out",
+          "scan/N2_d1.20.out",
+          "scan/N2_d1.25.out",
+          "scan/N2_d1.30.out",
+          "scan/N2_d1.35.out",
+          "scan/N2_d1.40.out",
+          "scan/N2_d1.45.out",
+          "scan/N2_d1.50.out",
+          "scan/N2_d1.60.out",
+          "scan/N2_d1.70.out",
+          "scan/N2_d1.80.out",
+          "scan/N2_d1.90.out",
+          "scan/N2_d2.00.out",
+          "scan/N2_d2.20.out",
+          "scan/N2_d2.40.out",
+          "scan/N2_d2.60.out",
+          "scan/N2_d2.80.out",
+          "scan/N2_d3.00.out",
+          "scan/N2_d3.25.out",
+          "scan/N2_d3.50.out",
+          "scan/N2_d3.75.out",
+          "scan/N2_d4.00.out",
+          "scan/N2_d4.50.out",
+          "scan/N2_d5.00.out",
+          "scan/N2_d6.00.out"
+        ]
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "[N].[N]"
+      ],
+      "properties": {
+        "name": "dissociated N...N pair on the singlet surface (6 A plateau, confirmed at 20 A)",
+        "charge": 0,
+        "multiplicity": 1,
+        "method": "GFN2-xTB (xTB 6.5.0), gas phase",
+        "pair_energy_6A_hartree": -5.219573011,
+        "pair_energy_20A_hartree": -5.219550739,
+        "imaginary_frequencies": 0,
+        "lowest_mode_cm1": 1.876,
+        "note": "flat dissociation plateau; the residual 1.876 cm-1 mode is the vanishing N-N stretch, no imaginary modes",
+        "evidence_log": [
+          "prod2/N2_2N.xyz",
+          "prod2/N2_2N.out",
+          "prod2/g98.out",
+          "far/N2_2N_20A.xyz",
+          "far/N2_2N_20A.out"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "homolytic N-N bond cleavage, barrierless on the singlet surface",
+      "barrier_kcal_mol": 0,
+      "reaction_energy_kcal_mol": 341.6,
+      "favored": true,
+      "note": "No transition state exists: the singlet energy rises monotonically from the N2 minimum to the dissociation asymptote (28-point scan in RC.properties.dissociation_curve), so ts_opt / one-imaginary-frequency / short_irc are not applicable to this barrierless cleavage."
+    }
+  ]
+}

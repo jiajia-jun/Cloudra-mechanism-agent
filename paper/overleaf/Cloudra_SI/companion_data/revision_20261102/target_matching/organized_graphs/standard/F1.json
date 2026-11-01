@@ -1,0 +1,53 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[BH4-].C=O"
+      ]
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": []
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CO[BH3-]"
+      ],
+      "properties": {
+        "energy_hartree": -141.7207586,
+        "evidence_log": "runs/p_opt.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            4
+          ]
+        ]
+      }
+    }
+  ]
+}

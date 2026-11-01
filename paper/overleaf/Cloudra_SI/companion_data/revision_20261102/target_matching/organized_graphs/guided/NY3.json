@@ -1,0 +1,234 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "N=C=O.O"
+      ],
+      "properties": {
+        "energy_hartree": -244.93540686,
+        "evidence_log": "work/min/rc_opt_freq.log",
+        "note": "Lowest verified minimum of the HNCO...H2O pre-reaction complex (N-H...O_w hydrogen bond, C_s). Barrier reference for the water-addition step."
+      }
+    },
+    {
+      "id": "RC2",
+      "role": "intermediate",
+      "smiles": [
+        "N=C=O.O"
+      ],
+      "properties": {
+        "energy_hartree": -244.926200315,
+        "evidence_log": "work/ts/ep1_src_rc2_opt_freq.log",
+        "note": "Second conformer/minimum of the same HNCO...H2O complex (loose O-bridge of water: N...O_w 2.94, C...O_w 3.02 A) and the minimum reached by the reactant branch of the TS1 IRC; 5.78 kcal/mol above RC. The RC -> RC2 reorientation is barrierless (relaxed C...O_w scan of work/ts/rot_scan_cow.log is monotonic with no maximum), so it is a conformational connection of one reactant-complex state, not an elementary step with its own saddle."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "N=C=O.O"
+      ],
+      "properties": {
+        "energy_hartree": -244.876786271,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log",
+        "note": "1 imaginary frequency -1579.3 cm-1; the imaginary mode is dominated by the water proton (H6) shuttle between the water O and the isocyanate N (H6 weight ~96%, C2-O4 projection only ~0.10), so the saddle is a proton-transfer saddle and the C-O contraction develops along the IRC path."
+      }
+    },
+    {
+      "id": "CA1",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.966496037,
+        "evidence_log": "work/min/ca_conf1_opt_freq.log",
+        "note": "Carbamic acid, syn/Z conformer (O=C-O-H = 0 deg, planar); the TS1 IRC target and the lowest carbamic-acid minimum. Reference for the decomposition barrier."
+      }
+    },
+    {
+      "id": "TSCONF",
+      "role": "transition_state",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.94887305,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/frequency/frequency.log",
+        "note": "1 imaginary frequency -465.6 cm-1, O=C-O-H torsion (syn -> anti) coupled to the NH2 twist."
+      }
+    },
+    {
+      "id": "CA2",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.95379148,
+        "evidence_log": "work/min/ca_conf3_opt_freq.log",
+        "note": "Carbamic acid, anti/E conformer (O=C-O-H = 165.7 deg, NH2 twisted); +7.97 kcal/mol above CA1."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.897758563,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0005/frequency/frequency.log",
+        "note": "1 imaginary frequency -1656.7 cm-1; the imaginary mode is 97.7% H7 (O4-H7 -> N1-H7 proton transfer) with C2-N1 lengthening (1.601 A at the saddle). 4-membered ring O4-H7-N1-C2. The verified IRC (ts/ts_0002/jobs/declaration_0006/irc/irc.log) connects CA2 (anti carbamic acid) to the loose NH3...CO2 pair; barrier referenced to the lowest carbamic-acid minimum CA1 is 43.13 kcal/mol (35.16 kcal/mol if referenced to the IRC-true source conformer CA2)."
+      }
+    },
+    {
+      "id": "PC",
+      "role": "product",
+      "smiles": [
+        "N.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -244.964075603,
+        "evidence_log": "work/ts/ep2c_b_opt_freq.log",
+        "note": "NH3...CO2 post-reaction complex at its LOWEST verified minimum (N...C 2.756 A, linear CO2, three N-H ~1.02 A, lowest real mode 7.4 cm-1, 0 imaginary frequencies) - the minimum actually reached by the product branch of the decomposition IRC (frame-started Opt from the canonical outer frame). Binding this log makes the product reference the lowest verified minimum, as the rules require: CA1 -> PC = 43.13 kcal/mol and RC -> PC = -17.9 kcal/mol are then computable from the graph's own node energies. A second, tighter conformer of the same N.O=C=O species (N...C 3.115 A, H-bonded contact) lies 2.23 kcal/mol HIGHER and is documented only as a conformer: work/min/pc2_opt_freq.log, E = -244.960519635 Ha, 0 imaginary frequencies."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "CA1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            4
+          ],
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 36.78,
+      "channel": "Net-step / barrier-reference edge for water addition to HNCO: barrier 36.78 kcal/mol = E(TS1) - E(RC) with the lowest verified reactant-complex minimum RC as reference (per the rules). The direction-verified elementary step of this channel is RC2 -> CA1 (edge e1b): the TS1 IRC reactant-side valley ends at the RC2 conformer, and RC -> RC2 is a barrierless reorientation (monotonic relaxed C...O_w scan, work/ts/rot_scan_cow.log), so no IRC started at TS1 can ever produce an outer frame on the RC side. A first-order saddle has only two downhill valleys."
+    },
+    {
+      "id": "e1b",
+      "from": "RC2",
+      "to": "CA1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            4
+          ],
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.01,
+      "channel": "Same elementary step at the IRC-true source minimum: the forward IRC branch from TS1 reaches the RC2 conformer, so E(TS1) - E(RC2) = -244.876786271 + 244.926200315 = 0.049414044 Ha = 31.01 kcal/mol (ts/ts_0001/jobs/declaration_0002/frequency/frequency.log and work/ts/ep1_src_rc2_opt_freq.log). Consistent with the net-step value: RC2 lies 5.78 kcal/mol above RC, so 36.78 - 5.78 = 31.00. An earlier 42.56 kcal/mol on this edge was an arithmetic slip and is corrected here."
+    },
+    {
+      "id": "e2",
+      "from": "CA1",
+      "to": "CA2",
+      "via": "TSCONF",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 11.06,
+      "channel": "Carbamic acid conformer interconversion (O=C-O-H torsion syn -> anti); barrier referenced to its own initial conformer CA1."
+    },
+    {
+      "id": "e3",
+      "from": "CA1",
+      "to": "PC",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            7
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 43.13,
+      "channel": "Net-step / barrier-reference edge for carbamic-acid decomposition: barrier 43.13 kcal/mol = E(TS2) - E(CA1) with the lowest verified carbamic-acid minimum CA1 as reference (per the rules); rate-determining step. The direction-verified elementary step is CA2 -> PC (edge e3b): the TS2 IRC source valley ends at the CA2 (anti) conformer, so no IRC started at TS2 can produce an outer frame on the CA1 side."
+    },
+    {
+      "id": "e3b",
+      "from": "CA2",
+      "to": "PC",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            7
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 35.16,
+      "channel": "Same elementary step at the IRC-true source minimum: the decomposition IRC reaches the CA2 (anti) conformer, so E(TS2) - E(CA2) = 35.16 kcal/mol."
+    }
+  ]
+}

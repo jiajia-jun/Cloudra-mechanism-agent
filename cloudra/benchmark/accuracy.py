@@ -57,6 +57,7 @@ from cloudra.benchmark.schema import (
     NodeRole,
     SelectivityReference,
 )
+from cloudra.benchmark.target_identity import channel_compatible, state_compatible
 
 if TYPE_CHECKING:
     from cloudra.benchmark.barrier_evidence import BarrierEvidence
@@ -266,7 +267,9 @@ def score_qualitative_selectivity(
     )
 
 
-def _has_trusted_property_number(graph: GoldMechanismGraph | None) -> bool:
+def _has_trusted_property_number(
+    graph: GoldMechanismGraph | None, expected_states: tuple = (),
+) -> bool:
     """当前负性质题的能量差/键长数值声明；诊断字段及文字说明不算。"""
     return bool(graph) and any(
         isinstance(value, (int, float))
@@ -275,6 +278,9 @@ def _has_trusted_property_number(graph: GoldMechanismGraph | None) -> bool:
             if token in ("kcal_mol", "bond_length_angstrom")
         )
         for node in graph.nodes
+        if not expected_states or any(
+            state_compatible(state, node.properties.get("state")) for state in expected_states
+        )
         for key, value in node.properties.items()
     )
 
@@ -285,7 +291,11 @@ def _negative_edge_claim_correct(gold_edge, gold_nodes, delivered_edge, delivere
     if (
         delivered_graph.edge_effectively_accessible(delivered_edge)
         or delivered_edge.barrier_kcal_mol is not None
-        or (gold_edge.via is None and _has_trusted_property_number(delivered_graph))
+        or (gold_edge.via is None and _has_trusted_property_number(
+            delivered_graph,
+            tuple(gold_nodes[node_id].properties.get("state")
+                  for node_id in (gold_edge.from_node, gold_edge.to_node)),
+        ))
     ):
         return False
     delivered_nodes = {node.id: node for node in delivered_graph.nodes}
@@ -355,11 +365,18 @@ def _rank_matching_steps(
         d_edge = delivered_edges.get(step.edge_id) if steps is not None else step
         if d_edge is None:
             continue
-        if require_channel and d_edge.channel != gold_edge.channel:
+        if not channel_compatible(
+            gold_edge.channel, d_edge.channel, require_exact=require_channel,
+        ):
             continue
         d_from = delivered_nodes.get(d_edge.from_node)
         d_to = delivered_nodes.get(d_edge.to_node)
         if d_from is None or d_to is None:
+            continue
+        if any(
+            not state_compatible(gold_node.properties.get("state"), delivered_node.properties.get("state"))
+            for gold_node, delivered_node in ((gold_from, d_from), (gold_to, d_to))
+        ):
             continue
         cost_from = species_substitution_cost(gold_from.smiles, d_from.smiles, cfg)
         cost_to = species_substitution_cost(gold_to.smiles, d_to.smiles, cfg)
@@ -368,6 +385,21 @@ def _rank_matching_steps(
         symdiff = len(gold_pairs ^ d_edge.bond_changes.pairs())
         candidates.append((symdiff, cost_from + cost_to, d_edge.id, step))
     candidates.sort(key=lambda item: (item[0], item[1], item[2]))
+    if candidates and steps is not None and gold_edge.barrier_reference_policy == "lowest_verified_minimum":
+        # For the same native saddle, the largest E(TS)-E(ref) uses the lowest
+        # verified reference. Keep separate saddles (and methods) independent.
+        best_cost = candidates[0][:2]
+        stable = {}
+        for bond_cost, endpoint_cost, _, step in candidates:
+            if (bond_cost, endpoint_cost) == best_cost:
+                stable[step.ts_path] = max(
+                    stable.get(step.ts_path, -math.inf), step.barrier_kcal_mol,
+                )
+        candidates = [
+            item for item in candidates
+            if item[:2] != best_cost
+            or item[3].barrier_kcal_mol == stable[item[3].ts_path]
+        ]
     return candidates
 
 
@@ -473,6 +505,7 @@ def score_accuracy(
                 matches = [
                     candidate for candidate in (delivered_graph.nodes if delivered_graph else [])
                     if candidate.role == node.role
+                    and state_compatible(node.properties.get("state"), candidate.properties.get("state"))
                     and species_substitution_cost(node.smiles, candidate.smiles, cfg) <= match_threshold
                 ]
                 correct = (

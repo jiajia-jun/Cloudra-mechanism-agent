@@ -44,7 +44,6 @@ configure()
 r = pd.read_csv(SRC / "publication_scores_per_run.csv")
 for field in ["graph", "selfc_all", "accuracy"]:
     r[field] = r[field + "_publication"]
-r["score"] = r.repaired_final.fillna(r.fair_final)
 r["no_graph"] = r["flags"].fillna("").str.contains("branch=no_graph", regex=False)
 r["carried"] = r["flags"].fillna("").str.contains("fair=raw", regex=False)
 r["repair"] = r.repaired_final.notna()

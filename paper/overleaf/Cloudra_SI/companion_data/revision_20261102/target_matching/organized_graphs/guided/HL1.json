@@ -1,0 +1,342 @@
+{
+  "nodes": [
+    {
+      "id": "RC_synC10",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "label": "pre-reaction contact complex of the syn-C10 (conventional exo) channel: HCNO physisorbed on the same side of the C4=C5 bond as the methano bridge C10",
+        "energy_hartree": -441.019350275,
+        "evidence_log": "exo_synC10/rc/rc05_xTBcontact_optfreq.log",
+        "n_imag": 0,
+        "contacts": {
+          "d_C1_C4": 4.152,
+          "d_O3_C5": 3.302
+        },
+        "face_signed_out_of_plane": {
+          "C10": -0.841,
+          "C7": 1.414,
+          "C8": 1.417,
+          "O3": -1.782,
+          "N2": -2.593,
+          "C1": -3.388
+        },
+        "note": "lowest B3LYP-D3(BJ)/def2-SVP contact minimum of this channel; independent repeat exo_synC10/rc/rc05_xTBcontact_optfreq.log = -441.019350275 Ha (0.00001 kcal/mol). This is the barrier reference for e_syn.",
+        "evidence_log_archived_copy": ".cloudra/evidence/291212c35a81ae7d_reactant_frequency.log"
+      }
+    },
+    {
+      "id": "TS_synC10",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "concerted, strongly asynchronous [3+2] transition structure on the syn-C10 face",
+        "energy_hartree": -441.002183919,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/ts_opt/refine.log",
+        "evidence_freq_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "imaginary_frequency_cm1": -375.3,
+        "ts_geometry": {
+          "d_C1_C4": 2.262,
+          "d_O3_C5": 2.469,
+          "d_C4_C5": 1.377,
+          "d_C1_N2": 1.207
+        },
+        "evidence_log_archived_copy": ".cloudra/evidence/b4fad810236566de_refine.log"
+      }
+    },
+    {
+      "id": "P_synC10",
+      "role": "product",
+      "smiles": [
+        "C1=NOC2C3CCC(C3)C12"
+      ],
+      "properties": {
+        "label": "syn-C10 (conventional exo) product: 4,5-fused 2-isoxazoline with the isoxazoline ring on the same side as the methano bridge C10",
+        "energy_hartree": -441.098273448,
+        "evidence_log": "exo_synC10/prod/p01c_optfreq.log",
+        "evidence_freq_log": "ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.log",
+        "n_imag": 0,
+        "mapped_smiles": "[CH:1]1=[N:2][O:3][C@@H:5]2[C@H:4]1[C@H:9]1[CH2:8][CH2:7][C@@H:6]2[CH2:10]1",
+        "cip": {
+          "C4": "S",
+          "C5": "S",
+          "C6": "R",
+          "C9": "S"
+        },
+        "face_signed_out_of_plane": {
+          "C10": -0.885,
+          "C1": -1.279,
+          "N2": -1.922,
+          "O3": -1.251
+        },
+        "note": "stereochemistry perceived from the optimised 3D coordinates (RDKit AssignStereochemistryFrom3D) and independently re-derived by the Coordinator; IRC product endpoint product_opt.log = -441.098273642 Ha, same species/stereoisomer",
+        "evidence_log_archived_copy": ".cloudra/evidence/b5c68d761127ff03_p01c_optfreq.log",
+        "isomeric_smiles": "C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12",
+        "connectivity_smiles": "C1=NOC2C3CCC(C3)C12",
+        "stereo_note": "The stereo-explicit SMILES perceived from the optimised 3D geometry is C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12. It is recorded in this properties block rather than added as a second entry of the node smiles list because the delivery gate rejects any smiles list that differs from the DAG species declaration (identity fixed at create time)."
+      },
+      "smiles_isomeric": "C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12"
+    },
+    {
+      "id": "RC_antiC10",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "label": "pre-reaction contact complex of the anti-C10 (conventional endo) channel: HCNO physisorbed on the side of the C4=C5 bond opposite to the methano bridge C10, i.e. on the C7-C8 ethano-bridge side",
+        "energy_hartree": -441.02009551,
+        "evidence_log": "endo_antiC10/rc/rc_lo_optfreq.log",
+        "n_imag": 0,
+        "face_signed_out_of_plane": {
+          "C10": -0.837,
+          "HCNO_centroid": 3.128
+        },
+        "note": "lowest B3LYP-D3(BJ)/def2-SVP contact minimum of this channel; barrier reference for e_anti. Lies 0.47 kcal/mol BELOW RC_synC10 - a separate contact-conformer difference, not a facial selectivity.",
+        "evidence_log_archived_copy": ".cloudra/evidence/ab0f339fc869ebb3_rc_lo_optfreq.log"
+      }
+    },
+    {
+      "id": "TS_antiC10",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "concerted, strongly asynchronous [3+2] transition structure on the anti-C10 face",
+        "energy_hartree": -440.99431666,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -426.4,
+        "evidence_log_archived_copy": ".cloudra/evidence/b6c04440998ece22_refine.log"
+      }
+    },
+    {
+      "id": "P_antiC10",
+      "role": "product",
+      "smiles": [
+        "C1=NOC2C3CCC(C3)C12"
+      ],
+      "properties": {
+        "label": "anti-C10 (conventional endo) product: 4,5-fused 2-isoxazoline with the isoxazoline ring on the side opposite the methano bridge C10",
+        "energy_hartree": -441.095689319,
+        "evidence_log": "endo_antiC10/prod/prod_optfreq.log",
+        "n_imag": 0,
+        "cip": {
+          "C4": "R",
+          "C5": "R",
+          "C6": "R",
+          "C9": "S"
+        },
+        "face_signed_out_of_plane": {
+          "C10": 0.89,
+          "C1": -1.27,
+          "N2": -1.88,
+          "O3": -1.17
+        },
+        "note": "stereochemistry perceived from the optimised 3D coordinates and independently re-derived by the Coordinator",
+        "evidence_log_archived_copy": ".cloudra/evidence/9c2d8a17d3644218_prod_optfreq.log",
+        "isomeric_smiles": "C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12",
+        "connectivity_smiles": "C1=NOC2C3CCC(C3)C12",
+        "stereo_note": "The stereo-explicit SMILES perceived from the optimised 3D geometry is C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12. It is recorded in this properties block rather than added as a second entry of the node smiles list because the delivery gate rejects any smiles list that differs from the DAG species declaration (identity fixed at create time)."
+      },
+      "smiles_isomeric": "C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12"
+    },
+    {
+      "id": "RC_synC10_st",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=C[C@H]2CC[C@@H]1C2"
+      ],
+      "properties": {
+        "label": "syn-C10 pre-reaction contact minimum, dot-joined complex; same minimum as RC_synC10, declared with the stereochemistry perceived from the optimised 3D geometry",
+        "energy_hartree": -441.01935029,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_opt.log",
+        "evidence_freq_log": "ts/ts_0001/jobs/declaration_0008/reactant_frequency/reactant_frequency.log",
+        "n_imag": 0,
+        "contacts": {
+          "d_C1_C4": 4.152,
+          "d_O3_C5": 3.302
+        },
+        "face_signed_out_of_plane": {
+          "C10": -0.841,
+          "C7": 1.414,
+          "C8": 1.417,
+          "O3": -1.782,
+          "N2": -2.593,
+          "C1": -3.388
+        },
+        "provenance": "unconstrained Opt started at the exact canonical IRC outer frame irc-12e2a5e6...end-a.xyz (max coordinate deviation 0.000000 A), converged; paired freq = 57 modes, 0 imaginary",
+        "note": "barrier reference of the syn-C10 channel"
+      }
+    },
+    {
+      "id": "P_synC10_st",
+      "role": "product",
+      "smiles": [
+        "C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12"
+      ],
+      "properties": {
+        "label": "syn-C10 product: 4,5-fused 2-isoxazoline, ring syn to the methano bridge C10; stereochemistry perceived from the optimised 3D geometry",
+        "energy_hartree": -441.098273642,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0008/product_opt/product_opt.log",
+        "evidence_freq_log": "ts/ts_0001/jobs/declaration_0008/product_frequency/product_frequency.log",
+        "n_imag": 0,
+        "cip": {
+          "C4": "S",
+          "C5": "S",
+          "C6": "R",
+          "C9": "S"
+        },
+        "face_signed_out_of_plane": {
+          "C10": -0.885,
+          "C1": -1.279,
+          "N2": -1.922,
+          "O3": -1.251
+        },
+        "provenance": "unconstrained Opt started at the exact canonical IRC outer frame irc-12e2a5e6...end-b.xyz, converged; paired freq = 57 modes, 0 imaginary"
+      }
+    },
+    {
+      "id": "RC_antiC10_st",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=C[C@H]2CC[C@@H]1C2"
+      ],
+      "properties": {
+        "label": "anti-C10 pre-reaction contact minimum, dot-joined complex; HCNO on the ethano-bridge side, opposite to the methano bridge C10",
+        "energy_hartree": -441.020095473,
+        "evidence_log": "endpoint24/anti_reactant/anti_reactant.log",
+        "n_imag": 0,
+        "contacts": {
+          "d_C1_C4": 3.603,
+          "d_O3_C5": 3.263
+        },
+        "face_signed_out_of_plane": {
+          "C10": -0.845,
+          "C7": 1.412,
+          "C8": 1.415,
+          "O3": 2.95,
+          "N2": 3.135,
+          "C1": 3.312
+        },
+        "provenance": "combined Opt+Freq started at the exact canonical IRC outer frame irc-8955cb5d...end-b.xyz (max coordinate deviation 0.000000 A), converged, 57 modes, 0 imaginary",
+        "note": "barrier reference of the anti-C10 channel"
+      }
+    },
+    {
+      "id": "P_antiC10_st",
+      "role": "product",
+      "smiles": [
+        "C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12"
+      ],
+      "properties": {
+        "label": "anti-C10 product: 4,5-fused 2-isoxazoline, ring anti to the methano bridge C10; stereochemistry perceived from the optimised 3D geometry",
+        "energy_hartree": -441.095689404,
+        "evidence_log": "endpoint24/anti_product/anti_product.log",
+        "n_imag": 0,
+        "cip": {
+          "C4": "R",
+          "C5": "R",
+          "C6": "R",
+          "C9": "S"
+        },
+        "face_signed_out_of_plane": {
+          "C10": 0.913,
+          "C1": -1.268,
+          "N2": -1.893,
+          "O3": -1.189
+        },
+        "provenance": "combined Opt+Freq started at the exact canonical IRC outer frame irc-8955cb5d...end-a.xyz (max coordinate deviation 0.000000 A), converged, 57 modes, 0 imaginary"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_cae52596",
+      "from": "RC_synC10_st",
+      "to": "P_synC10_st",
+      "via": "TS_synC10",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "channel": "syn-C10 (conventional exo)",
+      "favored": false,
+      "barrier_kcal_mol": 10.77,
+      "note": "dE(double dagger) = E(TS_synC10) - E(RC_synC10_st) = -441.002183919 - (-441.01935029) = 0.017166356 Ha = 10.77 kcal/mol, electronic only (no ZPE/thermal), referenced to this channel's own lowest verified contact minimum. Concerted, strongly asynchronous [3+2]: C1-C4 forms ahead of O3-C5; both new bonds in one elementary step, C4=C5 and C1#N pi bonds break together. IRC: ts_combined/syn_irc_then_freq.log, same-TS bidirectional, 15 points per side, rx -3.14902/+3.14906, endpoints -441.012724/-441.035134 Ha, both below E(TS); both outer frames reoptimised unconstrained to the declared minima. Product stereochemistry from 3D: C4=S, C5=S.",
+      "dag_step_id": "step_cae52596",
+      "properties": {
+        "barrier_reference": "E(TS_synC10) - E(RC_synC10_st), electronic only",
+        "irc_log": "ts_combined/syn_irc_then_freq.log",
+        "ts_opt_log": "ts/ts_0001/jobs/declaration_0006/ts_opt/refine.log",
+        "ts_freq_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log"
+      }
+    },
+    {
+      "id": "step_d4517147",
+      "from": "RC_antiC10_st",
+      "to": "P_antiC10_st",
+      "via": "TS_antiC10",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "channel": "anti-C10 (conventional endo)",
+      "favored": false,
+      "barrier_kcal_mol": 16.18,
+      "note": "dE(double dagger) = E(TS_antiC10) - E(RC_antiC10_st) = -440.994316660 - (-441.020095473) = 0.025778850 Ha = 16.18 kcal/mol, electronic only, referenced to this channel's own lowest verified contact minimum. Same bond changes and the same concerted asynchronous character; only the face differs. IRC: ts_combined/anti_irc_then_freq.log, same-TS bidirectional, 24 points per side, rx -4.68531/+4.68374, endpoints -441.054899/-441.014828 Ha, all below E(TS); both outer frames reoptimised unconstrained to the declared minima. Product stereochemistry from 3D: C4=R, C5=R.",
+      "dag_step_id": "step_d4517147",
+      "properties": {
+        "barrier_reference": "E(TS_antiC10) - E(RC_antiC10_st), electronic only",
+        "irc_log": "ts_combined/anti_irc_then_freq.log",
+        "ts_opt_log": "ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log",
+        "ts_freq_log": "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log"
+      }
+    }
+  ],
+  "notes": [
+    "Delivered mechanism: two concerted, strongly asynchronous [3+2] cycloadditions of HCNO (C#[N+][O-]) to the C4=C5 bond of norbornene, one on each face relative to the methano bridge C10. Bond changes on both edges: break C1#N [1,2] and C4=C5 [4,5]; form C1-C4 [1,4] and O3-C5 [3,5] (1-based atom map of [CH:1]#[N+:2][O-:3].[CH:4]1=[CH:5][CH:6]2[CH2:7][CH2:8][CH:9]1[CH2:10]2).",
+    "Barriers (electronic, no ZPE/thermal, each against that channel's own lowest verified contact minimum): syn-C10 10.77 kcal/mol, anti-C10 16.18 kcal/mol. No favoured channel is claimed: the two barriers are referenced to different complexes, and the contact-minimum difference (0.47 kcal/mol, anti lower) and product difference (1.62 kcal/mol, syn lower) are separate quantities, not a common-reference facial selectivity.",
+    "Stereochemistry of the product nodes is stated in their smiles lists: syn-C10 C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12 (C4=S, C5=S, isoxazoline ring syn to C10) and anti-C10 C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12 (C4=R, C5=R, ring anti to C10). The two products are diastereomers of an achiral substrate, as the two faces require. The stereochemistry was perceived from the optimised 3D coordinates (RDKit AssignStereochemistryFrom3D) and independently re-derived by the Supervisor.",
+    "Nodes RC_synC10 / P_synC10 / RC_antiC10 / P_antiC10 are the same minima declared with the plain connectivity strings; they are retained as reference nodes with their own accepted evidence, while the delivered edges use the stereo-declared occurrences (RC_*_st -> P_*_st) that carry the same native logs.",
+    "Exploratory branch kept out of the delivered graph: single-bond-first (stepwise) C-C or C-O addition was searched at GFN2-xTB and produced no zwitterionic single-bond minimum on either face (holding only C1-C4 drives O3...C5 to 3.65-3.81 A and vice versa, 3.57-3.83 A), so the concerted edge is the operative pathway.",
+    "Contact-complex search supporting the barrier references: eight syn starts and four anti starts were screened; the syn lowest minimum is the tilted contact (C1...C4 4.152 A) reproduced from a rigid parallel 2.80-3.00 A start (-441.019350291/-441.019350302 Ha), with a second syn conformer at +0.42 kcal/mol (exo_synC10/rc_conf/confB_s10.log); all anti starts relax to the single basin -441.0200955 Ha, and a rigid parallel 2.8-3.3 A stack is not a stationary point on either face (anti single point +29.0 kcal/mol).",
+    "Conditions and limits: gas phase, neutral singlet, B3LYP/def2-SVP with D3(BJ) dispersion, Ultrafine integration, SCF=Tight (Gaussian 16 rev C.01), electronic energies only. Jobs ran at %nprocshared=4 and %mem=8GB instead of the instructed 10 cores / 10 GB because the shared node was scheduled sequentially; this changes only wall-clock time, not the level of theory. Web search was unavailable, so the literature background reference (DOI 10.1039/FT9938900029, 1,3-dipolar cycloadditions of fulminic acid) is cited unretrieved and the regiochemistry rests on the computed evidence."
+  ]
+}

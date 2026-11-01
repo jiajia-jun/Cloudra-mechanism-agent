@@ -1,0 +1,47 @@
+{
+  "nodes": [
+    {
+      "id": "R",
+      "role": "reactant",
+      "smiles": ["C1=CC=C1"],
+      "properties": {
+        "level_of_theory": "PM7 (Gaussian 16), gas phase, isolated molecule (matrix-isolation regime)",
+        "electronic_energy_hartree": 0.1525921404,
+        "evidence_log": "min/cbd_rect_opt.log",
+        "note": "rectangular (D2h) ground-state minimum, C-C 1.347/1.551 A, 18 real frequencies, 0 imaginary"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": ["C1=CC=C1"],
+      "properties": {
+        "level_of_theory": "PM7 (Gaussian 16)",
+        "electronic_energy_hartree": 0.1894081476,
+        "evidence_log": "sqc2/cbd_square_constr.log",
+        "note": "square (D4h-like) structure with all four ring C-C fixed at 1.480 A and the hydrogens relaxed; PM7 gives no clean first-order saddle for the bond-alternation coordinate (opt=TS from near-square guesses collapses back to the rectangular minimum), so the square was evaluated by a bond-length-constrained optimisation"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": ["C1=CC=C1"],
+      "properties": {
+        "level_of_theory": "PM7 (Gaussian 16), gas phase",
+        "electronic_energy_hartree": 0.1525921404,
+        "evidence_log": "min/cbd_rect_opt.log",
+        "note": "Kekule-shifted (automerized) rectangular form; degenerate with R by symmetry"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "R",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {"break": [[1, 2], [3, 4]], "form": [[2, 3], [1, 4]]},
+      "barrier_kcal_mol": 23.1
+    }
+  ]
+}

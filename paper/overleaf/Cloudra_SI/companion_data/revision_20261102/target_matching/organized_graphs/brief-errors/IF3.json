@@ -1,0 +1,121 @@
+{
+  "nodes": [
+    {
+      "id": "T",
+      "role": "reactant",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "properties": {
+        "name": "triangulene, triplet ground state (multiplicity 3)",
+        "multiplicity": "3",
+        "charge": "0",
+        "method": "PM7 (Gaussian 16, unrestricted UPM7, 51 alpha / 49 beta electrons), gas phase",
+        "electronic_energy_hartree": "0.145644518",
+        "zpve_hartree": "0.255782",
+        "stationary_point": "opt converged, 96 real frequencies, 0 imaginary",
+        "spin_contamination": "<S**2> = 3.015 after annihilation (initial 2.0000) - strong spin contamination of the semiempirical UHF solution",
+        "state_ordering": "triplet (multiplicity 3) below singlet (multiplicity 1); the triplet is the ground state",
+        "singlet_triplet_gap_kcal_mol": "not trustworthy at the xTB/PM7 level - the quantitative gap is not determined here. Only the restricted (closed-shell) singlet is reachable with PM7; its offset to the triplet is 47.28 kcal/mol (ZPVE-corrected), a known RHF artefact and an upper bound, not the physical gap.",
+        "restricted_singlet_offset_kcal_mol": 47.28,
+        "restricted_singlet_offset_ev": "2.05",
+        "open_shell_singlet_accessible": false,
+        "gap_definition": "state_ordering is the deliverable conclusion; no trustworthy quantitative gap could be obtained because the broken-symmetry open-shell singlet is not accessible (see node S1_OS).",
+        "evidence_log": [
+          "triplet_pm7.log"
+        ],
+        "evidence_input": [
+          "triplet_pm7.gjf"
+        ],
+        "evidence_geometry": [
+          "triplet_pm7_geom.xyz"
+        ],
+        "independent_method_check": [
+          "xtb_triplet_sp.out",
+          "xtb_singlet_sp.out"
+        ],
+        "alternate_run": [
+          "triplet_pm7_optfreq.log (identical geometry, first run with a longer title line)"
+        ],
+        "xtb_cross_check": "GFN2-xTB single points at the same geometry: restricted singlet (ensemble solution, fractional occupations 1.02/0.98 on a 0.002 eV HOMO-LUMO pair) is 1.9 kcal/mol BELOW the UHF triplet - opposite sign to the PM7 restricted offset, i.e. the two allowed methods disagree even in sign; neither can deliver the diradical gap. Files: xtb_triplet_sp.out, xtb_singlet_sp.out."
+      }
+    },
+    {
+      "id": "S1_CS",
+      "role": "product",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "properties": {
+        "name": "triangulene, restricted closed-shell (Kekule) singlet (multiplicity 1) - RHF reference state",
+        "multiplicity": "1",
+        "method": "PM7 (Gaussian 16, restricted RPM7, 50 alpha / 50 beta electrons), gas phase",
+        "electronic_energy_hartree": "0.220288109",
+        "zpve_hartree": "0.256477",
+        "energy_above_triplet_kcal_mol": 47.28,
+        "note": "RHF compromise solution of a non-Kekule hydrocarbon, not a physical Kekule isomer; energy is an upper bound for the singlet manifold.",
+        "evidence_log": [
+          "singlet_cs_pm7.log"
+        ],
+        "evidence_input": [
+          "singlet_cs_pm7.gjf"
+        ],
+        "evidence_geometry": [
+          "singlet_cs_pm7_geom.xyz"
+        ],
+        "alternate_run": [
+          "singlet_pm7_optfreq.log (identical geometry/RPM7 solution, first run)"
+        ]
+      }
+    },
+    {
+      "id": "S1_OS",
+      "role": "intermediate",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "properties": {
+        "name": "triangulene, broken-symmetry open-shell singlet (multiplicity 1, diradical)",
+        "multiplicity": "1",
+        "accessible": false,
+        "status": "not obtained at the allowed level of theory",
+        "reason": "Gaussian PM7 singlet is restricted (RPM7, 50 alpha/50 beta); guess=mix is inert. Unrestricted-singlet routes (UPM7 method token; 'UHF' route keyword, upper and lower case method token) were all intercepted by the active method policy before execution ('policy_blocked'), so they are inconclusive about Gaussian/xTB capability but produced no log. The xTB (GFN2) alternative has no broken-symmetry singlet either; a GFN2 single point gives the restricted singlet 1.9 kcal/mol BELOW the UHF triplet (exchange-free semiempirical, opposite of Hund) - i.e. xTB cannot resolve this gap either.",
+        "consequence": "No open-shell singlet energy, so no broken-symmetry S-T gap is declared; only the qualitative ordering (triplet ground state) is delivered.",
+        "attempted_input": [
+          "bs_try_a.gjf",
+          "bs_try_b.gjf",
+          "singlet_bs_upm7_optfreq.gjf",
+          "singlet_uhf_upm7_try.gjf"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "T",
+      "to": "S1_CS",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "spin-state change (adiabatic), triplet -> restricted closed-shell singlet",
+      "favored": false,
+      "energy_difference_kcal_mol": 47.28
+    },
+    {
+      "id": "e2",
+      "from": "T",
+      "to": "S1_OS",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "spin-state change (adiabatic), triplet -> broken-symmetry open-shell singlet",
+      "favored": false,
+      "accessible": false
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "CC1CC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -195.165893758,
+        "evidence_log": "jobs/reactant_min.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": []
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C/C=C/C"
+      ],
+      "properties": {
+        "energy_hartree": -195.187896036,
+        "evidence_log": "jobs/prodE_min.log"
+      }
+    },
+    {
+      "id": "TSM1",
+      "role": "transition_state",
+      "smiles": []
+    },
+    {
+      "id": "M1",
+      "role": "product",
+      "smiles": [
+        "C=C/C=C\\C"
+      ],
+      "properties": {
+        "energy_hartree": -195.186154811,
+        "evidence_log": "jobs/prodZ_min.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "channel": "outward_rotation",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "M1",
+      "via": "TSM1",
+      "channel": "inward_rotation",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      }
+    }
+  ]
+}

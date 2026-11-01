@@ -1,0 +1,89 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -233.248473353,
+        "evidence_log": "qm/hexatriene_tZt_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine, gas phase)",
+        "conformer": "all-trans (s-trans,s-trans) minimum, lowest-energy hexatriene conformer found; 0 imaginary frequencies",
+        "other_conformer_evidence": "the IRC-connected s-cis,s-cis (prereaction) conformer is an independent minimum at the same level: qm/src_opt_from_frameA.log (Opt started from the canonical IRC outer frame) with its frequency analysis qm/src_freq.log, E=-233.233672662 Ha, 0 imaginary frequencies, +9.29 kcal/mol above the all-trans minimum",
+      "barrier_from_prereaction_conformer_kcal_mol": 18.99,
+      "reaction_conditions": "gas phase; the stated 390-434 K range is represented by the electronic (0 K) gas-phase surface, no thermostat or thermal corrections applied"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -233.203414282,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/ts_opt/.cloudra/execution-235/results/refine.log",
+        "frequency_log": "ts/ts_0001/jobs/declaration_0006/frequency/.cloudra/execution-236/results/frequency.log",
+        "imaginary_frequency_cm1": -566.53,
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine, gas phase)",
+        "description": "aromatic-like 6-pi electrocyclization saddle; all five ring bonds 1.399-1.407 A, C1...C6 = 2.277 A, disrotatory terminal CH2 motion"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1=CC=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -233.274556882,
+        "evidence_log": "qm/cyclohexadiene_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, Int=UltraFine, gas phase)",
+        "description": "1,3-cyclohexadiene minimum, 0 imaginary frequencies; identical to the IRC product-side endpoint minimum"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 28.27,
+      "channel": "thermal 6pi disrotatory electrocyclization (Woodward-Hoffmann allowed for 4n+2)",
+      "favored": true
+    }
+  ]
+}

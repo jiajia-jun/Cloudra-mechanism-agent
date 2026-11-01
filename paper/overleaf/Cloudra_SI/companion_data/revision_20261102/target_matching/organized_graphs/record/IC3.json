@@ -1,0 +1,104 @@
+{
+  "nodes": [
+    {
+      "id": "PHN_T",
+      "role": "reactant",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "accessible": true,
+      "properties": {
+        "species": "phenylnitrene, triplet ground state",
+        "multiplicity": 3,
+        "electronic_state": "3A2 (C2v, planar); two unpaired electrons: in-plane N sp2 lone pair (sigma) + out-of-plane N 2p (pi, delocalised over the ring)",
+        "singlet_triplet_gap_kcal_mol": 15.1,
+        "singlet_triplet_gap_uncertainty_kcal_mol": 1,
+        "state_ordering": "triplet (3A2) below lowest singlet (1A2)",
+        "lowest_singlet_character": "open-shell (diradical) 1A2: the 3A2 (n)1(pi)1 configuration with antiparallel spin coupling - one electron in the in-plane N sp2 lone-pair sigma orbital (b1) and one in the out-of-plane N 2p pi orbital (b2) that conjugates with the ring; strong imine-biradical (1,1-diradical) character, non-aromatic, geometry and energy close to the triplet. Not the closed-shell zwitterionic 1A1 (n)2(pi)0 nitrenium-like state, which lies much higher (~31 kcal/mol, MRCI).",
+        "gap_basis": "Allowed methods cannot deliver this quantity: both PM7 (RHF) and GFN2-xTB (restricted) are single-reference and cannot represent the open-shell 1A2 singlet; PM7 collapses onto a high-lying closed-shell 1A1-like solution (46.0 kcal/mol, one imaginary frequency) and GFN2-xTB over-stabilises the singlet (1.65 kcal/mol BELOW the triplet, i.e. wrong sign). The declared gap is the established gas-phase value: revised experimental 14.8-15.1 kcal/mol (re-analysis of the phenylnitrene anion photoelectron spectrum) and MRCI+Q/CBS 15.9 kcal/mol; the vertical gap at the triplet geometry is 18.9 kcal/mol.",
+        "pm7_energy_hartree": 0.141079867882,
+        "pm7_closed_shell_singlet_minus_triplet_kcal_mol": 45.96,
+        "xtb_gfn2_restricted_singlet_minus_triplet_kcal_mol": -1.65,
+        "pm7_triplet_spin_density_on_N": 1.696,
+        "evidence_log": [
+          "work/pm7_trip_optfreq.log",
+          "work/PhN_trip.out"
+        ],
+        "gap_type": "adiabatic (each state at its own optimum), gas phase, deltaE(1A2 - 3A2)",
+        "references": [
+          "Winkler, J. Phys. Chem. A 2008, 112, 8649, doi:10.1021/jp802547c (MRCI+Q/CBS 15.9 adiabatic / 18.9 vertical; 1A1 at +31; DFT spread 9-16)",
+          "Wijeratne et al., J. Phys. Chem. A 2009, 113, 9467, doi:10.1021/jp9039594 (revised experimental 14.8)",
+          "Borden, Gritsan, Hadad, Karney, Kemnitz, Platz, Acc. Chem. Res. 2000, 33, 765, doi:10.1021/ar990030a (PhN lowest singlet is open-shell, unlike phenylcarbene)",
+          "Stewart, J. Mol. Model. 2013, 19, 1, doi:10.1007/s00894-012-1667-x (PM7 scope limitation)",
+          "Bannwarth, Ehlert, Grimme, JCTC 2019, 15, 1652, doi:10.1021/acs.jctc.8b01176 (GFN2-xTB scope)"
+        ],
+        "vertical_singlet_triplet_gap_kcal_mol": 18.9,
+        "vertical_gap_note": "Literature vertical gap (MRCI, at the 3A2 geometry); not computed here because no allowed method gives a trustworthy singlet energy."
+      }
+    },
+    {
+      "id": "PHN_S",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "accessible": false,
+      "properties": {
+        "species": "phenylnitrene, lowest singlet (3A2's singlet partner)",
+        "multiplicity": 1,
+        "electronic_state": "1A2 open-shell diradical (n)1(pi)1, singlet-coupled - strong imine-biradical character",
+        "energy_above_triplet_kcal_mol": 15.1,
+        "accessibility_note": "Not computable to trustworthy accuracy with the allowed methods (xTB, PM7): a restricted single-reference SCF cannot produce a broken-symmetry open-shell singlet; PM7-RHF instead converges to a high-lying closed-shell 1A1-like solution and the UHF route token is outside the method whitelist, while GFN2-xTB restricted even inverts the ordering (singlet 1.65 kcal/mol below the triplet). Energy above the triplet is therefore the established reference value (14.8-15.1 experimental, 15.9 MRCI+Q/CBS), not one of our calculations.",
+        "evidence_log": [
+          "work/pm7_sing_guessmix.log",
+          "work/PhN_sing.out"
+        ],
+        "energy_above_triplet_uncertainty_kcal_mol": 1
+      }
+    },
+    {
+      "id": "PHN_S_CS",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "accessible": true,
+      "properties": {
+        "species": "phenylnitrene, closed-shell singlet (zwitterionic 1A1), PM7 RHF description",
+        "multiplicity": 1,
+        "electronic_state": "closed-shell 1A1 (N+ - C- zwitterionic) - NOT the lowest singlet",
+        "pm7_energy_hartree": 0.21431876613,
+        "pm7_gap_above_triplet_kcal_mol": 45.96,
+        "pm7_imaginary_frequency_cm1": -476.2,
+        "note": "First-order saddle point on the PM7 RHF surface (one imaginary frequency -476 cm^-1): the closed-shell singlet is not even a minimum at this level, and PM7 places it 46.0 kcal/mol above the triplet versus ~31 kcal/mol for the 1A1 state in MRCI (Winkler 2008). Recorded only as a diagnostic of single-reference failure, not as a singlet-triplet gap.",
+        "evidence_log": [
+          "work/pm7_sing_cs_optfreq.log"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "PHN_T",
+      "to": "PHN_S",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "spin-state change (intersystem crossing) - no transition state on the singlet surface; bond orders and connectivity unchanged"
+    },
+    {
+      "id": "e2",
+      "from": "PHN_T",
+      "to": "PHN_S_CS",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "spin-state change to the closed-shell 1A1 singlet (same connectivity)"
+    }
+  ]
+}

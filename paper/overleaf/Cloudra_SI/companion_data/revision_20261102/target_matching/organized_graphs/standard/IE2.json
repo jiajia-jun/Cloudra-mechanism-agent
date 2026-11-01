@@ -1,0 +1,294 @@
+{
+  "nodes": [
+    {
+      "id": "N2",
+      "role": "reactant",
+      "smiles": [
+        "N#N"
+      ],
+      "properties": {
+        "formula": "N2",
+        "charge": 0,
+        "multiplicity": 1,
+        "conditions": "gas phase",
+        "method": "GFN2-xTB (xtb 6.5.0), restricted closed-shell singlet (--uhf 0)",
+        "bond_dissociation_energy_kcal_mol": 346.57,
+        "bond_dissociation_energy_definition": "De = 2*E(N, 4S) - E(N2, R_min); electronic energies, no ZPE correction",
+        "bond_dissociation_energy_hartree": 0.552287094,
+        "equilibrium_bond_length_angstrom": 1.09826,
+        "minimum_energy_hartree": -5.763935416837,
+        "harmonic_frequencies_cm_1": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          2437.32
+        ],
+        "imaginary_frequencies_cm_1": [],
+        "zero_point_energy_hartree": 0.005552625607,
+        "dissociation_curve": [
+          {
+            "R_angstrom": 1,
+            "E_hartree": -5.728922604703,
+            "E_rel_kcal_mol": 21.971,
+            "evidence_log": "n2_scan_R1.00/n2_scan_R1.00.out",
+            "input_xyz": "n2_scan_R1.00/n2_scan_R1.00.xyz"
+          },
+          {
+            "R_angstrom": 1.02,
+            "E_hartree": -5.742884628586,
+            "E_rel_kcal_mol": 13.21,
+            "evidence_log": "n2_scan_R1.02/n2_scan_R1.02.out",
+            "input_xyz": "n2_scan_R1.02/n2_scan_R1.02.xyz"
+          },
+          {
+            "R_angstrom": 1.05,
+            "E_hartree": -5.756541050021,
+            "E_rel_kcal_mol": 4.64,
+            "evidence_log": "n2_scan_R1.05/n2_scan_R1.05.out",
+            "input_xyz": "n2_scan_R1.05/n2_scan_R1.05.xyz"
+          },
+          {
+            "R_angstrom": 1.08,
+            "E_hartree": -5.762958002223,
+            "E_rel_kcal_mol": 0.613,
+            "evidence_log": "n2_scan_R1.08/n2_scan_R1.08.out",
+            "input_xyz": "n2_scan_R1.08/n2_scan_R1.08.xyz"
+          },
+          {
+            "R_angstrom": 1.1,
+            "E_hartree": -5.763926554627,
+            "E_rel_kcal_mol": 0.006,
+            "evidence_log": "n2_scan_R1.10/n2_scan_R1.10.out",
+            "input_xyz": "n2_scan_R1.10/n2_scan_R1.10.xyz"
+          },
+          {
+            "R_angstrom": 1.12,
+            "E_hartree": -5.762672064285,
+            "E_rel_kcal_mol": 0.793,
+            "evidence_log": "n2_scan_R1.12/n2_scan_R1.12.out",
+            "input_xyz": "n2_scan_R1.12/n2_scan_R1.12.xyz"
+          },
+          {
+            "R_angstrom": 1.15,
+            "E_hartree": -5.757299783893,
+            "E_rel_kcal_mol": 4.164,
+            "evidence_log": "n2_scan_R1.15/n2_scan_R1.15.out",
+            "input_xyz": "n2_scan_R1.15/n2_scan_R1.15.xyz"
+          },
+          {
+            "R_angstrom": 1.18,
+            "E_hartree": -5.748530477139,
+            "E_rel_kcal_mol": 9.667,
+            "evidence_log": "n2_scan_R1.18/n2_scan_R1.18.out",
+            "input_xyz": "n2_scan_R1.18/n2_scan_R1.18.xyz"
+          },
+          {
+            "R_angstrom": 1.2,
+            "E_hartree": -5.741171058552,
+            "E_rel_kcal_mol": 14.285,
+            "evidence_log": "n2_scan_R1.20/n2_scan_R1.20.out",
+            "input_xyz": "n2_scan_R1.20/n2_scan_R1.20.xyz"
+          },
+          {
+            "R_angstrom": 1.23,
+            "E_hartree": -5.728331100005,
+            "E_rel_kcal_mol": 22.342,
+            "evidence_log": "n2_scan_R1.23/n2_scan_R1.23.out",
+            "input_xyz": "n2_scan_R1.23/n2_scan_R1.23.xyz"
+          },
+          {
+            "R_angstrom": 1.26,
+            "E_hartree": -5.713800540979,
+            "E_rel_kcal_mol": 31.46,
+            "evidence_log": "n2_scan_R1.26/n2_scan_R1.26.out",
+            "input_xyz": "n2_scan_R1.26/n2_scan_R1.26.xyz"
+          },
+          {
+            "R_angstrom": 1.3,
+            "E_hartree": -5.692549393193,
+            "E_rel_kcal_mol": 44.795,
+            "evidence_log": "n2_scan_R1.30/n2_scan_R1.30.out",
+            "input_xyz": "n2_scan_R1.30/n2_scan_R1.30.xyz"
+          },
+          {
+            "R_angstrom": 1.35,
+            "E_hartree": -5.664105882488,
+            "E_rel_kcal_mol": 62.644,
+            "evidence_log": "n2_scan_R1.35/n2_scan_R1.35.out",
+            "input_xyz": "n2_scan_R1.35/n2_scan_R1.35.xyz"
+          },
+          {
+            "R_angstrom": 1.4,
+            "E_hartree": -5.63468990667,
+            "E_rel_kcal_mol": 81.103,
+            "evidence_log": "n2_scan_R1.40/n2_scan_R1.40.out",
+            "input_xyz": "n2_scan_R1.40/n2_scan_R1.40.xyz"
+          },
+          {
+            "R_angstrom": 1.5,
+            "E_hartree": -5.576176734129,
+            "E_rel_kcal_mol": 117.82,
+            "evidence_log": "n2_scan_R1.50/n2_scan_R1.50.out",
+            "input_xyz": "n2_scan_R1.50/n2_scan_R1.50.xyz"
+          },
+          {
+            "R_angstrom": 1.6,
+            "E_hartree": -5.521348358104,
+            "E_rel_kcal_mol": 152.226,
+            "evidence_log": "n2_scan_R1.60/n2_scan_R1.60.out",
+            "input_xyz": "n2_scan_R1.60/n2_scan_R1.60.xyz"
+          },
+          {
+            "R_angstrom": 1.8,
+            "E_hartree": -5.429333134883,
+            "E_rel_kcal_mol": 209.966,
+            "evidence_log": "n2_scan_R1.80/n2_scan_R1.80.out",
+            "input_xyz": "n2_scan_R1.80/n2_scan_R1.80.xyz"
+          },
+          {
+            "R_angstrom": 2,
+            "E_hartree": -5.361039829147,
+            "E_rel_kcal_mol": 252.821,
+            "evidence_log": "n2_scan_R2.00/n2_scan_R2.00.out",
+            "input_xyz": "n2_scan_R2.00/n2_scan_R2.00.xyz"
+          },
+          {
+            "R_angstrom": 2.2,
+            "E_hartree": -5.31181365852,
+            "E_rel_kcal_mol": 283.711,
+            "evidence_log": "n2_scan_R2.20/n2_scan_R2.20.out",
+            "input_xyz": "n2_scan_R2.20/n2_scan_R2.20.xyz"
+          },
+          {
+            "R_angstrom": 2.5,
+            "E_hartree": -5.264578553216,
+            "E_rel_kcal_mol": 313.351,
+            "evidence_log": "n2_scan_R2.50/n2_scan_R2.50.out",
+            "input_xyz": "n2_scan_R2.50/n2_scan_R2.50.xyz"
+          },
+          {
+            "R_angstrom": 3,
+            "E_hartree": -5.230295453581,
+            "E_rel_kcal_mol": 334.864,
+            "evidence_log": "n2_scan_R3.00/n2_scan_R3.00.out",
+            "input_xyz": "n2_scan_R3.00/n2_scan_R3.00.xyz"
+          },
+          {
+            "R_angstrom": 3.5,
+            "E_hartree": -5.220893911682,
+            "E_rel_kcal_mol": 340.764,
+            "evidence_log": "n2_scan_R3.50/n2_scan_R3.50.out",
+            "input_xyz": "n2_scan_R3.50/n2_scan_R3.50.xyz"
+          },
+          {
+            "R_angstrom": 4,
+            "E_hartree": -5.219757605734,
+            "E_rel_kcal_mol": 341.477,
+            "evidence_log": "n2_scan_R4.00/n2_scan_R4.00.out",
+            "input_xyz": "n2_scan_R4.00/n2_scan_R4.00.xyz"
+          }
+        ],
+        "curve_R_range_angstrom": "1.00 - 4.00",
+        "dissociated_atoms_energy_hartree": {
+          "each_N_4S": -2.605824161279,
+          "two_N_4S": -5.211648323
+        },
+        "asymptote_gap_kcal_mol": -5.089,
+        "optimized_geometry_file": "n2_opt/xtbopt.xyz",
+        "limitations": "Restricted singlet curve is spin-contaminated at large R (true limit = two 4S N atoms); above ~2.5 A xTB Fermi smearing gives fractional occupations, so the 4.0 A supermolecule lies 5.09 kcal/mol below 2*E(N,4S). GFN2-xTB overestimates the N2 BDE (computed 346.6 vs experimental ~225.1 kcal/mol); value reported as computed, no fitting.",
+        "evidence_log": [
+          "n2_opt/n2_opt.xyz",
+          "n2_opt/n2_opt.out",
+          "n2_freq/n2_freq.xyz",
+          "n2_freq/n2_freq.out"
+        ]
+      }
+    },
+    {
+      "id": "P_2N",
+      "role": "product",
+      "smiles": [
+        "[N].[N]"
+      ],
+      "properties": {
+        "formula": "N + N",
+        "charge": 0,
+        "multiplicity": 1,
+        "spin_state_note": "singlet-coupled pair of two 4S (quartet) N atoms; each component computed separately at multiplicity 4",
+        "method": "GFN2-xTB (xtb 6.5.0)",
+        "energy_two_atoms_R4.00_angstrom_hartree": -5.219757605734,
+        "energy_2x_isolated_N_4S_hartree": -5.211648323,
+        "evidence_log": [
+          "n2_Rmax/n2_Rmax_R4.00.xyz",
+          "n2_Rmax/n2_Rmax_R4.00.out",
+          "n_atom_q4/n_atom_q4.xyz",
+          "n_atom_q4/n_atom_q4.out",
+          "n2_scan_R4.00/n2_scan_R4.00.xyz",
+          "n2_scan_R4.00/n2_scan_R4.00.out"
+        ]
+      }
+    },
+    {
+      "id": "N_atom",
+      "role": "intermediate",
+      "smiles": [
+        "[N]"
+      ],
+      "properties": {
+        "description": "isolated nitrogen atom, ground 4S state (multiplicity 4, three singly occupied p orbitals); asymptote reference for the dissociation",
+        "charge": 0,
+        "multiplicity": 4,
+        "energy_hartree": -2.605824161279,
+        "evidence_log": [
+          "n_atom_q4/n_atom_q4.xyz",
+          "n_atom_q4/n_atom_q4.out"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "N2",
+      "to": "P_2N",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "bond dissociation (barrierless; ground-state curve rises monotonically from R_min)",
+      "notes": "Barrierless homolysis of the N#N triple bond; no transition state exists on the restricted singlet curve.",
+      "evidence_log": [
+        "n2_scan_R1.10/n2_scan_R1.10.xyz",
+        "n2_scan_R1.10/n2_scan_R1.10.out",
+        "n2_scan_R2.00/n2_scan_R2.00.xyz",
+        "n2_scan_R2.00/n2_scan_R2.00.out",
+        "n2_scan_R4.00/n2_scan_R4.00.xyz",
+        "n2_scan_R4.00/n2_scan_R4.00.out"
+      ]
+    },
+    {
+      "id": "e2",
+      "from": "P_2N",
+      "to": "N_atom",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "state change: singlet-coupled atom pair -> separated 4S atoms (asymptote reference)",
+      "notes": "Purely a state/reference step, no bond-order change; defines the dissociation asymptote used in the BDE.",
+      "evidence_log": [
+        "n_atom_q4/n_atom_q4.xyz",
+        "n_atom_q4/n_atom_q4.out"
+      ]
+    }
+  ]
+}

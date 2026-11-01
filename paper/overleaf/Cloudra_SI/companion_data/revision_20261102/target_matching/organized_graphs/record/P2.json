@@ -1,0 +1,81 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "note": "cyclopentadiene pre-reaction minimum (single molecule, so the reactant complex is the molecule itself)",
+        "energy_hartree": -193.978501603,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/reactant_opt/reactant_opt.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "note": "5-membered cyclic concerted [1,5]-sigmatropic H-shift TS; exactly 1 imaginary frequency at -1195.5 cm-1",
+        "energy_hartree": -193.936142386,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "note": "cyclopentadiene product (degenerate H-shifted tautomer, H on migrated carbon)",
+        "energy_hartree": -193.978501603,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0001/product_opt/product_opt.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ],
+          [
+            1,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 26.58,
+      "channel": "[1,5]-sigmatropic H shift",
+      "favored": true
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "nodes": [
+    {
+      "id": "cis-HONO",
+      "role": "reactant",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "name": "cis-HONO (syn, H-O-N=O 0 deg)",
+        "energy_hartree": -205.544707569,
+        "evidence_log": "runs/g_cis_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "frequencies_cm": [
+          674.9032,
+          749.9244,
+          942.5063,
+          1353.3986,
+          1760.7317,
+          3537.6741
+        ],
+        "n_imag": 0,
+        "dag_species_id": "sp_5115535c"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "HONO cis/trans torsional saddle (H-O-N=O ~ 90 deg)",
+        "energy_hartree": -205.521528755,
+        "evidence_log": "runs/g_ts_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "imaginary_frequency_cm": -700.3233,
+        "n_imag": 1,
+        "imaginary_mode": "H-dominated torsion (98.6% of displacement on H) out of the O=N-O plane; H-O-N=O dihedral ~ -87.6 deg at the saddle",
+        "irc_connection": "forward IRC -> cis-HONO (syn) minimum; reverse IRC -> trans-HONO (anti) minimum",
+        "id_note": "TS node for the DAG step step_62349954 (cis-trans-isomerization)"
+      }
+    },
+    {
+      "id": "trans-HONO",
+      "role": "product",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "name": "trans-HONO (anti, H-O-N=O 180 deg)",
+        "energy_hartree": -205.54393585,
+        "evidence_log": "runs/g_trans_optfreq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, charge 0, multiplicity 1",
+        "frequencies_cm": [
+          608.8661,
+          659.2641,
+          878.591,
+          1308.2099,
+          1830.1301,
+          3755.7666
+        ],
+        "n_imag": 0,
+        "dag_species_id": "sp_133620af"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "cis-trans-isomerization",
+      "from": "cis-HONO",
+      "to": "trans-HONO",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 14.545,
+      "channel": "internal rotation about the N-O(H) single bond (H-O-N=O torsion); purely conformational, no bond order changes. Evidence: TS runs/g_ts_optfreq.log (single imaginary mode -700.3233 cm-1, 98.6% H), bidirectional IRC runs/ircBoth.log with outer frames rx +1.93 (H-O-N=O 18.7 deg, E -205.541727 Ha) and rx -1.93 (154.4 deg, E -205.540159 Ha), re-optimized outer-frame minima runs/ep2_cis.log (E -205.544707345 Ha, 0 imaginary, 0.0 deg) and runs/ep2_trans.log (E -205.543935849 Ha, 0 imaginary, -180.0 deg); relaxed torsion scan runs/g_torsion_scan.log peaks at +14.52 kcal/mol at 90 deg. Barrier dE(double dagger) = E(TS1) - E(cis-HONO) = 0.023178814 Ha = 14.545 kcal/mol, electronic energies only; reverse direction against the anti minimum = 14.063 kcal/mol. DAG step id step_62349954.",
+      "favored": true
+    }
+  ]
+}

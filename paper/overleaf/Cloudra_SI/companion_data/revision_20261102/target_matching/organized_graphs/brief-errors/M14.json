@@ -1,0 +1,65 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -191.779652704,
+        "evidence_log": "calc/20_endpoint_strans_optfreq.log",
+        "description": "s-trans acrolein (dih O4-C3-C2-C1 -179.98 deg), B3LYP-D3(BJ)/def2-SVP Opt+Freq, 18 real and 0 imaginary frequencies; re-optimized outer frame of IRC path 1 of calc/18_irc_both.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -191.765230939,
+        "evidence_log": "calc/04_ts_optfreq.log",
+        "description": "C2-C3 torsional saddle, dih O4-C3-C2-C1 92.11 deg, exactly one imaginary frequency -230.71 cm-1 (torsional mode)",
+        "connectivity": "C1=C2-C3=O4, dihedral O4-C3-C2-C1 = 92.11 deg (perpendicular torsion)"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -191.777487474,
+        "evidence_log": "calc/19_endpoint_scis_optfreq.log",
+        "description": "s-cis acrolein (dih O4-C3-C2-C1 ~0 deg), B3LYP-D3(BJ)/def2-SVP Opt+Freq, 18 real and 0 imaginary frequencies; re-optimized outer frame of IRC path 2 of calc/18_irc_both.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 9.05,
+      "channel": "conformational_rotation_C2_C3",
+      "favored": true,
+      "note": "Conformational (torsional) isomerization about the C2-C3 single bond: no bond broken or formed. DeltaE(double dagger)=9.05 kcal/mol, E(s-cis)-E(s-trans)=+1.36 kcal/mol.",
+      "properties": {
+        "evidence_log": "calc/04_ts_optfreq.log",
+        "irc_log": "calc/18_irc_both.log",
+        "reactant_minimum_log": "calc/20_endpoint_strans_optfreq.log",
+        "product_minimum_log": "calc/19_endpoint_scis_optfreq.log",
+        "barrier_kcal_mol": 9.05,
+        "reaction_coordinate": "O4-C3-C2-C1 torsion 180 deg (s-trans) -> 92.11 deg (TS1) -> 0 deg (s-cis); purely conformational, C2-C3 stays 1.477-1.493 A and C1=C2 / C3=O4 pi bonds are retained"
+      }
+    }
+  ]
+}

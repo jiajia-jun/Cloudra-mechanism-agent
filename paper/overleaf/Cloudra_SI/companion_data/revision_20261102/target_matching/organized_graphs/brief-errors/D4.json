@@ -1,0 +1,95 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C=CC=O"
+      ],
+      "properties": {
+        "energy_hartree": -385.765025039,
+        "evidence_log": "calc/minima/RC/RC_scis.log",
+        "description": "Reactive s-cis endo pre-reaction complex of cyclopentadiene with s-cis acrolein (forming contacts 3.19 / 3.34 A, CHO over the retained diene C1=C5 bond). Barrier reference for the cycloaddition step. An s-trans acrolein dimer conformer exists 1.12 kcal/mol lower (calc/minima/RC/RC.log) but cannot reach a concerted [4+2] saddle; it is not the reference of this bond-forming step."
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.748077833,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0010/ts_opt/refine.log",
+        "description": "Endo concerted (asynchronous) [4+2] TS. Gaussian16 B3LYP/def2SVP EmpiricalDispersion=GD3BJ Opt=(TS,CalcFC,NoEigenTest) Freq, gas phase, charge 0 mult 1. Normal termination, stationary point found, exactly one imaginary frequency -446.29 cm-1 (coupled formation of the two new sigma bonds). Forming distances at the saddle r(map C2...C6)=2.02 A and r(map C4...C7)=2.55-2.58 A; aldehyde endo (O...C5 3.01 A vs O...C3 4.29 A); acrolein s-cis. Confirmed as the saddle connecting RC and P_endo by the converged bidirectional IRC calc/ts_endo/irc_both/irc_both.log (118 forward / 100 backward points) whose outer frames re-optimize to the two declared minima (calc/ts_endo/endpoint_job97/complex_optfreq.log -385.765025053 Ha; calc/ts_endo/endpoint_job97/product_optfreq.log -385.799956299 Ha)."
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "O=CC1CC2C=CC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -385.799956305,
+        "evidence_log": "calc/ts_endo/endpoint_product/endo_P_tight.log",
+        "description": "Endo-2-formylbicyclo[2.2.1]hept-5-ene product, the conformer actually reached by the IRC (formyl torsion O=C-C-C(ring) 118.8 deg; endo signature: formyl O 3.48 A from the retained C1=C5 alkene, 4.56 A from the one-carbon bridge). Gaussian16 B3LYP/def2SVP GD3BJ Opt=(Tight) Freq Int=UltraFine, gas phase, normal termination, 0 imaginary frequencies. A second, distinct minimum of the same enantiomeric pair (SMILES-built conformer, formyl torsion 126.4 deg) lies 0.67 kcal/mol higher at calc/minima/P_endo/P_endo.log. Declared with the stereo-free SMILES because the achiral reactants give a racemate and the run reaches one enantiomer arbitrarily."
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "O=C[C@H]1C[C@@H]2C=C[C@H]1C2"
+      ],
+      "properties": {
+        "energy_hartree": -385.799439717,
+        "evidence_log": "calc/minima/P_exo/P_exo.log",
+        "description": "Exo-2-formylbicyclo[2.2.1]hept-5-ene minimum, computed as an exploratory single species only: no exo transition state was searched and no exo barrier exists in this work, so this node is an isolated species record with no step attached. Endo vs exo is NOT adjudicated: this exo conformer (-385.799439717 Ha) lies 0.35 kcal/mol BELOW the SMILES-built endo conformer (-385.798889006 Ha) but 0.32 kcal/mol ABOVE the endo conformer the IRC actually reaches (-385.799956305 Ha), i.e. the product energies do not order the two channels once conformers are treated consistently; no exo saddle exists and the exo conformer space was never searched, so neither a kinetic nor a thermodynamic endo/exo ordering is claimed."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "endo_cycloaddition",
+      "from": "RC",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ]
+        ]
+      },
+      "channel": "endo",
+      "barrier_kcal_mol": 10.63,
+      "properties": {
+        "barrier_reference": "RC (s-cis endo pre-reaction complex, E = -385.765025039 Ha)",
+        "barrier_electronic_kcal_mol": 10.63,
+        "apparent_barrier_from_s_trans_dimer_kcal_mol": 11.75,
+        "note": "DeltaE-double-dagger = E(TS_endo) - E(RC), electronic only, no ZPE/thermal correction. Referenced to the reactive s-cis complex minimum; the lower s-trans dimer (-385.766810920 Ha) is not reachable by a concerted path and would give 11.75 kcal/mol.",
+        "reaction_energy_kcal_mol": -21.92,
+        "direction_proof": "calc/ts_endo/irc_both/irc_both.log: Gaussian16 IRC=(CalcFC,LQA,MaxPoints=250,StepSize=3) from the verified saddle, normal termination, converges in BOTH directions in one job (118 forward points to -385.799958 Ha, 100 backward points to -385.765018 Ha, PES minimum detected on both sides). Outer frames re-optimized unconstrained to frequency-verified minima calc/ts_endo/endpoint_job97/product_optfreq.log (-385.799956299 Ha, 0 imaginary) and calc/ts_endo/endpoint_job97/complex_optfreq.log (-385.765025053 Ha, 0 imaginary), which reproduce P_endo and RC to ~1e-8 Ha.",
+        "channel_note": "This edge is the channel that yields the product given in the task (endo-2-formylbicyclo[2.2.1]hept-5-ene). Endo/exo preference is NOT adjudicated: no TS_exo was computed and the exo conformer space was never searched, so neither a kinetic nor a thermodynamic endo/exo ordering is claimed."
+      }
+    }
+  ]
+}

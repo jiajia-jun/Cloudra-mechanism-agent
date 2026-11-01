@@ -1,0 +1,89 @@
+{
+  "nodes": [
+    {
+      "id": "FOOF",
+      "role": "reactant",
+      "smiles": [
+        "FOOF"
+      ],
+      "properties": {
+        "f_o_bond_length_angstrom": 1.5175,
+        "o_o_bond_length_angstrom": 1.2106,
+        "f_o_bond_dissociation_energy_kcal_mol": 55.6,
+        "method": "GFN2-xTB (xtb 6.5.0), gas phase, charge 0, multiplicity 1, T = 0 K electronic energies",
+        "f_o_o_angle_deg": 112.1,
+        "dihedral_deg": 89.4,
+        "electronic_energy_hartree": -17.320490940495,
+        "zpe_hartree": 0.00851639,
+        "frequencies_cm": "224.2, 437.7, 515.5, 643.0, 658.1, 1259.7 (all real, 0 imaginary)",
+        "f_o_bde_zpe_corrected_kcal_mol": 54,
+        "f_o_bde_note": "BDE = E([O]OF) + E(F) - E(FOOF) = -12.612623903996 + -4.619339964238 - (-17.320490940495) = 0.08852706 Eh = 55.55 kcal/mol (electronic); 53.96 kcal/mol after ZPE (0 K). Experimental values for this weak bond are lower (~20-30 kcal/mol), so the absolute number is limited by the semiempirical level of theory; the geometric parameters, which are the primary target of the task, are reproduced well.",
+        "evidence_log": "runs/foof/foof.out",
+        "input_file": "runs/foof/foof.xyz"
+      }
+    },
+    {
+      "id": "PROD_F_FOO",
+      "role": "product",
+      "smiles": [
+        "[O]OF.[F]"
+      ],
+      "properties": {
+        "f_o_bond_length_angstrom": "not applicable (bond broken)",
+        "o_o_bond_length_angstrom": 1.1937,
+        "f_o_radical_bond_length_angstrom": 1.5638,
+        "f_o_o_angle_deg": 113.1,
+        "description": "Products of a single F-O bond fission: fluorooxy radical (doublet) + ground-state F atom (doublet). Components computed separately at GFN2-xTB, gas phase.",
+        "electronic_energy_foo_hartree": -12.612623903996,
+        "electronic_energy_f_hartree": -4.619339964238,
+        "frequencies_cm_foo": "446.0, 651.6, 1529.7 (0 imaginary)",
+        "evidence_log": [
+          "runs/foo_rad/foo_rad.out",
+          "runs/f_atom_sp/f_atom.out"
+        ],
+        "input_file": [
+          "runs/foo_rad/foo_rad.xyz",
+          "runs/f_atom_sp/f_atom.xyz"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "FOOF",
+      "to": "PROD_F_FOO",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": []
+      },
+      "channel": "homolytic F-O bond fission, barrierless (no first-order saddle; relaxed F-O distance scan is monotonic)",
+      "barrier_kcal_mol": 0,
+      "favored": true,
+      "properties": {
+        "reaction_energy_kcal_mol": 55.55,
+        "barrier_note": "Barrierless: rigid F(1)-O(2) scan at GFN2-xTB (single points, runs/scan/r1..r8/foof.out) rises monotonically from the minimum (0.0) through 3.83, 13.26, 28.74, 42.22, 47.37, 48.95 to 49.25 kcal/mol at 5.0 A with no maximum, so no first-order saddle exists on this coordinate; barrier_kcal_mol = 0.0 is the level-of-theory statement that the step has no saddle, not a fitted number.",
+        "note": "A single F-O bond is broken; the O-O bond is retained. Bond map uses FOOF atom order: F(1)-O(2)-O(3)-F(4).",
+        "evidence_log": [
+          "runs/foof/foof.out",
+          "runs/foo_rad/foo_rad.out",
+          "runs/f_atom_sp/f_atom.out",
+          "runs/scan/r1/foof.out",
+          "runs/scan/r2/foof.out",
+          "runs/scan/r3/foof.out",
+          "runs/scan/r4/foof.out",
+          "runs/scan/r5/foof.out",
+          "runs/scan/r7/foof.out",
+          "runs/scan/r8/foof.out"
+        ],
+        "scan_summary": "runs/scan/SCAN_RESULTS.md"
+      }
+    }
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "nodes": [
+    {
+      "id": "Reactant Complex",
+      "role": "reactant",
+      "smiles": [
+        "N=C=O.O"
+      ],
+      "properties": {
+        "energy_hartree": -244.926200286,
+        "evidence_log": "qm/rc_min.log",
+        "note": "HNCO...OH2 pre-reaction complex minimum reached from the step-1 IRC outer frame A; 0 imaginary frequencies, lowest real mode 68.3 cm-1",
+        "smiles_unmapped": "N=C=O.O"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.876786123,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/frequency.log",
+        "note": "water-addition saddle; one imaginary mode -1579.09 cm-1, 95.7% on the transferring water H"
+      }
+    },
+    {
+      "id": "Carbamic Acid",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.966496066,
+        "evidence_log": "qm/ca_min.log",
+        "note": "lowest carbamic-acid minimum (syn O-H) reached from the step-1 IRC product outer frame; 0 imaginary frequencies, lowest real 130.2 cm-1; barrier reference for both bond-changing edges"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.897758604,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0006/frequency/frequency.log",
+        "note": "carbamic-acid decomposition saddle; one imaginary mode -1656.51 cm-1, 97.7% on the transferring H (O->N), C-N elongated to 1.601 A"
+      }
+    },
+    {
+      "id": "Product Complex",
+      "role": "product",
+      "smiles": [
+        "N.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -244.964075628,
+        "evidence_log": "qm/pc_min4.log",
+        "note": "NH3...CO2 product-complex minimum from the step-2 IRC product outer frame (point 60); 0 imaginary frequencies, lowest real 6.4 cm-1 (floppy adduct)"
+      }
+    },
+    {
+      "id": "TSCONF",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -244.941307549,
+        "evidence_log": "qm/tsconf_ts.log",
+        "note": "carbamic-acid conformational transition state (Opt=(TS,CalcFC)+Freq): exactly one imaginary mode -334.25 cm-1 (O-H torsion coupled to NH2 rock); input annotated 'smiles: NC(=O)O'"
+      }
+    },
+    {
+      "id": "CA_conf",
+      "role": "intermediate",
+      "smiles": [
+        "NC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -244.953791489,
+        "evidence_log": "qm/ca_conf2c.log",
+        "note": "carbamic-acid conformer reached by the step-2 IRC carbamic-acid-side outer frame (optimised directly from it with Opt=(CalcAll,Tight,MaxCycles=300)+Freq); 0 imaginary frequencies, lowest real 316.6 cm-1; 7.9 kcal/mol above the global Carbamic Acid minimum"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "Water addition to HNCO",
+      "from": "Reactant Complex",
+      "to": "Carbamic Acid",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            4
+          ],
+          [
+            1,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31,
+      "channel": "concerted, asynchronous 4-membered-ring water addition; the isocyanate C2=N1 double bond becomes the carbamic-acid C-N single bond (order decrease, break [1,2])",
+      "favored": true
+    },
+    {
+      "id": "Carbamic acid decomposition",
+      "from": "Carbamic Acid",
+      "to": "Product Complex",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            7
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 43.1,
+      "channel": "unimolecular 4-membered-ring C-N cleavage coupled to the O->N proton transfer; the barrier is referenced to the lowest verified carbamic-acid minimum (-244.966496066 Ha) while the IRC carbamic-acid-side outer frame reaches a distinct carbamic-acid conformer (-244.953791489 Ha, 7.9 kcal/mol higher, documented by a conformational saddle at -244.941307549 Ha with a -334 cm-1 mode)",
+      "favored": true
+    },
+    {
+      "id": "Carbamic acid conformational isomerisation",
+      "from": "Carbamic Acid",
+      "to": "CA_conf",
+      "via": "TSCONF",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 15.8,
+      "channel": "purely conformational (O-H torsion / NH2 rock); it is why the step-2 IRC carbamic-acid-side frame optimises to a saddle unless an exact initial Hessian is used, and it connects the global Carbamic Acid minimum to the conformer from which the IRC descends"
+    }
+  ]
+}

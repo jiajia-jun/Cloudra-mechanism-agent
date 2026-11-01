@@ -1,0 +1,220 @@
+{
+  "nodes": [
+    {
+      "id": "Reactant Complex",
+      "name": "Reactant Complex",
+      "role": "reactant",
+      "smiles": [
+        "O=C(O)CC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -417.360029462,
+        "evidence_log": "sp/rc_chel2_optfreq.log",
+        "note": "Productive pre-reaction complex and lowest verified B3LYP-D3(BJ)/def2-SVP malonic acid minimum (0 imaginary frequencies, normal termination): intramolecularly H-bonded six-membered-ring rotamer with the C5 hydroxyl proton H11 pointing at the C2 carbonyl oxygen O1 (O1...H11 = 1.749 A). Both the RC node and the step-1 barrier reference. Other verified malonic-acid conformers: sp/ma_dhb_optfreq.log (-417.357122930), sp/rc_chel_optfreq.log (-417.354040611). Atom indices in bond_changes are task atom-map indices: O1=C2(O3-H8)-C4H2-C5(=O6)(O7-H11). Reproduced as the reactant-side endpoint of the step-1 IRC (ts/ts_0001/jobs/declaration_0021/reactant_opt/reactant_opt.log, -417.360029532 Ha and 0 imaginary frequencies), so the barrier reference and the IRC reactant endpoint are the same minimum."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -417.315470357,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0016/frequency/frequency.log",
+        "note": "Concerted six-membered-ring saddle (O1...H11-O7-C5-C4-C2): proton transfer H11->O1 synchronous with C4-C5 cleavage and C5=O7 double-bond formation. Exactly one imaginary frequency, -409.46 cm^-1; geometry at the saddle: O1-H11 1.03, O7-H11 1.54, C4-C5 1.99, C2-O1 1.30, C2-C4 1.40, C5-O6 1.23, C5-O7 1.22 A. Barrier 27.96 kcal/mol vs RC."
+      }
+    },
+    {
+      "id": "Enol Intermediate",
+      "name": "Enol Intermediate",
+      "role": "intermediate",
+      "smiles": [
+        "C=C(O)O.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -417.332274286,
+        "evidence_log": "sp/irc_fwd_endpoint_optfreq.log",
+        "note": "Ethene-1,1-diol (enol of acetic acid) hydrogen bonded to CO2. This node carries the LOWEST verified minimum of the enol state: the forward outer frame of the step-1 IRC (ts/ts_0001/jobs/declaration_0019/irc/irc.log) was optimized and frequency-checked (sp/irc_fwd_endpoint_optfreq.log, Stationary point found, 0 imaginary frequencies, C2=C4 1.345, C2-O1 1.353 with O1-H11 0.970, C2-O3 1.344 with O3-H8 0.968, separate CO2 C5-O6 1.158 / C5-O7 1.168, H11...O7 2.047 A). Other verified enol conformers: -417.330500124 (ts/ts_0002/jobs/declaration_0005/reactant_frequency/reactant_frequency.log, the geometry the step-2 IRC itself reaches, +1.11 kcal/mol) and -417.328172393 (sp/im_optfreq_v3.log, +2.58 kcal/mol). The step-2 barrier is quoted against the lowest minimum, i.e. this node. Confirmed independently by the workflow's own endpoint work on the normally terminated short IRC (ts/ts_0001/jobs/declaration_0021/product_frequency/product_frequency.log, -417.332272549 Ha, 0 imaginary frequencies), which reproduces the same enol minimum to 2e-6 Ha."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -417.258335918,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0005/frequency/frequency.log",
+        "note": "1,3-H shift (four-membered ring O3-C2=C4) converting the enol into the keto acid; CO2 is a spectator. First-order saddle: optimization converged to a stationary point, exactly one imaginary frequency at -2062.43 cm^-1, normal termination. Barrier 46.40 kcal/mol vs the Enol Intermediate node (-417.332274286 Ha), i.e. the higher of the two declared barriers; measured against the enol conformer the step-2 IRC actually reaches (-417.330500124) it is 45.28 kcal/mol, the difference being the 1.11 kcal/mol conformer offset."
+      }
+    },
+    {
+      "id": "Product Complex",
+      "name": "Product Complex",
+      "role": "product",
+      "smiles": [
+        "CC(=O)O.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -417.376320533,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0005/product_frequency/product_frequency.log",
+        "note": "Acetic acid + CO2 complex, as actually reached by the step-2 IRC: the TS2 forward outer frame was optimized (ts/ts_0002/jobs/declaration_0005/product_opt/product_opt.log, Stationary point found, same energy) and frequency-checked (0 imaginary frequencies, normal termination); this is the syn conformer of the acetic acid O-H. A previously verified conformer with the O-H pointing away from its own C=O (anti, O...O to CO2 2.46 A), sp/pc_optfreq.log (-417.367422563), lies 5.58 kcal/mol higher and is kept as a documented conformer datum."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Reactant Complex",
+      "to": "Enol Intermediate",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            5
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            7,
+            11
+          ]
+        ],
+        "form": [
+          [
+            11,
+            1
+          ],
+          [
+            5,
+            7
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 27.96,
+      "channel": "concerted",
+      "favored": true,
+      "note": "Concerted six-membered-ring step: H11 transfers from O7 to the C2 carbonyl oxygen O1, C4-C5 cleaves, C5-O7 rises to a double bond (CO2 formed) and C2-C4 rises from single to double (C2=C4 1.508 A in the reactant -> 1.398 A at TS1 -> 1.346 A in the enol), giving ethene-1,1-diol + CO2. C5-O6 and C2-O3 do not change order. Barrier 27.96 kcal/mol vs Reactant Complex -417.360029462 (E(TS1) -417.315470357)."
+    },
+    {
+      "id": "e2",
+      "from": "Enol Intermediate",
+      "to": "Product Complex",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            8
+          ],
+          [
+            2,
+            4
+          ]
+        ],
+        "form": [
+          [
+            8,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 46.4,
+      "channel": "tautomerization",
+      "favored": true,
+      "note": "DeltaE(double dagger) = E(TS2) - E(IM, lowest verified enol minimum sp/irc_fwd_endpoint_optfreq.log) = -417.258335918 - (-417.332274286) Ha = 46.40 kcal/mol, electronic only (no ZPE). (Measured against the enol conformer the step-2 IRC actually reaches, -417.330500124, the same barrier is 45.28 kcal/mol; the difference is the 1.11 kcal/mol conformer offset.) The unimolecular 1,3-H shift is the higher barrier of the network, so at this level it would be rate-determining and the enol would remain metastable; an assisted (CO2- or second-molecule-mediated) tautomerization is expected to lower it."
+    }
+  ],
+  "notes_alternative_channels": [
+    {
+      "channel": "disfavoured_direct_four_ring_screening_saddle",
+      "favored": false,
+      "status": "SCREENING SADDLE - direction NOT verified; this is not a verified elementary step of the delivered mechanism",
+      "barrier_kcal_mol": 73.91,
+      "from": "Reactant Complex",
+      "to": "Product Complex",
+      "transition_state": {
+        "energy_hartree": -417.242249459,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/frequency/frequency.log"
+      },
+      "note": "Four-membered-ring H11->C4 variant (break C4-C5, O7-H11; form C4-H11, C5-O7 order 1->2), tested at the Supervisor's request as a cheaper alternative to the assigned eight-membered channel. Saddle: normal termination, optimization converged to a stationary point, exactly one imaginary frequency at -2115.3 cm^-1 with 98% of the displacement on H11. DeltaE = E(TS4) - E(RC) = 73.91 kcal/mol, electronic only. Its IRC/product endpoint could not be completed: the product-side endpoint optimization died with a Gaussian internal-coordinate builder artefact ('Tors failed for dihedral 6-5-7-11', lnk1e in l103.exe), which is a tool failure, not a chemical result. Accordingly this barrier is reported as a screening value for a saddle whose reaction direction was never verified by IRC; it is NOT declared as an edge and must not be read as a verified elementary step. It is not competitive with the enol route (TS1 27.96) and does not change the declared rate-determining step."
+    },
+    {
+      "channel": "eight_membered_one_step_assigned",
+      "favored": false,
+      "barrier_kcal_mol": null,
+      "from": "Reactant Complex",
+      "to": "Product Complex",
+      "status": "assigned by the user; the concerted eight-membered step was NOT FOUND in the single assigned attempt - the optimiser funnels into H8 tautomerisation chemistry instead (first-order saddle +62.31 kcal/mol, ring open, C4-C5 already broken)",
+      "note": "Assigned eight-membered channel (ring O1-H11-O7-C5-C4-H8-O3-C2; break C4-C5, C2=O1, O7-H11; form O1-H11, C5=O7, C4-H8, C2=O3) tested with the user's geometry recipe (TS1 geometry with H8 moved to O3-H8 1.520 A / C4-H8 1.500 A, C4-C5 1.990 A, ring closed), one ts_prepare run (ts/ts_0005) after fixing the automatic atom map (candidate 0 had encoded the four-membered H11->C4 product; selected_candidate=10 encodes the assigned bond changes). RESULT, log-backed: the assigned CONCERTED one-elementary-step decarboxylation is NOT supported. The converged first-order saddle (-417.260736202 Ha, one imaginary mode -1991.2 cm^-1, +62.31 kcal/mol from the Reactant Complex) has C4-C5 already broken (3.198 A) and the eight-membered ring open, and its imaginary mode is 94.5% H8 motion (heavy-atom fraction 0.007): it is the O3-H8 -> C4 tautomerisation of the acetic-acid fragment AFTER CO2 loss, barrier 43.79 kcal/mol from its own enediol minimum (-417.330522382, enediol + CO2), i.e. an unassigned post-decarboxylation step rather than the assigned concerted step. The workflow verdict is candidate_only / verified=false because its source slot perceived C=C(O)O.O=C=O, not the malonic-acid reactant - reported as it stands, not overridden. Together with the non-converged first attempt (declaration 0002, last SCF -417.260733066 Ha, +62.3 kcal/mol) the record shows: the optimiser repeatedly breaks C4-C5 before any H8 delivery, so decarboxylation and H8 migration separate into two steps at this level. No barrier is declared for the assigned concerted channel and it is not a competing route on the available evidence; what the calculation does NOT show is that no such saddle exists anywhere on the PES.",
+      "b3lyp_attempt": {
+        "log": "ts/ts_0005/jobs/declaration_0002/ts_opt/refine.log",
+        "job_id": 1013,
+        "route": "opt=(TS,CalcFC,NoEigentest), B3LYP/def2-SVP, EmpiricalDispersion=GD3BJ",
+        "outcome": "not converged: terminated via link 9999 (opt_converged = false) after about 22 min CPU, no normal termination, no imaginary frequency available for that geometry",
+        "last_scf_energy_hartree": -417.260733066,
+        "last_deltaE_vs_reactant_kcal_mol": 62.3
+      },
+      "b3lyp_attempts": [
+        {
+          "log": "ts/ts_0005/jobs/declaration_0002/ts_opt/refine.log",
+          "job_id": 1013,
+          "route": "opt=(TS,CalcFC,NoEigentest), B3LYP/def2-SVP, EmpiricalDispersion=GD3BJ",
+          "outcome": "not converged (link 9999, opt_converged=false), no frequency available; last SCF -417.260733066 Ha = +62.3 kcal/mol vs Reactant Complex"
+        },
+        {
+          "log": "ts/ts_0005/jobs/declaration_0003/ts_opt/refine.log",
+          "job_id": 1014,
+          "route": "opt=(TS,CalcFC,NoEigentest) continued with MaxCycles; atom map fixed by selected_candidate=10 so the run tests the assigned bond changes (break 4-5, 1-2 order 2->1, 2-3 order 1->2, 5-7 order 1->2, H11->O1, H8->C4)",
+          "outcome": "converged to a first-order saddle: E = -417.260736202 Ha, exactly one imaginary mode at -1991.2 cm^-1 (next real 35.9), normal termination; deltaE = +62.31 kcal/mol vs Reactant Complex -417.360029462",
+          "frequency_log": "ts/ts_0005/jobs/declaration_0003/frequency/frequency.log",
+          "geometry_at_saddle": "O1-H11 0.974, H11...O7 1.907, C4-C5 3.198 (already broken), H8...C4 1.524, O3...H8 1.252, C2-O1 1.312, C2-O3 1.276, C5-O6 1.157, C5-O7 1.169 with O6-C5-O7 178.2 deg - the eight-membered ring is NOT closed",
+          "mode": "94.5% of the displacement on H8 (pairs O3-H8 0.86, C4-H8 0.75; heavy-atom fraction 0.007) - an H8 transfer, not a heavy-atom bond-breaking coordinate",
+          "irc_log": "ts/ts_0005/jobs/declaration_0003/irc/irc.log",
+          "irc_outcome": "6+6 points, both-directions-converged = false; IRC ends -417.280156 / -417.286656 Ha",
+          "endpoint_slots": "source -417.330522382 (0 imag, perceived C=C(O)O.O=C=O, enediol + CO2, +18.52 kcal/mol); target -417.367420210 (0 imag, perceived CC(=O)O.O=C=O, -4.64 vs chelate, 5.59 above the accepted Product Complex -417.376320533)",
+          "workflow_verdict": "candidate_only, verified=false (source-slot identity mismatch - reported, not overridden)"
+        }
+      ],
+      "wording_note": "Deliberately graded: this records a single assigned attempt plus one continuation, not a proof that no such saddle exists anywhere on the PES. Untried in-scope probes remain: other H8 azimuths/partitions of the eight-membered ring, a relaxed C4-C5 scan, a reverse start from the enol side, and a converging xTB/PM7 screen."
+    },
+    {
+      "channel": "enol_to_product_h8_transfer_saddle_found_in_ts_0005",
+      "favored": false,
+      "barrier_kcal_mol": 43.79,
+      "from": "Enol Intermediate",
+      "to": "Product Complex",
+      "transition_state": {
+        "energy_hartree": -417.260736202,
+        "evidence_log": "ts/ts_0005/jobs/declaration_0003/frequency/frequency.log"
+      },
+      "note": "Separate note entry for the saddle that the assigned eight-membered attempt actually converged to, so the graph does not read as 'no saddle found'. ts/ts_0005/jobs/declaration_0003/ts_opt/refine.log and frequency.log: E = -417.260736202 Ha, normal termination, exactly one imaginary mode at -1991.2 cm^-1 with 94.5% of the squared displacement on H8 (heavy-atom fraction 0.007; dominant pairs O3-H8 0.86, C4-H8 0.75); +62.31 kcal/mol above the Reactant Complex (-417.360029462). At that geometry C4-C5 = 3.198 A (already broken) and the eight-membered ring is open, so this is an O3-H8 -> C4 tautomerisation of the acetic-acid fragment after CO2 loss, i.e. a duplicate of the chemistry of the verified TS2 edge, barrier 43.79 kcal/mol from its own IRC-matched enediol + CO2 minimum (reactant_frequency.log -417.330522382, 0 imaginary) to acetic acid + CO2 (product_frequency.log -417.367420210, 0 imaginary); IRC ts/ts_0005/jobs/declaration_0003/irc/irc.log. Workflow verdict candidate_only / verified=false because its source slot is the enediol rather than the declared malonic-acid reactant - reported as it stands. Not an edge of the delivered mechanism and does not change the rate-determining step."
+    }
+  ],
+  "remaining_gaps": [
+    "Assisted (bimolecular) tautomerisation of the enol was NOT computed: a second carboxylic acid (malonic acid, 22 atoms, or the acetic acid product, 19 atoms) shuttling O3-H8 to C4 would remove the strained four-membered 1,3-H shift of TS2. Costed at roughly 5-8 h (19-atom) to 8-12 h (22-atom) of B3LYP-D3(BJ)/def2-SVP work including retries, which exceeded the remaining budget. It is the one calculation that could bring the network's effective barrier down to the 27.96 kcal/mol decarboxylation step and it is the recommended next step.",
+    "The unimolecular network delivered here has an effective barrier of 63.81 kcal/mol from the Reactant Complex via TS2 (46.40 kcal/mol above the Enol Intermediate). That is incompatible with gas-phase thermolysis at 150-200 C, so the delivered mechanism must be read as the verified elementary-step network at this level of theory, not as a quantitative explanation of the experimental rate.",
+    "NO solvent, counterion or pressure dependence is modelled (gas phase, isolated molecules, charge 0, multiplicity 1).",
+    "NO ZPE, thermal or entropy corrections are applied: every barrier in this graph is a purely electronic DeltaE, and the temperature-dependent preference between channels could shift once free energies are included.",
+    "Barrier references are single lowest verified minima per state. Conformer spread on the malonic-acid side is 1.8-3.8 kcal/mol (sp/ma_dhb_optfreq.log -417.357122930, sp/rc_chel_optfreq.log -417.354040611) and the enol state has at least three verified minima (-417.332274286 lowest, -417.330500124 +1.11, -417.328172393 +2.58).",
+    "The CO2-containing complexes (enol + CO2 and acetic acid + CO2) are shallow minima with very low librational modes (33-45 cm^-1), so their relative energies are more method-sensitive than the covalent saddle energies.",
+    "Environment defect encountered repeatedly in this workspace: Gaussian ModRedundant F/S constraints are echoed into the log but not enforced, so constrained and relaxed-scan prescreens were unavailable and all prescreens had to be unconstrained optimizations."
+  ],
+  "method_limits": [
+    "Gas phase, isolated molecules, charge 0, multiplicity 1; no solvent, counterion or pressure dependence is modelled.",
+    "Electronic energies only: no ZPE, thermal or entropy corrections anywhere in the graph, so every barrier is a DeltaE and temperature-dependent channel preferences are not resolved.",
+    "Barrier references are single lowest verified minima per state; conformer spread is 1.1-3.8 kcal/mol (malonic-acid side 1.8-3.8; three enol minima within 2.6 kcal/mol).",
+    "The CO2-containing complexes are shallow minima with librational modes of 33-45 cm-1, so their relative energies are more method-sensitive than the covalent saddle energies.",
+    "B3LYP-D3(BJ)/def2-SVP is the only production level used (xTB/PM7 only as prescreens); the effective unimolecular barrier of 63.81 kcal/mol via TS2 is far above the experimental thermolysis barrier at 150-200 C, so this network describes the mechanism at this level of theory, not the experimental rate.",
+    "Workspace defect recorded: Gaussian ModRedundant F/S constraints are echoed but not enforced, so constrained/relaxed-scan prescreens were unavailable and all prescreens were unconstrained optimizations."
+  ]
+}

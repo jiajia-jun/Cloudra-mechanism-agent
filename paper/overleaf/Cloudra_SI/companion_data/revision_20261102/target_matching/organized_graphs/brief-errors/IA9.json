@@ -1,0 +1,89 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1COO1"
+      ],
+      "properties": {
+        "level_of_theory": "Gaussian 16, PM7 (restricted, RPM7), gas phase, charge 0, multiplicity 1",
+        "evidence_log": [
+          "work/rc_optfreq.log"
+        ],
+        "energy_hartree": 0.00310187944,
+        "imaginary_frequencies": 0,
+        "note": "1,2-Dioxetane minimum (the pre-reaction complex of this unimolecular reaction). Normal termination, optimisation converged, 18 real frequencies (lowest 198.9 cm-1), 0 imaginary. Lowest PM7 minimum found; barrier reference."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "accessible": false,
+      "properties": {
+        "level_of_theory": "Gaussian 16, PM7 (restricted), gas phase",
+        "evidence_log": [
+          "ts/ts_0001/jobs/declaration_0005/frequency/frequency.log",
+          "ts/ts_0001/jobs/declaration_0006/irc/irc.log",
+          "work/g2d_2.log"
+        ],
+        "note": "No first-order saddle for the concerted C1-C2/O3-O4 ring opening was obtained at the only allowed level of theory (Gaussian 16 PM7, restricted single determinant; xTB unrestricted relaxation was also tried as a seed). Searches performed: (a) single-coordinate relaxed PM7 scans along O3-O4 (1.47->2.70 A), along C1-C2 (work/scan_cc2.log; work/scan_cc.log aborted with an SCF failure past ~2.5 A) and along one C1-O4 bond (work/asyn_scan.log 1.455->1.205 A, continued as background-only work/asyn_scan2.log to 1.105 A) - all monotonic with no maximum; (b) a real nested two-dimensional relaxed sweep (one scan coordinate per job, work/g2d_0..g2d_3.log), which gives a flat plateau of about +59 to +64 kcal/mol around (C1-C2 ~1.55, C1-O4 = C2-O3 ~1.34, O3-O4 ~2.29 A) - a shoulder, not a stationary ridge; (c) six PM7 Opt=(TS,CalcFC) attempts seeded on or near that plateau, which either returned the dioxetane minimum or ran downhill to the two-H2CO product side without finding a stationary point; (d) the one genuine saddle that PM7 does produce in this region is irrelevant: -264.2 cm-1 with only 5.6% of the squared displacement on heavy atoms at +62.4 kcal/mol (E = +0.10251094 Eh), whose IRC descends to a C1COO1 geometry in BOTH directions (38 forward + 39 reverse points of ts/ts_0001/jobs/declaration_0006/irc/irc.log). The broken-symmetry open-shell treatment that a biradicaloid saddle of this kind requires (UPM7, guess=mix) is refused by the task MethodPolicy (allowed methods: xtb, pm7), and an xTB log could not serve as barrier evidence for this scorer. The plateau energies are exploratory and are NOT declared as a barrier: no barrier_kcal_mol is claimed."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=O.C=O"
+      ],
+      "properties": {
+        "level_of_theory": "Gaussian 16, PM7 (restricted), gas phase, charge 0, multiplicity 1",
+        "evidence_log": [
+          "work/h2co_a.log",
+          "work/h2co_b.log"
+        ],
+        "energy_hartree": -0.08125977633,
+        "imaginary_frequencies": 0,
+        "note": "Declared as the dot-joined complex C=O.C=O. At PM7 there is NO bound product complex: whole-pair PM7 optimisations (work/p_optfreq.log, 5.05 A apart; work/p_optfreq2.log, compact face-to-face) both keep 5 imaginary frequencies (free relative rotation/translation) and lie 0.31 / 0.01 kcal/mol above two free H2CO. Evidence is therefore bound per component species, as the task allows for a complex that is not a clean minimum: two isolated H2CO minima (work/h2co_a.log, work/h2co_b.log; title line 'smiles: C=O'), each normal termination, 6 real frequencies, 0 imaginary, E(RPM7) = -0.04062988816 Eh; sum = -0.08125977633 Eh. dE(RC -> 2 H2CO) = -52.9 kcal/mol. The two component inputs are the same geometry: one H2CO PM7 minimum used twice, which is chemically correct for two identical product molecules (they were not sampled as distinct fragments). The two whole-pair logs work/p_optfreq.log and work/p_optfreq2.log remain the counterevidence that the dot-joined complex is not a PM7 minimum."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "accessible": false,
+      "channel": "concerted [sigma2s+sigma2a] cycloreversion (retro-[2+2]) of the four-membered peroxide ring",
+      "favored": true,
+      "properties": {
+        "note": "C1-C2 and O3-O4 are cleaved while the two C-O bonds retained in the ring (C1-O4, C2-O3) are promoted to carbonyl double bonds, giving H2C1=O4 + H2C2=O3 (bond_changes follow the user atom map [CH2:1]1[CH2:2][O:3][O:4]1). The step is declared inaccessible: no first-order saddle with a bond-breaking imaginary mode exists at restricted PM7, so no barrier_kcal_mol is declared. Well supported at PM7: dE(RC -> 2 H2CO) = -52.9 kcal/mol (exothermic); the only saddle found in the region is the H-motion saddle at +62.4 kcal/mol, which is not on the reaction path.",
+        "competing_channel": "Stepwise diradical route (homolysis of O3-O4 and/or C1-C2 to an O-C-C-O 1,4-diradical, then ring opening) could not be tested: the broken-symmetry UPM7 calculation needed for an open-shell singlet is blocked by the MethodPolicy whitelist (xtb, pm7), and a restricted determinant cannot describe homolysis. Status at PM7: untested, neither excluded nor confirmed."
+      }
+    }
+  ]
+}

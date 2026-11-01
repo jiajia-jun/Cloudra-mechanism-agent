@@ -1,0 +1,93 @@
+{
+  "nodes": [
+    {
+      "id": "sp_21d5e5df",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -233.233672607,
+        "evidence_log": "endpoint_combined/.cloudra/execution-510/results/reactant_optfreq.log",
+        "method": "B3LYP/def2-SVP, EmpiricalDispersion=GD3BJ, int=ultrafine, gas phase, charge 0, multiplicity 1",
+        "description": "Cisoid (cZc) 1,3,5-hexatriene minimum, C2-helical: C1...C6 = 3.367 A, bonds 1.341/1.470/1.353/1.470/1.341 A, 0 imaginary frequencies. Connected to the Cs IRC reactant frame by a 0.62 kcal/mol terminal-torsion (twist) mode; the s-trans,s-trans -> cisoid conformational term is NOT computed."
+      },
+      "name": "RC_hexatriene_cisoid"
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -233.203414267,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log",
+        "method": "B3LYP/def2-SVP, EmpiricalDispersion=GD3BJ, int=ultrafine, gas phase, charge 0, multiplicity 1 (Opt=(TS,CalcFC,NoEigentest) then Freq on the same checkpoint)",
+        "description": "Cs 6-pi disrotatory pericyclic saddle: exactly one imaginary frequency -566.4629 cm-1 whose mode is the counter-rotating terminal-CH2 rotation coupled to C1-C6 formation; C1...C6 = 2.277 A, delocalised ring bonds 1.399/1.400/1.407/1.400/1.399 A."
+      },
+      "name": "TS1_disrotatory"
+    },
+    {
+      "id": "sp_fa1a0666",
+      "role": "product",
+      "smiles": [
+        "C1=CC=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -233.274556883,
+        "evidence_log": "endpoint_combined/.cloudra/execution-512/results/product_optfreq_8p.log",
+        "method": "B3LYP/def2-SVP, EmpiricalDispersion=GD3BJ, int=ultrafine, gas phase, charge 0, multiplicity 1",
+        "description": "1,3-Cyclohexadiene minimum reached from the product-side IRC outer frame: C1-C6 = 1.535 A, ring bonds 1.510/1.346/1.467/1.346/1.510 A, C2=C3 and C4=C5 diene, C1/C6 sp3 CH2, 0 imaginary frequencies."
+      },
+      "name": "P_cyclohexadiene"
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_29e6224c",
+      "name": "6pi disrotatory electrocyclic ring closure",
+      "from": "sp_21d5e5df",
+      "to": "sp_fa1a0666",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 18.99,
+      "barrier_method": "(E(TS) - E(RC)) x 627.5095, electronic only, B3LYP/def2SVP + GD3BJ + int=ultrafine, gas phase, charge 0, multiplicity 1, relative to the cisoid (C2 cZc) minimum RC",
+      "barrier_reference": {
+        "TS": -233.203414267,
+        "RC": -233.233672607,
+        "log_TS": "ts/ts_0001/jobs/declaration_0003/frequency/.cloudra/execution-457/results/frequency.log",
+        "log_RC": "endpoint_combined/.cloudra/execution-510/results/reactant_optfreq.log"
+      },
+      "caveats": "the s-trans,s-trans -> cisoid conformational term is NOT computed (so this is not the apparent gas-phase barrier at 390-434 K and is not comparable with the 28-35 kcal/mol literature window); no ZPE/thermal correction is included",
+      "channel": "disrotatory (Woodward-Hoffmann allowed, 6-pi thermal)"
+    }
+  ]
+}

@@ -1,0 +1,66 @@
+{
+  "nodes": [
+    {
+      "id": "Twisted Biphenyl Conformer A",
+      "role": "reactant",
+      "smiles": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "properties": {
+        "label": "RC",
+        "energy_hartree": -541.60890788,
+        "evidence_log": "runs/g16/minA_optfreq.log",
+        "conformer": "twisted (chiral) conformer A; torsion C2-C7-C8-C9 = -88.47 deg, inter-ring plane angle 88.67 deg",
+        "frequency_check": "combined Opt+Freq, Normal termination, 0 imaginary frequencies (lowest real 39.42 cm^-1)",
+        "note": "lowest verified minimum; matched by runs/g16/irc_end_b_optfreq.log (-541.608896315 Ha, D = -88.30 deg, 0 imaginary)"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "step": "Aryl-Aryl Rotation",
+        "energy_hartree": -541.58280548,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "geometry": "coplanar arrangement of the two rings (inter-ring plane angle 0.01 deg), torsion C2-C7-C8-C9 = 180 deg",
+        "frequency_check": "Normal termination, exactly 1 imaginary frequency at -105.13 cm^-1; mode = equal and opposite librations of the two rings about the C7-C8 axis (ring A +0.0926 rad, ring B -0.0926 rad, net rigid rotation 0.0000), the aryl-aryl torsion",
+        "note": "Gaussian 16 B3LYP-D3(BJ)/def2-SVP, gas phase, q = 0, mult = 1; no bond made or broken",
+        "survey_status": "Operative saddle verified (Opt+Freq, exactly 1 imaginary frequency). Unfinished / negative survey items (declared limits; none affects this node or the declared barrier): the full 360 deg B3LYP relaxed torsion scan was cancelled at 7/25 points (runs/g16/scan360_b3lyp.log) and the anti-side scans (runs/g16/scan_torsion_anti.log, runs/g16/scan_anti2.log) were cancelled at their start points, so no complete 360 deg rotational potential is delivered; the eclipsed D~0 deg planar region is NOT a stationary point at this level - a bounded Opt=(TS,CalcFC,NoEigenTest)+Freq from a validated coplanar D=0.00 deg guess (runs/g16/ts_syn0_extra.log) left the coplanar ridge and converged to a 0-imaginary MINIMUM at D=-67.65 deg, plane 66.28 deg, E=-541.607698388 Ha (+0.76 kcal/mol), so the ~+21 kcal relaxed-scan value is only an upper bound of a non-stationary path point and NO barrier is declared for that channel.",
+        "irc_endpoints": "IRC outer frames re-optimised: runs/g16/irc_end_b_optfreq.log (D = -88.30 deg, E = -541.608896315 Ha, 0 imaginary) and runs/g16/irc_end_a_optfreq.log (D = +88.32 deg, E = -541.608896365 Ha, 0 imaginary)."
+      }
+    },
+    {
+      "id": "Twisted Biphenyl Conformer B",
+      "role": "product",
+      "smiles": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "properties": {
+        "label": "P",
+        "energy_hartree": -541.60890788,
+        "evidence_log": "runs/g16/minB_optfreq.log",
+        "conformer": "twisted (chiral) conformer B, the enantiomer of A; torsion C2-C7-C8-C9 = +88.47 deg, inter-ring plane angle 88.67 deg",
+        "frequency_check": "combined Opt+Freq, Normal termination, 0 imaginary frequencies (lowest real 39.42 cm^-1)",
+        "note": "exactly degenerate with the reactant conformer; matched by runs/g16/irc_end_a_optfreq.log (-541.608896365 Ha, D = +88.32 deg, 0 imaginary)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "Aryl-Aryl Rotation",
+      "from": "Twisted Biphenyl Conformer A",
+      "to": "Twisted Biphenyl Conformer B",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 16.38,
+      "channel": "aryl-aryl (C1-C1') torsion through the coplanar transition state",
+      "favored": true,
+      "note": "purely conformational step: no bond order changes, only the biaryl torsion relaxes from -88.5 deg to +88.5 deg through the coplanar saddle (dE = (-541.582805480 + 541.608907880) x 627.5095 = 16.38 kcal/mol, no ZPE). Bidirectional IRC from the same TS (ts/ts_0001/jobs/declaration_0006/irc/irc.log) advanced one point per direction and stopped with 'PES minimum detected' because the coplanar plateau is extremely flat (|gradient| 7e-5, 0.006 kcal below the TS) - a flat-plateau artefact, not a broken connection. Both canonical outer frames were re-optimised with native Gaussian Opt+Freq: -88.30 deg (runs/g16/irc_end_b_optfreq.log, E = -541.608896315 Ha, 0 imaginary) and +88.32 deg (runs/g16/irc_end_a_optfreq.log, E = -541.608896365 Ha, 0 imaginary), i.e. the saddle connects the two enantiomeric twisted minima."
+    }
+  ]
+}

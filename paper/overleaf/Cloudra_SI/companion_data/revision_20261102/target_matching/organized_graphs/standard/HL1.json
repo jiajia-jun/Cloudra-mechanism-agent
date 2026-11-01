@@ -1,0 +1,164 @@
+{
+  "nodes": [
+    {
+      "id": "RC_anti",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -441.020095472,
+        "evidence_log": "jobs/rc_anti.log",
+        "label": "pre-reaction contact complex, nitrile oxide above the face ANTI to the methano bridge C10",
+        "method": "B3LYP-D3(BJ)/def2-SVP (EmpiricalDispersion=GD3BJ, Int=UltraFine)",
+        "charge": 0,
+        "multiplicity": 1,
+        "first_frequency_cm1": 35.9953,
+        "geometry_note": "C1...C4 3.60 A, O...C5 3.26 A, C1...C10 5.49 A"
+      }
+    },
+    {
+      "id": "RC_syn",
+      "role": "reactant",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -441.019350344,
+        "evidence_log": "jobs/rc_syn3.log",
+        "label": "pre-reaction contact complex, nitrile oxide above the face SYN to the methano bridge C10",
+        "method": "B3LYP-D3(BJ)/def2-SVP (EmpiricalDispersion=GD3BJ, Int=UltraFine)",
+        "charge": 0,
+        "multiplicity": 1,
+        "first_frequency_cm1": 21.6199,
+        "geometry_note": "conformer differs from RC_anti only in the HCNO orientation/face; relative energy +0.47 kcal/mol"
+      }
+    },
+    {
+      "id": "TS_anti",
+      "role": "transition_state",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -440.994316658,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0007/frequency/frequency.log",
+        "label": "concerted [3+2] saddle on the face anti to C10 (one imaginary frequency, mode = the two forming bonds)",
+        "imaginary_frequency_cm1": -426.4389,
+        "geometry_note": "C1...C5 2.86 A, O...C4 3.03 A; ring atoms -1.97/-2.28/-2.47 A from the alkene plane on the C10 normal"
+      }
+    },
+    {
+      "id": "TS_syn",
+      "role": "transition_state",
+      "smiles": [
+        "C#[N+][O-].C1=CC2CCC1C2"
+      ],
+      "properties": {
+        "energy_hartree": -441.002183926,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0006/frequency/frequency.log",
+        "label": "concerted [3+2] saddle on the face syn to C10 (one imaginary frequency, mode = the two forming bonds)",
+        "imaginary_frequency_cm1": -375.3226,
+        "geometry_note": "C1...C5 2.90 A, O...C4 3.02 A; ring atoms +2.10/+2.35/+2.57 A on the C10 normal"
+      }
+    },
+    {
+      "id": "P_anti",
+      "role": "product",
+      "smiles": [
+        "C1=NO[C@@H]2[C@@H]3CC[C@@H](C3)[C@H]12"
+      ],
+      "properties": {
+        "energy_hartree": -441.095689311,
+        "evidence_log": "jobs/prod_anti_final.log",
+        "label": "4,5-fused 2-isoxazoline, methano bridge C10 anti to the newly formed isoxazoline ring",
+        "first_frequency_cm1": 112.1147,
+        "formula": "C8H11NO",
+        "cip": "(3R,4R,5R,8S)",
+        "geometry_note": "OMe-free fused adduct; isoxazoline C atoms 1.24-2.23 A from the alkene plane on the side opposite C10",
+        "stereo_source": "RDKit AssignStereochemistryFrom3D on the optimised B3LYP geometry (geom/P_anti_final.xyz)"
+      }
+    },
+    {
+      "id": "P_syn",
+      "role": "product",
+      "smiles": [
+        "C1=NO[C@H]2[C@@H]3CC[C@@H](C3)[C@@H]12"
+      ],
+      "properties": {
+        "energy_hartree": -441.098273862,
+        "evidence_log": "jobs/prod_syn_final.log",
+        "label": "4,5-fused 2-isoxazoline, methano bridge C10 syn to the newly formed isoxazoline ring",
+        "first_frequency_cm1": 130.073,
+        "formula": "C8H11NO",
+        "cip": "(3S,4S,5R,8S)",
+        "geometry_note": "isoxazoline C atoms 1.25-1.91 A from the alkene plane on the same side as C10",
+        "stereo_source": "RDKit AssignStereochemistryFrom3D on the optimised B3LYP geometry (geom/P_syn_final.xyz)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_anti",
+      "from": "RC_anti",
+      "to": "P_anti",
+      "via": "TS_anti",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 16.18,
+      "channel": "anti-to-C10",
+      "note": "C1=N pi bond of HCNO drops from 3 to 2, C4=C5 drops from 2 to 1, C1-C4 and O-C5 form"
+    },
+    {
+      "id": "e_syn",
+      "from": "RC_syn",
+      "to": "P_syn",
+      "via": "TS_syn",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 10.77,
+      "channel": "syn-to-C10",
+      "note": "same bond reorganisation on the opposite face; the two adducts are diastereomers, not enantiomers"
+    }
+  ]
+}

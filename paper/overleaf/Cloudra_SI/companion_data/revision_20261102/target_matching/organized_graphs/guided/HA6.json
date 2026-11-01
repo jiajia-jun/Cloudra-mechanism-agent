@@ -1,0 +1,222 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "dag_id": "sp_62a74c8d",
+      "role": "reactant",
+      "smiles": [
+        "C[C@H]1C=C[C@@H]1C"
+      ],
+      "properties": {
+        "description": "trans-3,4-dimethylcyclobutene pre-reaction minimum; unimolecular reaction, so the reactant complex is the substrate itself",
+        "evidence_log": [
+          "species/RC/opt_freq.log",
+          "species/RC_fromIRC/opt_freq.log"
+        ],
+        "electronic_energy_hartree": -234.459196,
+        "method": "B3LYP-D3(BJ)/def2-SVP gas phase Opt+Freq"
+      }
+    },
+    {
+      "id": "TS_con",
+      "dag_id": "sp_5f12bdea",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "conrotatory out/out 4pi ring-opening saddle; both trans methyl-bearing termini rotate in the same sense giving (2E,4E)-hexa-2,4-diene",
+        "evidence_log": [
+          "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+          "ts/ts_0001/jobs/declaration_0004/irc/irc.log"
+        ],
+        "imaginary_frequency_cm": -521.2,
+        "electronic_energy_hartree": -234.409313
+      }
+    },
+    {
+      "id": "P_EE",
+      "dag_id": "sp_0bb444b1",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C/C"
+      ],
+      "properties": {
+        "description": "(2E,4E)-hexa-2,4-diene. The IRC reaches the s-cis conformer (E=-234.477892 Ha); the planar s-trans conformer listed in electronic_energy_hartree is the lowest verified minimum of this state and is the barrier reference",
+        "evidence_log": [
+          "species/P_EE/opt_freq.log",
+          "species/P_EE_fromIRC/opt_freq.log"
+        ],
+        "electronic_energy_hartree": -234.483262
+      }
+    },
+    {
+      "id": "TS_dis",
+      "dag_id": "sp_db7f3938",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "disrotatory saddle for RC -> (2E,4Z): NOT located as a first-order saddle at B3LYP-D3(BJ)/def2-SVP. Four seeds failed (IDPP interpolation -> inward/inward Z,Z saddle; relaxed C2-C5 scan frame -> methyl-rotation saddle; mirrored-terminus seed -> the conrotatory saddle; 2-D grid ridge point -> an (2E,4E) diene torsional saddle). No stationary point of the disrotatory channel was located at this level, so this node carries no barrier. The highest constrained disrotatory-like point found is +44.9 kcal/mol above RC at d(C2-C5)=2.60 A with D(C6-C5-C4-C3)=76.5 deg; this is a constrained-optimisation estimate, not a barrier, and the ridge was not mapped beyond that single point",
+        "evidence_log": [],
+        "attempts_notes": [
+          "Constrained 2-D grid (not transition-state evidence, not bound as such): scan_disor2/grid_disrotatory.log, 3x4 points in d(C2-C5) x D(C6-C5-C4-C3); highest disrotatory-like frame E = -234.387631 Ha (+44.9 kcal/mol above RC) at d(C2-C5)=2.60 A, D(C6-C5-C4-C3)=76.5 deg - constrained-optimisation estimate, not a barrier.",
+          "Failed seeds: ts/ts_0002 IDPP interpolation -> inward/inward (Z,Z) saddle; scan_disor/scan_eztoring.log frame (discontinuous path, not quotable) -> methyl-rotation saddle -234.452901 Ha (-237.26 cm-1); ts/ts_0003/guess_disrotatory.xyz (mirrored terminus) -> conrotatory saddle -234.4093128 Ha (-521.17 cm-1); ts/ts_0003 declaration_0003 (grid ridge point) -> (2E,4E) diene torsional saddle -234.474726 Ha (-204.9 cm-1)."
+        ],
+        "electronic_energy_hartree": -234.387631
+      }
+    },
+    {
+      "id": "P_EZ",
+      "dag_id": "sp_31437f50",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C\\C"
+      ],
+      "properties": {
+        "description": "(2E,4Z)-hexa-2,4-diene, the disrotatory (4pi symmetry-forbidden) product; verified minimum",
+        "evidence_log": [
+          "species/P_EZ_correct/opt_freq.log"
+        ],
+        "electronic_energy_hartree": -234.481712
+      }
+    },
+    {
+      "id": "TS_zz",
+      "dag_id": "no_separate_dag_node__rolled_into_step_9209b3ea",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "conrotatory inward/inward 4pi saddle; both methyls rotate inward giving (2Z,4Z)-hexa-2,4-diene",
+        "evidence_log": [
+          "ts/ts_0002/jobs/declaration_0005/ts_opt/refine.log",
+          "ts/ts_0002/jobs/declaration_0005/irc/irc.log"
+        ],
+        "imaginary_frequency_cm": -631.6,
+        "electronic_energy_hartree": -234.391682
+      }
+    },
+    {
+      "id": "P_ZZ",
+      "dag_id": "sp_ecf08932",
+      "role": "product",
+      "smiles": [
+        "C/C=C\\C=C/C"
+      ],
+      "properties": {
+        "description": "(2Z,4Z)-hexa-2,4-diene, product of the sterically prohibitive inward/inward conrotatory channel",
+        "evidence_log": [
+          "species/P_ZZ_fromIRC/opt_freq.log",
+          "species/P_EZ/opt_freq.log"
+        ],
+        "electronic_energy_hartree": -234.479938
+      }
+    }
+  ],
+  "delivery_targets": [
+    {"dag_id": "sp_62a74c8d", "kind": "species", "role": "reactant", "graph_node": "RC", "label": "trans-3,4-dimethylcyclobutene"},
+    {"dag_id": "sp_5f12bdea", "kind": "species", "role": "transition_state", "graph_node": "TS_con", "label": "conrotatory out/out saddle"},
+    {"dag_id": "sp_0bb444b1", "kind": "species", "role": "product", "graph_node": "P_EE", "label": "(2E,4E)-hexa-2,4-diene"},
+    {"dag_id": "sp_db7f3938", "kind": "species", "role": "transition_state", "graph_node": "TS_dis", "label": "disrotatory saddle - NOT LOCATED at this level"},
+    {"dag_id": "sp_31437f50", "kind": "species", "role": "product", "graph_node": "P_EZ", "label": "(2E,4Z)-hexa-2,4-diene"},
+    {"dag_id": "sp_ecf08932", "kind": "species", "role": "product", "graph_node": "P_ZZ", "label": "(2Z,4Z)-hexa-2,4-diene"},
+    {"dag_id": "step_874ff725", "kind": "step", "graph_edge": "e_con", "label": "conrotatory out/out ring opening, dE = +31.30 kcal/mol, favored"},
+    {"dag_id": "step_9209b3ea", "kind": "step", "graph_edge": "e_zz", "label": "conrotatory inward/inward ring opening, dE = +42.37 kcal/mol"},
+    {"dag_id": "step_ce4f62f0", "kind": "step", "graph_edge": "e_dis", "label": "disrotatory ring opening - ts_opt/frequency/short_irc abandoned, no barrier declared"}
+  ],
+  "edges": [
+    {
+      "id": "e_con",
+      "dag_id": "step_874ff725",
+      "from": "RC",
+      "to": "P_EE",
+      "via": "TS_con",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 31.3,
+      "channel": "conrotatory-out/out",
+      "favored": true
+    },
+    {
+      "id": "e_dis",
+      "dag_id": "step_ce4f62f0",
+      "from": "RC",
+      "to": "P_EZ",
+      "via": "TS_dis",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "channel": "disrotatory",
+      "favored": false,
+      "description": "disrotatory (4pi symmetry-forbidden) channel to (2E,4Z)-hexa-2,4-diene. No transition state was located for this channel at B3LYP-D3(BJ)/def2-SVP, so no computed barrier is declared here. The highest constrained disrotatory-like point found is +44.9 kcal/mol above RC at d(C2-C5)=2.60 A, D(C6-C5-C4-C3)=76.5 deg - a constrained-optimisation estimate, not a barrier"
+    },
+    {
+      "id": "e_zz",
+      "dag_id": "step_9209b3ea",
+      "from": "RC",
+      "to": "P_ZZ",
+      "via": "TS_zz",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 42.37,
+      "channel": "conrotatory-inward/inward",
+      "favored": false
+    }
+  ]
+}

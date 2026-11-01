@@ -1,5 +1,9 @@
 # Cloudra 双语 LaTeX 主稿
 
+更新日期：2026年11月2日。
+
+本轮本地同步：正式分数接入 target-correspondence Accuracy overlay（整体均分 0.7176；Impossible Brief 0.6029 / Guided 0.5051 / Record 0.2925）；中英文结果与讨论、SI 详细结果与 matcher 节已对齐；bench 图件已拷入 Overleaf 工程；交付 ZIP 已重建。本机无 XeLaTeX，PDF 预览未重编译；在线 Overleaf 另传。核对见 output/Cloudra_Overleaf/local_sync_20261102.json。
+
 更新日期：2026年11月1日。
 
 本地当前版已同步 STACKED 架构图：中英文均使用矢量 PDF 并保留可编辑 SVG，图4及对应图注匹配；英文23页（图4在第4页），中文19页（图4在第3页）。两版均保留最新正文、最终评分、杨程驿的第一及通讯作者身份和学校邮箱。四份现有同名／“P2更新”源码ZIP同步各自39个正式源文件；桌面PDF与arXiv准备包也已更新。本次仅本地同步，在线Overleaf和其他远端不变；下方线上同步记录描述此前版本。

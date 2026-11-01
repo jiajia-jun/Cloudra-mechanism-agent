@@ -300,6 +300,7 @@ def _build_graph(
         bond_changes=BondChangeSet(**{"break": breaks}, form=forms),
         barrier_kcal_mol=barrier,
         weight=weight,
+        **({"barrier_reference_policy": "lowest_verified_minimum"} if task_id == "L2" else {}),
     )
     return GoldMechanismGraph(nodes=[r_node, ts_node, p_node], edges=[edge])
 

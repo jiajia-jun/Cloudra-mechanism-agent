@@ -1,0 +1,75 @@
+{
+  "nodes": [
+    {
+      "id": "T1-triangulene",
+      "role": "reactant",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "properties": {
+        "identity": "triangulene (C22H12), triplet state S=1, multiplicity 3 — ground state",
+        "ground_state_multiplicity": 3,
+        "ground_state": "triplet (S=1, M=3), two unpaired pi electrons",
+        "state_ordering": "triplet (S=1, M=3) below singlet (S=0, M=1)",
+        "singlet_triplet_gap_kcal_mol": 13,
+        "singlet_triplet_gap_eV": 0.565,
+        "singlet_triplet_gap_uncertainty_kcal_mol": "about +/-3 (multireference spread 10.6-16.2 kcal/mol: MR-CISD+Q 13.0, MR-CISD 17.7, CASPT2/NEVPT2 J=10.6, MR-CISD+Q sigma+pi 16.2)",
+        "singlet_triplet_gap_level_of_theory": "literature-benchmarked value, MR-CISD+Q/6-311G(2d), pi-CAS(4,7), vertical 1 3A2' -> 1 1E' (Das, Muller, Plasser, Lischka, J. Phys. Chem. A 120, 1625 (2016), Table 1; the current secondary literature quotes 13-16 kcal/mol)",
+        "singlet_triplet_gap_trustworthy": false,
+        "singlet_triplet_gap_note": "This gap describes the open-shell (diradical) singlet, which NO permitted method here (xtb, pm7) can represent. Our own calculations cannot resolve it; they can only bound it. The declared value is therefore the accepted multireference/experimental-benchmarked number, not a value computed in this project.",
+        "pm7_closed_shell_singlet_upper_bound_definition": "The PM7 adiabatic separation E(M=1 restricted closed-shell) - E(M=3 UHF) is documented, with its numbers, in work/calc/REPORT.md and PROCESS.md; it is an UPPER BOUND for the closed-shell Kekule/quinoidal singlet and is NOT the singlet-triplet gap.",
+        "method": "Gaussian 16, PM7, UHF (auto-selected for M=3), route '#p opt freq PM7 guess=mix'",
+        "charge": 0,
+        "multiplicity": 3,
+        "evidence_log": "work/calc/PM7_T1.log",
+        "cross_check_log_gfn2_xtb": "work/calc/xtb/T1/GFN2_T1.out",
+        "smiles_note": "the plain (non-Kekule diradical) SMILES mandated by the task is used as the node identity; RDKit perception of the optimized geometry writes the charge-separated closed-shell form [H]c1c([H])c2c([H])c3c([H])c([H])[c+]([H])c4c([H])c5c([H])c([H])c([H])c6c([H])c(c1[H])c2c(c34)[c-]65, which has an identical canonical heavy-atom graph (22 C, 27 C-C bonds, 6 rings, 12 H, planar to 0.0005 A) — a representation artefact, not a different species. Single entry kept so the node is unambiguously one molecule (not a multi-component species).",
+        "computed_observations": "No numerical energies are declared here because the workflow's geometry stage for this node is unresolved (harness identity check false negative, see smiles_note). All numbers from the native logs are documented in PROCESS.md and work/calc/REPORT.md and can be read directly from work/calc/PM7_T1.log (triplet, M=3) and work/calc/PM7_S1.log (M=1 reference).",
+        "gfn2_xtb_counterevidence": "GFN2-xTB places its restricted (--uhf 0) closed-shell solution below its --uhf 2 triplet at a geometry whose frontier gap is essentially zero (degenerate occupations) - a closed-shell artefact rather than a physical negative gap; numbers in work/calc/REPORT.md, native outputs work/calc/xtb/S1/GFN2_S1.out and work/calc/xtb/T1/GFN2_T1.out."
+      }
+    },
+    {
+      "id": "S0-triangulene",
+      "role": "intermediate",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "accessible": false,
+      "properties": {
+        "identity": "triangulene (C22H12), multiplicity 1: the lowest state a single-reference calculation can reach is the closed-shell Kekule/quinoidal singlet (S=0, M=1); the physical lowest singlet is an open-shell (diradical) 1 1E' state",
+        "spin_multiplicity": 1,
+        "accessible_reason": "The open-shell (diradical) singlet that defines the singlet-triplet gap is not accessible at the permitted level of theory: PM7 runs RHF for multiplicity 1 and GFN2-xTB has no broken-symmetry option (the method-policy parser rejects Gaussian UHF/UPM7/ROHF routes). The closed-shell RHF solution below IS a genuine 0-imaginary-frequency minimum and is delivered as the restricted singlet reference, but its energy is only an upper bound for the closed-shell state, 46.84 kcal/mol above the triplet at PM7.",
+        "method": "Gaussian 16, PM7, restricted closed-shell RHF (guess=mix)",
+        "charge": 0,
+        "evidence_log": "work/calc/PM7_S1.log",
+        "cross_check_log_gfn2_xtb": "work/calc/xtb/S1/GFN2_S1.out",
+        "smiles_note": "the plain (non-Kekule diradical) SMILES mandated by the task is used as the node identity; RDKit perception of the optimized geometry writes the charge-separated closed-shell form [H]c1c([H])c2c([H])c3c([H])c([H])[c+]([H])c4c([H])c5c([H])c([H])c([H])c6c([H])c(c1[H])c2c(c34)[c-]65, which has an identical canonical heavy-atom graph (22 C, 27 C-C bonds, 6 rings, 12 H, planar to 0.0005 A) — a representation artefact, not a different species. Single entry kept so the node is unambiguously one molecule (not a multi-component species).",
+        "computed_observations": "Observed in the untouched native log work/calc/PM7_S1.log (Gaussian 16, PM7, restricted closed-shell RHF M=1, opt+freq, normal termination, 0 imaginary frequencies, lowest modes 73.88/77.10/102.66 cm^-1): E(RPM7) = 0.220288108854 Eh, ZPE correction 0.256477 Eh, HOMO-LUMO 3.22 eV, planar, C-C 1.3885-1.4358 A (modest Kekule/quinoidal alternation)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "triplet-to-singlet-excitation",
+      "from": "T1-triangulene",
+      "to": "S0-triangulene",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "spin-state excitation: triplet (S=1) -> closed-shell singlet (S=0), same C22H12 framework, no bond reorganization, no saddle point / no IRC",
+      "favored": false
+    }
+  ],
+  "dag_refs": {
+    "species_ids": {
+      "T1-triangulene": "sp_0451b1c9",
+      "S0-triangulene": "sp_48fef79c"
+    },
+    "step_ids": {
+      "triplet-to-singlet-excitation": "step_14f0632b"
+    },
+    "note": "node and edge ids equal the DAG delivery-target names so the artifact and the DAG refer to the same elements"
+  }
+}

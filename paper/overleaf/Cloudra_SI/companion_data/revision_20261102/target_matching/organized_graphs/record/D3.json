@@ -1,0 +1,132 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C1=CCC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -387.965224804,
+        "evidence_log": "ref/RC_complex_probe.log",
+        "description": "pi-stacked cyclopentadiene pre-reaction complex (C10H12), ring centroids 3.94 A apart, shortest inter-ring C...C 3.41 A, 60 real modes (lowest 24.3 cm-1), 0 imaginary; 5.16 kcal/mol below two separated Cp (2 x -193.978501557 = -387.957003114 Ha). Lowest verified reactant-side minimum, shared by both channels."
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -387.941233512,
+        "evidence_log": "endo/work/endo_ts_optfreq_v4.log",
+        "description": "endo cycloaddition saddle, exactly one imaginary frequency -442.25 cm-1 (next real mode 100.8 cm-1), forming C5...C6 = 1.970 A and C4...C8 = 2.838 A, endo dihedral signature -140.7/+160.2, opt converged, normal termination. Reverse IRC (normal termination, 20/20 points) opens both contacts to 3.005/3.216 A and re-optimizes to a bound pi-stacked Cp...Cp minimum (-387.964427315, 0 imaginary); the forward IRC closes both contacts (1.647/2.717 A) and its outer frame re-optimizes to the endo-DCPD minimum (-387.995962204, 0 imaginary, identical to product_optfreq.log), but the forward IRC job itself terminates with an l123 corrector failure in the very flat product-side region (documented numerical limitation, reproducible with 5 different settings)."
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "C12C=CC(C1)C1C=CCC12"
+      ],
+      "properties": {
+        "energy_hartree": -387.995962006,
+        "evidence_log": "endo/work/product_optfreq.log",
+        "description": "endo-dicyclopentadiene minimum, 0 imaginary frequencies (re-optimized forward-IRC outer frame: -387.995962171 Ha, 0 imaginary)"
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -387.935349705,
+        "evidence_log": "exo/work/exo_ts_optfreq_v1.log",
+        "description": "exo cycloaddition saddle, exactly one imaginary frequency -473.72 cm-1 (two C...C bond-forming motions + ring folding, heavy-atom fraction 0.74), forming distances 2.097 A and 2.389 A, opt converged"
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "C1C=C[C@H]2[C@@H]1[C@H]3C[C@@H]2C=C3"
+      ],
+      "properties": {
+        "energy_hartree": -387.996736503,
+        "evidence_log": "exo/work/exo_product_optfreq.log",
+        "description": "exo-dicyclopentadiene minimum, 0 imaginary frequencies; exo stereochemistry confirmed by discriminating dihedrals (+76.0/-77.7 vs endo -150.7/+154.0)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_endo",
+      "from": "RC",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ],
+          [
+            5,
+            1
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 15.05,
+      "channel": "endo",
+      "favored": true
+    },
+    {
+      "id": "e_exo",
+      "from": "RC",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ],
+          [
+            5,
+            1
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 18.75,
+      "channel": "exo",
+      "favored": false
+    }
+  ]
+}

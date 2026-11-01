@@ -1,0 +1,54 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "properties": {
+        "energy_hartree": -541.60890788,
+        "evidence_log": "rc_optfreq.log",
+        "description": "twisted ground-state conformer (atropisomer), tau(C2-C7-C8-C9)=88.5 deg; B3LYP-D3(BJ)/def2-SVP opt+freq, 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -541.582800294,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "description": "coplanar anti transition state, tau=180.0 deg, one imaginary frequency -105.45 cm-1 (aryl-aryl torsion geared with methyl libration); OptTS=CalcFC log: ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log; IRC: ts/ts_0002/jobs/declaration_0002/irc/irc.log",
+        "discarded_channel": "the coplanar syn arrangement (tau=0, the two ortho methyls 1.65 A apart) is not a usable stationary point (xTB Hessian: 13 imaginary modes) and lies far higher; the rotation does not pass through it"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "Cc1ccccc1-c1c(C)cccc1"
+      ],
+      "properties": {
+        "energy_hartree": -541.608907902,
+        "evidence_log": "p_min_optfreq.log",
+        "description": "twisted minimum reached by the reverse IRC direction (enantiomeric twisted conformer, tau ~ -88 deg); opt+freq, 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 16.383,
+      "channel": "aryl-aryl torsion through the coplanar anti (Me...H eclipsing) arrangement",
+      "favored": true
+    }
+  ]
+}

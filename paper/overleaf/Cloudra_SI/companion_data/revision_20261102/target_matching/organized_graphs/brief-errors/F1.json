@@ -1,0 +1,68 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[BH4-].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -141.672770833,
+        "evidence_log": "species/rc2_optfreq.log",
+        "note": "Gas-phase reactant-side minimum: loose ion-dipole/dispersion complex [BH4-]...O=CH2 (C-O 1.211, B...O 4.459, B...C 3.268 A), B3LYP-D3(BJ)/def2-SVP, NImag=0 (21 real modes). Lowest reactant-side minimum found and the barrier reference."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -141.610585962,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0014/frequency/frequency.log",
+        "note": "First-order saddle at the same level: one imaginary frequency -391.0 cm-1, E = -141.610585962 Ha. It is a LATE saddle: C6-H5 1.177 A already formed, B1-H5 2.271 A already broken, B1-O7 2.863 A still open, C6-O7 1.304 A; the imaginary mode is BH3-reorganisation dominated (H3 0.468, B1-H5 0.311, heavy-atom fraction 0.016). The hydride transfer itself is completed earlier on a flat region; the saddle is the subsequent BH3 reorganisation / B-O closure within the same elementary step - not a synchronous four-centre motion."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CO[BH3-]"
+      ],
+      "properties": {
+        "energy_hartree": -141.7207586,
+        "evidence_log": "species/p_optfreq.log",
+        "note": "Adduct minimum CO[BH3-] (B-O 1.493, C-O 1.365 A), NImag=0; independently reproduced by re-relaxing the IRC product-side outer frame at the same level (species/p_side_optfreq.log, E = -141.720758735 Ha, NImag=0). The -229.9 cm-1 structure seen en route is a conformational (torsional) saddle inside the product basin, not an intermediate. Native endpoint proof for the IRC product direction: species/p_outer_optfreq.log (opt=(CalcFC,MaxCycle=100) freq, B3LYP/def2SVP EmpiricalDispersion=GD3BJ, q=-1 singlet) starts from the IRC product outer frame displaced 0.45 along its -229.85 cm-1 torsional mode and converges unconstrained (Stationary point found, Normal termination, NImag=0, 21 real modes, lowest 209.6 cm-1) to E = -141.720758734 Ha, identical to P."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 39.02,
+      "channel": "single elementary step: hydride transfer from BH4- to the carbonyl carbon with concerted (but not synchronous) B-H cleavage, C-H formation and B-O closure",
+      "favored": true,
+      "note": "barrier = E(TS1) - E(RC) = 0.0621848 Ha = 39.0 kcal/mol, electronic energies, no ZPE, same level on both sides; the reference is the loose ion-dipole complex RC. Connectivity: both IRC directions (ts/ts_0001/jobs/declaration_0014/irc/irc.log) terminate in frequency-verified minima with native Opt/Freq logs started at the two IRC outer frames - reactant side species/r_outer_optfreq.log (NImag=0, -141.672770829 Ha = RC) and product side species/p_outer_optfreq010.log (NImag=0, -141.720758734 Ha = P). Caveat on magnitude: 39.0 kcal/mol is large for a gas-phase borohydride reduction; an unconverged GFN2-xTB metadynamics path (ts/ts_0001/jobs/declaration_0013) indicated ~22 kcal/mol, so the DFT barrier should be read as the energy of this particular late BH3-reorganisation/B-O-closure saddle, possibly overestimated at B3LYP/def2-SVP."
+    }
+  ]
+}

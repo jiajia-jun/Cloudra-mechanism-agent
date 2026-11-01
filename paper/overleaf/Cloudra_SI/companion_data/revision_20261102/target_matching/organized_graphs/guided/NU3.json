@@ -1,0 +1,179 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=[PH3].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -496.696986543,
+        "evidence_log": "rc_min3.log",
+        "declared_reactant_smiles": "[CH2-][PH3+].C=O",
+        "identity_note": "RC is ONE species recorded twice in two equivalent spellings. The task pins the reactant as the unmapped ylide formaldehyde complex '[CH2-:1][PH2+:2][H:5].[CH2:3]=[O:4]', i.e. '[CH2-][PH3+].C=O', and its own native evidence log rc_min3.log carries the title 'smiles: [CH2-][PH3+].C=O'; that pinned string is kept verbatim in properties.declared_reactant_smiles. The node's smiles field must equal the DAG species declaration, which is 'C=[PH3].C=O' - the same 11-atom, C2P1O1H7, charge-0, singlet structure written in neutral valences (a single-reference Lewis perception cannot express the zwitterionic ylide, and the 1.695 A C1-P distance is exactly the formally double C=P bond of the ylide). Energy, log, frequencies and geometry are identical for both spellings.",
+        "note": "Pre-reaction ylide/formaldehyde complex, whole-complex minimum in the single combined Opt+Freq log rc_min3.log: Gaussian normal termination, opt converged, E(SCF) = -496.696986543 Ha, 27 real modes, 0 imaginary (lowest 61.74 cm-1); C1-P 1.695 A, C3=O 1.214 A, C1...C3 2.690 A, P-H...O 2.25 A; 11 atoms, C2P1O1H7, charge 0, singlet; 9.26 kcal/mol below the separated reactants (ylide_iso + hcho_iso = -496.682226251 Ha). This is the barrier reference for e3 (and would be for e1). The node keeps the task's unmapped ylide SMILES [CH2-][PH3+].C=O; a single-reference Lewis perception instead writes the same 11-atom, charge-0 complex in its neutral valence form CH2=PH3...HCHO, where the 1.695 A C1-P distance is the formally double C=P bond - the two spellings are one species, documented in PROCESS.md and qm_summary.md, and the delivery DAG carries that perceiver-compatible twin only so its mechanical geometry comparison can run."
+      },
+      "name": "RC"
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -496.694323987,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0001/frequency/frequency.log",
+        "note": "Ene / P-H -> O proton-transfer saddle (C1-C3 bond formation coupled to P-H -> O transfer): at the saddle one P-H is 1.448 A while that same H is 1.806 A from the carbonyl O; C1-P 1.727, C1-C3 2.162, C3-O 1.250, P-O 2.841 A. Exactly one imaginary frequency -279.25 cm-1 at E = -496.694323987 Ha (ts/ts_0004/jobs/declaration_0001/ts_opt/refine.log + frequency/frequency.log), +1.67 kcal/mol above RC (rc_min3.log, dE without ZPE). Independently reproduced by a second, rotated-PH3 guess at ts/ts_0003/jobs/declaration_0004 (E = -496.694323996 Ha, -279.88 cm-1). Its bidirectional IRC connects RC (reverse side, endb_rc_optfreq.log -496.696986474 Ha, 0 imag) with HOCH2CH2PH2 (forward side, enda_occp_optfreq.log -496.791889280 Ha, 0 imag), NOT with the oxaphosphetane INT1."
+      },
+      "name": "TS1"
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "C1[PH3]OC1"
+      ],
+      "properties": {
+        "energy_hartree": -496.741704909,
+        "evidence_log": "int1_min2.log",
+        "note": "Oxaphosphetane four-membered ring P-CH2-CH2-O; 0 imaginary."
+      },
+      "name": "INT1"
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -496.703825985,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0004/frequency/frequency.log",
+        "note": "Retro-[2+2] / cycloreversion saddle; 1 imaginary frequency -624.6 cm-1."
+      },
+      "name": "TS2"
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.O=[PH3]"
+      ],
+      "properties": {
+        "energy_hartree": -496.75760137,
+        "evidence_log": "pc_b2.log",
+        "note": "Bound post-reaction complex C2H4...O=PH3 (C-H...O contact; C=C 1.334, P=O 1.498 A), 0 imaginary, 5.85 kcal/mol below the separated products (uncorrected, no BSSE at def2-SVP). This IS the state the TS2 IRC reaches: the product-side IRC outer frame, re-optimized natively (pc_end_a_optfreq.log, -496.755894761 Ha, 27 modes, 0 imaginary), relaxes to a second conformer of this same complex, 1.07 kcal/mol above pc_b2 - that conformer is the IRC endpoint/connectivity proof while pc_b2 is the node's reference energy. Node P_sep (sum -496.748282276 Ha, two logs) is only the asymptotic separated limit and is NOT what the IRC reaches. The separated-products limit is also recorded here rather than as a separate species node: c2h4_min.log (-78.535524670 Ha, 12 modes, 0 imag) + ph3o_min.log (-418.212757606 Ha, 9 modes, 0 imag) = -496.748282276 Ha, a two-log sum that appears in no single calculation, 32.18 kcal/mol below RC and 4.78 kcal/mol below this bound complex; it is the asymptotic limit only and is never an IRC-reached state."
+      },
+      "name": "P"
+    },
+    {
+      "id": "OCCP",
+      "role": "product",
+      "smiles": [
+        "OCC[PH2]"
+      ],
+      "properties": {
+        "energy_hartree": -496.791889348,
+        "evidence_log": "step1_anom_optfreq.log",
+        "note": "2-Hydroxyethylphosphine HOCH2CH2PH2; C1-P 1.883, C1-C3 1.532, C3-O 1.408, O-H 0.970 A, P...O 3.207 A (no P-O bond). 0 imaginary; and the re-optimized forward outer frame of the TS1 IRC. Deep proton-transfer sink: 59.5 kcal/mol below RC at B3LYP-D3(BJ)/def2-SVP (xTB/GFN2 single point: -61.3, separated Wittig products -58.8)."
+      },
+      "name": "OCCP"
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_cc0de159",
+      "from": "RC",
+      "to": "INT1",
+      "via": null,
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "channel": "concerted [2+2] cycloaddition: NOT FOUND in a bounded, now-exhausted search at B3LYP-D3(BJ)/def2-SVP (gas phase, charge 0, singlet); via = null and no barrier is quoted. (i) Two independent unconstrained RC-side TS guesses converge to the same -279 cm-1 ene / P-H->O saddle (-496.694323987 Ha), not to a [2+2] saddle. (ii) An unconstrained relaxed P-O scan from INT1 and its release give the OCCP well or a -27.54 cm-1 dissociation-region rotor saddle (-496.690447 Ha, +4.10 kcal/mol vs RC). (iii) A P-O scan with one P-H frozen peaks at -496.683598 Ha (+8.40 vs RC) but does not survive unconstrained release. (iv) The dedicated P-H-pinned two-dimensional scan (C1-C3 2.6->1.6 A x P-O 3.0->1.8 A; probe scan2d/probe2d.log shows G16 accepts two Scan coordinates; grid scan2d/grid2d.log died at link 9999 so the surface was mapped with independent frozen-C1-C3 P-O scans scan2d/prow_*.log and scan2d/pc2_*.log, all normal termination) gave NO interior heavy-atom maximum: the clean branch has one shallow minimum at (C1-C3 ~2.6, P-O ~3.11 A) = +1.18 kcal/mol (RC-side rotor plateau) and rises monotonically inward to +15.6/+22.6/+36.0 at P-O 2.31/2.11/1.71 A (C1-C3 2.64) and to +63.0 at P-O 1.61 A (C1-C3 2.84). (v) Unconstrained refinements from the two lowest inner-wall points collapse again: scan2d/tsuncon_A.log = -496.696104539 Ha, one imaginary frequency -94.58 cm-1, mode projections C1 3.0 / P 3.0 / C3 6.0 / O 10.1 % vs H5 58.3 % -> the RC PH3 rotor saddle (+0.55 kcal/mol); scan2d/tsuncon_B.log = -496.694323986 Ha, one imaginary frequency -279.17 cm-1, projections C1 27.9 / P 8.7 / C3 31.3 / O 20.1 / H5 65.3 % -> numerically the same ene / P-H->O saddle (+1.67 kcal/mol, P-O still 2.84 A). Reusable finding: a single-atom P-H pin does NOT block proton transfer - a different P-H (H8) migrates to O, so even the pinned grid corners are HOCH2CH2PH2-type (e.g. C1-C3 1.74, P-O 2.91 -> -496.772191 Ha, O-H8 0.971 A). Important limitation of this search (Supervisor review): the 2-D surface above pinned only atom 5, and the data show a different P-H (H8) migrating, so the sampled surface is NOT the intended proton-blocked [2+2] surface; the single-job grid died numerically (link 9999) and the replacement 1-D scans never sampled C1-C3 below 2.34 A, i.e. the region where a concerted saddle with short C1-C3 and P-O ~1.9-2.3 A would sit was not mapped. The statement is therefore 'no [2+2] saddle found in the searches performed - not yet found, not excluded'. (vi) That retry was executed with proton transfer genuinely blocked (ptblock/, jobs 1423-1447): the C1-C3 relaxed scan with all three P-H AND O...H9 frozen at 2.252 A (ptblock/scan_c1c3_pOHfrz.log) has an internal maximum of +4.69 kcal/mol vs RC at C1-C3 1.690 A / P-O 2.921 A / C1-P 1.762 A / C3-O 1.274 A, the constrained TS optimisation there converges (ptblock/ts_constr_1.log, -496.689515440 Ha), and the full Hessian at that point (ptblock/freq_constr_point.log) gives exactly one imaginary frequency -193.48 cm-1 dominated by the P-H(9)...O hydrogen coordinate (H9 amplitude 0.631; bond projections C1-C3 -0.311, P-O -0.374), i.e. even the constrained maximum is soft along the proton coordinate and not along ring closure. Releasing the restraints (ptblock/ts_free_2.log, opt=(ts,calcfc,noeigentest) freq) converges in one step to -496.694323984 Ha with one imaginary frequency -279.04 cm-1 = the same ene / P-H->O saddle, reproduced independently by ptblock/ts_free_1.log (-496.694323778 Ha). Two further 'maxima' are artefacts and are not barriers: the +2.01 kcal P-H-only scan peak (ptblock/scan_c1c3_pHfrz2.log, O...H compressed to 1.750 A) and the monotonic +9.1 kcal P-O wall at fixed C1-C3 = 2.29 A (ptblock/col_po_c229.log). The O...H-constrained window is therefore EXHAUSTED: no first-order [2+2] saddle with intact P-H bonds exists on the sampled surface, via stays null and no barrier is quoted; the +4.69 (constrained) and +8.40 (pinned-scan) maxima are constrained-subspace artefacts. Report: ptblock/SUMMARY.md.",
+      "favored": false,
+      "barrier_kcal_mol": null,
+      "legacy_id": "e1",
+      "name": "step1_cycloaddition"
+    },
+    {
+      "id": "step_eabc0c6d",
+      "from": "INT1",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": null,
+      "channel": "retro-[2+2] cycloreversion, IRC-verified with a real budget: product side converges (ts2_irc3/irc3_rev.log, 139 points, 'Calculation of REVERSE path complete', rx 0 -> -9.32, outer frame -496.755851371 Ha; combined opt+freq from that exact frame ts2_irc3/enda_optfreq.log -496.755894646 Ha, 27 modes, 0 imaginary = bound C2H4...O=PH3 complex, not separated products); oxaphosphetane side is bound from the FINISHED bounded IRC ts2_irc3/.cloudra/execution-1467/results/irc5_fwd55.log (job 1467, irc=(calcfc,forward,maxpoints=55,stepsize=3,recalc=5), Gaussian normal termination, 55 points, rx 0 -> 3.689, outer frame -496.739676 Ha, direction verified geometrically: C1-P 2.238 / C1-C3 1.471 / P-O 1.620 A at point 24); its frame-started combined opt+freq ts2_irc3/endb_f55_optfreq.log gives -496.739762163 Ha with exactly one imaginary frequency -84.14 cm-1 that is >97% PH3/CH2 hydrogen rotation (heavy-atom fraction 0.0143, reaction watch-pair projection 8.7e-8), i.e. the PH3/CH2 ROTOR SADDLE, not INT1 (reproduced at -86.33 / -86.01 / -83.67 cm-1 by three further frame-started jobs). The 55-point bound is justified, not arbitrary: the same leg with the requested 200-point budget (job 1459) freezes at point 57 at -496.739760636 Ha with six failed 'Delta-x Convergence NOT met' cycles, so a step-3 IRC cannot cross that flat shelf. Declared connectivity: INT1 <-> [rotor saddle -496.7398 Ha, 1 imag -84 cm-1] <-> TS2 <-> P, with INT1 a verified minimum 1.22 kcal/mol below the saddle (int1_min2.log -496.741704909 Ha, 0 imaginary; int1_endb2_optfreq.log -496.741704888 Ha, 0 imaginary)",
+      "favored": true,
+      "legacy_id": "e2",
+      "name": "step2_cycloreversion",
+      "barrier_note": "TS2 is verified (ts/ts_0002/jobs/declaration_0004/ts_opt/refine.log + frequency/frequency.log: opt converged, normal termination, E = -496.703825985 Ha, exactly one imaginary frequency -624.5979 cm-1, i.e. +23.77 kcal/mol above the accepted INT1 minimum int1_min2.log -496.741704909 Ha, dE without ZPE), the bidirectional IRC is native (ts/ts_0002/jobs/declaration_0006/irc/irc.log, 20 points per direction) and both outer frames were re-optimized (product side pc_end_a_optfreq.log -496.755894761 Ha, 0 imaginary; source side int1_endb_fromframe_optfreq.log -496.739762589 Ha, 1 imaginary -86.33 cm-1 rotor saddle, then a documented 0.30-0.35 A displacement re-optimizing to INT1 int1_endb2_optfreq.log -496.741704888 Ha, 0 imaginary). The Supervisor accepted this step on that interval evidence, but the mechanical short_irc check still reports 'SOURCE/reactant: no zero-imaginary minimum matches the declared species' because the reverse frame relaxes to that rotor saddle rather than to INT1 in a single job; the barrier is therefore recorded here as a measured value while barrier_kcal_mol stays null until the DAG stage checks pass. Reverse-direction update: an extended bidirectional IRC from this same TS (ts2_irc2/irc2s5.log, job 1389, irc=(calcfc,maxpoints=60,stepsize=5,recalc=5), 94 points, normal termination) was followed by a combined opt+freq started at the EXACT oxaphosphetane-side outer frame (ts2_irc2/endb_optfreq.log, job 1400, title 'smiles: C1[PH3]OC1'): converged, E = -496.739762229 Ha, ONE imaginary frequency -84.11 cm-1 whose mode is a pure P-H/CH2-H torsion (heavy-atom fraction 0.014; all ring-pair fractions <= 2e-6) = the PH3/CH2 rotor saddle, the same stationary point as the earlier -86.33 cm-1 saddle, with INT1 (-496.741704909 Ha, 0 imag) 1.22 kcal/mol below it. A further native IRC from that saddle terminated immediately with 'PES minimum detected' (no usable negative curvature). The product-side outer frame re-optimizes to the bound C2H4...O=PH3 complex (ts2_irc2/enda_optfreq.log, -496.755894787 Ha, 0 imag). So the reverse endpoint of this step is that conformational rotor saddle, NOT INT1 in a single job, and no manual displacement is used; the step is best read as INT1 <-> [PH3/CH2 rotor saddle] <-> TS2 <-> P, with INT1 the minimum of the same basin 1.22 kcal/mol below the saddle.",
+      "barrier_kcal_mol_measured": 23.77
+    },
+    {
+      "id": "step_61dab53c",
+      "from": "RC",
+      "to": "OCCP",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 1.67,
+      "channel": "ene / P-H -> O proton transfer (competing channel, IRC-verified)",
+      "favored": false,
+      "legacy_id": "e3",
+      "name": "step1b_ene_proton_transfer"
+    }
+  ]
+}

@@ -1,0 +1,78 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -155.872632471,
+        "evidence_log": "rc_cyclobutene/rc_g16_opt_freq.log",
+        "level_of_theory": "B3LYP/def2-SVP + EmpiricalDispersion=GD3BJ (Gaussian 16), gas phase",
+        "note": "cyclobutene, C2v-like planar ring, C3-C4 = 1.569 A, 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -155.816517915,
+        "evidence_log": "ts_annotated/ts_conrot_opt_freq.log",
+        "level_of_theory": "B3LYP/def2-SVP + EmpiricalDispersion=GD3BJ (Gaussian 16), gas phase",
+        "imaginary_frequency_cm1": -728.4,
+        "note": "Conrotatory 4-pi electrocyclic TS. Key distances (map order): C3-C4 2.143 A (breaking, from 1.542 in the reactant), C1-C2 1.379 A (double -> single), C1-C4 and C2-C3 1.429 A (forming double bonds). One imaginary mode -728.4 cm^-1. Independent reproduction of the ts_prepare saddle (ts/ts_0001) at the same energy."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -155.886887341,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/product_frequency/product_frequency.log",
+        "level_of_theory": "B3LYP/def2-SVP + EmpiricalDispersion=GD3BJ (Gaussian 16), gas phase",
+        "note": "s-cis-1,3-butadiene, the direct IRC product (C1-C2-C3-C4 dihedral -11.6 deg): with the reactant atom map, C3-C4 is now 3.09 A (broken), C1-C4 and C2-C3 are 1.341 A (double) and C1-C2 1.470 A (single). 0 imaginary frequencies. The s-trans rotamer is 3.3 kcal/mol lower (p_butadiene/p_g16_opt_freq.log, E=-155.892148996 Ha)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 35.21,
+      "channel": "conrotatory",
+      "favored": true,
+      "reverse_barrier_kcal_mol": 44.16,
+      "irc_evidence_log": "ts/ts_0001/jobs/declaration_0005/irc/irc.log",
+      "bond_change_comment": "Bond-order changes over the step in the given map (reactant [CH:1]1=[CH:2][CH2:3][CH2:4]1): C3-C4 sigma bond cleaved, C1-C2 pi bond becomes single, C1-C4 and C2-C3 become double bonds (the two new pi bonds of the diene)."
+    }
+  ]
+}

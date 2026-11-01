@@ -233,7 +233,8 @@ def _lift(graph: GoldMechanismGraph) -> nx.MultiDiGraph:
     for n in graph.nodes:
         if n.id in ts_ids:
             continue
-        g.add_node(n.id, smiles=tuple(sorted(n.smiles)), accessible=n.accessible)
+        g.add_node(n.id, smiles=tuple(sorted(n.smiles)), accessible=n.accessible,
+                   state=n.properties.get("state"))
     for e, signature in zip(graph.edges, signatures):
         g.add_edge(
             e.from_node,
@@ -269,6 +270,10 @@ def _node_subst_checked(gattrs, aattrs, cfg: GedConfig) -> float:
     硬算 / 可达躲证据）→ 替换代价 1.0，等同缺失；一致才走化学代价。"""
     if gattrs.get("accessible", True) != aattrs.get("accessible", True):
         return 1.0
+    from cloudra.benchmark.target_identity import state_compatible
+
+    if not state_compatible(gattrs.get("state"), aattrs.get("state")):
+        return 1.0
     return _node_subst(gattrs, aattrs, cfg)
 
 
@@ -277,7 +282,12 @@ def _edge_subst_checked(aattrs, gattrs, cfg: GedConfig) -> float:
     有效可达性——边自身 AND 经由的 TS 节点，见 schema.edge_effectively_accessible）。"""
     if aattrs.get("accessible", True) != gattrs.get("accessible", True):
         return 1.0
-    if gattrs.get("require_channel") and aattrs.get("channel") != gattrs.get("channel"):
+    from cloudra.benchmark.target_identity import channel_compatible
+
+    if not channel_compatible(
+        gattrs.get("channel"), aattrs.get("channel"),
+        require_exact=gattrs.get("require_channel", False),
+    ):
         return 1.0
     return _edge_subst(aattrs, gattrs, cfg)
 

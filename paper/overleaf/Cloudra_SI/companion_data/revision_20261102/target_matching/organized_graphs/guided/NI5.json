@@ -1,0 +1,261 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.612210881,
+        "evidence_log": "work/species/rc_c0.log",
+        "note": "Pre-reaction complex: three fragments (formaldehyde, methylamine, one water) hydrogen-bonded with N-H...O_w (1.74 A); the water's free H points away from C=O (O2...H 3.13 A). A doubly bridged pre-reactive minimum (N-H...O_w-H...O=C) DOES exist on this model and is carried as a small family of HIGHER conformers of the same reactant state (node RC_bridged): motif representative work/species_bridged/dft/rand_038.log, E = -286.607794675 Ha = +2.77 kcal/mol above this minimum, 36 modes, 0 imaginary, water donating to the carbonyl oxygen (O2...H_w 1.864) and accepting the amine N-H (H...O_w 2.253, N...O_w 3.179), C1...N 3.155 with no C-N bond, C1 angle sum 360.0, amine azimuth 93.0 deg; further members of the same motif are rand_007 (-286.606537594, +3.56) and rand_036 (-286.606239059, +3.75), same motif, different amine azimuth. NOTE: a LOWER minimum of this same three-fragment well, work/step1_addition/rc_scan3/endA_plus.log (-286.611533031, +0.425, 36 modes, 0 imaginary, C1...N6 3.455, O_w...O2 2.891, O_w...N6 2.774), has a DIFFERENT hydrogen-bond topology - the relay water donates to the amine N (H13...N6 1.792) and to O2 (H14...O2 2.017) with both N-H free, so the amine is an acceptor, not the N-H donor - and is therefore not a member of the task-specified doubly bridged motif. The earlier single constrained bridging start (work/species_extra/bridge_opt.log) relaxed back to this minimum and a constrained O_w...C1 3.05 A point (+0.93 kcal/mol) was not a minimum, so that one failure was not evidence of absence. IMPORTANT: this rc_c0 minimum is a genuine three-fragment minimum but it is NOT the reactive reactant conformer - TS1 and the constrained C1-N3 3.15 A frame both lie below it in energy, so the addition saddle (if any) must be referenced to this minimum only as the lowest verified RC state, not as the pre-organised reactive arrangement."
+      }
+    },
+    {
+      "id": "RC_bridged",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.607794675,
+        "evidence_log": "work/species_bridged/dft/rand_038.log",
+        "note": "This node carries the DOUBLY BRIDGED pre-reactive motif the task text specifies, N-H...O_w-H...O=C, through its verified member work/species_bridged/dft/rand_038.log (title 'smiles: C=O.CN.O', 14 atoms, Opt 'Stationary point found' + normal termination, Freq normal termination, 36 modes, 0 imaginary, lowest 67.10/85.45/91.25 cm-1, E = -286.607794675 Ha = +2.77 kcal/mol vs rc_c0; geometry C1=O2 1.214, C1...N 3.155 with NO C-N bond, water donating to the carbonyl oxygen O2...H_w 1.864 and accepting the amine N-H with H...O_w 2.253 / N...O_w 3.179, C1 angle sum 360.0, amine azimuth C1-N-C(Me) 93.0 deg). It stays above rc_c0, so the barrier reference remains rc_c0 (-286.612210881), and the node is edgeless, never a pseudo-reactant and never a barrier reference. Further members carrying the same motif are rand_007.log (-286.606537594, +3.56, azimuth 88.3, C1...N 3.335) and rand_036.log (-286.606239059, +3.75, azimuth 73.1, C1...N 3.464), distinguished by amine azimuth and heavy-atom RMSD 0.31-0.78 A. IMPORTANT - a LOWER minimum of the same three-fragment well exists but has a DIFFERENT hydrogen-bond topology and is NOT a member of the specified motif: work/step1_addition/rc_scan3/endA_plus.log (-286.611533031 Ha = +0.425 kcal/mol vs rc_c0, 36 modes, 0 imaginary, lowest 59.83 cm-1, C1=O2 1.213, C1...N6 3.455 with no C-N bond, O_w...O2 2.891, O_w...N6 2.774) has the relay water donating to the amine nitrogen (H13...N6 1.792) and to O2 (H14...O2 2.017) with BOTH N-H protons free, i.e. the amine is an ACCEPTOR, not the N-H donor the motif requires; it is therefore documented as a conformer of the same reactant state and never as this node's geometry. work/step1_addition/rc_scan3/endA_minus.log (-286.612209550, 0 imaginary) is an energy-identical rc_c0 conformer and not a separate node. The seam between rc_c0 and the endA_plus conformer carries a water-reorientation/loose-association saddle (work/step1_addition/rc_scan3/ts_seam_cn278_v2.log, -286.610212951 Ha, +1.254 vs rc_c0, one imaginary -39.7266 cm-1, heavy-atom share 21.1 %, C1-N6 projection -0.0117, C1=O2 -0.0002, C1 planar 359.9997 deg) which is a CONFORMATIONAL feature, not the addition saddle: its connectivity rests on mode-displacement brackets, not on a converged IRC (all five IRC attempts failed numerically), and it must never serve as s1_addition's via. LOWEST verified member of the MOTIF family (NOT of the whole three-fragment well: work/step1_addition/rc_scan3/endA_plus.log at +0.425 is lower but has the different topology described above); not a pseudo-reactant, not a new elementary step, never the barrier reference. All members have no C-N bond and a planar carbonyl, so they are conformers of one reactant state, NOT separate channels; barrier references stay on rc_c0 (-286.612210881)."
+      }
+    },
+    {
+      "id": "ZW",
+      "role": "intermediate",
+      "smiles": [
+        "C[NH2+]C[O-].O"
+      ],
+      "properties": {
+        "energy_hartree": -286.623773548,
+        "evidence_log": "work/species_bridged/dft/zw_retitle.log",
+        "note": "Zwitterionic tetrahedral adduct CH3-NH2(+)-CH2-O(-) + relay water; C1-O2 1.323 A, C1-N3 1.582 A, N-C(Me) 1.475 A, both N-H intact, no O2-H, water O_w...O2 2.592 with O2...H_w 1.601. 7.26 kcal/mol below RC, 9.04 kcal/mol above INT1. Evidence is a correctly annotated Opt+Freq (title 'smiles: C[NH2+]C[O-].O', 36 modes, 0 imaginary, lowest 90.94 cm-1). This is a LOWER conformer of the same ZW species than the earlier work/step1_addition/zw_optfreq.log (-286.623568444, +0.129 kcal/mol higher); further documented conformers of the same ZW-type minimum are work/species_bridged/dft/rand_002.log (-286.623773541), rand_009.log (-286.623773378), rand_016.log (-286.623773308), rand_018.log (-286.623773562), rand_026.log (-286.623773274), rand_045.log (-286.623773416), work/species/rc_c2.log (-286.623773404) and work/species/rc_c3.log (-286.623772899), which differ only by two enantiomeric water placements (heavy-atom RMSD 0.984 A between the two faces, degenerate to 1.4e-7 Ha) and by methyl/water H torsions; rand_018 lies 1.4e-8 Ha below the adopted -286.623773548 value, i.e. numerically degenerate with it (same structure, different start), so no re-reference is warranted and the 3.75 kcal/mol s1b barrier stands. A SECOND, 0.67 kcal/mol higher tier of the same species is the water/H-bond rotamer at -286.6227024 Ha: work/species_bridged/dft/rand_017.log (-286.622701889) and rand_034.log (-286.622702441); rand_034 was identified by connectivity from its final optimized frame (C1-O2 1.322, C1-N3 1.579, N-C(Me) 1.473, both N-H intact at 1.039/1.026, no covalent O2-H, water O-H 1.019/0.970 donating to the alkoxide O at 1.593), so it is a ZW conformer and NOT an unassigned by-product and NOT a bridged member. The lower tier alone carries the node energy; the higher tier must not be averaged in with it. The s1b barrier is referenced to THIS energy: 3.753 kcal/mol. Valid only in this SMD + one-explicit-water model."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.617791809,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/ts_opt/refine.log",
+        "note": "First-order saddle, one imaginary frequency -817.69 cm-1; unweighted squared displacement dominated by the relay-water hydrogen (0.888, heavy atoms 0.011, C1-N3 0.06) = water-relayed proton shuttle, NOT C-N formation."
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.638176084,
+        "evidence_log": "work/species/int1_c0.log",
+        "note": "Neutral carbinolamine HOCH2NHCH3 + relay water, doubly H-bonded (Ow...N 2.76, Ow...O2 2.78 A); the N-H points away from the relay water (H...Ow 3.46 A), so the six-membered shuttle needs a rotamer pre-equilibrium."
+      }
+    },
+    {
+      "id": "PC",
+      "role": "product",
+      "smiles": [
+        "C=NC.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.6249854,
+        "evidence_log": "work/species/pc2_w3.log",
+        "note": "N-methylmethanimine + leaving water + regenerated relay water; C1=N3 1.272 A, no C-O bond, imine N accepts a water H-bond."
+      }
+    },
+    {
+      "id": "P11",
+      "role": "product",
+      "smiles": [
+        "C=NC.O"
+      ],
+      "properties": {
+        "energy_hartree": -210.234959328,
+        "evidence_log": "work/species_extra/w1c0.log",
+        "note": "Supplementary smaller-cluster reference for the literal task product SMILES C=NC.O (imine + one water, 11 atoms). Not part of the 14-atom energy ladder and never used as a barrier reference."
+      }
+    },
+    {
+      "id": "TS2b",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.543825365,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0007/ts_opt/refine.log",
+        "note": "Direct (no relay) four-membered N3-H6-O2-C1 1,3-proton-transfer saddle. Exactly one imaginary frequency -1501.23 cm-1 (frequency log ts/ts_0002/jobs/declaration_0007/frequency/frequency.log); the mode is 97.4% proton motion (C1-O2 projection 0.11), so this is a PROTON-TRANSFER-FIRST saddle, not a located concerted C-O-cleavage / C=N-formation saddle. Geometry: H6 bridges N3 (1.482 A) and O2 (1.139 A), spectator water 4.06 A from H6 / 4.65 A from O2. The IRC interval stops at C1-O2 1.909 A; cleavage completes in the unconstrained endpoint relaxation. 59.2 kcal/mol above the lowest INT1 minimum."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.586945553,
+        "evidence_log": "work/step2_dehydration/proton_first/a3_shuttle_ts_v2.log",
+        "note": "Water-relayed proton-transfer saddle of the carbinolamine dehydration: Opt=(TS,CalcFC,NoEigentest,MaxCycle=150)+Freq, normal termination, stationary point found, exactly one imaginary frequency -596.32 cm-1. A two-proton relay: by squared displacement the mode is dominated by the two relay protons (heavy-atom fraction 0.070; O_w-H and leaving-O-H together carry most of the motion), with the C-O stretch COUPLED but not dominant (pair-projected share about 0.30 inside the six-pair watch set = 5 % of total squared displacement). Geometry: C1-O2 2.146 A (already stretched; breaks progressively on the product branch), C1=N 1.300 A, N3-H 1.083 / H...O_w 1.609, O_w-H 1.338 / H...O2 1.130. 32.15 kcal/mol above the lowest INT1 minimum. Because the C-O scission completes after the saddle with no second barrier, this mode is a proton shuttle, not a C-O/C=N stretch."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "s1_addition",
+      "label": "e0",
+      "name": "s1_addition",
+      "from": "RC",
+      "to": "ZW",
+      "via": null,
+      "channel": "addition (C-N bond formation)",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "note": "No separable first-order saddle located. From the delivered rc_c0 minimum the relaxed C1-N3 coordinate rises monotonically to +4.93 kcal/mol at 2.33 A and is still rising when the job dies (native work/species_extra/scan_cn_free.log, l103 torsion failure, no normal termination); a maximum must exist somewhere between the two verified minima by construction, but nothing localises it on this coordinate: the observed rises are water-detachment artefacts (the +5.16 kcal/mol frame never converged and is water-detached, O2...H_w 4.0 A and O_w...O2 4.10 A; when the same job continues at C1-N3 2.177 A the water rotates back in and the energy falls to -0.61 kcal/mol, below rc_c0, with the bridged ZW-derived frames at 2.123/2.213/2.303 A lying at -0.84/-0.23/+0.26), so those rises can neither define nor exclude a barrier and none is declared here. rc_c0 and the low bridged frames differ only in which water proton donates to O2 (H13 versus H14), a water rotamer pair rather than two paths. The earlier downhill profile (work/step1_addition/scan_cn2.log) started from a constrained frame sitting +3.30 kcal/mol ABOVE rc_c0 and therefore cannot speak to the barrier from the actual reactant minimum. TS1 (-286.617791809, -817.69 cm-1) is NOT this saddle: its IRC runs ZW <-> INT1 and it lies 3.50 kcal/mol BELOW RC. A second, dedicated round in work/step1_addition/rc_scan2/ (REPORT.md section 7) is closed as outcome (c), no stationary point on the seam: the relaxed C1-N3 profile is monotone on the water-bridged channel from ZW (-7.26) to +4.27 kcal/mol at 3.74 A; the seam between rc_c0 and the bridged conformer family is a shallow coupled water-reorganisation plateau at +1.6 to +2.4 kcal/mol (2-D slice minimum +1.61 at C1-N3 2.78) with C1 planar (angle sum 360.0) throughout, i.e. no pyramidalisation; and three Opt=(TS,CalcFC,NoEigentest,MaxCycle=300)+Freq walks from chemically valid coupled seeds left the plateau toward long C1-N3 (3.72 A/+6.29, 3.39 A/+9.15, 3.47 A/+1.25 kcal/mol) without reaching 'Stationary point found' or producing a frequency table, so no wavenumber, per-atom share or mode composition exists for this step and nothing is offered as a TS or a barrier. Those walks were stopped by the agent after 17-39 optimiser steps against the 300-cycle budget, so the negative rests on the converged 2-D slices and the monotone bridged profile, not on an exhausted saddle search; a force-evaluated NEB path was unavailable in this workspace. The long-range turnover was then traced in work/step1_addition/rc_scan3/ and resolved: the relaxed C1-N3 profile turns over at the previous boundary (3.7434 A, +4.265 kcal/mol vs rc_c0), dips to +4.106 at 3.8934 A and rises again to +4.865 at 4.6434 A (7/7 converged points, C1 planar 360.0 and C=O 1.213 throughout), and the only stationary points found out there are conformational: a water-reorientation/loose-association saddle at -286.610212951 Ha (+1.254 vs rc_c0, one imaginary -39.7266 cm-1, heavy-atom share 21.1 %, C1-N3 projection -0.0117, C1=O2 -0.0002, C1 angle sum change +0.0004 deg) and a methyl-rotation saddle of the loose complex at -286.605734681 Ha (+4.064, one imaginary -33.3562 cm-1, methyl-H dominated); the Opt from the highest scan frame converged to a minimum (-286.605748539, 36 modes, 0 imaginary). Neither saddle has C-N forming character and C1 is exactly planar in both, so they are conformational/association features with empty bond_changes and are NOT this edge's via; a bidirectional IRC on them was attempted five times and is numerically unusable (HPC/LQA corrector stalls, GS2 2-point path, coarse GS2 'GS2 Optimization Failure'), with curvature constants of 0.0037 and 0.0016 mDyne/A putting 0.1 A of path below the 1e-5 Ha print resolution - a numerical limitation, not a chemistry-negative. Hence no stationary point with C-N addition character exists in the 2.8-4.64 A window. A fourth round then walked the addition side INWARD from the lowest bridged conformer (work/step1_addition/rc_scan4/: relaxed scan of the single coordinate R(1,6) from the exact final frame of rc_scan3/endA_plus.log, 3.4547 -> 1.7000 A, ten converged points, job 1282): +0.43, +0.54, +0.84, +1.30, +1.99 (maximum at 2.6748 A, exactly at the water-bridge reorganisation), +0.94, -0.17, -1.12, -2.47, -4.52 kcal/mol vs rc_c0, with C1 planar (359.90 deg) and C=O 1.2147 at the maximum and a monotone downhill run inward of 2.48 A that ends at C1=O2 1.2953, C1 angle sum 344.71 deg, water O2-bound only. The Opt=(TS,CalcFC,NoEigentest,MaxCycle=300)+Freq from that highest frame (job 1308, run to its own termination) is a genuine index-1 saddle at -286.608084324 Ha, one imaginary -164.5751 cm-1, +2.589 kcal/mol vs rc_c0 (+2.164 vs the start minimum), but it is a WATER-PROTON/H-BOND REORGANISATION mode, not C-N forming: heavy-atom share 13.3 %, 86.7 % of the squared displacement on hydrogens (water H13 29.1 %, N-H H11 13.4 %, H10 12.0 %), C1 angle sum 359.7101 deg (mode changes it 0.13 deg), C=O 1.2197 nearly unchanged, projections C1-N3 +0.047, C1=O2 -0.002, N6...H13 -0.110 A. Two GS2 IRC attempts on it failed numerically ('GS2 Optimization Failure.', 0.07 and 0.05 A of C-N motion), so no IRC profile is claimed. Conclusion for this edge: the C-N bond-forming descent is barrierless on this coordinate once the water bridge releases, and no C-N-forming first-order saddle exists in ANY of the four windows searched (short range, seam, long range, inward from the lowest bridged conformer). This edge therefore still carries no TS and no barrier_kcal_mol; the three conformational saddles (-39.7266, -33.3562 and -164.5751 cm-1) acquire no barrier. QST2/QST3 are prohibited in this workflow and were not run (documented prohibition). The edge remains via null with no barrier_kcal_mol until a saddle is verified; a converged saddle would replace this note with via = that TS node and a barrier_kcal_mol."
+    },
+    {
+      "id": "step_97ba6c04",
+      "from": "ZW",
+      "to": "INT1",
+      "via": "TS1",
+      "channel": "water-relayed proton transfer",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            5
+          ],
+          [
+            7,
+            8
+          ]
+        ],
+        "form": [
+          [
+            5,
+            7
+          ],
+          [
+            2,
+            8
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 3.75,
+      "name": "s1b_proton_transfer",
+      "dag_step_id": "step_97ba6c04",
+      "label": "e1",
+      "target_id": "step_97ba6c04",
+      "delivery_target_id": "step_97ba6c04"
+    },
+    {
+      "id": "step_1e77899b",
+      "from": "INT1",
+      "to": "PC",
+      "via": "TS2",
+      "channel": "dehydration (water relay)",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ],
+          [
+            7,
+            9
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            9
+          ],
+          [
+            6,
+            7
+          ]
+        ]
+      },
+      "note": "Verified water-relayed dehydration. Saddle TS2 at -286.586945553 Ha (work/step2_dehydration/proton_first/a3_shuttle_ts_v2.log; one imaginary frequency -596.32 cm-1: two-proton relay mode with the C-O stretch coupled but not dominant (C1-O2 already 2.146 A at the saddle, breaking progressively on the product branch)). Bidirectional IRC (work/step2_dehydration/proton_first/a3_irc.log, normal termination, 20 points each way) with both outer frames re-optimised from their exact coordinates: source side -286.637630615 Ha (carbinolamine + relay water, INT1 conformer, +0.34 kcal/mol above the lowest INT1 minimum) and target side -286.624985501 Ha (imine + two waters = PC). Declared barrier = E(TS2) - E(lowest INT1 minimum -286.638176084) = 32.15 kcal/mol electronic (31.81 against the IRC source conformer, a caveat only). Pathway: N-H transfers to the relay water, the relay water proton transfers to the leaving O2, C1-O2 breaks and C1=N forms. The C-O bond opens progressively after the saddle with no second barrier, so the C-O scission is not separately characterised by a saddle. Negative results on the same model: no O-protonated carbinolamine minimum exists (unconstrained relaxation runs downhill to PC; the constrained point j1_prot220_optfreq.log at +28.52 kcal/mol is a proton-shared contact pair whose -231 cm-1 mode is the frozen C1-O2 coordinate, not saddle evidence); no separate C-O-cleavage saddle (a2 ends in NStep/l9999 at C1-O2 2.879 A; the relaxed C1-O2 branch rises monotonically to +40.47 kcal/mol at 3.00 A).",
+      "name": "s2_dehydration",
+      "dag_step_id": "step_1e77899b",
+      "label": "e2",
+      "target_id": "step_1e77899b",
+      "delivery_target_id": "step_1e77899b",
+      "barrier_kcal_mol": 32.15
+    },
+    {
+      "id": "s2b_direct",
+      "label": "e3",
+      "name": "s2b_direct",
+      "from": "INT1",
+      "to": "PC",
+      "via": "TS2b",
+      "channel": "direct",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 59.2,
+      "note": "Verified direct channel: bidirectional IRC from TS2b (ts/ts_0002/jobs/declaration_0009/irc/irc.log, normal termination, reaction path followed) with both outer frames re-optimised to zero-imaginary minima (work/step2b_direct/irc_direct/endB_optfreq.log -286.63479072 Ha, carbinolamine conformer; work/step2b_direct/irc_direct/endA_optfreq_v2.log -286.613076684 Ha, imine + two waters). Barrier = E(TS2b) - E(lowest INT1 minimum -286.638176084) = 59.20 kcal/mol electronic; the reverse reference (E(TS)-E(lowest PC -286.624985400)) is 50.93 and the IRC-reached product conformer is 7.48 kcal/mol above the lowest PC, which is why only the forward number is declared here. Kinetics: 59 kcal/mol makes this route non-competitive, so the water relay remains necessary; it is a real channel, not a dead end.",
+      "favored": false
+    }
+  ],
+  "delivery_targets": [
+    "step_97ba6c04",
+    "step_1e77899b"
+  ],
+  "delivery_target_map": {
+    "step_97ba6c04": {
+      "edge": "step_97ba6c04",
+      "name": "s1b_proton_transfer",
+      "status": "supported"
+    },
+    "step_1e77899b": {
+      "edge": "step_1e77899b",
+      "name": "s2_dehydration",
+      "status": "supported"
+    }
+  }
+}

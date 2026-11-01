@@ -1,31 +1,22 @@
-\subsection{Sensitivity to target-object assignment in Impossible tasks}
+\subsection{Official target-correspondence Accuracy overlay}
 \label{sec:matcher-sensitivity}
 
-Record/IA5 and Brief/IC3 distinguish pathways or electronic states that share the same endpoint connectivity. Using their original final graphs and process records, we calculated how the Impossible-tier means would change if the existing negative-credit rule were applied to the requested pathway or state. The 200-run evaluation table remains the reported dataset; these conditional results are listed separately. Graph and Self-consistency remain fixed in both cases, as do all scores for the other 198 runs.
+The published evaluation applies chemical target correspondence before Accuracy scoring. Explicit reaction channels and electronic states distinguish otherwise identical connectivity, and the task-specified energy reference selects among references of the same native saddle. Graph and Self-consistency remain those recorded for the organized runs. Twelve runs whose task definitions involve these distinctions were replayed against the updated rules; five Accuracy values change. The overlay updates those Accuracy components, recomputes the corresponding composites, and leaves the other 195 runs unchanged. No new quantum-chemical calculation or language-model experiment was performed. The companion package \path{revision_20261102/target_matching/} retains the before/after Accuracy reports, matching audit, and correction table applied by the publication preparation script.
 
-IA5 requests the thermal disrotatory ring opening of cyclobutene. Record's final graph marks the disrotatory edge \texttt{e\_dis} and its transition-state node inaccessible, leaving its barrier unspecified. A separate conrotatory edge, \texttt{e\_con}, carries a barrier of 33.57 kcal/mol. The final process record explicitly distinguishes the requested disrotatory target from this computed alternative. Both edges have the same connectivity endpoints and bond-change signature; identifying the requested pathway also requires the conrotatory/disrotatory distinction.
-
-IC3 requests the lowest singlet state of phenylnitrene and its singlet--triplet gap. Brief's original graph distinguishes the closed-shell singlet \texttt{S1\_1A1} from the open-shell target \texttt{S2\_1A2}. It marks the latter node and its state-change edge inaccessible, withholds the requested numerical gap, and explicitly excludes the closed-shell branch's relative energies from that gap. The two state-change edges again have identical endpoint SMILES and bond-change signatures. The final baseline for Brief/IC3 has Graph $=1$, Self-consistency $=1$, Accuracy $=0$, and composite $=0.4$.
-
-In both graphs, the matcher selects the positive alternative pathway or state. Matching the requested negative target to its reference would earn credit under the unchanged negative-claim rule. A correction must first use the run's final statements to distinguish the requested pathway or state from the positive alternative. It must also retain any contradictory positive claim about that same target.
-
-Both cases in the final evaluation have Graph $=1$, Self-consistency $=1$, Accuracy $=0$, and composite $=0.4$. Assigning Accuracy $=1$ to either intended negative target changes that case's conditional composite by $0.6$, following the fixed Accuracy weight. Its configuration's ten-task Impossible mean therefore increases by $0.06000$. Table~\ref{tab:matcher-sensitivity} reports the four scenarios; the accompanying \texttt{matcher\_sensitivity\_scenarios.csv} retains their configuration-level means and ranks.
+The five corrected runs are Standard/L2 (lowest verified stable-minimum barrier reference), Guided/IA5, Record/IA5, Brief/IA5 (thermal disrotatory cyclobutene ring opening), and Brief/IC3 (open-shell singlet phenylnitrene). After correspondence, Guided, Record, and Brief receive full negative-target Accuracy credit on IA5, and Brief receives full credit on IC3. Graph and Self-consistency for these runs are unchanged from the prior organized records. Table~\ref{tab:matcher-sensitivity} reports the resulting Impossible-tier means; these are the official evaluation values used throughout the manuscript and SI.
 
 \begin{table}[htbp]
 \centering
 \small
-\caption{Impossible-tier mean composite scores under two conditional target-assignment corrections. Only the indicated Accuracy values change; Graph, Self-consistency, and the other 198 runs remain fixed. The baseline row gives the final evaluation values.}
+\caption{Impossible-tier mean composite scores after the official target-correspondence Accuracy overlay. Only Accuracy (and the recomputed composite) changes for the five corrected runs; Graph, Self-consistency, and the other 195 runs remain fixed.}
 \label{tab:matcher-sensitivity}
 \begin{tabular}{@{}lrrrr@{}}
 \toprule
-Scenario & Guided & Standard & Record & Brief \\
+Track & Guided & Standard & Record & Brief \\
 \midrule
-Final evaluation values & 0.44506 & 0.24733 & 0.23250 & 0.48294 \\
-Record/IA5 target credit & 0.44506 & 0.24733 & 0.29250 & 0.48294 \\
-Brief/IC3 target credit & 0.44506 & 0.24733 & 0.23250 & 0.54294 \\
-Both target credits & 0.44506 & 0.24733 & 0.29250 & 0.54294 \\
+Official evaluation values & 0.50506 & 0.24733 & 0.29250 & 0.60294 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The Impossible-tier ordering Brief $>$ Guided $>$ Record remains the same in all scenarios. Crediting Record's IA5 target moves Record above Standard; crediting Brief's IC3 target leaves Brief first. These assignments can therefore reverse the Record--Standard ordering while preserving every Guided--Standard score, paired difference, and primary comparison. The calculations apply the two stated score substitutions; the final evaluation table and scientific-validation results remain frozen.
+Relative to the pre-overlay Impossible means (Guided 0.44506, Standard 0.24733, Record 0.23250, Brief 0.48294), the overlay raises Guided by 0.06000, Record by 0.06000, and Brief by 0.12000, while Standard is unchanged in this tier. The Brief $>$ Guided $>$ Record $>$ Standard Impossible ordering is that of the published table. Primary Guided--Standard comparisons elsewhere in the manuscript use the same overlay, including the Easy-tier Standard/L2 correction outside this Impossible summary.

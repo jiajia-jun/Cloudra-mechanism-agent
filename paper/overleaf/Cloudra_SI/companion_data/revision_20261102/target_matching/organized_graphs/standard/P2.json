@@ -1,0 +1,135 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -193.978501557,
+        "evidence_log": "calc/reactant_opt_freq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "imaginary_frequencies": 0,
+        "note": "pre-reaction state is the isolated planar Cs cyclopentadiene molecule (no separate complex possible for an intramolecular shift). Atom order: 1-5 C, 6-11 H; sp3 carbon = C3 bearing H8/H9 (task map labels this H as H6 on C3)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -193.936142232,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "imaginary_frequencies": 1,
+        "imaginary_wavenumber_cm1": -1195.43,
+        "irc_log": "ts/ts_0001/jobs/declaration_0003/irc/irc.log",
+        "irc_log_repeat": "ts/ts_0001/jobs/declaration_0006/irc/irc.log",
+        "note": "Symmetric suprafacial [1,5]-H saddle: migrating H bridges C2/C3 at 1.315/1.315 A, 1.064 A above the planar ring; ring bonds 1.412/1.490/1.412/1.404/1.404 A. Imaginary mode 91% on the migrating H. Bidirectional IRC (81 points, max at RxCoord=0) descends to two cyclopentadiene frames (-193.97608 Ha each) that re-optimize to the same minimum."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1=CCC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -193.978501467,
+        "evidence_log": "calc/product_opt_freq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "imaginary_frequencies": 0,
+        "note": "degenerate product, sp3 carbon now at C2; E(P)-E(RC) = +0.00000009 Ha. Duplicated by calc/product_min_opt_freq.log and by the workflow endpoint logs."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 26.58,
+      "channel": "concerted suprafacial [1,5]-sigmatropic H shift through one C2v-like 6-centre cyclic TS",
+      "favored": true,
+      "properties": {
+        "note": "H6 migrates C3->C2 (map indices); C1=C2 and C4=C5 become single, C3-C4 and C1-C5 become double. Barrier is electronic (no ZPE/thermal): E(TS1)-E(RC) = 0.042359325 Ha."
+      }
+    },
+    {
+      "id": "e1_mirror",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            4,
+            6
+          ]
+        ],
+        "form": [
+          [
+            5,
+            1
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            3,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 26.58,
+      "channel": "same saddle, mirror-equivalent automorphic labelling (H6 migrates C3->C4; C5<->C2, C1<->C4 relabelling of e1)",
+      "favored": false,
+      "properties": {
+        "note": "Not an independent step: the C2v TS is symmetric in the atoms of the C2-C3 bond, so the two labellings describe one physical barrier; reported for completeness of the degenerate notation."
+      }
+    }
+  ]
+}

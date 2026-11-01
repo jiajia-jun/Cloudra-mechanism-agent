@@ -1,0 +1,150 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC(O)CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.627491835,
+        "evidence_log": "step1_oxycope/rc_opt_freq.log",
+        "name": "1,5-hexadien-3-ol (pre-reaction minimum, lowest verified conformer)",
+        "imaginary_frequencies": 0,
+        "lowest_frequency_cm1": 76.67,
+        "charge": 0,
+        "multiplicity": 1,
+        "note": "B3LYP-D3(BJ)/def2-SVP, gas phase, opt+freq. Lowest-energy verified reactant minimum (conformer 02). The reactive (TS-precursor) conformer rc_conf18 is +3.33 kcal/mol higher (step1_oxycope/rc_conf18_opt_freq.log) and the TS1 IRC reactant-side endpoint re-optimises to a conformer +1.84 kcal/mol higher (step1_oxycope/irc_reactant_endpoint_opt_freq.log), so the lowest minimum is used as the barrier reference."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -309.575178328,
+        "evidence_log": "step1_oxycope/ts1_opt_freq.log",
+        "imaginary_frequency_cm1": -504.3541,
+        "note": "Chair-like concerted [3,3]-sigmatropic (oxy-Cope) saddle; one imaginary mode with C1...C6 forming (projection 0.92) and C3-C4 breaking (0.90), heavy-atom character 0.85. d(C1-C6)=2.18 A, d(C3-C4)=2.11 A, three allylic C-C bonds 1.39/1.41/1.39 A. IRC in both directions (step1_oxycope/ts1_irc_forward.log, ts1_oxycope/ts1_irc_reverse.log, both normal termination) joins 1,5-hexadien-3-ol and the enol."
+      }
+    },
+    {
+      "id": "INT",
+      "role": "intermediate",
+      "smiles": [
+        "OC=CCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.63324939,
+        "evidence_log": "step1_oxycope/irc_product_endpoint_opt_freq.log",
+        "name": "hex-1,5-dien-3-ol, the enol of hex-5-enal (HO-CH=CH-CH2-CH2-CH=CH2)",
+        "imaginary_frequencies": 0,
+        "charge": 0,
+        "multiplicity": 1,
+        "note": "Lowest-energy verified enol minimum found in the evidence (TS1 IRC enol-side endpoint re-optimised, 0 imaginary frequencies, same connectivity as the other enol minima). The separately optimised enol conformer lies +0.94 kcal/mol higher (-309.631745145, step1_oxycope/enol_conf00_opt_freq.log, and identically step2_tautomerization/enol_ref_opt_freq.log); the enol-side TS2 IRC endpoint reproduces that higher conformer to 1e-8 Eh (step2_tautomerization/irc_end_b_opt_freq.log). A byte-identical copy of the native endpoint log is kept at step1_oxycope/enol_opt_freq.log."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -309.539179497,
+        "evidence_log": "step2_tautomerization/ts2_opt_freq.log",
+        "imaginary_frequency_cm1": -2122.93,
+        "note": "Uncatalysed intramolecular 1,3-H shift through a strained four-membered ring O-C2-C3-H; single imaginary mode dominated by the hydroxyl-H displacement coupled to O=C2 formation. O-H 1.318 A, H...C3 1.515 A, O=C2 1.277 A, C2-C3 1.414 A, ring dihedral O-C2-C3-H 9.4 deg. IRC both directions (step2_tautomerization/ts2_irc.log) joins the enol and hex-5-enal."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=CCCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -309.649483745,
+        "evidence_log": "step2_tautomerization/product_opt_freq.log",
+        "name": "hex-5-enal (lowest verified conformer)",
+        "imaginary_frequencies": 0,
+        "lowest_frequency_cm1": 40.07,
+        "charge": 0,
+        "multiplicity": 1,
+        "note": "The keto endpoint reached by the TS2 IRC (step2_tautomerization/irc_end_a_opt_freq.log, -309.645051799 Eh) is a different conformer of hex-5-enal, +2.78 kcal/mol higher."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 32.83,
+      "channel": "concerted [3,3]-sigmatropic oxy-Cope rearrangement (chair-like six-centre TS)",
+      "favored": true,
+      "note": "sigma C3-C4 breaks, new sigma C1-C6 forms, pi bonds shift C1=C2 -> C2=C3 and C5=C6 -> C4=C5; O7-H8 stays on C3 and becomes the enol hydroxyl. Step is -3.62 kcal/mol exergonic versus the lowest reactant minimum (against the reactive conformer the barrier is 29.50 kcal/mol)."
+    },
+    {
+      "id": "e2",
+      "from": "INT",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            7,
+            8
+          ],
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            2,
+            7
+          ],
+          [
+            2,
+            8
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 59.03,
+      "channel": "uncatalysed intramolecular enol-keto tautomerization (1,3-H shift, O7-H8 -> C2)",
+      "favored": true,
+      "note": "O7-H8 breaks, H8 forms the C2-H bond, C2-O7 tightens to the carbonyl, C2=C3 becomes single. -10.19 kcal/mol from the enol. Highest declared barrier, hence the rate-determining elementary step for the isolated molecule in the gas phase."
+    }
+  ]
+}

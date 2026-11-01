@@ -1,0 +1,87 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CCOC=C"
+      ],
+      "properties": {
+        "energy_hartree": -270.330334016,
+        "evidence_log": "rc/grid/RC_g4_0_-120_0.log",
+        "description": "Allyl vinyl ether pre-reaction conformer; lowest verified minimum (global minimum of a 17-point torsional grid giving 12 distinct minima). B3LYP-D3(BJ)/def2-SVP, gas phase, Opt+Freq, normal termination, 36 real modes (lowest 70.44 cm^-1). This is the barrier reference.",
+        "conformational_note": "The IRC-reached reactant conformer (ts/ts_0001/jobs/declaration_0012/reactant_opt/reactant_opt.log, E = -270.326610062 Ha) lies +3.72 kcal/mol above this global minimum, so the barrier is 26.49 kcal/mol relative to the conformer actually connected to the saddle and 28.83 kcal/mol relative to the lowest verified minimum used here."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -270.284391528,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0011/frequency/frequency.log",
+        "description": "Chair-like aromatic [3,3] saddle; normal termination, 35 real modes plus exactly one imaginary frequency -459.51 cm^-1 whose mode couples C3-O4 cleavage (projection 0.833) with C1-C6 formation (0.774). Geometry: r(C3-O4)=1.910 A, r(C1-C6)=2.342 A, C1-C2 1.382, C2-C3 1.404, O4-C5 1.282, C5-C6 1.383 A.",
+        "note": "Transition-state node: species-minimum evidence (0 imaginary frequencies) does not apply; the saddle evidence is bound through the step's ts_opt/frequency stages."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=CCCC=C"
+      ],
+      "properties": {
+        "energy_hartree": -270.357864753,
+        "evidence_log": "p/grid/P_g8_180_120_0.log",
+        "description": "Pent-4-enal product; lowest verified minimum (degenerate with p/grid/P_g7_180_0_180.log). Opt+Freq, normal termination, 36 real modes (lowest 79.87 cm^-1).",
+        "conformational_note": "The IRC-reached product conformer (ts/ts_0001/jobs/declaration_0012/product_opt/product_opt.log, E = -270.355290267 Ha) lies +1.61 kcal/mol above this global minimum."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ],
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 28.83,
+      "channel": "concerted [3,3]-sigmatropic rearrangement, chair-like TS (suprafacial)",
+      "favored": true,
+      "reaction_energy_kcal_mol": -17.28,
+      "evidence_log": "ts/ts_0001/jobs/declaration_0011/frequency/frequency.log",
+      "irc_log": "ts/ts_0001/jobs/declaration_0011/irc/irc.log",
+      "direction_proof": "Same saddle (-459.51 cm^-1) -> bidirectional IRC (irc=(calcfc,maxpoints=10,stepsize=5); sweep intentionally short, rx = +-1.487, both-direction convergence NOT achieved) -> the two native IRC outer frames re-optimized without constraints to zero-imaginary-frequency minima: reactant side (allyl vinyl ether, E = -270.326610062 Ha, 36 real modes) and product side (pent-4-enal, E = -270.355290267 Ha, 36 real modes). The connection therefore rests on the re-optimized outer frames and verified species identity, not on a converged IRC.",
+      "barrier_reference": "Barrier referenced to the lowest verified reactant minimum rc/grid/RC_g4_0_-120_0.log (-270.330334016 Ha); against the IRC-reached reactant conformer the barrier is 26.5 kcal/mol."
+    }
+  ]
+}

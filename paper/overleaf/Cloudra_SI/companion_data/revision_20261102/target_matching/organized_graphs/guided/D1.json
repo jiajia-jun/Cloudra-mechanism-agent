@@ -1,0 +1,74 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CC=C.C=C"
+      ],
+      "properties": {
+        "energy_hartree": -234.426859803,
+        "evidence_log": "final/RC_complex.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -234.401779266,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0010/frequency/frequency.log"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1CC=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -234.495414633,
+        "evidence_log": "final/P_cyclohexene.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            6
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 15.74
+    }
+  ]
+}

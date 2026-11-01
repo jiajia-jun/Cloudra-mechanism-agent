@@ -1,0 +1,249 @@
+task,input_path,method_lines
+D1,D1/legacy/irc.inp,# # D1 IRC from TS hess  smiles: C=CC=C.C=C -> C1CC=CCC1 | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J
+D1,D1/legacy/p_opt.inp,# # D1 product cyclohexene  smiles: C1CC=CCC1 | # expected_smiles: C1CC=CCC1 (user-declared expectation; NOT an evidence-verified identity) | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+D1,D1/legacy/rc_stack_opt.inp,# # D1 stacked reactant complex Opt+Freq  smiles: C=CC=C.C=C | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J SlowConv
+D1,D1/legacy/ts_scan_cand.inp,# # D1 TS guess scan-peak  smiles: C=CC=C.C=C -> C1CC=CCC1 | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+D3,D3/legacy/irc.inp,# # D3 IRC from TS (ts_img_10)  smiles: C1=CCC=C1.C1=CCC=C1 -> C12C=CC(C1)C1C=CCC12 | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J
+D3,D3/legacy/optB.inp,# # D3 IRC endpoint reopt optB  smiles: C1=CCC=C1.C1=CCC=C1 / C12C=CC(C1)C1C=CCC12 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+D3,D3/legacy/optF.inp,# # D3 IRC endpoint reopt optF  smiles: C1=CCC=C1.C1=CCC=C1 / C12C=CC(C1)C1C=CCC12 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+D3,D3/legacy/ts_img_10.inp,# # D3 OptTS from IDPP img_10  smiles: C1=CCC=C1.C1=CCC=C1 -> C12C=CC(C1)C1C=CCC12 | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+D4,D4/legacy/ircA.inp,# smiles: C1=CCC=C1 + C=CC=O -> O=CC1CC2C=CC1C2 channel A IRC from TS | ! IRC b3lyp def2-SVP def2/J RIJCOSX D3BJ
+D4,D4/legacy/ircA_B_opt.inp,# smiles: IRC-A endpoint ircA_B reopt | ! Opt Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ SlowConv
+D4,D4/legacy/ircA_F_opt.inp,# smiles: IRC-A endpoint ircA_F reopt | ! Opt Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ SlowConv
+D4,D4/legacy/ircB.inp,# smiles: C1=CCC=C1 + C=CC=O -> O=CC1CC2C=CC1C2 channel B (endo) IRC from TS | ! IRC b3lyp def2-SVP def2/J RIJCOSX D3BJ
+D4,D4/legacy/ircB_B_opt.inp,# smiles: IRC-B endpoint ircB_B reopt | ! Opt Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ SlowConv
+D4,D4/legacy/ircB_F_opt.inp,# smiles: IRC-B endpoint ircB_F reopt | ! Opt Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ SlowConv
+D4,D4/legacy/pA_opt2.inp,# smiles: O=CC1CC2C=CC1C2 (product diastereomer A) | ! Opt Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ
+D4,D4/legacy/pB_opt2.inp,"# smiles: O=CC1CC2C=CC1C2 (product diastereomer B, X inverted) | ! Opt Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ"
+D4,D4/legacy/rcA.inp,# smiles: C1=CCC=C1.C=CC=O pre-reactive complex (global-min assembly) Opt+Freq | ! Opt Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ SlowConv
+D4,D4/legacy/tsA.inp,# smiles: C1=CCC=C1 + C=CC=O -> O=CC1CC2C=CC1C2 channel A (endo candidate) OptTS | ! OptTS Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ TightSCF
+D4,D4/legacy/tsB.inp,# smiles: C1=CCC=C1 + C=CC=O -> O=CC1CC2C=CC1C2 channel B (exo candidate) OptTS | ! OptTS Freq b3lyp def2-SVP def2/J RIJCOSX D3BJ TightSCF
+E1,E1/legacy/irc2.inp,# IRC2 E2 F- + chloroethane extended  # smiles: [F-].CCCl | ! IRC b3lyp def2-SVP D3BJ def2/J RIJCOSX TightSCF
+E1,E1/legacy/opt_Bp1.inp,# IRC B endpoint reopt perturbed  # smiles: [F-].CCCl | ! Opt Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX
+E1,E1/legacy/opt_F.inp,# IRC endpoint reopt F  # smiles: [F-].CCCl | ! Opt Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX
+E1,E1/legacy/ts1.inp,# TS E2 F- + chloroethane  # smiles: [F-].CCCl | ! OptTS Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX TightSCF
+F1,F1/legacy/end_B5.inp,# IRC endpoint B reopt Calc_Hess # smiles: [BH4-].C=O | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightOpt TightSCF
+F1,F1/legacy/end_F.inp,# # IRC endpoint end_F Opt+Freq # smiles: [BH4-].C=O | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightOpt TightSCF
+F1,F1/legacy/p_opt.inp,# # P product CH3-O-BH3- # smiles: CO[BH3-] | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+F1,F1/legacy/rc_tight.inp,# # RC tightopt from B...C scan min # smiles: [BH4-].C=O | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightOpt TightSCF
+F1,F1/legacy/ts_img07.inp,! OptTS Freq B3LYP D3BJ def2-SVP def2/J RIJCOSX TightSCF
+F1,F1/legacy/ts_irc.inp,! IRC B3LYP D3BJ def2-SVP def2/J RIJCOSX TightSCF
+F4,F4/legacy/adduct_opt/adduct_opt.inp,# R4 BH3 + HCHO -> methoxyborane; adduct_opt; RDKit C=[O+][BH3-] Lewis adduct | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+F4,F4/legacy/irc/irc.inp,# R4 IRC from fixed-method reoptimized ACS Table S29 four-member TS | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+F4,F4/legacy/irc_backward_opt/irc_backward_opt.inp,# R4 fixed-method Opt+Freq of backward IRC endpoint; source calc-317 geometry SHA256 3f325a7e6f2140b4cd0cf7e8e7af0981a6e6fd56f903e0984a459ae5ebaea650 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+F4,F4/legacy/irc_forward_continue/irc_forward_continue.inp,# R4 forward IRC continuation from calc-317 at MaxIter=100; source SHA256 ddbba2511d3bc6ad5457aaa7e577e23c796620c43ac9a5935c89705e823d42a5 | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+F4,F4/legacy/irc_forward_opt/irc_forward_opt.inp,# R4 fixed-method Opt+Freq of forward IRC endpoint; source calc-321 geometry SHA256 d71ee98de4e5549183b6e92217d23b0efb095422a27a77181f5d6e4b69d3b034 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+F4,F4/legacy/product_opt/product_opt.inp,# R4 BH3 + HCHO -> methoxyborane; product_opt; RDKit COB methoxyborane | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+F4,F4/legacy/ts_lit_seed/ts_lit_seed.inp,# R4 BH3 + HCHO -> methoxyborane; ts_lit_seed; Pratt-Nguyen 2006 ACS SI Table S29 lower cyclic TS | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+G2,G2/legacy/irc_ts1.inp,# # G2 IRC from TS (ts_g1p25) both directions; smiles: [H]/N=N\[H].C=C | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+G2,G2/legacy/pmin2.inp,# # G2 P product (N2 + ethane) Opt TightOpt MaxIter300 + Freq; smiles: N#N.CC | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightOpt TightSCF
+G2,G2/legacy/rcmin.inp,# # G2 RC complex minimum (Opt TightOpt + Freq); smiles: [H]/N=N\[H].C=C | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightOpt
+G2,G2/legacy/ts_g1p25.inp,# # G2 OptTS TS-guess H-stretch 1p25 from MEP img3; smiles: [H]/N=N\[H].C=C | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+G3,G3/legacy/epB.inp,# # G3 IRC endpoint reopt epB  smiles: C=CC.C=C -> C=CCCC | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+G3,G3/legacy/epF.inp,# # G3 IRC endpoint reopt epF  smiles: C=CC.C=C -> C=CCCC | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+G3,G3/legacy/irc_w35b.inp,"# # G3 IRC from TS (1 imag -1157, H9 transfer)  smiles: C=CC.C=C -> C=CCCC | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF"
+G3,G3/legacy/rc_opt2.inp,# # G3 pre-reactive complex TightOpt+Freq  smiles: C=CC.C=C | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightOpt TightSCF
+G3,G3/legacy/ts_w35b.inp,# # G3 OptTS bridged-H guess img_02.xyz  smiles: C=CC.C=C -> C=CCCC | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+HA1,HA1/legacy/edges/HA1_E1/IRC.recovered.inp,# HA1 IRC channelA extended smiles: CC1CC=C1 | ! IRC b3lyp def2-SVP D3BJ def2/J RIJCOSX
+HA1,HA1/legacy/edges/HA1_E1/TS.recovered.inp,# HA1 TS outward scanpeak smiles: CC1CC=C1 | ! OptTS Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX
+HA1,HA1/legacy/edges/HA1_E1/min_product_E.recovered.inp,# HA1 endpoint product E-side smiles: C/C=C/C=C | ! Opt Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX
+HA1,HA1/legacy/edges/HA1_E1/min_reactant.recovered.inp,# HA1 endpoint reactant-side smiles: CC1CC=C1 | ! Opt Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX
+HA1,HA1/legacy/edges/HA1_EM1/IRC.recovered.inp,# HA1 IRC channelB extended smiles: CC1CC=C1 | ! IRC b3lyp def2-SVP D3BJ def2/J RIJCOSX
+HA1,HA1/legacy/edges/HA1_EM1/TS.recovered.inp,# HA1 TS inward guess from C2-inversion smiles: CC1CC=C1 | ! OptTS Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX
+HA1,HA1/legacy/edges/HA1_EM1/min_product_Z.recovered.inp,# HA1 endpoint product Z-side smiles: C/C=C\C=C | ! Opt Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX
+HA1,HA1/legacy/species/reactant.recovered.inp,# HA1 reactant 3-methylcyclobutene min smiles: CC1CC=C1 | # expected_smiles: CC1CC=C1 (user-declared expectation; NOT an evidence-verified identity) | ! Opt Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX
+HA8,HA8/legacy/job077/input.inp,"# H6PI (2E,4Z,6E)-octatriene thermal 6pi electrocyclization | ! OptTS Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF"
+HA8,HA8/legacy/job080/input.inp,"# H6PI (2E,4Z,6E)-octatriene thermal 6pi electrocyclization | ! Opt Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF"
+HA8,HA8/legacy/job081/input.inp,"# H6PI IRC from converged TS (job77, C2-C7=2.269 A) - Direction both, InitHess read | ! IRC B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF"
+HA8,HA8/legacy/job089/input.inp,# H6PI IRC product-side endpoint Opt+Freq (from job81 IRC_B) | ! Opt Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF
+HA8,HA8/legacy/job090/input.inp,# H6PI IRC reactant-side endpoint re-relax (perturbed CH3 rotors + TightOpt) - job88 soft-mode follow-up | ! Opt Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF TightOpt
+HB10,HB10/legacy/job075/input.inp,# HDA_CN endo OptTS | ! OptTS Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF
+HB10,HB10/legacy/job076/input.inp,# HDA_CN exo OptTS | ! OptTS Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF
+HB10,HB10/legacy/job078/input.inp,"# HDA_CN IRC endo - bidirectional, from the CONVERGED endo TS geometry + its final Hessian | # (reads the actual ready-dir XYZ + final Hess; no MaxSteps/MaxIter/timeout; Direction both) | ! IRC B3LYP D3BJ def2-SVP RIJCOSX def2/J TightSCF"
+HB10,HB10/legacy/job079/input.inp,"# HDA_CN IRC exo - bidirectional, from the CONVERGED exo TS geometry + its final Hessian | # (reads the actual ready-dir XYZ + final Hess; no MaxSteps/MaxIter/timeout; Direction both) | ! IRC B3LYP D3BJ def2-SVP RIJCOSX def2/J TightSCF"
+HB10,HB10/legacy/job084/input.inp,# HDA_CN endpoint Opt+Freq endo F = reactant-side (-> common RC) | ! Opt Freq B3LYP D3BJ def2-SVP RIJCOSX def2/J TightSCF
+HB10,HB10/legacy/job085/input.inp,# HDA_CN endpoint Opt+Freq endo B = product-side (DA adduct) | ! Opt Freq B3LYP D3BJ def2-SVP RIJCOSX def2/J TightSCF
+HB10,HB10/legacy/job086/input.inp,# HDA_CN endpoint Opt+Freq exo F = reactant-side (-> common RC) | ! Opt Freq B3LYP D3BJ def2-SVP RIJCOSX def2/J TightSCF
+HB10,HB10/legacy/job087/input.inp,# HDA_CN endpoint Opt+Freq exo B = product-side (DA adduct) | ! Opt Freq B3LYP D3BJ def2-SVP RIJCOSX def2/J TightSCF
+HI1,HI1/erythro_syn/frequency/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/erythro_syn/irc/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/erythro_syn/product_frequency/product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/erythro_syn/product_opt/product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/erythro_syn/reactant_frequency/reactant_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/erythro_syn/reactant_opt/reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/erythro_syn/ts_opt/refine.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+HI1,HI1/identity_references/E_alkene.gjf,"#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight | smiles: C/C=C(\C)c1ccccc1 | HI1 E-2-phenyl-2-butene (threo channel product, E/Z read from the computed TS geometry), opt+freq B3LYP-D3(BJ)/def2-SVP gas phase | expected_smiles: C/C=C(\C)c1ccccc1 (unverified expectation)"
+HI1,HI1/identity_references/Z_alkene.gjf,"#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight | smiles: C/C=C(/C)c1ccccc1 | HI1 Z-2-phenyl-2-butene (erythro channel product, E/Z read from the computed TS geometry), opt+freq B3LYP-D3(BJ)/def2-SVP gas phase | expected_smiles: C/C=C(/C)c1ccccc1 (unverified expectation)"
+HI1,HI1/threo_syn/frequency/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/threo_syn/irc/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/threo_syn/product_frequency/product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/threo_syn/product_opt/product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/threo_syn/reactant_frequency/reactant_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/threo_syn/reactant_opt/reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HI1,HI1/threo_syn/ts_opt/refine.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+HL1,HL1/endo/audit_limit/reactant_opt/reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/endo/frequency/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/endo/irc/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/endo/product_optfreq/product_optfreq.gjf,#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+HL1,HL1/endo/reactant_frequency/reactant_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/endo/reactant_opt/reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/endo/ts_opt/refine.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+HL1,HL1/exo/frequency/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/exo/irc/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/exo/product_frequency/product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/exo/product_opt/product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/exo/reactant_frequency/reactant_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/exo/reactant_opt/reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+HL1,HL1/exo/ts_opt/refine.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+IB9,IB9/E1/contact_refinement/input.inp,# smiles: C=[N+]=[N-].C=C | IB9 unique tight geometry review from job822 final optfreq.xyz; SCC unchanged | ! Opt NumFreq GFN2-XTB
+IB9,IB9/E1/contact_relaxation/input.inp,# smiles: C=[N+]=[N-].C=C | IB9 independent IRC B endpoint Opt NumFreq; source job798 | ! Opt NumFreq GFN2-XTB
+IB9,IB9/E1/frequency/input.inp,# frequency at the refined stationary point: C1CN=NC1 | smiles: C1CN=NC1 | ! NumFreq GFN2-XTB
+IB9,IB9/E1/irc/input.inp,# IRC both directions from the refined saddle: C1CN=NC1 | smiles: C1CN=NC1 | ! IRC GFN2-XTB
+IB9,IB9/E1/product/input.inp,# smiles: C1CN=NC1 | IB9 independent IRC F endpoint Opt NumFreq; source job798 | ! Opt NumFreq GFN2-XTB
+IB9,IB9/E1/ts_opt/input.inp,# TS refinement: C1CN=NC1 -> C=[N+]=[N-].C=C | smiles: C1CN=NC1 | ! OptTS GFN2-XTB
+IB9,IB9/comparison_fragments/c2h4/input.inp,# smiles: C=C | IB9 frag_c2h4 GFN2-xTB opt+freq | ! Opt NumFreq GFN2-XTB
+IB9,IB9/comparison_fragments/ch2n2/input.inp,# smiles: C=[N+]=[N-] | IB9 frag_ch2n2 GFN2-xTB opt+freq | ! Opt NumFreq GFN2-XTB
+IB9,IB9/reference_contact/input.inp,# smiles: C=[N+]=[N-].C=C | IB9 one minimum small-step numerical-Hessian diagnostic from833; no TS; SCC unchanged | ! Opt NumFreq GFN2-XTB
+L1,L1/legacy/end_B.inp,# # smiles: C1=CCC1 / C=CC=C  re-opt IRC endpoint end_B | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+L1,L1/legacy/end_F.inp,# # smiles: C1=CCC1 / C=CC=C  re-opt IRC endpoint end_F | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+L1,L1/legacy/ircA.inp,# # smiles: C1=CCC1 -> C=CC=C  IRC from tsA (conrotatory ring-opening TS) | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+L1,L1/legacy/rc_opt.inp,# # smiles: C1=CCC1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+L1,L1/legacy/tsA.inp,# # smiles: C1=CCC1 -> C=CC=C  OptTS ring-opening  seed=tsA | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+L2,L2/legacy/alltrans_opt.inp,# smiles: C=CC=CC=C | L2 all-trans opt freq | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+L2,L2/legacy/ircB_opt.inp,# smiles: C=CC=CC=C | L2 IRC endpoint re-opt B | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+L2,L2/legacy/ircF_opt.inp,# smiles: C=CC=CC=C | L2 IRC endpoint re-opt F | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+L2,L2/legacy/p_opt.inp,# smiles: C1C=CC=CC1 | L2 product (cyclohexadiene) opt freq | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+L2,L2/legacy/rc_twist_opt.inp,# smiles: C=CC=CC=C | L2 RC twisted opt freq | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+L2,L2/legacy/ts_f16.inp,# smiles: C=CC=CC=C | L2 OptTS f16 | ! OptTS b3lyp def2-SVP TightSCF D3BJ RIJCOSX def2/J
+L2,L2/legacy/ts_f16_irc2.inp,# smiles: C=CC=CC=C | L2 IRC from Cs TS (job84) v2 | ! IRC b3lyp def2-SVP TightSCF D3BJ RIJCOSX def2/J
+M1,M1/legacy/freq_tau180.inp,# smiles: Cc1ccccc1-c1c(C)cccc1  M1 tau180 constrained-opt Freq check | ! Freq B3LYP def2-SVP TightSCF D3BJ def2/J RIJCOSX
+M1,M1/legacy/ircB_optfreq.inp,# # smiles: Cc1ccccc1-c1c(C)cccc1  M1 IRC-B endpoint reopt | ! Opt Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX TightSCF
+M1,M1/legacy/ircF_optfreq.inp,# # smiles: Cc1ccccc1-c1c(C)cccc1  M1 IRC-F endpoint reopt | ! Opt Freq b3lyp def2-SVP D3BJ def2/J RIJCOSX TightSCF
+M1,M1/legacy/irc_tor180.inp,# smiles: Cc1ccccc1-c1c(C)cccc1  M1 tau180 IRC | ! IRC B3LYP def2-SVP TightSCF D3BJ def2/J RIJCOSX
+M1,M1/legacy/rc.inp,"# M1 RC 2,2'-dimethylbiphenyl ground-state atropisomer  smiles: Cc1ccccc1-c1c(C)cccc1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J"
+M14,M14/legacy/ep_cis.inp,# M14 IRC endpoint ep_cis  # smiles: C=CC=O | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M14,M14/legacy/ep_trans.inp,# M14 IRC endpoint ep_trans  # smiles: C=CC=O | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M14,M14/legacy/irc.inp,# M14 acrolein torsional TS IRC  # smiles: C=CC=O | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M14,M14/legacy/min_trans.inp,# M14 s-trans acrolein min; smiles: C=CC=O | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M15,M15/legacy/cis_optfreq.inp,# # smiles: O=NO  cis-HONO opt+freq | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M15,M15/legacy/ircB_optfreq.inp,# # smiles: O=NO  IRC-B endpoint reopt | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M15,M15/legacy/ircF_optfreq.inp,# # smiles: O=NO  IRC-F endpoint reopt | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M15,M15/legacy/trans_optfreq.inp,# # smiles: O=NO  trans-HONO opt+freq | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M15,M15/legacy/ts_irc.inp,# # smiles: O=NO  HONO cis-trans IRC | ! IRC b3lyp def2-SVP TightSCF D3BJ RIJCOSX def2/J
+M15,M15/legacy/ts_optfreq.inp,# # smiles: O=NO  HONO cis-trans TS | ! OptTS Freq b3lyp def2-SVP TightSCF D3BJ RIJCOSX def2/J
+M16,M16/legacy/co2_optfreq.inp,# smiles: O=C=O  CO2 product opt+freq | ! Opt Freq B3LYP def2-SVP D3BJ def2/J RIJCOSX
+M16,M16/legacy/h2_optfreq.inp,# smiles: [H][H]  H2 product opt+freq | ! Opt Freq B3LYP def2-SVP D3BJ def2/J RIJCOSX
+M16,M16/legacy/irc.inp,# smiles: OC=O  formic acid dehydrogenation IRC | ! IRC B3LYP def2-SVP TightSCF D3BJ def2/J RIJCOSX
+M16,M16/legacy/ircB_optfreq.inp,# smiles: OC=O  formic acid IRC endpoint ircB reopt | ! Opt Freq B3LYP def2-SVP TightSCF D3BJ def2/J RIJCOSX
+M16,M16/legacy/ircF_optfreq.inp,# smiles: OC=O  formic acid IRC endpoint ircF reopt | ! Opt Freq B3LYP def2-SVP TightSCF D3BJ def2/J RIJCOSX
+M16,M16/legacy/rc_optfreq.inp,# smiles: OC=O  formic acid RC opt+freq | ! Opt Freq B3LYP def2-SVP D3BJ def2/J RIJCOSX
+M16,M16/legacy/ts_final.inp,# smiles: OC=O  formic acid dehydrogenation TS final OptTS+Freq | ! OptTS Freq B3LYP def2-SVP TightSCF D3BJ def2/J RIJCOSX
+M17,M17/legacy/irc/irc.inp,"# IRC from fixed-method reoptimized literature TS, both directions | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF"
+M17,M17/legacy/irc_backward_opt/irc_backward_opt.inp,# Fixed-method Opt+Freq of backward IRC endpoint; source job 304 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M17,M17/legacy/irc_forward_opt/irc_forward_opt.inp,# Fixed-method Opt+Freq of forward IRC endpoint; source job 304 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M17,M17/legacy/p_opt/p_opt.inp,# methyl isocyanide -> acetonitrile; p_opt; source CC#N | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M17,M17/legacy/r_opt/r_opt.inp,# methyl isocyanide -> acetonitrile; r_opt; source C[N+]#[C-] | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M17,M17/legacy/ts_lit_seed/ts_lit_seed.inp,# Literature TS seed; DOI 10.1021/acs.jpclett.8b01259.s001; Gold fixed-method reoptimization | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M3,M3/legacy/irc_B_opt.inp,# smiles: N  IRC endpoint B re-opt | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M3,M3/legacy/irc_F_opt.inp,# smiles: N  IRC endpoint F re-opt | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M3,M3/legacy/rc_opt.inp,# smiles: N  RC Opt+Freq B3LYP D3BJ def2-SVP | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M3,M3/legacy/ts_irc.inp,# smiles: N  IRC from planar D3h TS | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M3,M3/legacy/ts_opt.inp,# smiles: N  TS planar D3h umbrella OptTS Freq | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M8,M8/legacy/endF2_optfreq.inp,# M8 IRC2 endpoint F (theta=171.4) Opt+Freq # smiles: C1CCCCC1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M8,M8/legacy/irc.inp,# M8 IRC from half-chair TS (ts_i5) # smiles: C1CCCCC1 | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M8,M8/legacy/irc2.inp,# M8 extended IRC from half-chair TS # smiles: C1CCCCC1 | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+M8,M8/legacy/rc.inp,# M8 RC chair Opt+Freq # smiles: C1CCCCC1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+M8,M8/legacy/ts_i6.inp,# M8 OptTS from img_06 guess # smiles: C1CCCCC1 | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+NR1,NR1/E1/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E1/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E1/irc_product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E1/irc_product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E1/ts_opt.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+NR1,NR1/E2/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E2/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E2/product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E2/product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E2/reactant_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E2/reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E2/ts_opt.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+NR1,NR1/E3/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E3/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E3/product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E3/product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E3/reactant_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E3/reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/E3/ts_opt.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+NR1,NR1/references/HCN_water/opt_freq.gjf,#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+NR1,NR1/references/INT1a/INT1a_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/references/INT1a/INT1a_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/references/formamide/formamide_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NR1,NR1/references/formamide/formamide_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NU3,NU3/legacy/edges/NU3_E1/IRC.recovered.inp,# smiles: [CH2-][PH3+].C=O | ! IRC b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/edges/NU3_E1/TS.recovered.inp,# smiles: [CH2-][PH3+].C=O | ! OptTS Freq b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/edges/NU3_E2a/IRC.recovered.inp,# smiles: OCCP | ! IRC b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/edges/NU3_E2a/TS.recovered.inp,# smiles: OCCP | ! OptTS Freq b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/edges/NU3_E2b/IRC.recovered.inp,# smiles: C1C[PH3]O1 | ! IRC b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/edges/NU3_E2b/TS.recovered.inp,# smiles: C1C[PH3]O1 | ! OptTS Freq b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/species/I1_adduct.recovered.inp,# smiles: OCCP | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/species/I2_oxaphosphetane.recovered.inp,# smiles: C1C[PH3]O1 | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/species/P_C2H4.recovered.inp,# smiles: C=C | # expected_smiles: C=C (user-declared expectation; NOT an evidence-verified identity) | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/species/P_H3P_O.recovered.inp,# smiles: O=[PH3] | # expected_smiles: O=[PH3] (user-declared expectation; NOT an evidence-verified identity) | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU3,NU3/legacy/species/RC.recovered.inp,# smiles: [CH2-][PH3+].C=O | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX
+NU5,NU5/E2/frequency/frequency.inp,# frequency at the refined stationary point: C[N+]#CCO.O=C[O-] | ! Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)
+NU5,NU5/E2/irc/irc.inp,# IRC both directions from the refined saddle: C[N+]#CCO.O=C[O-] | ! IRC B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)
+NU5,NU5/E2/product_frequency/product_frequency.inp,# IRC side B endpoint frequency | ! Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)
+NU5,NU5/E2/product_opt/product_opt.inp,# IRC side B endpoint opt | ! Opt B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)
+NU5,NU5/E2/reactant_frequency/reactant_frequency.inp,# IRC side A endpoint frequency | ! Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)
+NU5,NU5/E2/reactant_opt/reactant_opt.inp,# IRC side A endpoint opt | ! Opt B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)
+NU5,NU5/E2/ts_opt/refine.inp,# TS refinement: C[N+]#CCO.O=C[O-] -> CN=C(CO)OC=O | ! OptTS B3LYP def2-SVP D3BJ RIJCOSX def2/J TightSCF CPCM(DCM)
+NU6,NU6/legacy/edges/NU6_E1/IRC.recovered.inp,# smiles: C=C=O.C=N | NU6 E1 TS1 IRC both directions | ! IRC b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NU6,NU6/legacy/edges/NU6_E1/TS.recovered.inp,# smiles: C=C=O.C=N | NU6 E1 TS1 N-attack OptTS+Freq | ! OptTS Freq b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NU6,NU6/legacy/edges/NU6_E2/IRC.recovered.inp,# smiles: C=[NH+]C(=C)[O-] | NU6 E2 TS2 IRC both directions (MaxIter 250) | ! IRC b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NU6,NU6/legacy/edges/NU6_E2/TS.recovered.inp,# smiles: C=[NH+]C(=C)[O-] | NU6 E2 TS2 conrotatory ring closure OptTS+Freq | ! OptTS Freq b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NU6,NU6/legacy/edges/NU6_E2/min_product_side.recovered.inp,# smiles: O=C1CCN1 | NU6 E2 IRC outer frame A -> P opt+freq | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NU6,NU6/legacy/edges/NU6_E2/min_reactant_side.recovered.inp,# smiles: C=[NH+]C(=C)[O-] | NU6 E2 IRC outer frame B -> I1 opt+freq | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NU6,NU6/legacy/species/I1.recovered.inp,# smiles: C=[NH+]C(=C)[O-] | NU6 I1 zwitterion opt+freq | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NU6,NU6/legacy/species/P.recovered.inp,# smiles: O=C1CCN1 | NU6 P 2-azetidinone opt+freq | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NU6,NU6/legacy/species/RC.recovered.inp,# smiles: C=C=O.C=N | NU6 RC pre-reaction complex opt+freq | ! Opt Freq b3lyp def2-svp D3BJ def2/J RIJCOSX CPCM(DCM) TightSCF
+NY3,NY3/E1/conformer_profile/rotamer_to_RC_scan.gjf,"#p opt=(modredundant,maxcycle=200) B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight"
+NY3,NY3/E1/eigenvector_endpoints/minus.gjf,"#p opt=(calcfc,maxcycle=200) freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight"
+NY3,NY3/E1/eigenvector_endpoints/plus.gjf,"#p opt=(calcfc,maxcycle=200) freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight"
+NY3,NY3/E1/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E1/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E1/irc_product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E1/irc_product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E1/ts_opt.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+NY3,NY3/E2/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E2/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E2/product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E2/product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E2/reactant_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E2/reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E2/ts_opt.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+NY3,NY3/E3/frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E3/irc.gjf,#p irc=calcfc B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E3/irc_reactant_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E3/irc_reactant_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E3/product_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E3/product_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/E3/ts_opt.gjf,"#p opt=(TS,calcfc,noeigen) B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight"
+NY3,NY3/references/RC/RC_frequency.gjf,#p freq B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/references/RC/RC_opt.gjf,#p opt B3LYP/def2SVP empiricaldispersion=gd3bj int(ultrafine) scf=tight
+NY3,NY3/references/syn_carbamic_acid/opt_freq.gjf,#p opt freq B3LYP/def2SVP EmpiricalDispersion=GD3BJ Int(UltraFine) SCF=Tight
+P2,P2/legacy/end_B.inp,# IRC endpoint B opt # smiles: C1=CCC=C1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+P2,P2/legacy/end_F.inp,# IRC endpoint F opt # smiles: C1=CCC=C1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+P2,P2/legacy/rc_opt.inp,# RC cyclopentadiene # smiles: C1=CCC=C1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+P2,P2/legacy/ts_irc.inp,# IRC cpd H-shift # smiles: C1=CCC=C1 | ! IRC b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+P2,P2/legacy/ts_opt.inp,# TS cpd H-shift # smiles: C1=CCC=C1 | ! OptTS Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J TightSCF
+P3,P3/legacy/irc1_4p.inp,# P3 IRC 4-core backup # smiles: C=CCOC=C | ! IRC B3LYP def2-SVP D3BJ RIJCOSX def2/J
+P3,P3/legacy/irc2.inp,# P3 IRC SlowConv # smiles: C=CCOC=C | ! IRC B3LYP def2-SVP D3BJ RIJCOSX def2/J SlowConv
+P3,P3/legacy/opt_B.inp,# P3 opt IRC product-endpoint # smiles: O=CCCC=C | ! Opt Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J
+P3,P3/legacy/opt_F.inp,# P3 opt IRC reactant-endpoint # smiles: C=CCOC=C | ! Opt Freq B3LYP def2-SVP D3BJ RIJCOSX def2/J
+P3,P3/legacy/rc.inp,# expected_smiles: C=CCOC=C (user-declared expectation; NOT an evidence-verified identity) | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+X1,X1/legacy/end_B.inp,# # X1 IRC endpoint end_B Opt+Freq # smiles: O=C1OCC1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+X1,X1/legacy/end_F.inp,# # X1 IRC endpoint end_F Opt+Freq # smiles: O=C1OCC1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+X1,X1/legacy/irc.inp,# # X1 IRC both directions from TS # smiles: O=C1OCC1 | ! IRC b3lyp def2-SVP TightSCF D3BJ RIJCOSX def2/J
+X1,X1/legacy/p_co2_opt.inp,# # X1 P p_co2 Opt+Freq gas # smiles: O=C=O | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+X1,X1/legacy/p_ethylene_opt.inp,# # X1 P p_ethylene Opt+Freq gas # smiles: C=C | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+X1,X1/legacy/rc_opt.inp,# # X1 RC beta-propiolactone (O=C1OCC1) Opt+Freq gas # smiles: O=C1OCC1 | ! Opt Freq b3lyp def2-SVP D3BJ RIJCOSX def2/J
+X1,X1/legacy/ts.inp,# # X1 TS OptTS+Freq from scan2 peak # smiles: O=C1OCC1 | ! OptTS Freq b3lyp def2-SVP TightSCF D3BJ RIJCOSX def2/J

@@ -1,0 +1,144 @@
+{
+  "nodes": [
+    {
+      "id": "sp_80c56dd2",
+      "name": "RC_aS_binaphthyl",
+      "role": "reactant",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "name": "(aS)/(M)-1,1'-binaphthyl, chiral twisted minimum, C20H14, closed shell, singlet",
+        "axial_descriptor": "aS (M); tau(9,10,11,12) = +69.39 deg (IUPAC definition); task proxy tau(2,10,11,12) = +110.6 deg",
+        "geometry": "inter-ring C1-C1' = 1.491 A, angle between naphthalene mean planes 69-71 deg, H2...H2' = 3.00 A",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, closed shell",
+        "energy_hartree": -770.125109351,
+        "evidence_log": "chanB/min/min_optfreq.log",
+        "note": "opt+freq, normal termination, 96 real modes, 0 imaginary (lowest 29.6 cm^-1). Mirror relation verified by rigid superposition: chanP/P_aR_optfreq.log and chanA/minA2 match this geometry only after reflection (proper RMSD 2.5912 A, reflected RMSD 0.0000 A).",
+        "dag_id": "sp_80c56dd2"
+      }
+    },
+    {
+      "id": "sp_7d2109d1",
+      "name": "P_aR_binaphthyl",
+      "role": "product",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "name": "(aR)/(P)-1,1'-binaphthyl, mirror-image chiral minimum (racemization product), C20H14",
+        "axial_descriptor": "aR (P); tau(9,10,11,12) = -69.39 deg (exact mirror of RC); task proxy tau(2,10,11,12) = -110.6 deg",
+        "geometry": "C1-C1' = 1.491 A, plane angle 69 deg, enantiomeric to RC",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, closed shell",
+        "energy_hartree": -770.125105935,
+        "evidence_log": "chanP/P_aR_optfreq.log",
+        "note": "own explicit mirror-image optimisation (opt+freq, normal termination, 96 modes, 0 imaginary, lowest 29.13 cm^-1). 3.4e-6 Ha (0.002 kcal/mol) above RC = numerical noise between two independent optimisations of symmetry-equivalent structures; not a real energy difference. This is the mirror-image minimum obtained by symmetry, not an IRC endpoint.",
+        "dag_id": "sp_7d2109d1"
+      }
+    },
+    {
+      "id": "TS_rot_2_2planar",
+      "name": "TS_rot_2_2planar",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "name": "channel-A racemization transition structure, coplanar form (first-order saddle)",
+        "axial_descriptor": "achiral coplanar saddle (two mirror planes); tau(9,10,11,12) = 179.98 deg (IUPAC) = 0.0 deg in the task proxy dihedral 2-10-11-12",
+        "geometry": "rings exactly coplanar, C1-C1' = 1.497 A, shortest H...H = 1.77 A (ortho-H/peri-H cross contacts), peri pair anti 5.59 A",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, closed shell",
+        "energy_hartree": -770.087695803,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0001/jobs/declaration_0005/frequency/frequency.log",
+        "imaginary_frequency_cm1": -38.7223,
+        "note": "First-order saddle (95 real modes + 1 imaginary = 96 = 3N-6, normal termination, opt converged). This is NOT a minimum, so it carries no species-level zero-imaginary geometry; its structure and frequency are delivered as the channel-A step's ts_opt/frequency evidence. Imaginary mode = inter-ring torsion (ring impulses -1.3548/+1.3294 about C10-C11, ~7.3 deg of tau per unit, C1-C1' invariant). Independent re-print in declaration_0003: -770.087695780 Ha, -38.774 cm^-1."
+      }
+    },
+    {
+      "id": "TS_rot_8_8planar",
+      "name": "TS_rot_8_8planar",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CC=C2C(=C1)C=CC=C2C3=CC=CC4=CC=CC=C43"
+      ],
+      "properties": {
+        "name": "channel-B racemization transition structure, peri-H-eclipsed form (first-order saddle)",
+        "axial_descriptor": "chiral (C2) saddle, rings splayed 14.2 deg; tau(9,10,11,12) = -27.31 deg (IUPAC) = -152.7 deg in the task proxy dihedral 2-10-11-12; its mirror-related saddle is an equal-energy saddle of the SAME channel",
+        "geometry": "inter-plane angle 14.2 deg, C1-C1' = 1.521 A, shortest contact peri H...H = 1.581 A",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, closed shell",
+        "energy_hartree": -770.072775262,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "imaginary_frequency_cm1": -57.5739,
+        "note": "First-order saddle (95 real modes + 1 imaginary = 96 = 3N-6, normal termination, opt converged), NOT a minimum. Structure and frequency are delivered as the channel-B step's ts_opt/frequency evidence. Imaginary mode = inter-ring torsion (ring impulses +1.0353/-0.9977 about C10-C11, ~5.9 deg of tau per unit)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_042bf2b6",
+      "name": "rot_channel_A_2_2_eclipsed",
+      "from": "sp_80c56dd2",
+      "to": "sp_7d2109d1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 23.48,
+      "favored": true,
+      "channel": "channel A: inter-ring C1-C1' torsion through the coplanar (tau_ortho = 0) conformation",
+      "transition_state": {
+        "name": "TS_rot_2_2planar",
+        "role": "transition_state",
+        "stereochemistry": "achiral coplanar first-order saddle (two mirror planes); tau(9,10,11,12) = 179.98 deg (IUPAC) = 0.0 deg in the task proxy dihedral 2-10-11-12",
+        "energy_hartree": -770.087695803,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0001/jobs/declaration_0005/frequency/frequency.log",
+        "imaginary_frequency_cm1": -38.7223,
+        "geometry": "rings exactly coplanar, C1-C1' = 1.497 A, shortest H...H = 1.77 A (ortho-H/peri-H cross contacts), peri pair anti at 5.59 A",
+        "note": "one imaginary mode = inter-ring torsion (ring impulses -1.3548/+1.3294 about C10-C11, ~7.3 deg of tau per printed unit, C1-C1' invariant; next real modes carry no twist). Reproduced in declaration_0003 (-770.087695780 Ha, -38.774 cm^-1)."
+      },
+      "barrier_arithmetic": "-770.087695803 - (-770.125109351) = 0.037413548 Ha = 23.48 kcal/mol (electronic only, referenced to chanB/min/min_optfreq.log)",
+      "endpoint_b_log": "chanA/epfb_minus/epfb_minus.log",
+      "endpoint_a_log": "chanA/epfb_plus/epfb_plus.log",
+      "irc_log": "ts/ts_0001/jobs/declaration_0005/irc/irc.log",
+      "direction_evidence": "Two-sided relaxed-descent record, NOT an IRC trajectory. Every saddle-started IRC on this surface is a zero-motion record (1 point per direction, outer frames at tau = +/-0.87 deg within 0.007 kcal/mol of the saddle): four independent attempts (default corrector, LQA, HPC, mode-displaced start). The connection rests on (i) two-sided relaxed descents from GFN2 frames at +/-33.8 deg (7.74 kcal/mol below the saddle) via the +/-77.8 deg shoulder stationary points to the two frequency-verified enantiomeric minima, and (ii) independent opt+freq optimisation of the two opposite IRC outer frames of the same saddle, which land on the two enantiomers (product_opt -770.125109321 Ha, reactant_opt -770.125109351 Ha, both 0 imaginary). Harness short_irc check: passed (swapped pairing: both IRC outer frames independently optimised to the correct zero-imaginary minima).",
+      "via": "TS_rot_2_2planar"
+    },
+    {
+      "id": "step_63b166b3",
+      "name": "rot_channel_B_8_8_peri_eclipsed",
+      "from": "sp_80c56dd2",
+      "to": "sp_7d2109d1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 32.84,
+      "favored": false,
+      "channel": "channel B: inter-ring torsion through the peri-H-eclipsed region (tau_ortho ~ -153, rings splayed 14.2 deg); chiral (C2) saddle whose mirror image is an equal-energy saddle of the SAME channel",
+      "transition_state": {
+        "name": "TS_rot_8_8planar",
+        "role": "transition_state",
+        "stereochemistry": "chiral (C2) first-order saddle, rings splayed 14.2 deg; tau(9,10,11,12) = -27.31 deg (IUPAC) = -152.7 deg in the task proxy dihedral 2-10-11-12; its mirror-related saddle is an equal-energy saddle of the SAME channel",
+        "energy_hartree": -770.072775262,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log",
+        "frequency_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "imaginary_frequency_cm1": -57.5739,
+        "geometry": "inter-plane angle 14.2 deg, C1-C1' = 1.521 A, shortest contact peri H...H = 1.581 A",
+        "note": "one imaginary mode = inter-ring torsion (ring impulses +1.0353/-0.9977 about C10-C11, ~5.9 deg of tau per unit; next real modes carry no twist)."
+      },
+      "barrier_arithmetic": "-770.072775262 - (-770.125109351) = 0.052334089 Ha = 32.84 kcal/mol (electronic only)",
+      "endpoint_b_log": "chanB/epfb_minus/epfb_minus.log",
+      "endpoint_a_log": "chanB/epfb_plus/epfb_plus.log",
+      "irc_log": "ts/ts_0002/jobs/declaration_0003/irc/irc.log",
+      "direction_evidence": "Two-sided relaxed-descent record, NOT an IRC trajectory (the channel-B IRC gives 1 point per direction over +/-0.4386 amu^1/2 bohr, outer frames within 0.006 kcal/mol of the saddle). Both endpoints are native opt+freq calculations started from the two channel-B IRC outer frames (frames 0.0655 A apart, inputs reproduce them to 0.0000 A), normal termination, opt converged, 96 modes, 0 imaginary, E = -770.125109350 Ha each: endpoint_b = the RC enantiomer, endpoint_a = the P enantiomer. Harness short_irc check: passed.",
+      "via": "TS_rot_8_8planar"
+    }
+  ],
+  "delivery_scope_note": "Delivery scope (accepted draft draft_9454b51dd34f4495a03d5f21e70b2b06) is the two elementary steps plus their endpoint minima RC_aS_binaphthyl and P_aR_binaphthyl. The two transition structures are first-order saddles and are therefore delivered as attributes of their elementary step (transition_state block: energy, native opt/freq logs, imaginary frequency, geometry, mode identity) instead of as species nodes, because a species-level geometry slot demands a zero-imaginary minimum that a saddle cannot have. The two transition-structure nodes are declared transition_state nodes of the graph and are referenced as the via vertex of each step; they are outside the accepted delivery scope precisely because a species-level geometry slot (zero imaginary frequencies) cannot apply to a first-order saddle - their structures are delivered through each step's ts_opt/frequency evidence.",
+  "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase, closed shell, charge 0, multiplicity 1, C20H14; electronic energies only (no ZPE, no thermal correction). xTB/GFN2 used only for exploratory scans and seeds.",
+  "summary": "Thermal racemization of 1,1'-binaphthyl is one elementary torsional (atropisomeric) interconversion about the inter-ring C1-C1' bond: aS -> aR with no bond broken or formed. Channel A (coplanar, achiral TS) costs 23.48 kcal/mol electronic and is the operative path at ~50 degC; channel B (peri-H-eclipsed, chiral C2 TS) costs 32.84 kcal/mol. A C1-C1' homolysis/biradical route was computed and excluded.",
+  "torsion_convention": "Two dihedral conventions are quoted. 'tau_ortho' in this file and in REPORT.md is the task's proxy dihedral 2-10-11-12 (atom 2 is a meta CH of ring A): RC +110.6 deg, channel-A saddle 0.0 deg, channel-B saddle -152.7 deg, P -110.6 deg. The IUPAC ortho/ortho dihedral tau(9,10,11,12) measured on the same geometries is 180 deg minus that value: RC +69.39, channel-A saddle 179.98, channel-B saddle -27.31, P -69.39 deg. The two conventions differ only by the cross-product ordering, and the enantiomer pairing is unchanged."
+}

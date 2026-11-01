@@ -1,0 +1,121 @@
+{
+  "scope": "All 200 published deliveries: endpoint/channel/state candidate ranks, final negative selection and correctness, and graph coverage without binding_quality. No native StepBarrier evidence is supplied here; L2 reference-policy numerical selection is a separate native-evidence replay. No publication scores were modified.",
+  "git_head": "89a6f9732cb1d968d2c6ef0694663b05a787fa48",
+  "source_table": "repository/paper/figures/benchmark_p2_20261031/source_data/publication_scores_per_run.csv",
+  "source_table_sha256": "0e118fb4a4e342f47806a487e4df5d706ff98edd29f15d441950a5b2001e3f6c",
+  "implementation_sha256": {
+    "old_accuracy": "5174becfca602679c0460d0c9c8447c03aa634977c35b10f4fe73bda6c350555",
+    "new_accuracy": "2d80a9c57656fe66fff6ae5c980a0ca510aba8f7857830955103e15df894719e",
+    "old_graph_similarity": "ba9d7e8a5131af9914ccabf84a8c28e20be1aff0295645b48f767605f4c6d9b5",
+    "new_graph_similarity": "926b0231dd9492fa3d2ef28b39d834a1379776bf8fa73cfcad3ab9976dfbd0cb"
+  },
+  "species_substitution_cost_source_unchanged": true,
+  "total_runs": 200,
+  "successful_runs": 200,
+  "failures": [],
+  "source_kinds": {
+    "normalised_existing_graph": 2,
+    "original_graph": 191,
+    "reconstructed_missing_graph": 7
+  },
+  "rank_changed_runs": [
+    {
+      "arm": "brief-errors",
+      "task": "IA5",
+      "rank_changes": [
+        "IA5_E1"
+      ]
+    },
+    {
+      "arm": "brief-errors",
+      "task": "IC3",
+      "rank_changes": [
+        "IC3_E1"
+      ]
+    },
+    {
+      "arm": "guided",
+      "task": "IA5",
+      "rank_changes": [
+        "IA5_E1"
+      ]
+    },
+    {
+      "arm": "record",
+      "task": "IA5",
+      "rank_changes": [
+        "IA5_E1"
+      ]
+    },
+    {
+      "arm": "standard",
+      "task": "IA5",
+      "rank_changes": [
+        "IA5_E1"
+      ]
+    }
+  ],
+  "negative_selection_changed_runs": [
+    {
+      "arm": "brief-errors",
+      "task": "IA5",
+      "negative_selection_changes": [
+        "IA5_E1"
+      ]
+    },
+    {
+      "arm": "brief-errors",
+      "task": "IC3",
+      "negative_selection_changes": [
+        "IC3_E1"
+      ]
+    },
+    {
+      "arm": "guided",
+      "task": "IA5",
+      "negative_selection_changes": [
+        "IA5_E1"
+      ]
+    },
+    {
+      "arm": "record",
+      "task": "IA5",
+      "negative_selection_changes": [
+        "IA5_E1"
+      ]
+    }
+  ],
+  "negative_claim_changed_runs": [
+    {
+      "arm": "brief-errors",
+      "task": "IA5",
+      "negative_claim_changes": [
+        "IA5_E1"
+      ]
+    },
+    {
+      "arm": "brief-errors",
+      "task": "IC3",
+      "negative_claim_changes": [
+        "IC3_E1"
+      ]
+    },
+    {
+      "arm": "guided",
+      "task": "IA5",
+      "negative_claim_changes": [
+        "IA5_E1"
+      ]
+    },
+    {
+      "arm": "record",
+      "task": "IA5",
+      "negative_claim_changes": [
+        "IA5_E1"
+      ]
+    }
+  ],
+  "graph_score_changed_runs": [],
+  "graph_assignment_changed_runs": [],
+  "files_stable_during_audit": true
+}

@@ -1,0 +1,101 @@
+{
+  "nodes": [
+    {
+      "id": "PN_T",
+      "role": "reactant",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "properties": {
+        "multiplicity": 3,
+        "electronic_state": "3A2 (C2v) triplet ground state of phenylnitrene",
+        "charge": 0,
+        "method": "PM7 (Gaussian 16 RevC.01, unrestricted UPM7, gas phase)",
+        "energy_hartree": 0.141079867882,
+        "relative_energy_kcal_mol": 0,
+        "minimum_verified": true,
+        "frequencies_note": "30 real frequencies (166.9-2765.1 cm-1), 0 imaginary",
+        "spin_density_mulliken": "N 1.696; Cipso -0.464; Cortho +0.506 (x2); Cmeta -0.336 (x2); Cpara +0.448",
+        "evidence_log": "runs/triplet_optfreq.log",
+        "evidence_input": "runs/triplet_optfreq.gjf",
+        "accessible": true,
+        "singlet_triplet_gap_kcal_mol": 37.4,
+        "state_ordering": "triplet (3A2) below open-shell singlet (1A2)",
+        "lowest_singlet_character": "open-shell (diradical) singlet, 1A2: two singly occupied orbitals - an in-plane N-centred sp2 lone pair (n) and a ring-delocalised pi* orbital - coupled to S=0 (S**2 = 0); the closed-shell zwitterionic 1A1 lies 46.0 kcal/mol above the triplet and is a saddle point (one imaginary frequency, -485.7 cm-1)",
+        "gap_definition": "adiabatic: E(1A2 minimum, PM7/CIS) - E(3A2 minimum, PM7/UHF)",
+        "gap_fixed_geometry_2K_kcal_mol": 32,
+        "gap_vertical_at_triplet_geometry_kcal_mol": 45.8,
+        "gap_accuracy_note": "PM7 overestimates the n-pi exchange splitting by roughly a factor of two relative to the experimental/DFT consensus adiabatic gap (ca. 18 kcal/mol); the ordering (triplet lower) and the open-shell character are robust. A broken-symmetry unrestricted singlet is not reachable here (UHF/UPM7 route tokens are outside the permitted method tokens), so the singlet was characterized with the spin-adapted PM7 CIS treatment."
+      }
+    },
+    {
+      "id": "PN_S1",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "properties": {
+        "multiplicity": 1,
+        "electronic_state": "1A2 open-shell (diradical) singlet, lowest singlet state",
+        "charge": 0,
+        "method": "PM7 CIS (Gaussian 16, CIS=(NStates=4,Root=2,50-50) on the closed-shell PM7 reference), gas phase",
+        "energy_hartree": 0.20061696975,
+        "relative_energy_kcal_mol": 37.4,
+        "dominant_configuration": "HOMO(17) -> LUMO(18) = 0.65, HOMO(17) -> 20 = -0.26 (HOMO = in-plane N lone pair n, LUMO = ring pi*)",
+        "minimum_verified": true,
+        "frequencies_note": "30 real CIS frequencies, no imaginary mode (a 4221 cm-1 artefact reflects the limited numerical quality of the semiempirical CIS Hessian)",
+        "geometry_note": "planar N (C2v), C1-N = 1.305 A, slight Kekule alternation of the ring C-C bonds",
+        "evidence_log": "runs/s1_cis_opt.log",
+        "evidence_freq_log": "runs/s1_cis_freq.log",
+        "evidence_input": "runs/s1_cis_opt.gjf",
+        "accessible": true
+      }
+    },
+    {
+      "id": "PN_S_CS",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "properties": {
+        "multiplicity": 1,
+        "electronic_state": "1A1 closed-shell (zwitterionic, N+/ring-) singlet",
+        "charge": 0,
+        "method": "PM7 restricted (RPM7, Gaussian 16), gas phase",
+        "energy_hartree": 0.21431876613,
+        "relative_energy_kcal_mol": 46,
+        "minimum_verified": false,
+        "frequencies_note": "one imaginary frequency -485.7 cm-1 (ring deformation): stationary point is a saddle, not a minimum",
+        "evidence_log": "runs/cs_singlet_clean.log",
+        "evidence_input": "runs/cs_singlet_clean.gjf",
+        "accessible": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "PN_T",
+      "to": "PN_S1",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "electronic state change (spin flip within the same (n,pi*) configuration)",
+      "favored": false
+    },
+    {
+      "id": "e2",
+      "from": "PN_T",
+      "to": "PN_S_CS",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "electronic state change to the closed-shell zwitterionic configuration",
+      "favored": false
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "nodes": [
+    {
+      "id": "T1_3A2",
+      "role": "reactant",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "properties": {
+        "state": "phenylnitrene triplet 3A2 ground state",
+        "level_of_theory": "PM7 (Gaussian 16 RevC.01) primary; GFN2-xTB (xtb 6.5.0) cross-check; gas phase, charge 0",
+        "electronic_energy_hartree_PM7": 0.141079867986,
+        "electronic_energy_hartree_GFN2xTB": -18.155466566976,
+        "zpe_hartree_PM7": 0.08715,
+        "spin_contamination_s2_PM7": 2.31,
+        "geometry": "planar six-membered ring, N-C 1.27-1.28 A, 30 real frequencies at PM7 -> verified minimum",
+        "evidence_log": [
+          "pm7/t_optfreq.log",
+          "xtb_xcheck/ohess_t/t_start.out"
+        ],
+        "singlet_triplet_gap_kcal_mol": "NOT DETERMINABLE within the allowed methods (xtb, pm7). The open-shell 1A2 singlet, which is the true lowest singlet, cannot be treated: the permitted PM7 input path rejects the UHF route keyword that an unrestricted Ms=0 SCF requires, and GFN2-xTB exposes only --uhf = multiplicity-1. The only computable singlet is the restricted closed-shell 1A1, which is NOT the lowest singlet: PM7 puts it +45.9 kcal/mol above 3A2 while GFN2-xTB puts its restricted singlet -1.7 kcal/mol below 3A2 - the two allowed levels disagree in sign, so neither value is declared as the singlet-triplet gap.",
+        "state_ordering": "phenylnitrene triplet 3A2 below the lowest singlet, the open-shell 1A2 n-pi biradical singlet (qualitative statement, standard for phenylnitrene; no number declared because 1A2 is not computable at the allowed level). The restricted closed-shell 1A1 singlet is a separate, higher-lying electronic state (PM7: +45.9 kcal/mol), not the lowest singlet.",
+        "lowest_singlet_character": "open-shell (1A2, n-pi) biradical singlet: two unpaired electrons of opposite spin, one in the in-plane N 2p lone-pair orbital and one in the ring pi system, essentially planar. Multireference by nature, hence outside what the restricted Ms=0 wavefunctions of PM7 and GFN2-xTB can describe; the character is therefore stated qualitatively and the species node is marked accessible: false.",
+        "evidence_log_note": "Level-specific energies of the closed-shell branch are recorded on node S1_1A1; they are semiempirical estimates for a state that is not the lowest singlet and must not be read as the singlet-triplet gap.",
+        "evidence_log_original": "pm7/t_optfreq.log (combined PM7 opt+freq, 0 imaginary frequencies, smiles-annotated) ; cross-check xtb_xcheck/ohess_t/t_start.out (GFN2-xTB, all real frequencies)"
+      }
+    },
+    {
+      "id": "S1_1A1",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "accessible": true,
+      "properties": {
+        "state": "phenylnitrene closed-shell (zwitterionic) singlet 1A1 - characterized branch, NOT the lowest singlet",
+        "level_of_theory": "PM7 (Gaussian 16) primary; GFN2-xTB cross-check; gas phase, charge 0",
+        "electronic_energy_hartree_PM7": 0.214287552988,
+        "electronic_energy_hartree_GFN2xTB": -18.158103002432,
+        "relative_to_triplet_kcal_mol_PM7": "+45.9 (semiempirical PM7 estimate for the closed-shell 1A1 branch only - NOT the singlet-triplet gap)",
+        "relative_to_triplet_kcal_mol_GFN2xTB": "-1.7 (restricted GFN2-xTB singlet - NOT the singlet-triplet gap; the sign differs from PM7)",
+        "geometry": "planar quinoid ring (N-C ~1.27 A, alternating C-C 1.37/1.41/1.45 A); the strictly planar PM7 structure is a saddle (-485.7 cm-1, pm7/s_cs_freq.log) and the true PM7 minimum is a marginally puckered structure 0.02 kcal/mol lower (30 real frequencies)",
+        "evidence_log": [
+          "pm7/s_pucker_opt.log",
+          "pm7/s_cs_freq.log",
+          "xtb_xcheck/ohess_s/s_start.out"
+        ],
+        "accessible": true,
+        "evidence_log_original": "pm7/s_pucker_opt.log (combined PM7 opt+freq, 0 imaginary frequencies) ; planar saddle check pm7/s_cs_freq.log ; GFN2-xTB xtb_xcheck/ohess_s/s_start.out"
+      }
+    },
+    {
+      "id": "S2_1A2",
+      "role": "intermediate",
+      "smiles": [
+        "[N]c1ccccc1"
+      ],
+      "accessible": false,
+      "properties": {
+        "state": "phenylnitrene open-shell singlet 1A2 - the true lowest singlet, declared but NOT computed",
+        "accessible": false,
+        "reason": "Method-envelope / permitted-input-path limitation, not a statement about the molecule: an open-shell (unrestricted, Ms = 0) SCF is required for the 1A2 singlet, but (i) the permitted PM7 input path rejects the UHF route keyword that an unrestricted Ms=0 calculation needs, and (ii) GFN2-xTB exposes only --uhf = multiplicity-1, with no restricted-to-broken-symmetry option. The exploratory guess=mix run (pm7/s_bs_opt.log) is NOT independent evidence about broken-symmetry solutions: with multiplicity 1 and no UHF keyword, Gaussian PM7 is restricted by construction, so its collapse onto the closed-shell RHF energy is expected and proves nothing. No geometry, frequency or energy for 1A2 is therefore declared at this level; nothing from that log enters the declared properties.",
+        "expected_character": "open-shell 1A2 n-pi biradical singlet, planar, two unpaired electrons (N 2p + ring pi)",
+        "evidence_log": [
+          "pm7/s_bs_opt.log"
+        ],
+        "evidence_log_original": "pm7/s_bs_opt.log (exploratory attempt; a restricted calculation by construction - not evidence for or against a broken-symmetry solution)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1_T1_to_S1",
+      "from": "T1_3A2",
+      "to": "S1_1A1",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "interstate (electronic state change / intersystem crossing), no bond-order change",
+      "note": "Interstate (spin-surface) transition, not an activated elementary step: no first-order saddle exists on a single PES, so ts_opt/frequency/short_irc do not apply; the two endpoint states are delivered as species minima instead. No barrier is declared. The PM7 closed-shell 1A1 relative energy (+45.9 kcal/mol) is a semiempirical value for a state that is not the lowest singlet and is not a singlet-triplet gap; the GFN2-xTB restricted singlet lies below the triplet, i.e. the level dependence is unresolved."
+    },
+    {
+      "id": "e2_T1_to_S2",
+      "from": "T1_3A2",
+      "to": "S2_1A2",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "interstate (electronic state change / intersystem crossing), no bond-order change",
+      "accessible": false,
+      "note": "Interstate (spin-surface) transition with no single-PES saddle (ts_opt/frequency/short_irc inapplicable); the target 1A2 open-shell singlet additionally cannot be computed through the permitted input path (UHF route keyword policy-blocked; xTB offers only --uhf = multiplicity-1). Edge marked accessible: false; no barrier and no gap are declared."
+    }
+  ]
+}

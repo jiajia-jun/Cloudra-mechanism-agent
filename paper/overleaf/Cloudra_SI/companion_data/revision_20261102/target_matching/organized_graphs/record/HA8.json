@@ -1,0 +1,54 @@
+{
+  "nodes": [
+    {
+      "id": "RC_A",
+      "role": "reactant",
+      "smiles": ["C/C=C/C=C\\C=C\\C"],
+      "properties": {
+        "name": "(2E,4Z,6E)-octa-2,4,6-triene, lowest-energy conformer (s-trans,s-trans, extended); charge 0, singlet, gas phase",
+        "energy_hartree": -311.840147073,
+        "evidence_log": "qm/lands/jobs/R_tt.log",
+        "note": "Lowest verified minimum of the reactant (B3LYP-D3(BJ)/def2-SVP Opt+Freq, 54 real frequencies); the declared barrier is referenced to it as required. The reactive s-cis,s-cis (cisoid) helical conformer, which is the direct IRC source, is a separate minimum 9.03 kcal/mol higher (qm/chA/rc_min_optfreq.log, -311.825755366 Ha; also reached by the symmetry-broken re-optimization of the IRC outer frame, qm/chA/rc_ep_kick_optfreq.log, -311.825755372 Ha). The two helical senses of the cisoid conformer are degenerate enantiomeric minima (qm/lands/jobs/R_hel_P.log and R_hel_M.log, both -311.825755379 Ha, 0.000 A heavy-atom RMSD after reflection), separated by a C2-symmetric conformational saddle (qm/lands/jobs/R_gm.log, -311.823946 Ha, nu_imag -50.2 cm^-1). Other reactant conformers: s-cis,s-trans -311.834360066 Ha (R_st_cis.log); cisoid with syn methyls -311.828355373 Ha (R_hel_2.log)."
+      }
+    },
+    {
+      "id": "TS_A",
+      "role": "transition_state",
+      "smiles": ["C/C=C/C=C\\C=C\\C"],
+      "properties": {
+        "name": "disrotatory 6-pi electrocyclization saddle (C2-symmetric, helicity P)",
+        "energy_hartree": -311.793195947,
+        "evidence_log": "qm/chA/ts_comb_optfreq.log",
+        "imaginary_frequency_cm1": -496.5789,
+        "note": "Single combined Opt=(TS,CalcFC,NoEigenTest) Freq job, B3LYP-D3(BJ)/def2-SVP, gas phase, normally terminated: 53 real frequencies plus exactly one imaginary frequency (lowest real mode 37.2 cm^-1). The imaginary mode is dominated by the forming C2...C7 pair (0.62 of the pair-projected displacement) together with C2-C3/C6-C7 (0.13 each) and C3-C4/C5-C6 (0.09 each): the concerted ring closure plus bond shift. Geometry: r(C2...C7) = 2.269 A, C2=C3/C4=C5/C6=C7 = 1.407 A, C3-C4/C5-C6 = 1.394 A, tau(C2-C3-C4-C5) = -31.7 deg, tau(C4-C5-C6-C7) = +31.7 deg. An independent OptTS + Freq pair at the same saddle gives -311.793195936 Ha and -496.6029 cm^-1 (ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log and .../frequency/frequency.log)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": ["C[C@H]1C=CC=C[C@H]1C"],
+      "properties": {
+        "name": "cis-5,6-dimethylcyclohexa-1,3-diene (achiral meso diastereomer, both C-methyls on the same face)",
+        "energy_hartree": -311.857321736,
+        "evidence_log": "qm/lands/jobs/P_cis.log",
+        "note": "Cis proven numerically: C1-C2...C7-C8 dihedral +51.5 deg and both methyl carbons on the same side of the C3-C4-C5-C6 diene plane (a trans diastereomer would be near 180 deg); the mirror-image SMILES C[C@@H]1C=CC=C[C@@H]1C is the same meso compound. The IRC product-side outer frame re-optimizes to the same minimum (qm/chA/p_irc_optfreq.log, -311.857321760 Ha, 54 real frequencies)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "disrotatory_closure_helicity_P",
+      "from": "RC_A",
+      "to": "P",
+      "via": "TS_A",
+      "channel": "disrotatory (symmetry-allowed for a thermal 4n+2 six-pi electrocyclization) -> cis-5,6-dimethylcyclohexa-1,3-diene",
+      "favored": true,
+      "bond_changes": {
+        "break": [[2, 3], [4, 5], [6, 7]],
+        "form": [[3, 4], [5, 6], [2, 7]]
+      },
+      "barrier_kcal_mol": 29.46,
+      "note": "barrier = E(TS_A) - E(RC_A) = 29.46 kcal/mol (electronic, no ZPE), referenced to the lowest-energy reactant conformer as required. From the reactive cisoid conformer the intrinsic barrier is 20.43 kcal/mol; the 9.03 kcal/mol difference is the conformational pre-equilibrium cost (7.40 kcal/mol if the lower methyl-rotamer cisoid minimum R_hel_2.log is used). Reverse barrier to P is 40.2 kcal/mol (reaction exothermic by -10.8 kcal/mol relative to RC_A, -19.8 relative to the cisoid). IRC proof: bidirectional IRC (40 points each side, rx -3.756 to +3.756 amu^1/2 bohr) from the same saddle reaches the open-chain cisoid triene on the source side and the ring-closed cis product on the target side (ts/ts_0001/jobs/declaration_0003/irc/irc.log); both outer frames were re-optimized to minima with 0 imaginary frequencies. The C1-C2...C7-C8 dihedral is -39.6 deg in the cisoid minimum, 0.0 deg at the C2-symmetric saddle and +51.5 deg in the product: one continuous disrotatory sense, whereas a conrotatory closure would have to reach 180 deg (trans). Stereochemical channels: the two disrotatory senses (helicity P and M) are exactly degenerate (delta E = 0.00 kcal/mol, enantiomeric reactant minima) and give the same meso cis product, so the reaction is stereospecifically cis with no enantioselectivity; the conrotatory (trans) channel is thermally forbidden and was deliberately not computed."
+    }
+  ]
+}

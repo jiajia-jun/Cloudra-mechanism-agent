@@ -1,0 +1,189 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN"
+      ],
+      "properties": {
+        "energy_hartree": -210.218065832,
+        "evidence_log": "species/RC_c2.log",
+        "note": "Pre-reaction complex: CH2=O with CH3NH2 held by the n(N)->pi*(C=O) contact and an N-H...O contact. B3LYP-D3(BJ)/def2-SVP, gas phase, 0 imaginary frequencies. Lowest-energy verified minimum of the reactant state (other evidence conformers: species/RC_c1.log -210.217581299 Ha, 0 imag; species/RC_c0.log -210.217587139 Ha with one floppy imaginary mode, not a clean minimum)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -210.173256659,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -1480.9,
+        "note": "Concerted addition saddle (N-C bond formation + N-H -> O proton transfer, 4-membered array). Frequency log: ts/ts_0001/jobs/declaration_0005/frequency/frequency.log; IRC: ts/ts_0001/jobs/declaration_0006/irc/irc.log. Both IRC branches independently optimized to zero-imaginary-frequency minima with the declared RC and I1 identities (ts_prepare verdict: verified)."
+      }
+    },
+    {
+      "id": "I1",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO"
+      ],
+      "properties": {
+        "energy_hartree": -210.237884916,
+        "evidence_log": "species/I1_smiles.log",
+        "note": "Carbinolamine (hemiaminal) HOCH2-NHCH3, 0 imaginary frequencies. Also reached as the IRC target minimum of step e1 (-210.237884833 Ha, ts/ts_0001/jobs/declaration_0006/product_frequency/product_frequency.log)."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -210.100345498,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -2469.2,
+        "note": "Uncatalysed four-centre dehydration saddle candidate of the carbinolamine: C-O cleavage with synchronous N-H -> O proton transfer (reaction centre (1,2) C-O break, (3,5) N-H break, (2,5) O-H form, C-N order up). Frequency log ts/ts_0002/jobs/declaration_0003/frequency/frequency.log (exactly one imaginary mode, -2469.2 cm-1, dominated by the transferring proton); opt log ts/ts_0002/jobs/declaration_0003/ts_opt/refine.log. The connection to I1 could NOT be proven: three IRC attempts (ts/ts_0002/jobs/declaration_0004/irc/irc.log default 20 points, /declaration_0005/irc/irc.log 50 points, /declaration_0006/irc/irc.log irc=(calcfc,stepsize=5,maxpoints=40)) all left both branches on the product/dissociated side - the final outer frames (ts/ts_0002/verdict/irc_end_a.xyz, irc_end_b.xyz, both E ~ -210.194 Ha, ~27 kcal/mol above I1) are unrelaxed mid-IRC geometries. The saddle is therefore a candidate for this elementary step, not a verified one, and its 86.3 kcal/mol barrier should be read as an upper bound for the uncatalysed 4-centre elimination in gas phase."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=NC.O"
+      ],
+      "properties": {
+        "energy_hartree": -210.22303663,
+        "evidence_log": "species/P_smiles.log",
+        "note": "N-methylmethanimine + water complex, 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "RCW",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.622750377,
+        "evidence_log": "water_channel/RCW_00_optfreq.log",
+        "note": "Channel-specific reactant complex of the water-assisted dehydration: hydrogen-bonded carbinolamine-water complex (14 atoms, single dot-joined complex node). 0 imaginary frequencies; alternative conformer water_channel/RCW_25_optfreq.log -286.616853910 Ha."
+      }
+    },
+    {
+      "id": "TS3",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.566286907,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0004/ts_opt/refine.log",
+        "imaginary_frequency_cm1": -1227.7,
+        "note": "Water-mediated six-membered proton-shuttle saddle for carbinolamine dehydration (proxy for the acid/base-assisted route available at pH 4-6). Frequency log ts/ts_0003/jobs/declaration_0004/frequency/frequency.log; IRC ts/ts_0003/jobs/declaration_0005/irc/irc.log; the IRC outer frames optimized to the carbinolamine-water complex and the imine + two-water complex."
+      }
+    },
+    {
+      "id": "PW",
+      "role": "product",
+      "smiles": [
+        "C=NC.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.608095795,
+        "evidence_log": "water_channel/PW_00_optfreq.log",
+        "note": "Channel product: imine + two-water complex (14 atoms), 0 imaginary frequencies. IRC-reached conformer -286.609733590 Ha (ts/ts_0003/jobs/declaration_0005/product_frequency/product_frequency.log)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "I1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 28.12,
+      "channel": "uncatalysed (concerted amine addition)",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "I1",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ],
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 86.31,
+      "channel": "uncatalysed (four-centre dehydration)",
+      "favored": false,
+      "note": "candidate-only: rank-1 saddle with the intended reaction centre, but the I1 connection is not proven by IRC (see TS2 note)."
+    },
+    {
+      "id": "e3",
+      "from": "RCW",
+      "to": "PW",
+      "via": "TS3",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ],
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 35.43,
+      "channel": "water-assisted proton shuttle (proxy for pH 4-6 catalysis)",
+      "favored": true
+    }
+  ]
+}

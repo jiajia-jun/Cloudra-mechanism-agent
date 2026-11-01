@@ -1,0 +1,134 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "cyclohexane chair (D3d)",
+        "energy_hartree": -235.737323468,
+        "evidence_log": "chair_optfreq.log",
+        "n_imag_freqs": 0,
+        "lowest_freqs_cm1": [
+          240.07,
+          240.47,
+          390.97
+        ],
+        "method": "Gaussian 16, B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, gas phase, neutral singlet"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "half-chair ring-inversion saddle (chair side)",
+        "energy_hartree": -235.718026348,
+        "evidence_log": "ts1_optfreq.log",
+        "n_imag_freqs": 1,
+        "imaginary_freq_cm1": -242.8475,
+        "irc_connection": "chair (ts1_side_minus_optfreq.log, -235.737322951, 0 imag) <-> twist-boat (ts1_side_plus_optfreq.log, -235.726931213, 0 imag); traced IRC ts1_irc2_forward.log / ts1_irc2_reverse.log",
+        "method": "Gaussian 16, B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, gas phase, neutral singlet"
+      }
+    },
+    {
+      "id": "TB",
+      "role": "intermediate",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "twist-boat local minimum (chiral C2, D2 ring pucker)",
+        "energy_hartree": -235.726923132,
+        "evidence_log": "tb_optfreq.log",
+        "n_imag_freqs": 0,
+        "lowest_freqs_cm1": [
+          109.62,
+          252.39,
+          280.69
+        ],
+        "note": "the node stands for the twist-boat conformer; the boat (pseudorotation) saddle connecting the two enantiomeric twist-boat instances was not computed",
+        "method": "Gaussian 16, B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, gas phase, neutral singlet"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "half-chair ring-inversion saddle (ring-flip side, enantiomer of TS1)",
+        "energy_hartree": -235.718026707,
+        "evidence_log": "ts2_optfreq.log",
+        "n_imag_freqs": 1,
+        "imaginary_freq_cm1": -243.1423,
+        "irc_connection": "twist-boat (ts2_side_plus_optfreq.log, -235.726931096, 0 imag; enantiomeric twist-boat instance) <-> ring-flipped chair (ts2_side_minus_optfreq.log, -235.737317690, 0 imag); traced IRC ts2_irc_forward.log / ts2_irc_reverse.log",
+        "method": "Gaussian 16, B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, gas phase, neutral singlet"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "ring-flipped cyclohexane chair",
+        "energy_hartree": -235.73731766,
+        "evidence_log": "pchair_optfreq.log",
+        "n_imag_freqs": 0,
+        "lowest_freqs_cm1": [
+          238.88,
+          239.14,
+          391.04
+        ],
+        "note": "achiral D3d chair, so the flipped conformer is symmetry-equivalent to RC (0.004 kcal/mol apart)",
+        "method": "Gaussian 16, B3LYP/def2SVP EmpiricalDispersion=GD3BJ int=ultrafine, gas phase, neutral singlet"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "TB",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 12.11,
+      "channel": "ring inversion step 1 (chair -> twist-boat)"
+    },
+    {
+      "id": "e2",
+      "from": "TB",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 5.58,
+      "channel": "ring inversion step 2 (twist-boat -> ring-flipped chair)"
+    },
+    {
+      "id": "e3",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 12.11,
+      "channel": "net chair flip (composite of e1+e2; rate-determining saddle is TS1)",
+      "favored": true
+    }
+  ]
+}

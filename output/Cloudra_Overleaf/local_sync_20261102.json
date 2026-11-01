@@ -1,0 +1,13 @@
+{
+  "status": "local_sync_complete",
+  "date": "2026-11-02 01:56 +08",
+  "note": "Target-identity Accuracy overlay + manuscript number alignment; figures copied into Overleaf projects; delivery zips rebuilt. No local XeLaTeX — PDF previews not regenerated; online Overleaf not updated in this step.",
+  "overall_composite_mean": 0.7176,
+  "revision_package": "paper/overleaf/Cloudra_SI/companion_data/revision_20261102/target_matching/",
+  "zips": {
+    "EN": "b49efced1e1ed30463a484d617c14f457f1e826261094df5027b417c873d20d7",
+    "ZH": "cde4b43c4b6b0dcef94cb3a5043fca5ee7220835aba067666b2da42750493167",
+    "SI_overleaf": "4da403df47ae90367c66d6aa4a9b821a258932ac1bb8c1f904486dd83b21eb7e",
+    "SI_data": "e06fcbae7f90ed8a65a819f7db515848cc340f28e09d16528a77d4285982cbc5"
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "energy_hartree": -205.544707628,
+        "evidence_log": "gjf/cis_optfreq.log",
+        "freq_log": "gjf/cis_optfreq.log",
+        "description": "cis-HONO (H syn to the N=O oxygen, dihedral H-O3-N2-O1 = 0 deg). B3LYP-D3(BJ)/def2-SVP minimum, 6 real frequencies, 0 imaginary."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "energy_hartree": -205.521528746,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+        "freq_log": "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log",
+        "irc_log": "ts/ts_0001/jobs/declaration_0003/irc/irc.log",
+        "description": "Torsional transition state for internal rotation about the N-O(H) bond; H perpendicular to the heavy-atom plane. Exactly one imaginary frequency (-700.1 cm-1, O-H torsion)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "energy_hartree": -205.543935934,
+        "evidence_log": "gjf/trans_optfreq.log",
+        "freq_log": "gjf/trans_optfreq.log",
+        "description": "trans-HONO (H anti to the N=O oxygen, dihedral 180 deg). B3LYP-D3(BJ)/def2-SVP minimum, 6 real frequencies, 0 imaginary."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 14.54,
+      "channel": "torsional internal rotation about N-O(H)",
+      "favored": true
+    }
+  ]
+}

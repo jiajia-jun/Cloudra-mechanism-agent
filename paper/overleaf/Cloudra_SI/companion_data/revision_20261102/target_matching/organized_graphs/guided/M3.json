@@ -1,0 +1,56 @@
+{
+  "nodes": [
+    {
+      "id": "NH3_pyramidal_reactant",
+      "role": "reactant",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5106949586,
+        "evidence_log": "qm/ga_nh3_endfrom_ircA_optfreq.log",
+        "description": "C3v pyramidal NH3 minimum (N-H 1.022 A, H-N-H 105.1 deg, N 0.41 A out of the H3 plane); unconstrained Opt+Freq started from canonical IRC outer frame A of qm/ga_nh3_irc_both.log; Gaussian 16 B3LYP/def2SVP + EmpiricalDispersion=GD3BJ (= B3LYP-D3(BJ)/def2-SVP), gas phase, 6 real frequencies, 0 imaginary."
+      }
+    },
+    {
+      "id": "NH3_planar_TS",
+      "role": "transition_state",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5012517338,
+        "evidence_log": "qm/ga_nh3_planar_optstsfreq.log",
+        "imaginary_frequency_cm1": -830.82,
+        "description": "D3h planar NH3 first-order saddle (H-N-H 120.00 deg, N out of plane 0.0000 A); single imaginary mode -830.8 cm-1 is the symmetric A2'' umbrella motion (equal H displacements 0.328, N 0.015). Opt=(TS,CalcFC,NoEigenTest) Freq, same level, normally terminated."
+      }
+    },
+    {
+      "id": "NH3_pyramidal_product",
+      "role": "product",
+      "smiles": [
+        "N"
+      ],
+      "properties": {
+        "energy_hartree": -56.5106949586,
+        "evidence_log": "qm/ga_nh3_endfrom_ircB_optfreq.log",
+        "description": "Inverted C3v pyramidal NH3 minimum (mirror image of the reactant); unconstrained Opt+Freq started from canonical IRC outer frame B of qm/ga_nh3_irc_both.log; 0 imaginary frequencies; identical energy to the reactant within 1e-10 Ha."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "NH3_pyramidal_reactant",
+      "to": "NH3_pyramidal_product",
+      "via": "NH3_planar_TS",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 5.93,
+      "channel": "umbrella inversion (conformational; no bond broken or formed)",
+      "favored": true
+    }
+  ]
+}

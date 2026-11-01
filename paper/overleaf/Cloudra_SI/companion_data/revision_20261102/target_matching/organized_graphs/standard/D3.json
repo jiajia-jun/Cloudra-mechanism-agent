@@ -1,0 +1,85 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C1=CCC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -387.964427951,
+        "evidence_log": "min/rc/jobs/rc1_endo_h33.log",
+        "level_of_theory": "B3LYP/def2SVP + EmpiricalDispersion(GD3BJ), Gaussian 16, gas phase, charge 0, singlet",
+        "imaginary_frequencies": 0,
+        "note": "pre-reaction pi-complex of two cyclopentadienes (parallel-displaced stack, interplanar 3.32 A, forming contacts C2...C12 3.45 A / C4...C13 3.37 A); 60 real modes incl. six intermolecular modes 34-97 cm-1; binding -4.66 kcal/mol vs 2 separated Cp. IRC reactant-side endpoint relaxes onto this same minimum (-387.964427881 Ha, ts/ts_0001/jobs/declaration_0015/reactant_opt/reactant_opt.log)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -387.941233522,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0014/frequency/frequency.log",
+        "imaginary_frequency_cm1": -442.1728,
+        "level_of_theory": "B3LYP/def2SVP + EmpiricalDispersion(GD3BJ), Gaussian 16",
+        "note": "endo saddle, exactly one imaginary frequency; strongly asynchronous (forming distances C2...C12 2.839 A, C4...C13 1.970 A; imaginary mode dominated by the C4...C13 stretch with ~1/5 of that amplitude on the C2...C12 pair). Endo registry confirmed (C=C midpoint separation 2.91 A). IRC (LQA, ts/ts_0001/jobs/declaration_0015/irc/irc.log, 49 points, both directions converged) connects it to the RC complex on one side and to the tricyclic endo adduct on the other."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C12C=CC(C1)C1C=CCC12"
+      ],
+      "properties": {
+        "energy_hartree": -387.995962027,
+        "evidence_log": "min/prod/jobs/pendo.log",
+        "level_of_theory": "B3LYP/def2SVP + EmpiricalDispersion(GD3BJ), Gaussian 16",
+        "imaginary_frequencies": 0,
+        "note": "endo-dicyclopentadiene (tricyclo[5.2.1.0^2,6]deca-3,8-diene); endo confirmed on the optimised geometry (both C=C on the same side, midpoint separation 3.18 A); -24.45 kcal/mol vs 2 separated Cp. The IRC product-side endpoint closes both new bonds (1.563/1.558 A) with the new C1=C5 1.342 A, i.e. the same tricyclic adduct."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ],
+          [
+            1,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 14.55,
+      "channel": "endo",
+      "favored": true
+    }
+  ]
+}

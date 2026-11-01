@@ -1,0 +1,170 @@
+{
+  "nodes": [
+    {
+      "id": "RC-syn",
+      "role": "reactant",
+      "smiles": [
+        "O[C@H]1C=CCCC1.O=COO"
+      ],
+      "properties": {
+        "description": "H-bonded pre-reaction complex, performic acid on the same face as the allylic OH (Henbest direction, alcohol O-H donating to the peracid ester oxygen)",
+        "evidence_log": "chan_syn/rc/rc_cand01.log",
+        "energy_hartree": -574.386126475,
+        "note": "lowest of three verified syn-channel minima (rc_cand02 -574.379842568, rc_cand03 -574.378381020); 63 real modes, 0 imaginary"
+      }
+    },
+    {
+      "id": "TS-syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "concerted butterfly (spiro) oxygen-transfer TS on the OH face of the alkene; O11-O10 peroxide bond breaks while O11-C3 and O11-C4 close and H12 migrates to the formate oxygen",
+        "evidence_log": "chan_syn/ts/ts_syn3.log",
+        "energy_hartree": -574.357102755,
+        "imaginary_frequency_cm1": -443.59,
+        "note": "opt=TS + freq in one log, opt converged, 63 modes, exactly one imaginary (-443.5888 cm-1) whose displacements are the oxygen transfer (O11 0.49, H12 0.10, O10 0.08, C4 0.08); this is the geometry that carries both the frequency and the barrier"
+      }
+    },
+    {
+      "id": "PC-syn",
+      "role": "product",
+      "smiles": [
+        "O[C@@H]1CCC[C@@H]2O[C@H]12.O=CO"
+      ],
+      "properties": {
+        "description": "cis epoxide (epoxide O syn to the allylic OH, Henbest product) hydrogen-bonded to formic acid",
+        "evidence_log": "chan_syn/pc/pc_syn.log",
+        "energy_hartree": -574.46900302,
+        "note": "cis assignment from the optimised QM geometry: hydroxyl O +1.38 A and epoxide O +1.20 A off the carbocycle plane"
+      }
+    },
+    {
+      "id": "RC-anti",
+      "role": "reactant",
+      "smiles": [
+        "O[C@H]1C=CCCC1.O=COO"
+      ],
+      "properties": {
+        "description": "pre-reaction complex, performic acid on the face opposite the allylic OH",
+        "evidence_log": "chan_anti/rc/rcA.log",
+        "energy_hartree": -574.377455718,
+        "note": "lowest of the three anti-channel minima (rcB -574.375953326, rcC -574.363171712); 63 real modes, 0 imaginary"
+      }
+    },
+    {
+      "id": "TS-anti",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "concerted butterfly (spiro) oxygen-transfer TS, epoxide O delivered anti to the allylic OH; exactly one imaginary frequency",
+        "evidence_log": "ts/ts_0001/jobs/declaration_0006/frequency/frequency.log",
+        "energy_hartree": -574.354004822,
+        "imaginary_frequency_cm1": -439.87,
+        "note": "opt converged, 63 modes, exactly one imaginary (-439.8707 cm-1), displacements are the oxygen transfer (O11 0.55, H12 0.11, O10 0.10, C3 0.09)"
+      }
+    },
+    {
+      "id": "PC-anti",
+      "role": "product",
+      "smiles": [
+        "O[C@@H]1CCC[C@H]2O[C@@H]12.O=CO"
+      ],
+      "properties": {
+        "description": "trans epoxide (epoxide O anti to the allylic OH) with one molecule of formic acid (H-bonded to the epoxide oxygen in the conformer of chan_anti/pc/pc.log; the evidence log below is the non-H-bonded trans conformer of the same species)",
+        "evidence_log": "chan_anti/pc/epB_from0008.log",
+        "energy_hartree": -574.469326286,
+        "note": "SMILES annotation matches the geometry: evidence log title is 'smiles: O[C@@H]1CCC[C@H]2O[C@@H]12.O=CO', 63 modes, 0 imaginary, normal termination; same minimum as ep_a_prodside (-574.469326192) to 1e-6 Ha; trans assignment from the optimised geometry (hydroxyl O -1.52 A vs epoxide O +1.24 A off the carbocycle plane, CIP R,S,R). chan_anti/pc/pc.log (-574.464701399, H-bonded conformer of the same trans species) is kept only as an extra verified conformer: its input title was written before the relabel and names the cis SMILES, so it is NOT used as species-identifying evidence (the finished log is not edited)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-syn",
+      "from": "RC-syn",
+      "to": "PC-syn",
+      "via": "TS-syn",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            11,
+            10
+          ],
+          [
+            11,
+            12
+          ]
+        ],
+        "form": [
+          [
+            3,
+            11
+          ],
+          [
+            4,
+            11
+          ],
+          [
+            9,
+            12
+          ]
+        ]
+      },
+      "channel": "syn-cis (Henbest H-bond directed, peracid on the OH face)",
+      "favored": true,
+      "barrier_kcal_mol": 18.21,
+      "barrier_reference": "chan_syn/rc/rc_cand01.log",
+      "direction_evidence": "chan_syn/irc/irc_syn3.log",
+      "endpoint_source_evidence": "chan_syn/ep/epB_from1898.log",
+      "endpoint_product_evidence": "chan_syn/ep/epA_from1898.log",
+      "note": "barrier = E(TS-syn) - E(RC-syn lowest, rc_cand01) = (-574.357102755 + 574.386126475) Ha x 627.5095 = 18.21 kcal/mol, using the TS geometry that also carries the frequency. The larger per-complex barrier than the anti channel reflects the 5.4 kcal/mol extra binding of the Henbest syn complex, not a slower reaction: on a common reference E(TS-syn) lies 1.94 kcal/mol BELOW E(TS-anti)."
+    },
+    {
+      "id": "e-anti",
+      "from": "RC-anti",
+      "to": "PC-anti",
+      "via": "TS-anti",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            11,
+            10
+          ],
+          [
+            11,
+            12
+          ]
+        ],
+        "form": [
+          [
+            3,
+            11
+          ],
+          [
+            4,
+            11
+          ],
+          [
+            9,
+            12
+          ]
+        ]
+      },
+      "channel": "anti-trans (peracid on the face opposite the allylic OH)",
+      "favored": false,
+      "barrier_kcal_mol": 14.72,
+      "barrier_reference": "chan_anti/rc/rcA.log",
+      "direction_evidence": "ts/ts_0001/jobs/declaration_0008/irc/irc.log",
+      "endpoint_source_evidence": "chan_anti/rc/rcA_ircEndA_annot.log",
+      "endpoint_product_evidence": "chan_anti/pc/epB_from0008.log",
+      "note": "barrier = E(TS-anti) - E(RC-anti lowest, rcA) = (-574.354004822 + 574.377455718) Ha x 627.5095 = 14.72 kcal/mol. On a common reference E(TS-syn) = -574.357102755 lies 1.94 kcal/mol below E(TS-anti) = -574.354004822, because the syn pre-reaction complex is 5.43 kcal/mol more stable; the TS-energy comparison decides the facial selectivity. The per-edge barriers are NOT the selectivity measure. Traceability of the anti source endpoint: the annotated log chan_anti/rc/rcA_ircEndA_annot.log (job 1919) is a rerun of the byte-identical native reactant outer frame of direction_evidence; its predecessor ts/ts_0001/jobs/declaration_0008/reactant_opt/reactant_opt.log (-574.376535064) is the same minimum and remains cited here for traceability (it could not be bound itself because its title lacked the 'smiles:' key). Neither endpoint choice affects the barrier, which is referenced to rcA."
+    }
+  ]
+}

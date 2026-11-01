@@ -1,0 +1,222 @@
+{
+  "nodes": [
+    {
+      "id": "sp_04438dc6",
+      "name": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=C=O.C=N"
+      ],
+      "properties": {
+        "energy_hartree": -247.062264419,
+        "evidence_log": "work_ann/rc/rc_ann.log",
+        "note": "Lowest verified ketene...methanimine pre-reaction complex (non-bonded contact pair, d(N5...C2)=2.85 A, d(C1...C4)=4.13 A), 0 imaginary frequencies; barrier reference for both RC-based edges. Other verified conformers of the same complex, higher by 0.36-0.88 kcal/mol: work_conc/rc2_optfreq.log (-247.061426688), work_conc/ts0003_endA_rc_optfreq.log / work_conc/endA_rc_optfreq.log (-247.060858368, the conformer the concerted IRC reaches). The 0.5 kcal/mol conformer spread is within the accuracy of the level and carries no physical meaning beyond the reference convention; no exhaustive conformer search is claimed.",
+        "frequency_log": "work_ann/rc/rc_ann.log",
+        "prior_evidence_log": "ts/ts_0001/jobs/declaration_0002/reactant_opt/reactant_opt.log",
+        "annotation_note": "Evidence log re-run at the IDENTICAL delivered geometry with the mandatory title line \"smiles: <unmapped SMILES>\" written before the job (the earlier workflow log had a blank title line). Same SCF energy as delivered; the earlier log is kept as prior_evidence_log and was not edited."
+      }
+    },
+    {
+      "id": "sp_6bad796c",
+      "name": "TSc",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -247.010602946,
+        "evidence_log": "work_ann/tsc/tsc_ann.log",
+        "note": "Concerted, strongly asynchronous antarafacial [2s+2a] saddle: d(N5-C2)=1.607 A (essentially formed), d(C1-C4)=2.454 A (late), C1=C2 1.405, C4=N5 1.344, C2=O3 1.201 A - a pentagon-like TS with the C1...C4 bond lagging. One imaginary mode -575.5 cm-1 along the ring-closing coordinate; E=-247.010602946 Ha. Same stationary point reached by two independent chains (work_conc/tsc_a.log and ts/ts_0003). Its bidirectional IRC (30 forward + 30 backward points) connects the ketene...methanimine complex and azetidin-2-one.",
+        "geometry_log": "ts/ts_0003/jobs/declaration_0003/ts_opt/refine.log",
+        "smiles_note": "No species SMILES is declared for a first-order saddle, mirroring the delivery-graph species declaration; the saddle is identified by the geometry in its own frequency log (properties.evidence_log) and by the bidirectional IRC of its step.",
+        "prior_evidence_log": "ts/ts_0003/jobs/declaration_0003/frequency/frequency.log",
+        "annotation_note": "Evidence log re-run at the IDENTICAL delivered geometry with the mandatory title line \"smiles: <unmapped SMILES>\" written before the job (the earlier workflow log had a blank title line). Same SCF energy as delivered; the earlier log is kept as prior_evidence_log and was not edited."
+      }
+    },
+    {
+      "id": "sp_245770db",
+      "name": "P",
+      "role": "product",
+      "smiles": [
+        "O=C1CCN1"
+      ],
+      "properties": {
+        "energy_hartree": -247.119105221,
+        "evidence_log": "work_conc/p_optfreq.log",
+        "note": "Azetidin-2-one (azetidin-2-one, four-membered lactam), planar, 0 imaginary frequencies, E=-247.119105221 Ha. Reached by both IRCs: the concerted IRC product endpoint (work_conc/ts0003_endB_p_optfreq.log, -247.119105296) and the N-attack IRC's betaine-ward side; 37.1 kcal/mol below the betaine INT_zw and 35.7 kcal/mol below the lowest RC complex, i.e. the ring closure is strongly exothermic."
+      }
+    },
+    {
+      "id": "sp_9f289db3",
+      "name": "INT_zw",
+      "role": "intermediate",
+      "smiles": [
+        "C=[NH+]C(=C)[O-]"
+      ],
+      "properties": {
+        "energy_hartree": -247.060060699,
+        "evidence_log": "work_step/int_zw/int_zw_optfreq.log",
+        "note": "Formal betaine / strongly polarised enolate-iminium intermediate: C4=N5 1.285 (double retained), N5-C2 1.532 (new single bond), C2=C1 1.377 (enolate double), C2-O3 1.226 (enolate C-O), ring gap C1...C4 3.56 A (no ring), planar; 0 imaginary frequencies, lowest real mode 195 cm-1, E=-247.060060699 Ha (the N-attack IRC endpoint gives -247.060061148, agreement 5e-7 Ha). NBO natural charges N5 -0.52, O3 -0.69, C2 +0.55, C1 -0.59 (Mulliken N5 -0.06, O3 -0.31): formally a zwitterion by charge bookkeeping but the population analysis shows a largely covalent, strongly polarised species rather than a genuine ion pair, so the 'zwitterionic' label is a formal-charge description only. Lies only 1.38 kcal/mol above the lowest RC complex - a near-degeneracy that the gas-phase method without solvent can over-stabilise. IMPORTANT: no verified BOND-FORMATION saddle leads from this betaine to azetidin-2-one at this level of theory (see the note on edge step_e864fbc7). Four searches from three regions - a planar-betaine interpolation, a constrained-scan maximum, and two variants of a genuine non-planar ring-precursor conformer (one descending to a product conformer at -247.119027788 Ha, 0.05 kcal/mol above P, one descending back to the reactants at -247.060728566 Ha) - produced no closure saddle; the only saddle found closes the ring concertedly from the reactant complex (TS_conc2, edge step_db3c3ba3). So INT_zw's onward path is an OPEN QUESTION here: a real minimum, not on either verified RC -> P path, whose closure appears to occur without a bond-formation barrier once the betaine is rotated - an observation about the searched surface at this level, not a proven barrierless mechanism, and not a barrier that can be declared. A relaxed C4...C1 scan from the non-planar ring-precursor conformer (N5-C2 free, work_step/closure3/scanC1C4_free.log) rises only 4.1 kcal/mol to a shallow maximum at C4...C1 = 2.441 A that coincides (0.16 kcal/mol) with the concerted saddle and then descends to a closed-ring product-side structure, with N5-C2 intact throughout - consistent with the betaine funnelling onto the concerted surface."
+      }
+    },
+    {
+      "id": "sp_8c03e300",
+      "name": "TS_N",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -247.056018766,
+        "evidence_log": "work_ann/tsn/tsn_ann.log",
+        "note": "N5->C2 attack saddle: the imine nitrogen lone pair forms the bond to the ketene carbonyl carbon; d(N5-C2) 1.895 A at the saddle, C4=N5 still 1.30 A (iminium retained). One imaginary mode -283.5 cm-1; E=-247.056018766 Ha. Its bidirectional IRC connects the ketene...methanimine complex (reverse) and the betaine INT_zw (forward).",
+        "geometry_log": "ts/ts_0001/jobs/declaration_0001/ts_opt/refine.log",
+        "smiles_note": "No species SMILES is declared for a first-order saddle, mirroring the delivery-graph species declaration; the saddle is identified by the geometry in its own frequency log (properties.evidence_log) and by the bidirectional IRC of its step.",
+        "prior_evidence_log": "ts/ts_0001/jobs/declaration_0001/frequency/frequency.log",
+        "annotation_note": "Evidence log re-run at the IDENTICAL delivered geometry with the mandatory title line \"smiles: <unmapped SMILES>\" written before the job (the earlier workflow log had a blank title line). Same SCF energy as delivered; the earlier log is kept as prior_evidence_log and was not edited."
+      }
+    },
+    {
+      "id": "sp_5c220357",
+      "name": "TS_conc2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -247.030042392,
+        "evidence_log": "work_ann/tsconc2/tsconc2_ann.log",
+        "geometry_log": "ts/ts_0002/jobs/declaration_0002/ts_opt/refine.log",
+        "note": "Lowest verified saddle for RC -> P: a single, strongly asynchronous concerted ring closure. Saddle geometry N5-C2 1.458 A (essentially formed), C1...C4 2.413 A (late), C1=C2 1.438, C4=N5 1.333, C2=O3 1.214 A - a genuine carbonyl, i.e. the ketene has already become an acyl-like carbonyl carbon rather than an enolate, so this is NOT the betaine. One imaginary mode -450.1 cm-1; E=-247.030042392 Ha; 20.22 kcal/mol above the lowest verified RC complex (19.34 against the IRC-reached RC conformer). Bidirectional IRC (60 forward + 60 backward points) connects the ketene...methanimine complex and azetidin-2-one. Same stationary point reached from the withdrawn 'ring-closure' attempt (ts_0002 declaration_0002; originally mis-assigned to INT_zw -> P).",
+        "smiles_note": "No species SMILES is declared for a first-order saddle, mirroring the delivery-graph species declaration; the saddle is identified by the geometry in its own frequency log (properties.evidence_log) and by the bidirectional IRC of its step.",
+        "prior_evidence_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "annotation_note": "Evidence log re-run at the IDENTICAL delivered geometry with the mandatory title line \"smiles: <unmapped SMILES>\" written before the job (the earlier workflow log had a blank title line). Same SCF energy as delivered; the earlier log is kept as prior_evidence_log and was not edited."
+      }
+    },
+    {
+      "id": "sp_77fb8cb9",
+      "name": "TS_close",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "smiles_note": "No species SMILES is declared for a first-order saddle, mirroring the delivery-graph species declaration; the saddle is identified by the geometry in its own frequency log (properties.evidence_log) and by the bidirectional IRC of its step."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_90d092dd",
+      "name": "concerted_22_cycloaddition",
+      "from": "sp_04438dc6",
+      "to": "sp_245770db",
+      "via": "sp_6bad796c",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 32.42,
+      "channel": "concerted, strongly asynchronous antarafacial [2s+2a] cycloaddition, pentagon-like saddle with the C1...C4 bond very late (2.454 A). IRC-verified to connect the pre-reaction complex to azetidin-2-one, but it is 12.2 kcal/mol higher than the e4 saddle, so it is a verified higher-lying alternative on the same pair of minima, not the operating path.",
+      "favored": false
+    },
+    {
+      "id": "step_dea8677a",
+      "name": "N_attack_zwitterion",
+      "from": "sp_04438dc6",
+      "to": "sp_9f289db3",
+      "via": "sp_8c03e300",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 3.92,
+      "channel": "stepwise zwitterionic first step: the imine N5 lone pair attacks the ketene carbonyl carbon C2 (form N5-C2), the C4=N5 iminium double bond is retained, the ketene C1=C2 pi bond stays the enolate double bond and O3 becomes the enolate oxygen. IRC-verified between the pre-reaction complex and the betaine (3.92 kcal/mol against the lowest verified RC). The betaine is a real minimum, but NO verified saddle leads onward from it to the beta-lactam at this level, so this edge does not connect to the product in the delivered mechanism; it is recorded as the competing channel that the calculation does not support as the operating one. BOND-CHANGE BOOKKEEPING (corrected after the Supervisor's final review): besides form [2,5], this edge also breaks the ketene C2=O3 double bond to the single-bonded enolate oxygen O3-, i.e. break [2,3]; e3 re-forms that C=O bond as the lactam carbonyl. The edge text above already described this chemistry; the change is bookkeeping only and no energy, barrier or reference depends on it.",
+      "favored": false
+    },
+    {
+      "id": "step_db3c3ba3",
+      "name": "concerted_22_cycloaddition_asynchronous_low",
+      "from": "sp_04438dc6",
+      "to": "sp_245770db",
+      "via": "sp_5c220357",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 20.22,
+      "channel": "single strongly asynchronous concerted cycloaddition: N5-C2 forms first (1.458 A at the saddle) while C1...C4 is still 2.413 A; the ketene pi bond and the imine pi bond both lengthen to single bonds and the C2=O3 carbonyl (1.214 A) is already in place. This is the lowest verified route to the beta-lactam at this level of theory and the operative channel of the delivered mechanism.",
+      "favored": true
+    },
+    {
+      "id": "step_e864fbc7",
+      "name": "ring_closure_zwitterion",
+      "from": "sp_9f289db3",
+      "to": "sp_245770db",
+      "via": "sp_77fb8cb9",
+      "bond_changes": {
+        "break": [
+          [
+            4,
+            5
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "channel": "INT_zw -> P ring closure: INVESTIGATED, NO BOND-FORMATION SADDLE FOUND AT THIS LEVEL, so NO barrier is declared. Bond changes as declared: break C4=N5 [4,5], break enolate C1=C2 [1,2], form C1-C4 [1,4], form C2=O3 [2,3]. Result of four attempted searches from three distinct regions (all B3LYP-D3(BJ)/def2-SVP, gas phase, charge 0 singlet): (1) a planar-betaine interpolation/OptTS (ts/ts_0002 declaration_0002) refined to the concerted RC->P saddle at -247.030042392 Ha (edge step_db3c3ba3), not to a betaine closure; (2) the maximum of a relaxed scan with N5-C2 frozen at its betaine value (work_step/scan_close3/scan_close3.log; profile peaks at only +18.9 kcal/mol above INT_zw near C1...C4 = 2.3 A) refined unconstrained (ts/ts_0004) onto the SAME concerted saddle, 1.3e-8 Ha away; (3) a genuine NON-PLANAR ring-precursor betaine conformer (INT_zw iminium plane rotated 180 deg about N5-C2; N5-C2 1.532 A intact, C1...C4 2.621 A) with the calcfc Hessian taken at that geometry followed the mode back to the REACTANTS (ts/ts_0005 declaration_0001: E = -247.060728566 Ha, 0 imaginary, lowest real mode 8.3 cm-1, N5...C2 2.94 A broken, C1...C4 4.36 A); (4) a P-side ring-opened start (azetidin-2-one with C1-C4 stretched to 2.20 A) converged to a CLOSED-RING product conformer, E = -247.119027788 Ha, 0 imaginary, N5-C2 1.376, C1-C4 1.553, C2=O3 1.202 A, i.e. only 0.05 kcal/mol above P (ts/ts_0005 declaration_0002). INTERPRETATION (observation about the searched surface, not a barrierless mechanism and not a declaramble barrier): no INT_zw -> P bond-formation saddle was found at this level of theory; from a rotated ring-precursor betaine the closure coordinate descends to a product conformer, while another variant of the same precursor descends back to the reactants. No barrier_kcal_mol is declared because the conformational/rotameric saddle between planar INT_zw and the ring-precursor conformer was never located or quantified; E(TS_conc2) - E(INT_zw) = 18.84 kcal/mol is only the cost of funnelling through the concerted saddle region. INT_zw remains a verified minimum (-247.060060699 Ha, 0 imaginary) with an unresolved onward path; the negative result is level-specific (gas phase, no solvent, no UB3LYP <S^2> cross-check available under the MethodPolicy). SUPPORTING CONSTRAINED SCAN (not TS evidence): driving C4...C1 inward from the non-planar ring-precursor betaine with N5-C2 LEFT FREE (work_step/closure3/scanC1C4_free.log; declared B 1 4 S 12 -0.090 from 2.621 to 1.541 A; 11 of 12 points completed, the last target point hit NStep=100 with forces converged (max 2.1e-5, RMS 6e-6) but displacement not converged, max disp 0.0082) rises only 4.06 kcal/mol from the precursor point to a shallow maximum at C4...C1 = 2.441 A, E = -247.030289 Ha (+18.68 kcal/mol above INT_zw; within 0.16 kcal/mol of the verified concerted saddle -247.030042392 Ha and with the same bond pattern N5-C2 1.475, C2-C1 1.425, C4=N5 1.319 A), then descends monotonically to a closed-ring product-side structure at C4...C1 = 1.721 A, E = -247.109918 Ha; N5-C2 stays intact at 1.374-1.524 A across the whole profile. So closure from a rotated ring-precursor betaine passes over the SAME concerted saddle rather than any separate C4-C1 bond-formation saddle, and the precursor conformer itself sits +14.6 kcal/mol above planar INT_zw. Consequence: e3 remains barrier-less in this record.",
+      "favored": false
+    }
+  ],
+  "notes": "Node/edge ids are the delivery-graph element ids; the \"name\" fields carry the chemical labels (RC, P, INT_zw, TSc, TS_N, TS_conc2, TS_close, e1-e4)."
+}

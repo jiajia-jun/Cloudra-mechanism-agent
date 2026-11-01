@@ -1,0 +1,199 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN"
+      ],
+      "properties": {
+        "energy_hartree": -210.218065728,
+        "evidence_log": "work_ni1/rc_opt.log",
+        "description": "Pre-reaction complex of the reactive pair as ONE dot-joined complex node: amine N over the carbonyl carbon, R(C...N)=2.60 A, R(O...N)=3.08 A; no classical N-H...O hydrogen bond (O...H-N 76 deg). B3LYP-D3(BJ)/def2-SVP, gas phase, q=0, mult=1, 0 imaginary frequencies.",
+        "note": "Lowest of the RC minima: CREST/GFN2 --nci survey (48 conformers) + B3LYP re-optimisation of the four lowest (work_ni1/rc_conf0_opt.log, rc_conf1_opt.log are the same minimum, -210.218065735 / -210.218065824). Binding vs separated monomers (7.2 kcal/mol) is BSSE-inflated at def2-SVP and is not used mechanistically."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -210.173256659,
+        "evidence_log": "ts/ts_0007/jobs/declaration_0003/frequency/frequency.log",
+        "description": "Genuine N-C bond-forming addition saddle: concerted nucleophilic attack of the amine N on the formaldehyde carbon with synchronous N-H -> O proton transfer. Converged first-order saddle at B3LYP-D3(BJ)/def2-SVP (gas phase, q=0, mult=1): normal termination, opt converged, exactly one imaginary frequency at -1481.63 cm-1 (26 real modes), E = -210.173256659 Ha identical in the Opt (ts/ts_0007/jobs/declaration_0003/ts_opt/refine.log) and Freq logs. Saddle geometry: C1-O2 1.324 A (RC 1.204), C1-N6 1.588 A, N6-H11 1.191 A, O2-H11 1.414 A, O2...N6 2.196 A. Imaginary mode: atom 11 (transferring H) carries 0.976 of the squared displacement, heavy-atom fraction 0.0117; pair projections O2-H11 0.961, N6-H11 0.726, C1-N6 0.087, C1-O2 0.090 - a proton-shuttle-dominated saddle, same character as both dehydration saddles. Qualitatively different from the rejected contact-pair family (-17.7 to -19.6 cm-1, C...N 2.6 A, C=O 1.20 A, proton on N).",
+        "note": "Barrier E(TS1) - E(RC) = 28.12 kcal/mol vs the lowest verified RC minimum (-210.218065728); reverse 40.85 kcal/mol vs INT1 (-210.238282927); 20.98 kcal/mol vs separated reactants. Gate-2 window check stated honestly rather than rounded away: C1-N6 1.588 A is inside the predicted 1.5-1.7 A window and the breaking N-H is at 1.191 A, but C1-O2 1.324 A and O2-H11 1.414 A lie ~0.02 A outside the pre-guessed windows (1.35-1.45 and 1.2-1.4 A). IRC direction proof: see the e1 channel text - the saddle verification is complete on ts_opt + frequency; the bidirectional IRC from this same saddle is the remaining item."
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO"
+      ],
+      "properties": {
+        "energy_hartree": -210.238282927,
+        "evidence_log": "work_b/jobs/int1_conf1_optfreq.log",
+        "description": "N-methylmethanolamine (carbinolamine). Lowest verified conformer (CREST/GFN2 survey of CNCO, two lowest re-optimised at DFT; this one is lower than the other by 0.045 kcal/mol). 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -210.145578627,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log",
+        "description": "Late neutral four-membered-ring dehydration saddle (N2-H8 1.251, H8...O4 1.320, C3-O4 1.956, N2=C3 1.328, O4-H11 0.973 A). Exactly one imaginary frequency, -1796.18 cm-1, whose mode is 99.3% proton displacement with C-O lengthening as a minor component; the C-O cleavage and C=N formation are documented by the IRC geometry progression (C3-O4 1.956 -> 1.715 -> 1.425 on the reactant side and 1.956 -> 2.203 -> 3.943 A on the product side)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CN=C.O"
+      ],
+      "properties": {
+        "energy_hartree": -210.223036629,
+        "evidence_log": "work_c/jobs/pw1_optfreq.log",
+        "description": "Product complex: N-methylmethanimine hydrogen-bonded to one water (O-H...N, O...H 1.81 A), 11 atoms, 0 imaginary frequencies. NOTE: the minimum reached by re-optimising the product-side IRC outer frame is 0.07 kcal/mol lower (-210.223150303, work_b/jobs/p_from_irc_optfreq.log); the barrier reference is unaffected.",
+        "note": "Association energy vs separated imine + water (9.7 kcal/mol) is BSSE-inflated and is not used mechanistically."
+      }
+    },
+    {
+      "id": "INT1W",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.62370254,
+        "evidence_log": "work_c/jobs/int1w_optfreq_v2.log",
+        "description": "Carbinolamine hydrogen-bonded to one explicit relay water - the channel-specific reactant complex of the water-relayed dehydration; 0 imaginary frequencies."
+      }
+    },
+    {
+      "id": "TS2W",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.566286928,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+        "description": "Six-membered-ring water-relayed dehydration saddle, ring N-H...Ow-H...O-C: N2-H8 1.182, H8...Ow12 1.353, Ow12-H13 1.280, H13...O4 1.162, C3-O4 2.016, N2=C3 1.307 A. One imaginary frequency, -1227.9 cm-1 (frequency log ts/ts_0001/jobs/declaration_0002/frequency/frequency.log)."
+      }
+    },
+    {
+      "id": "PW",
+      "role": "product",
+      "smiles": [
+        "CN=C.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.609733743,
+        "evidence_log": "work_c/jobs/pw_optfreq_v2.log",
+        "description": "Product side of the water-relayed channel: imine + two waters (the relay water is regenerated), 0 imaginary frequencies. The re-optimised product-side frame of the s2w IRC gives the same minimum (-286.609733649)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 28.12,
+      "channel": "concerted nucleophilic addition of the amine N to the formaldehyde carbon with synchronous N-H -> O proton transfer; the zwitterionic CH3NH2(+)-CH2-O(-) adduct is not a gas-phase minimum (it collapses to the neutral contact pair). The addition is ACTIVATED: barrier 28.12 kcal/mol referenced to the lowest verified RC minimum (-210.218065728, work_ni1/rc_opt.log), i.e. 20.98 kcal/mol above separated reactants and 40.85 kcal/mol in the reverse direction relative to INT1. The earlier 'barrierless/submerged' reading and the contact-pair proxy saddle (ts/ts_0005, -19.6 cm-1) are withdrawn. Bidirectional IRC from this same saddle with the two outer frames re-optimised to frequency-verified minima is the remaining verification item.",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 58.17,
+      "channel": "uncatalysed neutral 4-membered-ring dehydration. Bidirectional IRC interval bracketed by two frequency-verified minima: reactant side a carbinolamine conformer 0.96 kcal/mol above the declared INT1 reference (work_b/jobs/int1_from_irc_optfreq.log) and product side the imine...water complex 0.07 kcal/mol below the P node (work_b/jobs/p_from_irc_optfreq.log); the barrier is referenced to the lowest verified INT1 minimum as required."
+    },
+    {
+      "id": "e3",
+      "from": "INT1W",
+      "to": "PW",
+      "via": "TS2W",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ],
+          [
+            7,
+            8
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            7,
+            6
+          ],
+          [
+            2,
+            8
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 36.03,
+      "channel": "water-relayed six-membered-ring dehydration with one explicit water that is regenerated. Barrier reference stated explicitly: 36.03 kcal/mol is referenced to the declared INT1.H2O minimum (-286.623702540, work_c/jobs/int1w_optfreq_v2.log); the IRC-connected carbinolamine...water basin is -286.616853395, 4.30 kcal/mol higher, which corresponds to 31.72 kcal/mol. Both numbers must be quoted with the reference they use; the graph uses the lowest verified minimum as the user's rule requires. Status: the saddle (one imaginary frequency at -1227.9 cm-1) and both IRC outer frames re-optimised to frequency-verified minima are on record, but the IRC itself was never extended past 10+10 points and the imaginary mode is 98.8% hydrogen displacement, so this channel is reported as conditional/exploratory, not as an IRC-verified delivery target. Its association energy (16.9 kcal/mol at def2-SVP) is BSSE-inflated.",
+      "favored": true
+    }
+  ]
+}

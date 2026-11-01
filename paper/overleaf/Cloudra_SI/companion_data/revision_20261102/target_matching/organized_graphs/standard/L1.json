@@ -1,0 +1,136 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -155.872632471,
+        "evidence_log": "calc/g_rc_optfreq.log",
+        "note": "cyclobutene pre-reaction minimum (single molecule, no complex partner); B3LYP-D3(BJ)/def2-SVP opt+freq, gas phase, charge 0, singlet, 0 imaginary modes. Reproduced identically by the formal run endpoint (ts/ts_0001/.../reactant_frequency.log, -155.872632465)."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -155.816517932,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0007/frequency/frequency.log",
+        "note": "conrotatory ring-opening saddle, Opt=(TS,calcfc,noeigentest) followed by Freq at B3LYP-D3(BJ)/def2-SVP (this log holds E = -155.816517932 Ha and the single imaginary mode -728.3 cm-1). Formal ts_prepare run ts_0001 verdict = verified: both IRC outer frames optimized to zero-imaginary minima with the declared cyclobutene/butadiene identities.",
+        "ts_opt_log": "ts/ts_0001/jobs/declaration_0007/ts_opt/refine.log"
+      }
+    },
+    {
+      "id": "INT",
+      "role": "intermediate",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -155.886887282,
+        "evidence_log": "calc/ts/g_int_scis_optfreq.log",
+        "note": "s-cis-butadiene, the conformer the IRC product branch relaxes to (opt+freq, 0 imaginary modes). Not a bond-change intermediate; it converts to the s-trans minimum by diene torsion (~3.3 kcal lower)."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -155.892148996,
+        "evidence_log": "calc/g_prod_strans_optfreq.log",
+        "note": "s-trans-butadiene minimum, opt+freq, 0 imaginary modes; lowest-energy butadiene conformer found."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 35.21,
+      "channel": "concerted conrotatory 4-electron ring opening (Woodward-Hoffmann allowed)",
+      "favored": true
+    },
+    {
+      "id": "e2_net_to_strans",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 35.21,
+      "channel": "same saddle; net ring opening followed by s-cis -> s-trans conformer relaxation"
+    },
+    {
+      "id": "e3_sigma_only_description",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 35.21,
+      "channel": "same saddle described only by sigma cleavage plus the new C2=C3 pi bond"
+    }
+  ]
+}

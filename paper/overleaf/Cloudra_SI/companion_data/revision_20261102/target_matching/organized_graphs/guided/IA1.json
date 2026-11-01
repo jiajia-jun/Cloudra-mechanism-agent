@@ -1,0 +1,102 @@
+{
+  "delivery_targets": [
+    "sp_2330d85b",
+    "sp_34cbb128",
+    "step_6a6e5f8f"
+  ],
+  "nodes": [
+    {
+      "id": "sp_2330d85b",
+      "name": "CB_rect_reactant",
+      "role": "reactant",
+      "smiles": [
+        "C1=CC=C1"
+      ],
+      "properties": {
+        "description": "D2h rectangular singlet ground-state minimum of cyclobutadiene (bond-alternating ring), GFN2-xTB, gas phase, charge 0, multiplicity 1",
+        "electronic_energy_hartree": -10.444857444542,
+        "evidence_log": [
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_search/dir_plus/irc_outer.out",
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_search/dir_plus/irc_outer.xyz"
+        ]
+      }
+    },
+    {
+      "id": "sp_fdd873b3",
+      "name": "CB_square_TS",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "D4h square first-order saddle; single imaginary mode is the in-plane b1g ring bond-alternation coordinate",
+        "electronic_energy_hartree": -10.408998801876,
+        "evidence_log": [
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_opt/ts_ohess.out",
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_opt/ts_ohess.xyz",
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_search/ts_freq/ts.out"
+        ]
+      }
+    },
+    {
+      "id": "sp_34cbb128",
+      "name": "CB_rect_product",
+      "role": "product",
+      "smiles": [
+        "C1=CC=C1"
+      ],
+      "properties": {
+        "description": "rectangular minimum with cyclically permuted ring-atom labels (bond-shifted degenerate product)",
+        "electronic_energy_hartree": -10.444857441184,
+        "evidence_log": [
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_search/dir_minus/irc_outer.out",
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_search/dir_minus/irc_outer.xyz"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_6a6e5f8f",
+      "name": "automerization",
+      "from": "sp_2330d85b",
+      "to": "sp_34cbb128",
+      "via": "sp_fdd873b3",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            1
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 22.5,
+      "channel": "automerization (degenerate ring bond-order reversal through the D4h square saddle)",
+      "favored": true,
+      "properties": {
+        "barrier_definition": "dE(double dagger) = E(TS) - E(reactant) = 0.035858642666 Ha = 22.50 kcal/mol; electronic energy only, without ZPE or thermal correction",
+        "evidence_log": [
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_opt/ts_ohess.out",
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_search/ts_freq/ts.out",
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_search/dir_plus/irc_outer.out",
+          "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/IA1/batch_94084d85d0634ca0/ts_search/dir_minus/irc_outer.out"
+        ],
+        "direction_proof": "documented substitute for IRC: the converged saddle was displaced by +/-0.15 A along the Cartesian imaginary-mode direction and both frames were reoptimized with native xtb --ohess (0 imaginary frequencies, opt converged, equal endpoint energies, mass-weighted eigenvector/endpoint overlap +0.978/-0.978). Not an IRC.",
+        "short_irc_status": "open gap: no IRC-capable engine under the xtb-only MethodPolicy (xtb 6.5.0 has no IRC; ts_prepare rejects ts_opt for engine xtb); the four-bond concerted scan is unreachable (ChemTask caps scan coordinates at 2; plain xtb jobs drop a hand-written xcontrol). Documented limitation, not waived.",
+        "method_caveat": "GFN2-xTB semiempirical value; the method overestimates this antiaromatic square saddle relative to correlated results."
+      }
+    }
+  ]
+}

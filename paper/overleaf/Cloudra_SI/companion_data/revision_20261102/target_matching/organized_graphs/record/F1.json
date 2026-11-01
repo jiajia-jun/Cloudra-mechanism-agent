@@ -1,0 +1,67 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[BH4-].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -141.672770833,
+        "evidence_log": "work/endpoints/reactant_endpoint.log",
+        "note": "Gas-phase ion-dipole pre-reaction complex BH4-...H2C=O. This log is the Opt+Freq (B3LYP-D3(BJ)/def2-SVP, Tight/UltraFine) started directly from the canonical reactant-side IRC outer frame: 0 imaginary frequencies, 2 fragments, B...O ~4.4 A, B...C ~3.3 A. An independent five-orientation conformer search (work/minima/) found the same single minimum at -141.672770821 Ha."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -141.609969812,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0005/frequency/frequency.log",
+        "note": "Exactly one imaginary frequency, -875.36 cm-1 (B-H stretch / H migration along the three-centre B-H-C unit; mode aligned with the reaction centre). Late, product-like saddle: B...H 1.929, H...C 1.179, B...O 2.555, C-O 1.306 A."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CO[BH3-]"
+      ],
+      "properties": {
+        "energy_hartree": -141.720758736,
+        "evidence_log": "work/endpoints/product_endpoint.log",
+        "note": "Borane-methoxide adduct CH3O-BH3-; Opt+Freq from the canonical product-side IRC outer frame, 0 imaginary frequencies (B-O 1.49, C-O 1.37, B-O-C 115 deg)."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 39.4,
+      "channel": "single concerted (strongly nonsynchronous) hydride transfer from BH4- to the carbonyl C with simultaneous B-O bond formation to the methoxide O",
+      "favored": true
+    }
+  ]
+}

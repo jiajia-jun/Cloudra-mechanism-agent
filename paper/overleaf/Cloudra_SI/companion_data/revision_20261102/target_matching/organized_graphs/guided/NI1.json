@@ -1,0 +1,209 @@
+{
+  "nodes": [
+    {
+      "id": "RC1",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN"
+      ],
+      "properties": {
+        "energy_hartree": -210.218065844,
+        "evidence_log": "ts/repair/e1_fix/rc1_side_optfreq.log",
+        "note": "Lowest verified minimum of the H2C=O...H2NCH3 reactant complex: the amine-lone-pair-toward-carbonyl-carbon (n->C) contact conformer, C1=O2 1.21 A, C1...N3 2.60 A, O...N 3.08 A, no N-H...O contact; combined opt+freq, 0 imaginary frequencies, reproduced by two independent optimisations (this file and the ts_0001 workflow's own product-side endpoint job). Conformers: the N-H...O hydrogen-bonded complex rc1/c001/rc1_c001.log at -210.217581302 Ha is 0.30 kcal/mol HIGHER; against it the e1 barrier would be 27.8 kcal/mol. rc1/c002 and rc1/pull275 are the same H-bonded minimum; rc1/c000 rejected (1 imaginary frequency)."
+      },
+      "name": "RC1"
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -210.173256653,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+        "imaginary_frequency_cm1": -1481.1,
+        "note": "concerted 4-membered addition saddle: C1...N3 1.59 A, C1-O2 1.32 A, transferring H 1.19 A from N3 / 1.42 A from O2; proton-dominated imaginary mode (heavy-atom weight ~1%). Barrier 28.1 kcal/mol = E(TS1) - E(RC1 lowest minimum -210.218065844); 27.8 kcal/mol against the 0.30 kcal/mol higher N-H...O conformer."
+      },
+      "name": "TS1"
+    },
+    {
+      "id": "Carbinolamine",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO"
+      ],
+      "properties": {
+        "energy_hartree": -210.23788493,
+        "evidence_log": "ts/repair/e1_fix/int1_side_optfreq.log",
+        "note": "Lowest verified carbinolamine minimum CH3-NH-CH2-OH and the barrier reference for e2. Bound to the combined opt+freq log of the minimum reached by the e1 IRC (bare annotation 'smiles: CNCO'), which reproduces the separately optimised int1/A structure to 1.4e-8 Ha; int1/A/int1_A.log, int1/C (+3.92) and int1/D (+3.69 kcal/mol) are the other conformers examined."
+      },
+      "label": "INT1",
+      "name": "Carbinolamine"
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -210.145578627,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0003/frequency/frequency.log",
+        "imaginary_frequency_cm1": -1796.8,
+        "note": "neutral 4-membered dehydration saddle, C1-O2 about 2.0 A, late proton-transferred; proton-dominated imaginary mode (H 0.97, N3-H5 0.81, O2-H5 0.96, C1-O2 0.07). Barrier 57.9 kcal/mol = E(TS2) - E(INT1 lowest)."
+      },
+      "name": "TS2"
+    },
+    {
+      "id": "Imine-water complex",
+      "role": "product",
+      "smiles": [
+        "C=NC.O"
+      ],
+      "properties": {
+        "energy_hartree": -210.223036629,
+        "evidence_log": "p1/A/p1_A.log",
+        "note": "N-methylmethanimine hydrogen-bonded to water (H...N 1.83 A). p1/B2 is a first-order saddle (1 imaginary, -45.5 cm-1), not a conformer. E(P1)-E(INT1) = +9.3 kcal/mol: gas-phase dehydration is uphill."
+      },
+      "label": "P1",
+      "name": "Imine-water complex"
+    },
+    {
+      "id": "Carbinolamine-water complex",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.623702676,
+        "evidence_log": "intw/b3_B2/intw_B2.log",
+        "note": "channel-specific pre-reaction complex of the water-relay route (no incoming graph edge: a barrierless association has no saddle for via), so e3 is comparable to e2 only as an electronic difference. Lowest verified minimum; conformers b3_D -286.623396692, b3_E -286.616853902, b3_C -286.612158484. This lowest pose is NOT the cyclic bridging pose: the water sits on the amine N (Ow-H...N3 1.93 A; water O 4.21 A from the hydroxyl O), so the 36.4 kcal/mol barrier includes the conformational pre-organisation into the bridging pose. IRC-reached complex = -286.617502946 Ha, 3.9 kcal/mol above this minimum (that reference gives 32.5 kcal/mol)."
+      },
+      "label": "INTw",
+      "name": "Carbinolamine-water complex"
+    },
+    {
+      "id": "TS2w",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.565648653,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "imaginary_frequency_cm1": -1272.5,
+        "note": "water-relay dehydration saddle (6-membered ring): C...O 2.0 A, C-N 1.35 A; imaginary mode is the N-H / water O-H / O2-H relay (heavy-atom weight ~1%)."
+      },
+      "name": "TS2w"
+    },
+    {
+      "id": "Imine-dihydrate complex",
+      "role": "product",
+      "smiles": [
+        "C=NC.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.60840791,
+        "evidence_log": "s2w_fix/tgt_optfreq.log",
+        "note": "imine + 2 H2O as a water chain to the imine N. Alternative arrangement pw/pw_alt6b -286.606972411 is 0.9 kcal/mol higher. E(Pw)-E(INTw lowest) = +9.4 kcal/mol. Bound to the combined opt+freq log of the same minimum whose input carries the bare annotation line 'smiles: C=NC.O.O' (identical energy); the ts_prepare endpoint log it was previously bound to carried no smiles token."
+      },
+      "label": "Pw",
+      "name": "Imine-dihydrate complex"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC1",
+      "to": "Carbinolamine",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 28.1,
+      "channel": "neutral concerted addition (C-N attack with N-H -> carbonyl O relay); barrier = E(TS1) - E(lowest reactant-complex minimum, the n->C contact conformer -210.218065844) = 28.1 kcal/mol; 27.8 kcal/mol against the 0.30 kcal/mol higher N-H...O hydrogen-bonded conformer"
+    },
+    {
+      "id": "e2",
+      "from": "Carbinolamine",
+      "to": "Imine-water complex",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            6
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 57.9,
+      "channel": "neutral concerted dehydration (4-membered ring); barrier = E(TS2) - E(INT1 lowest) = 57.9 kcal/mol; rate-determining step of the neutral path (proton transferred in this step is the remaining N-H, atom H6, because e1 already moved H5 onto O2)"
+    },
+    {
+      "id": "e3",
+      "from": "Carbinolamine-water complex",
+      "to": "Imine-dihydrate complex",
+      "via": "TS2w",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            6
+          ],
+          [
+            7,
+            8
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            7,
+            6
+          ],
+          [
+            2,
+            8
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 36.4,
+      "channel": "explicit-water relay dehydration (general-acid mimic; relay water = O7/H8/H9); barrier = E(TS2w) - E(INTw lowest b3_B2) = 36.4 kcal/mol (32.5 kcal/mol from the IRC-reached INTw pose). This is the cheaper of the two dehydration channels, i.e. the arm consistent with the pH 4-6 optimum. (relay transfers the remaining N-H, atom H6; H5 already sits on O2 after e1)"
+    }
+  ]
+}

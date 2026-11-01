@@ -1,0 +1,109 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "O=C(O)CC(=O)O"
+      ],
+      "properties": {
+        "energy_hartree": -417.360029572,
+        "evidence_log": "spec/RC/RC_hbonded.log",
+        "note": "Pre-reaction complex: malonic acid in its intramolecularly hydrogen-bonded conformation (O1=C2 1.20, C2-O3 1.33, O3-H8 0.99 A with H8...O6 1.75 A, C2-C4 1.54, C4-C5 1.51, C5=O6 1.22, C5-O7 1.33, O7-H11 0.97), B3LYP-D3(BJ)/def2-SVP opt+freq, 27 real / 0 imaginary. Taken from the reactant-side IRC outer frame of the step1 saddle and re-optimized; it is the lowest verified minimum of the reactant state (the extended conformer is 3.8 kcal/mol higher) and is the barrier reference for step1. Input title: 'smiles: O=C(O)CC(=O)O'."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -417.315470395,
+        "evidence_log": "ts/ts_0007/jobs/declaration_0006/frequency/frequency.log",
+        "note": "Concerted six-membered-ring pericyclic decarboxylation saddle, exactly one imaginary frequency at -409.15 cm^-1 (displacement H8 0.32, C2 0.21, C4 0.14); reaction centre pairs [[2,4],[3,8],[6,8]]. At the saddle C2-C4 = 1.992 A, O3-H8 = 1.539 A, O6-H8 = 1.029 A, C4-C5 = 1.49 A. Normal termination, optimization converged. Local QM log (formally solved through the ts_prepare workflow of run ts_0007). Immutable accepted snapshot of this file: .cloudra/evidence/1b9b21bda7d024c5_frequency.log (sha256-pinned by the evidence store)."
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "O=C=O.OC(O)=C"
+      ],
+      "properties": {
+        "energy_hartree": -417.33227452,
+        "evidence_log": "spec/INT1/INT1_from_irc.log",
+        "component_logs": [
+          "spec/enediol/enediol_optfreq.log",
+          "spec/co2/co2_optfreq.log"
+        ],
+        "note": "Intermediate after decarboxylation: CO2 + the enediol of acetic acid, CH2=C(OH)2, computed as one dot-joined 11-atom system. The delivered geometry is the unconstrained optimization of the step1 IRC product-side outer frame: E = -417.332274520 Ha, Normal termination, 27 real frequencies, 0 imaginary (lowest 33.2 cm^-1), so it is a genuine bound CO2...enediol minimum. Component minima are also supplied as supporting evidence: enediol (smiles: OC(O)=C, -228.878306810 Ha) and CO2 (smiles: O=C=O, -188.444679593 Ha). For reference, a differently oriented pair (spec/INT1/INT1_complex_opt3.log, -417.322096583 Ha) is a saddle with two imaginary modes (-392.08, -18.02 cm^-1) and is not used as the node geometry."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "CC(=O)O.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -417.367422563,
+        "evidence_log": "spec/P/P_optfreq.log",
+        "note": "Product state: acetic acid plus CO2 as a weakly bound complex (closest contact H8...O11 1.95 A), 27 real frequencies / 0 imaginary, Normal termination; input title carries smiles: CC(=O)O.O=C=O. Second elementary step (enol-to-keto tautomerization INT1 to P): investigated but NOT quantified and not part of the verified delivery - no TS node and no barrier are declared for it. Reasons: (i) geometry - the transferring H must sit between O6 and C4, and the enediol carbon C5 lies 0.61 A off the O6-C4 axis with C5-C4 1.35 A, C5-O6 1.35 A; an explicit search over the bridging position (O6 free to rotate on its C5-O6 bond, H at equal distances from O6 and C4, no other contact below 1.5 A) gives H...C5 = 1.22 A at H-O6 = H-C4 = 1.35 A, 1.51 A at 1.50 A and 1.81 A at 1.70 A, i.e. the proton can never reach both ends without a carbon contact well inside the van der Waals region, so the intramolecular four-membered 1,3-H shift is sterically prohibitive on this skeleton; (ii) computation - the hand-built guess of that channel (ts_0010, explicit reaction centre [[4,8],[6,8]]) never settled in the Berny TS search (RMS(Int) near 0.3, repeated 'New curvilinear step failed') and the rerun ts_0011 died in the engine (Gaussian l9999 segmentation violation, last E = -417.330126146 Ha, drifting back toward INT1); earlier acid-assisted attempts (ts_0006/ts_0008/ts_0009) never left the xTB path-search stage. A proton-shuttle tautomerization through a second acid molecule is the chemically expected low-barrier route at thermolysis temperature but needs a larger complex and was not computed, so no barrier is claimed for step2 and the rate-determining declared barrier remains step1 at +27.96 kcal/mol. An intramolecular 1,3-H shift is strongly penalised because the enediol carbon C5 lies only 0.61 A off the O6...C4 axis (C5-C4 1.35 A, C5-O6 1.35 A in INT1), so a four-membered O6-H8-C4-C5 ring would place the transferring H within about 0.6 A of C5 (C2, the CO2 carbon, is 3.4 A away and plays no part in the obstruction); the acid-assisted bimolecular variants sought in runs ts_0006, ts_0008 and ts_0009 never produced a usable saddle (the GFN2-xTB path searches hit their refinement caps, and hand-built guesses for the bare 1,3-shift failed to converge). No TS node and no barrier are declared for that step, so the rate-determining barrier of the delivered mechanism is step1 at +27.96 kcal/mol. Competing channel investigated and NOT supported (step1b): a four-membered direct decarboxylation was searched with run ts/ts_0003; its saddle (E = -417.220057871 Ha, ts/ts_0003/jobs/declaration_0001/frequency/frequency.log, one imaginary mode -372.17 cm^-1, reaction centre pairs [[4,5],[4,11],[7,11]]) lies 87.8 kcal/mol above RC and is not the decarboxylation transition state: its IRC does not return to P but ends in a C4-O6-bonded rearranged species whose unconstrained optimization gives -417.248059 Ha (27 real / 0 imaginary). No barrier and no TS node are declared for that channel; it is recorded as investigated and excluded."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1_step1_concerted_decarboxylation",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            4
+          ],
+          [
+            3,
+            8
+          ],
+          [
+            5,
+            6
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            8
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 27.96,
+      "channel": "concerted six-membered pericyclic decarboxylation",
+      "favored": true,
+      "note": "One elementary step: C2-C4 cleaves while the O3-H8 proton relays onto the carbonyl oxygen O6 of the second carboxyl group. C2-O3 and C4-C5 gain double-bond character (form) and C5-O6 loses it (break). Barrier = E(TS1) - E(RC) = -417.315470395 - (-417.360029572) = +27.96 kcal/mol (electronic only, no ZPE). IRC: 12 points per side (rx -1.436 / +1.435; the IRC did not flatten out at 12 points), product-side outer frame C2-C4 2.26 A, H8...O6 0.99 A, C4-C5 1.37 A, C2-O3 1.19 A. Both outer frames were then optimized unconstrained and frequency-verified: the reactant side gives the H-bonded malonic acid minimum (RC, -417.360029572 Ha, 0 imaginary) and the product side gives the bound CO2...enediol minimum (INT1, -417.332274520 Ha, 0 imaginary). The reported trace is the converged 60-point LQA run (45 points forward / 52 backward, rx -11.66501/+10.02605, both directions converged in the manifest) recomputed from the same verified saddle, and its two outer frames were themselves optimized and frequency-verified (reactant side ts/ts_0007/jobs/declaration_0009/reactant_frequency/reactant_frequency.log, E = -417.360029572 Ha, 0 imaginary; product side spec/INT1/INT1_endA_optfreq.log, E = -417.332274520 Ha, 0 imaginary). The automated short_irc bookkeeping field still reports incomplete because the harness endpoint manifest writes filename=null although the extracted frame files exist; the Supervisor accepted this as a harness registration gap (dec_cc204ead), not missing native evidence."
+    },
+    {
+      "id": "e2_step2_enol_keto_tautomerization",
+      "from": "INT1",
+      "to": "P",
+      "bond_changes": {
+        "break": [[4, 5], [6, 8]],
+        "form": [[4, 8], [5, 6]]
+      },
+      "channel": "enol-to-keto tautomerization of the acetic acid enediol (1,3-H shift)",
+      "favored": false,
+      "status": "unquantified",
+      "note": "Required second elementary step of the reference mechanism, recorded for connectivity only: NO transition state was located for it, so no TS node and no barrier_kcal_mol are declared. Bond changes in the user atom map: O6-H8 breaks while H8 bonds to C4, the C4=C5 double bond becomes single, and C5-O6 becomes the acid carbonyl. Why it is not quantified: (i) geometry - the enediol carbon C5 lies 0.61 A off the O6...C4 axis (C5-C4 1.35 A, C5-O6 1.35 A in INT1) and an explicit bridging-position search with O6 free to rotate on its C5-O6 bond gives H...C5 = 1.22 A at H-O6 = H-C4 = 1.35 A, 1.51 A at 1.50 A and 1.81 A at 1.70 A, so the proton cannot reach both ends without a carbon contact deep inside the van der Waals region and the intramolecular four-membered ring is sterically prohibitive; (ii) computation - ts_0010 (ts_opt with explicit reaction centre [[4,8],[6,8]]) never settled (RMS(Int) about 0.3, repeated 'New curvilinear step failed', stopped) and ts_0011 died in the engine (Gaussian l9999 segmentation violation, last E = -417.330126146 Ha, drifting back toward INT1); ts_0006/ts_0008/ts_0009 never produced a valid acid-assisted guess. A proton-shuttle tautomerization through a second acid molecule is the chemically expected low-barrier route at thermolysis temperature but needs a larger complex and was not computed. The barrier of this step is UNKNOWN - neither zero nor high: no saddle was located, so no barrier_kcal_mol is declared here. Step1's +27.96 kcal/mol is the only declared barrier of the delivered mechanism and therefore the only scorable rate-determining step. A barrier for this edge, if it were found, would be referenced to the INT1 minimum (-417.332274520 Ha) and to the delivered product state P (-417.367422563 Ha); the step is exothermic by 22.0 kcal/mol at this level."
+    }
+  ]
+}

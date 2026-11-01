@@ -1,0 +1,62 @@
+{
+  "nodes": [
+    {
+      "id": "T1_triangulene",
+      "role": "reactant",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "properties": {
+        "name": "triangulene T1 (triplet, S=1, 2S+1=3)",
+        "spin_multiplicity": 3,
+        "electronic_state": "triplet (two unpaired electrons, S=1)",
+        "singlet_triplet_gap_kcal_mol": 46.8,
+        "state_ordering": "triplet (T1, 2S+1=3) below singlet (S0, 2S+1=1)",
+        "singlet_triplet_gap_definition": "adiabatic electronic energy difference E(S0, restricted closed-shell PM7 minimum) - E(T1, UPM7 minimum), both at their own PM7/Gaussian16 optimized minimum, gas phase, charge 0. ZPE-corrected value 47.3 kcal/mol.",
+        "singlet_triplet_gap_reliability": "semiempirical (PM7) value; the only singlet accessible under the xtb/pm7 policy is the restricted closed-shell one (Gaussian RPM7; unrestricted UPM7 is blocked by the method policy). GFN2-xTB gives -1.6 kcal/mol for the same restricted comparison, i.e. the two semiempirical Hamiltonians disagree by ~48 kcal/mol, so the magnitude is qualitative. The ordering (triplet ground state) is robust: it follows Ovchinnikov's rule for alternant non-Kekule PAHs and the two-orbital open-shell analysis (open-shell singlet lies ~2K above the triplet).",
+        "singlet_triplet_gap_xtb_kcal_mol": -1.6,
+        "expected_physical_gap_kcal_mol": "small, roughly 1-5 kcal/mol (0.05-0.2 eV), triplet lower - not resolvable at the allowed semiempirical level",
+        "evidence_log": [
+          "g16_pm7_triplet.log",
+          "triplet_xtb.out"
+        ],
+        "geometry": "gas-phase PM7 minimum, 34 atoms (C22H12), 0 imaginary frequencies, all C-C 1.39-1.43 A, planar delocalized",
+        "accessible": true
+      }
+    },
+    {
+      "id": "S0_triangulene",
+      "role": "intermediate",
+      "smiles": [
+        "[CH]1C2=C3C(=CC=C2)[CH]C4=CC=CC5=C4C3=C6C1=CC=CC6=C5"
+      ],
+      "properties": {
+        "name": "triangulene S0 (singlet, 2S+1=1)",
+        "spin_multiplicity": 1,
+        "electronic_state": "closed-shell singlet as delivered by the restricted semiempirical wavefunction (RPM7 / restricted GFN2-xTB)",
+        "energy_pm7_hartree": 0.220288152532,
+        "energy_xtb_hartree": -53.235665554881,
+        "evidence_log": [
+          "g16_pm7_singlet.log",
+          "singlet_xtb.out"
+        ],
+        "reliability": "the exact open-shell (broken-symmetry) singlet cannot be computed at the allowed level (UPM7 rejected by the method policy; GFN2-xTB has no broken-symmetry option), so this node is the restricted closed-shell singlet reference, itself a converged minimum with 0 imaginary frequencies",
+        "geometry": "gas-phase PM7 minimum, 34 atoms, 0 imaginary frequencies, C-C 1.39-1.44 A (same delocalized framework as T1)",
+        "accessible": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "T1_triangulene",
+      "to": "S0_triangulene",
+      "via": null,
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "spin recoupling / intersystem crossing (no bond making or breaking)"
+    }
+  ]
+}

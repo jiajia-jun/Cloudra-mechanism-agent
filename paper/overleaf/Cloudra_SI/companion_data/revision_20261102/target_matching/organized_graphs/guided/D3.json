@@ -1,0 +1,125 @@
+{
+  "nodes": [
+    {
+      "id": "sp_07fda5c4",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.C1=CCC=C1"
+      ],
+      "properties": {
+        "label": "RC endo pi-complex of two cyclopentadienes",
+        "description": "endo face-to-face pre-reaction pi-complex of two intact cyclopentadienes (single dot-joined complex node). B3LYP-D3(BJ)/def2-SVP minimum; 0 imaginary frequencies (lowest 20.2 cm-1); forming C...C contacts 3.386/3.444 A; this job is the Opt+Freq started from the IRC reactant-side outer frame (input coordinate-identical to ...end-a.xyz); E = -4.56 kcal/mol below two separated monomers.",
+        "energy_hartree": -387.964270202,
+        "evidence_log": "gjf/RC_min.log"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "C1=CCC=C1.C1=CCC=C1"
+      ],
+      "properties": {
+        "label": "TS1 concerted endo Diels-Alder transition state",
+        "description": "concerted (asynchronous) endo Diels-Alder transition state; exactly one imaginary frequency -473.3456 cm-1 whose mode couples both new sigma bonds (top atoms 1,10,6,4; watch-pair projection 0.969 for 1-10 and 0.702 for 4-6); final-geometry forming bonds 2.098/2.390 A; endo face preserved.",
+        "energy_hartree": -387.935351329,
+        "evidence_log": "gjf/TS_endo_v1.log"
+      }
+    },
+    {
+      "id": "sp_51150db0",
+      "role": "product",
+      "smiles": [
+        "C12C=CC(C1)C1C=CCC12"
+      ],
+      "properties": {
+        "label": "endo-dicyclopentadiene product",
+        "description": "endo-dicyclopentadiene (tricyclo[5.2.1.0^2,6]deca-3,8-diene) minimum; Opt+Freq started from the IRC product-side outer frame (input coordinate-identical to ...end-b.xyz); 0 imaginary frequencies (lowest 142.8 cm-1); reproduces the independently built minimum gjf/P_min.log (-387.996736503 Ha) to 1.5e-7 Ha; E = -24.93 kcal/mol below two separated cyclopentadienes.",
+        "energy_hartree": -387.996736648,
+        "evidence_log": "gjf/P_min_check.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "step_139cce16",
+      "from": "sp_07fda5c4",
+      "to": "sp_51150db0",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ]
+        ]
+      },
+      "channel": "endo",
+      "favored": true
+    },
+    {
+      "id": "endo_barrier_measurement",
+      "from": "sp_07fda5c4",
+      "to": "sp_51150db0",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            6,
+            7
+          ]
+        ],
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            6
+          ],
+          [
+            4,
+            7
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 18.15,
+      "channel": "endo",
+      "favored": true,
+      "properties": {
+        "note": "same elementary step as step_139cce16; recorded separately because the DAG short_irc machine stage is incomplete (harness TARGET-slot perception), and a barrier may not be declared on a step whose machine checks are open. Barrier = (E_TS - E_RC)*627.5095 = (-387.935351329 + 387.964270202)*627.5095 = 18.15 kcal/mol, electronic, using the optimized TS (gjf/TS_endo_v1.log) and the lowest verified pre-reaction complex minimum (gjf/RC_min.log)."
+      }
+    }
+  ]
+}

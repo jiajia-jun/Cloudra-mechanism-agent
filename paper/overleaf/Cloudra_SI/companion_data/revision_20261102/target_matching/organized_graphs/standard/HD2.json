@@ -1,0 +1,108 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1CCC2OC2C1.[OH-]"
+      ],
+      "properties": {
+        "energy_hartree": -385.444620188,
+        "evidence_log": "rc_opt_freq.log",
+        "note": "pre-reaction ion-dipole complex (one dot-joined complex): HO- on the face opposite the epoxide O, d(O(H-)-C1)=3.81 A; lowest of three converged conformers (rc_c1/c2/c4_opt_freq.log, all -385.4446202); soft modes -23/-9 cm-1"
+      }
+    },
+    {
+      "id": "TS_anti",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.416818857,
+        "evidence_log": "ts_trans_smd2_freq.log",
+        "note": "anti/backside (Walden inversion) TS, SMD water model: verified stationary point, exactly 1 imaginary frequency -419.37 cm-1, Normal termination. Loose saddle with d(C1-Od)=2.67 A that retains an Od-H...O(epoxide) contact and lies ~70 kcal/mol above the contact basin, i.e. on the ion-pair approach / continuum-cavity-merging coordinate; identified structurally, not IRC-verified"
+      }
+    },
+    {
+      "id": "P_trans",
+      "role": "product",
+      "smiles": [
+        "C1CC[C@H]([C@@H](C1)O)[O-]"
+      ],
+      "properties": {
+        "energy_hartree": -385.561128053,
+        "evidence_log": "p_trans_opt_freq.log",
+        "note": "trans-2-hydroxycyclohexan-1-olate, NImag=0, geometry-verified diequatorial (H-C1-C2-H dihedral -171 deg)"
+      }
+    },
+    {
+      "id": "TS_syn",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -385.452658417,
+        "evidence_log": "ts_cis_smd2_freq.log",
+        "note": "syn/frontside (retention) TS, SMD water model: verified stationary point, exactly 1 imaginary frequency -491.70 cm-1, Normal termination. Loose saddle, d(C1-Od)=2.39 A, ~47 kcal/mol above the contact basin; its lower energy relative to the anti TS is a continuum-model artefact (see REPORT.md section 3), not evidence that cis-1,2 is the major product"
+      }
+    },
+    {
+      "id": "P_cis",
+      "role": "product",
+      "smiles": [
+        "C1CC[C@@H]([C@@H](C1)O)[O-]"
+      ],
+      "properties": {
+        "energy_hartree": -385.563093915,
+        "evidence_log": "p_cis_opt_freq.log",
+        "note": "cis-2-hydroxycyclohexan-1-olate, NImag=0, geometry-verified H-C1-C2-H dihedral +36 deg"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P_trans",
+      "via": "TS_anti",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 17.45,
+      "channel": "anti (backside) attack at C1 -> trans-1,2 (Walden inversion)",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "RC",
+      "to": "P_cis",
+      "via": "TS_syn",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": -5.04,
+      "channel": "syn (frontside) attack at C1 -> cis-1,2 (retention)",
+      "favored": false
+    }
+  ]
+}

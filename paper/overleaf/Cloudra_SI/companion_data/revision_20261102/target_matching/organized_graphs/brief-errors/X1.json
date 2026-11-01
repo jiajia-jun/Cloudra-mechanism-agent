@@ -1,0 +1,77 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "O=C1OCC1"
+      ],
+      "properties": {
+        "energy_hartree": -266.965168387,
+        "evidence_log": "min/rc_opt_freq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "note": "beta-propiolactone pre-reaction state (unimolecular reaction, no bimolecular complex). Opt+Freq, 0 imaginary frequencies, lowest real mode 185.4 cm-1."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "O=C1OCC1"
+      ],
+      "properties": {
+        "energy_hartree": -266.899927433,
+        "evidence_log": "ts/ts_opt_freq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "imaginary_frequency_cm1": -893.8286,
+        "note": "Concerted, strongly asynchronous 4-centre retro-[2+2] cycloreversion saddle. r(C2-C5)=1.844 A, r(O3-C4)=2.067 A, r(C2-O3)=1.247 A, r(C4-C5)=1.404 A, r(O1-C2)=1.185 A, ring near-planar. One imaginary mode: C2-C5 + O3-C4 stretch with C2-O3 and C4-C5 contraction."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=C.O=C=O"
+      ],
+      "properties": {
+        "energy_hartree": -266.984903932,
+        "evidence_log": "min/prod_opt_freq.log",
+        "method": "B3LYP-D3(BJ)/def2-SVP, Gaussian 16, gas phase",
+        "note": "ethene...CO2 van der Waals minimum (parallel sandwich, r(C...C)=3.281 A), 0 imaginary frequencies, lowest real mode 30.8 cm-1."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 40.94,
+      "channel": "concerted asynchronous retro-[2+2] cycloreversion",
+      "favored": true
+    }
+  ]
+}

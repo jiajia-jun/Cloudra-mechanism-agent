@@ -1,0 +1,97 @@
+{
+  "nodes": [
+    {
+      "id": "RC_chair",
+      "role": "reactant",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "chair conformer (C6H12, D3d-like ring torsions +/-54.7 deg)",
+        "energy_hartree": -235.73732431,
+        "evidence_log": "g/chairmin_optfreq.log",
+        "n_imag": 0
+      }
+    },
+    {
+      "id": "TS1_halfchair",
+      "role": "transition_state",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "half-chair saddle for chair -> twist-boat; one imaginary mode -243.1 cm^-1",
+        "energy_hartree": -235.718026707,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+        "imaginary_frequency_cm": -243.1236
+      }
+    },
+    {
+      "id": "INT1_twistboat",
+      "role": "intermediate",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "twist-boat conformer (C2; ring torsions 30.7/-63.8/30.7 deg); a second pseudorotameric twist-boat minimum at -235.726931214 Ha (g/ep_e2_a.log) is 0.005 kcal/mol lower",
+        "energy_hartree": -235.726923132,
+        "evidence_log": "g/chair_optfreq.log",
+        "n_imag": 0
+      }
+    },
+    {
+      "id": "TS2_halfchair",
+      "role": "transition_state",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "half-chair saddle for twist-boat -> flipped chair; symmetry-equivalent to TS1 (same geometry under a ring-index shift), i.e. the same chair <-> twist-boat connection entered from its other side",
+        "energy_hartree": -235.718026707,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0002/frequency/frequency.log",
+        "imaginary_frequency_cm": -243.1236
+      }
+    },
+    {
+      "id": "P_chair",
+      "role": "product",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "name": "flipped chair conformer (same chair conformer as RC_chair, ring relabelled)",
+        "energy_hartree": -235.737323446,
+        "evidence_log": "g/ep_e2_b.log",
+        "n_imag": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC_chair",
+      "to": "INT1_twistboat",
+      "via": "TS1_halfchair",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 12.11,
+      "channel": "conformational ring inversion (chair -> half-chair TS -> twist-boat)",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "INT1_twistboat",
+      "to": "P_chair",
+      "via": "TS2_halfchair",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 5.58,
+      "channel": "conformational ring inversion (twist-boat -> half-chair TS -> flipped chair); TS2 is the symmetry-equivalent half-chair of the same connection",
+      "favored": true
+    }
+  ]
+}

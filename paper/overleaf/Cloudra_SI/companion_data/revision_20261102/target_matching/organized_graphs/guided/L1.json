@@ -1,0 +1,103 @@
+{
+  "nodes": [
+    {
+      "id": "RC_cyclobutene",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC1"
+      ],
+      "properties": {
+        "energy_hartree": -155.87263248,
+        "evidence_log": "species/RC_cyclobutene_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase, restricted (E(RB3LYP))",
+        "description": "Cyclobutene minimum. The pre-reaction complex of this unimolecular ring opening is cyclobutene itself; no separate complex exists.",
+        "n_imag": 0,
+        "frequency_max_cm1": 324.41
+      },
+      "name": "RC_cyclobutene"
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -155.816517681,
+        "evidence_log": "ts/TS_optfreq_combined.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase, restricted (E(RB3LYP))",
+        "description": "C2-symmetric conrotatory saddle. One imaginary frequency -728.30 cm^-1 (terminal methylene rotation coupled to C3-C4 cleavage). r(C1=C2)=1.379, r(C1-C4)=r(C2-C3)=1.429, r(C3-C4)=2.143 A; the two methylene torsions are equal in magnitude and opposite in sense.",
+        "n_imag": 1,
+        "imaginary_frequency_cm1": -728.3,
+        "combined_opt_freq_note": "Single native Gaussian log with Opt=(TS,CalcFC,NoEigentest)+Freq at the workflow-verified saddle geometry: Stationary point found, 1 imaginary frequency (-728.30 cm^-1), E = -155.816517681 Ha. Cross-checked against ts/ts_0001/jobs/declaration_0004/frequency/frequency.log (same energy) and the workflow's verified TS verdict."
+      },
+      "name": "TS1"
+    },
+    {
+      "id": "P_butadiene",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "properties": {
+        "energy_hartree": -155.886887311,
+        "evidence_log": "species/P_butadiene_optfreq.log",
+        "level_of_theory": "B3LYP-D3(BJ)/def2-SVP, gas phase, restricted (E(RB3LYP))",
+        "description": "s-cis-butadiene minimum (the conformer actually reached by the conrotatory IRC; C4-C1-C2-C3 dihedral about -27 deg). Not substituted by any s-trans value.",
+        "n_imag": 0,
+        "frequency_max_cm1": 138.68
+      },
+      "name": "P_butadiene"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC_cyclobutene",
+      "to": "P_butadiene",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 35.21,
+      "channel": "conrotatory",
+      "favored": true,
+      "properties": {
+        "barrier_definition": "DeltaE(double dagger) = E(TS1) - E(RC) in kcal/mol, electronic energies only, no ZPE or thermal correction",
+        "reaction_energy_kcal_mol": -8.95,
+        "src_minimum_log": "species/RC_cyclobutene_optfreq.log",
+        "target_minimum_log": "species/P_butadiene_optfreq.log",
+        "ts_frequency_log": "ts/TS_optfreq_combined.log",
+        "ts_opt_log": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+        "irc_log": "ts/ts_0001/jobs/declaration_0004/irc/irc.log",
+        "bond_change_rationale": "Atom map labels from [CH:1]1=[CH:2][CH2:3][CH2:4]1. Over the step the C1=C2 pi bond drops to the central single bond of butadiene (2 -> 1, break [1,2]), the C3-C4 ring sigma bond is fully cleaved (1 -> 0, break [3,4]), and the two terminal double bonds C1=C4 and C2=C3 are formed (1 -> 2, form [1,4] and [2,3]).",
+        "workflow_logs": {
+          "ts_frequency": "ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+          "ts_opt": "ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+          "irc": "ts/ts_0001/jobs/declaration_0004/irc/irc.log",
+          "source_minimum_from_irc_frame_a": "species/RC_optfreq_ircframe.log",
+          "target_minimum_from_irc_frame_b": "species/P_optfreq_ircframe.log"
+        }
+      },
+      "name": "Conrotatory ring opening",
+      "step_name": "Conrotatory ring opening"
+    }
+  ]
+}

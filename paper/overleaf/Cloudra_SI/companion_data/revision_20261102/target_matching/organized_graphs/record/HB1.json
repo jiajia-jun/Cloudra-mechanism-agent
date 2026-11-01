@@ -1,0 +1,158 @@
+{
+  "nodes": [
+    {
+      "id": "RC-endo",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.O=C1OC(=O)C=C1"
+      ],
+      "properties": {
+        "description": "endo pi-complex: maleic anhydride stacked over the cyclopentadiene face with the anhydride ring on the C7 (CH2-bridge) side, r(C...C) 3.21 A",
+        "evidence_log": "rc2/rc_endo_optfreq.log",
+        "energy_hartree": -573.020556348,
+        "n_imag": 0
+      }
+    },
+    {
+      "id": "RC-exo",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.O=C1OC(=O)C=C1"
+      ],
+      "properties": {
+        "description": "exo pi-complex: same stacking but with the anhydride ring rotated toward the C2=C3 side, r(C...C) 3.10 A",
+        "evidence_log": "rc2/rc_exo_optfreq.log",
+        "energy_hartree": -573.022413801,
+        "n_imag": 0
+      }
+    },
+    {
+      "id": "TS-endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "concerted endo transition state; one imaginary frequency -398.47 cm-1 (symmetric stretch of the two forming C-C bonds); forming distances 2.228/2.228 A; anhydride centroid 2.99 A from the C7 bridge",
+        "evidence_log": "ts/ts_0008/jobs/declaration_0001/frequency/frequency.log",
+        "energy_hartree": -573.003058434,
+        "n_imag": 1
+      }
+    },
+    {
+      "id": "TS-exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "description": "concerted exo transition state; one imaginary frequency -406.23 cm-1; forming distances 2.200/2.200 A; anhydride centroid 3.88 A from the C7 bridge",
+        "evidence_log": "ts/ts_0009/jobs/declaration_0001/frequency/frequency.log",
+        "energy_hartree": -573.005726049,
+        "n_imag": 1
+      }
+    },
+    {
+      "id": "P-endo",
+      "role": "product",
+      "smiles": [
+        "O=C1OC(=O)[C@H]2[C@@H]1[C@@H]1C=C[C@H]2C1"
+      ],
+      "properties": {
+        "description": "endo bicyclic adduct, anhydride syn to the C7 methanobridge",
+        "evidence_log": "prod/prod_endo_optfreq.log",
+        "energy_hartree": -573.057256395,
+        "n_imag": 0
+      }
+    },
+    {
+      "id": "P-exo",
+      "role": "product",
+      "smiles": [
+        "O=C1OC(=O)[C@H]2[C@@H]1[C@H]1C=C[C@@H]2C1"
+      ],
+      "properties": {
+        "description": "exo bicyclic adduct, anhydride anti to the C7 methanobridge",
+        "evidence_log": "prod/prod_exo_optfreq.log",
+        "energy_hartree": -573.057094047,
+        "n_imag": 0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-endo",
+      "from": "RC-endo",
+      "to": "P-endo",
+      "via": "TS-endo",
+      "bond_changes": {
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            11
+          ],
+          [
+            4,
+            12
+          ]
+        ],
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            11,
+            12
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 10.98,
+      "channel": "endo",
+      "favored": true
+    },
+    {
+      "id": "e-exo",
+      "from": "RC-exo",
+      "to": "P-exo",
+      "via": "TS-exo",
+      "bond_changes": {
+        "form": [
+          [
+            1,
+            5
+          ],
+          [
+            2,
+            11
+          ],
+          [
+            4,
+            12
+          ]
+        ],
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            11,
+            12
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 10.47,
+      "channel": "exo",
+      "favored": false
+    }
+  ]
+}

@@ -1,0 +1,137 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "CC1CC=C1"
+      ],
+      "properties": {
+        "label": "3-methylcyclobutene — pre-reaction minimum (unimolecular, the reactant complex is the substrate itself)",
+        "energy_hartree": -195.165893788,
+        "imaginary_frequencies": [],
+        "evidence_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0001/jobs/declaration_0005/reactant_frequency/reactant_frequency.log"
+      }
+    },
+    {
+      "id": "TS_E",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "conrotatory saddle with the methyl rotating outward (C1-C2-C5-C4 = 132.9 deg, evolving to 178 deg)",
+        "energy_hartree": -195.113158601,
+        "imaginary_frequency_cm_1": -633.3205,
+        "evidence_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+        "opt_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0001/jobs/declaration_0004/ts_opt/refine.log",
+        "irc_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0001/jobs/declaration_0004/irc/irc.log",
+        "guess_scan": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0001/jobs/declaration_0003/scan/scan-task.chem-result.json"
+      }
+    },
+    {
+      "id": "TS_Z",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "label": "diastereomeric conrotatory saddle with the methyl rotating inward (C1-C2-C5-C4 = 77.1 deg, evolving to 2 deg)",
+        "energy_hartree": -195.104048324,
+        "imaginary_frequency_cm_1": -682.6578,
+        "evidence_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0002/jobs/declaration_0005/frequency/frequency.log",
+        "opt_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0002/jobs/declaration_0005/ts_opt/refine.log",
+        "irc_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0002/jobs/declaration_0005/irc/irc.log",
+        "guess_scan": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0002/jobs/declaration_0005/scan/scan-task.chem-result.json"
+      }
+    },
+    {
+      "id": "P_E",
+      "role": "product",
+      "smiles": [
+        "C/C=C/C=C"
+      ],
+      "properties": {
+        "label": "(E)-1,3-pentadiene — methyl trans to the vinyl chain (C1-C2-C5-C4 = 178.3 deg at the minimum)",
+        "energy_hartree": -195.182552014,
+        "imaginary_frequencies": [],
+        "evidence_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0001/jobs/declaration_0005/product_frequency/product_frequency.log"
+      }
+    },
+    {
+      "id": "P_Z",
+      "role": "product",
+      "smiles": [
+        "C/C=C\\C=C"
+      ],
+      "properties": {
+        "label": "(Z)-1,3-pentadiene — methyl cis to the vinyl chain (C1-C2-C5-C4 = 1.9 deg at the minimum)",
+        "energy_hartree": -195.180953788,
+        "imaginary_frequencies": [],
+        "evidence_log": "/home/ly/cloudra-p2c-20261025/record/r1/sandboxes/HA1/batch_76e567788441411d/ts/ts_0002/jobs/declaration_0005/product_frequency/product_frequency.log"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_E",
+      "from": "RC",
+      "to": "P_E",
+      "via": "TS_E",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 33.09,
+      "channel": "conrotatory-E (methyl outward)",
+      "favored": true,
+      "note": "E_TS = -195.113158601 Ha, E_RC = -195.165893788 Ha, dE = 0.052735187 Ha"
+    },
+    {
+      "id": "e_Z",
+      "from": "RC",
+      "to": "P_Z",
+      "via": "TS_Z",
+      "bond_changes": {
+        "break": [
+          [
+            2,
+            3
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            2,
+            5
+          ],
+          [
+            3,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 38.81,
+      "channel": "conrotatory-Z (methyl inward)",
+      "favored": false,
+      "note": "E_TS = -195.104048324 Ha, E_RC = -195.165893788 Ha, dE = 0.061845464 Ha; Delta-Delta = +5.72 kcal/mol"
+    }
+  ]
+}

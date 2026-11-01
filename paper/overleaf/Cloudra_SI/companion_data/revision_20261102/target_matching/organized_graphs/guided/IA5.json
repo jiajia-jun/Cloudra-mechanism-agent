@@ -1,0 +1,175 @@
+{
+  "nodes": [
+    {
+      "id": "RC_cyclobutene",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC1"
+      ],
+      "accessible": true,
+      "properties": {
+        "description": "Cyclobutene minimum (pre-reaction state; single neutral molecule), PM7/Gaussian 16, gas phase, charge 0, singlet",
+        "electronic_energy_hartree": 0.0592544,
+        "imaginary_frequencies_cm": [],
+        "method": "PM7 (Gaussian 16)",
+        "evidence_log": [
+          "work/rc_cyclobutene_pm7_optfreq.log"
+        ],
+        "dag_species_id": "sp_11d5aef7",
+        "irc_endpoint_log": "work/final_rc_optfreq.log",
+        "irc_endpoint_energy_hartree": 0.0592551417321,
+        "energy_note": "value exactly as printed in the bound native log (archive line HF=0.0592544); unrounded 0.0592544000555 Ha"
+      },
+      "name": "RC_cyclobutene"
+    },
+    {
+      "id": "TS_conrotatory",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "accessible": true,
+      "properties": {
+        "description": "Verified first-order saddle of the ring opening: C2-symmetric (C2 residual <=0.001 A under the 180 deg rotation about the axis through the C1-C2 and C3-C4 midpoints; Cs mirror residuals ~0.5-2.3 A: C4<-C3 0.516, H9<-H7 0.492, H10<-H8 2.314 A), i.e. the Woodward-Hoffmann ALLOWED conrotatory mode. C3-C4 = 2.108 A, C1-C2 1.390, C2-C3 1.416, C1-C4 1.415 A; one imaginary mode -838.1 cm-1 dominated by the four CH2/vinyl hydrogens; IRC in both directions connects the cyclobutene minimum with the 1,3-butadiene minimum. The geometry has the open diene topology, hence the listed SMILES; the graph position (via) marks it as the transition state.",
+        "imaginary_frequencies_cm": [
+          -838.13
+        ],
+        "method": "PM7 (Gaussian 16)",
+        "evidence_log": [
+          "work/final_ts_optfreq.log",
+          "ts/ts_0001/jobs/declaration_0005/frequency/frequency.log",
+          "ts/ts_0001/jobs/declaration_0005/irc/irc.log"
+        ],
+        "transition_state_energy_hartree": 0.1127542,
+        "energy_note": "first-order saddle energy exactly as printed in work/final_ts_optfreq.log (archive line HF=0.1127542); unrounded 0.112754170861 Ha. Not a minimum - this node is a transition state, bound through the accepted step evidence."
+      },
+      "name": "TS_conrotatory"
+    },
+    {
+      "id": "TS_disrotatory",
+      "role": "transition_state",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "accessible": false,
+      "properties": {
+        "description": "Disrotatory (Cs) transition state NOT accessible at the allowed level of theory - no verified first-order Cs saddle exists at either allowed method, so no barrier is declared for this channel. PM7: the exact Cs structure built from the verified C2 saddle by reversing the CH2 twist at one terminus (Cs residuals 0.000 A, C2 residuals 2.1 A) is +33 kcal/mol above the C2 saddle and has TWO imaginary frequencies (-380.7, -259.0 cm-1, work/cs_guess_freq.log) - a second-order saddle, not a first-order transition state; relaxing it with C3-C4 fixed at 2.15 A falls onto the C2 branch at +46.9 kcal/mol (work/cs_r215_relax.log); every Cs-seeded opt=ts returns the C2 saddle. GFN2-xTB 6.5.0 (independent method): the Cs-constrained r(C3-C4) ridge is monotone (+0.7 to +94.1 kcal/mol, r34 1.60 -> 2.96 A, mirror residual 0.000 A at every frame) with no interior stationary point; the ridge crest (work/xdir_h/ridgeA_r296, r34 2.959 A, Cs residuals 0.000, C2 residuals 1.840 A) shows AT LEAST TWO imaginary modes (-816.72 A-doubleprime symmetry-breaking, -658.54 A-prime) in a Hessian taken at a NON-CONVERGED geometry (xtb warning 'Hessian on incompletely optimized geometry', gradient norm 0.0198 Eh/alpha), so it is a near-stationary Cs point with at least two imaginary modes, not a cleanly characterised second-order saddle; a Cs point at r34 2.196 A likewise has at least two (-348.2, -147.6). The only Cs Hessian with a single imaginary mode (r34 2.096 A, -227.9 cm-1, soft) lies on that monotonically rising ridge and is not a maximum along the Cs reaction coordinate, so it cannot be carried as the disrotatory saddle. Unconstrained relaxation of the Cs image returns the cyclobutene minimum.",
+        "accessible_reason": "no trustworthy first-order Cs saddle at EITHER allowed method (independent PM7 and GFN2-xTB searches; all numbers re-measured by the Supervisor from the finished files). PM7: exact Cs structure work/cs_guess_freq.log, E = 0.165000117679 Ha, two imaginary frequencies (-380.72, -259.03 cm-1); Cs-constrained relaxation escapes to the C2 branch (work/cs_r215_relax.log); all Cs-seeded opt=ts runs return the C2 saddle (work/cs_ts_optfreq.log, work/cs_ts_try2.log). GFN2-xTB 6.5.0: reference cyclobutene minimum work/xdir_cs_relax/xtb_cs_relax_ohess.log, E = -11.557968840577 Ha, 0 imaginary, lowest real mode 317.9 cm-1; unconstrained relaxation of the Cs image returns that minimum; Cs-constrained r(C3-C4) profile is monotone +0.7, +5.3, +12.9, +22.1, +31.9, +41.6, +51.0, +59.7, +67.5, +77.5, +85.3, +91.2, +94.1 kcal/mol for r34 = 1.60 -> 2.96 A with mirror residual 0.000 A at every frame (42 frames in work/xdir_cs2d/, C2 residuals 1.82-2.35 A), then an ~88 kcal/mol drop at r34 = 2.98 A into planar product-like butadiene - no interior stationary point on the Cs ridge; ridge crest work/xdir_h/ridgeA_r296 (E = -11.407959146134 Ha, r34 2.959 A) shows at least two imaginary modes (-816.72, -658.54 cm-1) in a Hessian flagged by xtb as taken on an incompletely optimized geometry (gradient norm 0.0198 Eh/alpha); Cs point at r34 2.196 A, E = -11.476952468 Ha, at least two imaginary modes (-348.2, -147.6); clean Cs image work/xdir_h/image209, E = -11.435740169266 Ha, at least two imaginary (-471.1, -424.5). The single-imaginary-mode Cs Hessian (r34 2.096 A, E = -11.491940610 Ha, -227.9 cm-1 soft, work/xdir_h/cs_r210) is not a maximum along the monotonically rising Cs ridge, and a dedicated mode-following test closed it: its -227.9 cm-1 eigenvector is essentially the C3-C4 separation direction (C3 -0.662 / C4 +0.662 on x), and all eight relaxations displaced along it (+/-0.15 and +/-0.30 amplitude, with and without the Cs projection; work/xdir_push/) return to the SAME cyclobutene minimum (-11.55797 Ha, r34 1.550-1.552 A, Cs residuals 0.0000-0.0016 A, C2 residual 1.775 A) - no butadiene side, no Cs escape - so the mode is a soft sigma-stretch/projection artifact, not a disrotatory reaction coordinate. 2D (r34 x CH2 twist) xTB map: two separate Cs families (reactant-like twist ~105-115 deg vs planar product-like) with no single Cs valley linking reactant and product; disrotatory and conrotatory twist geometries at r34 = 2.096 A are exactly isoenergetic (-11.491610977 Ha).",
+        "evidence_log": [
+          "work/xdir_h/ridgeA_r296/run.log",
+          "work/xdir_h/ridgeA_r296/vibspectrum",
+          "work/xdir_cs_relax/xtb_cs_relax_ohess.log",
+          "work/cs_guess_freq.log",
+          "work/cs_r215_relax.log",
+          "work/scan_disro2.log"
+        ],
+        "dag_species_id": "sp_65aceec4",
+        "smiles_note": "SMILES listed only as the topological label of the ring-opened C4H6 skeleton carried by this transition-state node (reactant skeleton C1=CCC1, bond changes break C1-C2/C3-C4, form C1-C4/C2-C3). No species minimum exists for this node at either allowed method, so accessible:false and no barrier."
+      },
+      "name": "TS_disrotatory"
+    },
+    {
+      "id": "P_butadiene",
+      "role": "product",
+      "smiles": [
+        "C=CC=C"
+      ],
+      "accessible": true,
+      "properties": {
+        "description": "1,3-Butadiene product minimum. Energy claim = the lowest verified butadiene minimum in this evidence, s-trans (work/prod_butadiene_pm7_optfreq.log, E = 0.0432957101828 Ha, 0 imaginary frequencies, diene dihedral C1-C2-C3-C4 = 180.0 deg). The conrotatory IRC itself reaches a different, twisted (gauche/skew) conformer: work/final_prod_optfreq.log, E = 0.0442137836139 Ha (0 imaginary), diene chain C3=C2-C1=C4 with r(C1-C2) 1.462, r(C2-C3) 1.335, r(C1=C4) 1.335, r(C3-C4) 3.061 A and diene dihedral C4-C1-C2-C3 = -45.9 deg, i.e. 0.57 kcal/mol above s-trans. This conformer difference does not enter the reported barrier, which is referenced to the cyclobutene minimum (0.0592544000555 Ha, work/rc_cyclobutene_pm7_optfreq.log).",
+        "electronic_energy_hartree": 0.0432957,
+        "imaginary_frequencies_cm": [],
+        "method": "PM7 (Gaussian 16)",
+        "evidence_log": [
+          "work/prod_butadiene_pm7_optfreq.log"
+        ],
+        "dag_species_id": "sp_c46bc686",
+        "electronic_energy_hartree_irc_reached": 0.0442137836139,
+        "irc_reached_conformer_log": "work/final_prod_optfreq.log",
+        "energy_note": "value exactly as printed in the bound native log (archive line HF=0.0432957); unrounded 0.0432957101828 Ha"
+      },
+      "name": "P_butadiene"
+    }
+  ],
+  "edges": [
+    {
+      "id": "conrotatory_ring_opening",
+      "from": "RC_cyclobutene",
+      "to": "P_butadiene",
+      "via": "TS_conrotatory",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 33.57,
+      "channel": "conrotatory",
+      "favored": true,
+      "accessible": true,
+      "properties": {
+        "barrier_definition": "dE(electronic) = E(TS_conrotatory) - E(RC_cyclobutene) = 0.1127542 - 0.0592544 Ha = 0.0534998 Ha = 33.57 kcal/mol (unrounded: 0.112754170861 - 0.0592544000555 = 0.05349977 Ha, also 33.57 kcal/mol); electronic only, no ZPE or thermal correction; both energies are the ones printed in the bound native logs work/final_ts_optfreq.log and work/rc_cyclobutene_pm7_optfreq.log.",
+        "reaction_coordinate": "C3-C4 sigma bond breaks (1.582 -> 2.108 -> open); the C1=C2 pi bond shifts to C2-C3 and a new pi bond forms between C1 and C4; the two CH2 termini rotate in the same sense (C2-symmetric saddle)",
+        "irc_evidence": "ts/ts_0001/jobs/declaration_0005/irc/irc.log; both IRC outer frames optimised to frequency-verified minima (work/final_rc_optfreq.log, work/final_prod_optfreq.log)",
+        "notes": "This is the rate-determining (and only accessible) ring-opening step in this graph. The user asked for the disrotatory mode; at PM7 the disrotatory (Cs) channel has no trustworthy first-order saddle and is therefore declared inaccessible (edge e2 / node TS_disrotatory) instead of being substituted by this number."
+      },
+      "name": "conrotatory_ring_opening"
+    },
+    {
+      "id": "disrotatory_ring_opening",
+      "from": "RC_cyclobutene",
+      "to": "P_butadiene",
+      "via": "TS_disrotatory",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "channel": "disrotatory",
+      "favored": false,
+      "accessible": false,
+      "properties": {
+        "barrier_declaration": "none - inaccessible target, no barrier_kcal_mol declared",
+        "reason": "Negative at BOTH allowed methods - no trustworthy Cs (disrotatory) first-order saddle, so no barrier is declared. GFN2-xTB 6.5.0: the Cs-constrained r(C3-C4) ridge is monotone, +0.7 to +94.1 kcal/mol over r34 = 1.60 -> 2.96 A with mirror residual 0.000 A at every frame (42 frames, work/xdir_cs2d/), then an ~88 kcal/mol drop at r34 = 2.98 A, so there is no interior stationary point; the ridge crest (work/xdir_h/ridgeA_r296, r34 2.959 A, Cs 0.000 A, C2 1.840 A) shows AT LEAST TWO imaginary modes (-816.72, -658.54 cm-1) in a Hessian taken at a NON-CONVERGED geometry (xtb warning 'Hessian on incompletely optimized geometry', gnorm 0.0198), i.e. curvature at a gradient-carrying Cs point, not a characterised saddle; the only single-imaginary Cs point (r34 2.096 A, soft -227.9 cm-1) is not a maximum along that ridge - displacing it by +/-0.15 and +/-0.30 along its eigenvector (essentially the C3-C4 separation direction) and relaxing both Cs-projected and completely free returns the SAME cyclobutene minimum in all eight runs (work/xdir_push/, Cs 0.0000-0.0016 A). PM7: the exact Cs structure has at least two imaginary modes at a non-converged geometry (-380.7/-259.0 cm-1, work/cs_guess_freq.log), Cs-constrained relaxation escapes to the C2 branch (+46.9 kcal/mol, work/cs_r215_relax.log) and every Cs-seeded opt=ts returns the C2 saddle. Exploratory numbers are kept in the raw logs only; this edge carries NO barrier_kcal_mol and the requested disrotatory barrier was not obtainable at the allowed methods.",
+        "dag_step_id": "step_d94acd46"
+      },
+      "name": "disrotatory_ring_opening"
+    }
+  ],
+  "properties": {
+    "description": "Concerted 4-electron electrocyclic ring opening of cyclobutene to 1,3-butadiene. Node ids equal the delivery-graph species names; edge ids equal the delivery-graph elementary-step names. Only the conrotatory channel has a verified first-order saddle at the allowed methods (PM7, GFN2-xTB); the disrotatory (Cs) channel is declared inaccessible with no barrier."
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1COO1"
+      ],
+      "properties": {
+        "energy_hartree_pm7": 0.00310187073757,
+        "level_of_theory": "Gaussian 16 native PM7 (RPM7), gas phase, charge 0, multiplicity 1",
+        "evidence_log": [
+          "rc/rc_opt.log",
+          "rc/rc_from_irc_endA.log",
+          "ts/ts_0001/jobs/declaration_0003/reactant_opt/reactant_opt.log"
+        ],
+        "note": "1,2-Dioxetane minimum, the pre-reaction state of this unimolecular thermolysis. Two independent optimizations give the same minimum: rc/rc_opt.log (E=0.003101898561 Ha) and the re-optimization of the IRC reverse outer frame, ts/ts_0001/jobs/declaration_0003/reactant_opt/reactant_opt.log (E=0.003101870738 Ha, used as the barrier reference; the annotated re-run of the same re-optimization is rc/rc_from_irc_endA.log). Both: 0 imaginary frequencies, 18 real modes, lowest 199.06 cm^-1. Atom map (task convention): 1=C, 2=C, 3=O, 4=O; ring bonds 1-2 (C-C), 2-3 (C-O), 3-4 (O-O), 4-1 (C-O); H = 5-8."
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree_pm7": 0.0775530741877,
+        "imaginary_frequency_cm1": -2602.7483,
+        "evidence_log": [
+          "ts/ts_0001/jobs/declaration_0002/ts_opt/refine.log",
+          "ts/ts_0001/jobs/declaration_0002/frequency/frequency.log",
+          "ts/ts_0001/jobs/declaration_0003/irc/irc.log"
+        ],
+        "note": "Single imaginary mode -2602.75 cm^-1 (18 modes in total). Saddle geometry: C1-C2 1.906 A, O3-O4 1.696 A, C1-O4 1.335 A, C2-O3 1.323 A - a very late, product-like saddle in which both sigma bonds are largely broken and the incipient C=O bonds are already short. Bidirectional IRC (calcfc, step size 3, 50 points per direction) from this same saddle: forward -> C-O 1.209 A with C-C 2.38 A / O-O 2.16 A (two CH2O); reverse -> C-C 1.53 A, O-O 1.47 A, C-O 1.46 A (dioxetane ring). Mass-weighted mode composition: C1 0.234, C2 0.276, O3 0.214, O4 0.186 (51% on the two carbons, 40% on the two oxygens) - i.e. the imaginary mode is the simultaneous C1-C2 + O3-O4 scission with C=O formation, mildly asynchronous (C-C cleavage leads, O-O lags). Quality caveat: |nu_imag| is far larger than usual for a heavy-atom cycloreversion and the unweighted pair-projected displacement on the two breaking bonds is only ~15%; a relaxed 2D C-C x O-O grid (ts_work/scan/grid_cc_oo.log) shows two solution branches with a discontinuity in the C-O distances (1.414 -> 1.227 A between neighbouring points). PM7 also overestimates this barrier by roughly a factor of two relative to the experimental 22-26 kcal/mol, so the value is method-limited.",
+        "verification": "ts_prepare run ts_0001 (declaration revision 3) returned outcome=verified (verified: true): one imaginary frequency, bidirectional IRC from that same saddle, both outer frames re-optimized to zero-imaginary minima of the declared species; ts_inspect mode_alignment = aligned.",
+        "imaginary_mode_mass_weighted_fractions": {
+          "C1": 0.234,
+          "C2": 0.276,
+          "O3": 0.214,
+          "O4": 0.186
+        }
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=O.C=O"
+      ],
+      "properties": {
+        "energy_hartree_pm7": -0.0896889274324,
+        "reaction_energy_kcal_mol": -58.23,
+        "separated_products_energy_hartree_pm7": -0.081259776326,
+        "separated_products_reaction_energy_kcal_mol": -52.94,
+        "evidence_log": [
+          "prod/dimer_endb2.log",
+          "prod/form_opt.log",
+          "prod/form2_opt.log"
+        ],
+        "note": "Product state: two formaldehydes. The species minimum is the hydrogen-bonded H2CO...H2CO pair (prod/dimer_endb2.log: PM7 opt=(calcfc,maxcycle=400) freq started from the IRC forward outer frame; converged, 0 imaginary frequencies, 18 real modes, lowest 74.11 cm^-1, E=-0.089688927432 Ha, 5.3 kcal/mol below two free CH2O). Two independent formaldehyde monomer minima confirm the separated limit: prod/form_opt.log and prod/form2_opt.log, 0 imaginary frequencies each, E=-0.040629888163 Ha each. A first whole-pair optimization from a built guess (prod/dimer_opt.log) converged to a saddle (-119.36 cm^-1), i.e. the pair well is extremely flat at PM7; the minimum quoted here comes from the IRC forward outer frame."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 46.72,
+      "channel": "concerted [2sigma+2sigma] cycloreversion, one elementary step (strongly asynchronous, biradical-like late saddle); the stepwise 1,4-biradical channel was tested and rejected at this level",
+      "favored": true
+    }
+  ]
+}

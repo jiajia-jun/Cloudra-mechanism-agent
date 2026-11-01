@@ -1,0 +1,124 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "[CH2-][PH3+].C=O"
+      ],
+      "properties": {
+        "energy_hartree": -496.696986533,
+        "evidence_log": "calc/RC_optfreq.log",
+        "note": "ylide/formaldehyde pre-reaction complex minimum (0 imaginary frequencies, lowest mode 61.7 cm-1); ylide perceived by geometry as C=[PH3]"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -496.694731383,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0007/frequency/frequency.log",
+        "note": "one imaginary frequency -166.6 cm-1; energy equals the maximum of the relaxed C1-C8 scan (calc/RC_scan_C1C8.log, barrier 1.4 kcal/mol)"
+      }
+    },
+    {
+      "id": "OX",
+      "role": "intermediate",
+      "smiles": [
+        "C1CO[PH3]1"
+      ],
+      "properties": {
+        "energy_hartree": -496.741704941,
+        "evidence_log": "calc/OX_pucker_optfreq.log",
+        "note": "puckered oxaphosphetane, 0 imaginary frequencies (planar form is a -89 cm-1 saddle, calc/OX_optfreq.log)"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -496.703825839,
+        "evidence_log": "ts/ts_0002/jobs/declaration_0003/frequency/frequency.log",
+        "note": "one imaginary frequency -624.5 cm-1 (retro-[2+2] cycloreversion)"
+      }
+    },
+    {
+      "id": "PC",
+      "role": "product",
+      "smiles": [
+        "C=C.O=[PH3]"
+      ],
+      "properties": {
+        "energy_hartree": -496.754721039,
+        "evidence_log": "calc/PC_optfreq.log",
+        "note": "ethylene...H3P=O product complex minimum, 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "OX",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            2,
+            4
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 1.42,
+      "channel": "concerted [2+2] cycloaddition (P-C and P-O bond formation)",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "OX",
+      "to": "PC",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            2,
+            4
+          ],
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 23.77,
+      "channel": "retro-[2+2] cycloreversion releasing ethylene + H3P=O",
+      "favored": true
+    }
+  ]
+}

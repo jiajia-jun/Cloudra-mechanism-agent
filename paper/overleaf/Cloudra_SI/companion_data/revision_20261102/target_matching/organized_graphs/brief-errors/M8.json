@@ -1,0 +1,103 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "evidence_log": "rc_chair_optfreq.log",
+        "conformer": "chair (D3d), the pre-reaction conformer; 0 imaginary frequencies",
+        "energy_hartree": -235.737329583,
+        "dispersion_energy_hartree": -0.025920724
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts1_halfchair_optfreq.log",
+        "conformer": "first half-chair saddle; exactly 1 imaginary frequency (ring-puckering mode)",
+        "energy_hartree": -235.718026711,
+        "dispersion_energy_hartree": -0.0253099277
+      }
+    },
+    {
+      "id": "INT",
+      "role": "intermediate",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "evidence_log": "int_twistboat_optfreq.log",
+        "conformer": "twist-boat minimum; 0 imaginary frequencies",
+        "energy_hartree": -235.726923132,
+        "dispersion_energy_hartree": -0.0259739869
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "evidence_log": "ts2_halfchair_optfreq_c.log",
+        "conformer": "second half-chair saddle (symmetry-equivalent to TS1); exactly 1 imaginary frequency (ring-puckering mode)",
+        "energy_hartree": -235.718026711,
+        "dispersion_energy_hartree": -0.0253099274
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C1CCCCC1"
+      ],
+      "properties": {
+        "evidence_log": "p_chair_optfreq.log",
+        "conformer": "flipped chair (D3d), ax/eq hydrogens exchanged; 0 imaginary frequencies",
+        "energy_hartree": -235.737329583,
+        "dispersion_energy_hartree": -0.0259207281
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "elementary pseudorotation step 1: chair -> half-chair TS -> twist-boat",
+      "barrier_kcal_mol": 12.11
+    },
+    {
+      "id": "e2",
+      "from": "INT",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "elementary pseudorotation step 2: twist-boat -> half-chair TS -> flipped chair",
+      "barrier_kcal_mol": 5.58
+    },
+    {
+      "id": "e3",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "channel": "coarse one-step notation of the chair flip (reactant chair -> product chair) retained for reference-graph coverage only; it is NOT a claim that TS1 connects two chairs - the physically verified path is e1 then e2, and TS1's IRC connects a chair to a twist-boat. Barrier reported here is the TS1 barrier and is therefore not a separate rate-determining quantity.",
+      "barrier_kcal_mol": 12.11
+    }
+  ]
+}

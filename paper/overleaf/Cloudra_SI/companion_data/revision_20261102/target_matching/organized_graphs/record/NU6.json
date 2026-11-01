@@ -1,0 +1,71 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=C=O.C=N"
+      ],
+      "properties": {
+        "energy_hartree": -247.06085841,
+        "evidence_log": "sp/RC2/RC2.log",
+        "note": "pre-reaction complex of ketene + methanimine (0 imaginary frequencies, lowest 33.6 cm-1); B3LYP-D3(BJ)/def2-SVP, Gaussian16"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -246.968378805,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0004/frequency/frequency.log",
+        "note": "first-order saddle with exactly one imaginary frequency (-750.8 cm-1); the mode is not the two-bond [2+2] forming motion, so no chemically correct [2+2] saddle was located at this level (see PROCESS.md)"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=C1CCN1"
+      ],
+      "properties": {
+        "energy_hartree": -247.119105221,
+        "evidence_log": "sp/P/P.log",
+        "note": "azetidin-2-one, all real frequencies (lowest 146.8 cm-1)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ]
+        ],
+        "form": [
+          [
+            1,
+            4
+          ],
+          [
+            2,
+            5
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 58.03,
+      "channel": "concerted [2+2] cycloaddition (antarafacial, ketene C=C + imine C=N)",
+      "favored": true
+    }
+  ]
+}

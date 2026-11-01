@@ -1,0 +1,140 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=O.CN.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.610034996,
+        "evidence_log": "runs/rc/rc_optfreq.log",
+        "description": "pre-reaction complex: H2C=O + CH3NH2 + one explicit shuttle water, B3LYP-D3(BJ)/def2-SVP/CPCM(water), 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.608333145,
+        "evidence_log": "runs/ts1a/ts1_optfreq.log",
+        "description": "asynchronous nucleophilic-addition saddle of the water-relayed channel: exactly 1 imaginary frequency (-993.73 cm-1), mode dominated by the water-H -> carbonyl-O relay with the C1-N3 bond already formed (1.54 A)"
+      }
+    },
+    {
+      "id": "INT1",
+      "role": "intermediate",
+      "smiles": [
+        "CNCO.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.632884972,
+        "evidence_log": "runs/int1/int1_optfreq.log",
+        "description": "neutral carbinolamine HO-CH2-NH-CH3 + shuttle water, 0 imaginary frequencies"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": -286.578004302,
+        "evidence_log": "runs/ts2/ts2_try2.log",
+        "description": "concerted dehydration saddle: exactly 1 imaginary frequency (-829.97 cm-1), double proton relay N3-H6 -> water and water-H -> O2 coupled to C1-O2 cleavage and C1=N3 formation"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=NC.O.O"
+      ],
+      "properties": {
+        "energy_hartree": -286.619736075,
+        "evidence_log": "runs/p14/p14_optfreq.log",
+        "description": "CH2=N-CH3 + leaving water + shuttle water, 0 imaginary frequencies"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "INT1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            3,
+            5
+          ],
+          [
+            7,
+            8
+          ]
+        ],
+        "form": [
+          [
+            1,
+            3
+          ],
+          [
+            7,
+            5
+          ],
+          [
+            2,
+            8
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 1.07,
+      "channel": "water-relayed nucleophilic addition",
+      "favored": true
+    },
+    {
+      "id": "e2",
+      "from": "INT1",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            6
+          ],
+          [
+            7,
+            9
+          ],
+          [
+            1,
+            2
+          ]
+        ],
+        "form": [
+          [
+            7,
+            6
+          ],
+          [
+            2,
+            9
+          ],
+          [
+            1,
+            3
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 34.44,
+      "channel": "water-relayed dehydration (water elimination)",
+      "favored": true
+    }
+  ]
+}

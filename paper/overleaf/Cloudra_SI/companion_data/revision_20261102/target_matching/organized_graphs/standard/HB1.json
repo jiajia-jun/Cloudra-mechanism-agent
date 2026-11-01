@@ -1,0 +1,152 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C1=CCC=C1.O=C1OC(=O)C=C1"
+      ],
+      "properties": {
+        "name": "pre-reaction pi-complex (cyclopentadiene + maleic anhydride)",
+        "method": "B3LYP-D3(BJ)/def2-SVP (Gaussian 16, EmpiricalDispersion=GD3BJ), gas phase",
+        "electronic_energy_hartree": -573.014078841,
+        "n_imag": 0,
+        "lowest_freq_cm1": 17.8,
+        "evidence_log": "qm/rc_opt.log",
+        "evidence_input": "qm/rc_opt.gjf"
+      }
+    },
+    {
+      "id": "TS_endo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "concerted Diels-Alder TS, endo channel (anhydride folded towards the newly formed C=C)",
+        "channel": "endo",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase",
+        "electronic_energy_hartree": -572.998610269,
+        "imaginary_frequency_cm1": -416.24,
+        "n_imag": 1,
+        "evidence_log": "ts/ts_0003/jobs/declaration_0001/frequency/frequency.log",
+        "evidence_log_opt": "ts/ts_0003/jobs/declaration_0001/ts_opt/refine.log",
+        "evidence_log_irc": "ts/ts_0003/jobs/declaration_0001/irc/irc.log"
+      }
+    },
+    {
+      "id": "P_endo",
+      "role": "product",
+      "smiles": [
+        "O=C1OC(=O)[C@H]2[C@@H]1[C@H]1C=C[C@@H]2C1"
+      ],
+      "properties": {
+        "name": "endo-norbornene-5,6-dicarboxylic anhydride (anhydride syn to the C=C bridge)",
+        "electronic_energy_hartree": -573.051114235,
+        "n_imag": 0,
+        "evidence_log": "qm/p_endo_opt.log",
+        "evidence_input": "qm/p_endo_opt.gjf"
+      }
+    },
+    {
+      "id": "TS_exo",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "name": "concerted Diels-Alder TS, exo channel (anhydride turned towards the one-carbon bridge)",
+        "channel": "exo",
+        "method": "B3LYP-D3(BJ)/def2-SVP, gas phase",
+        "electronic_energy_hartree": -572.996480494,
+        "imaginary_frequency_cm1": -410.59,
+        "n_imag": 1,
+        "evidence_log": "ts/ts_0004/jobs/declaration_0001/frequency/frequency.log",
+        "evidence_log_opt": "ts/ts_0004/jobs/declaration_0001/ts_opt/refine.log",
+        "evidence_log_irc": "ts/ts_0004/jobs/declaration_0001/irc/irc.log"
+      }
+    },
+    {
+      "id": "P_exo",
+      "role": "product",
+      "smiles": [
+        "O=C1OC(=O)[C@H]2[C@@H]1[C@@H]1C=C[C@H]2C1"
+      ],
+      "properties": {
+        "name": "exo-norbornene-5,6-dicarboxylic anhydride (anhydride syn to the one-carbon bridge)",
+        "electronic_energy_hartree": -573.051607893,
+        "n_imag": 0,
+        "evidence_log": "qm/p_exo_opt.log",
+        "evidence_input": "qm/p_exo_opt.gjf"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e_endo",
+      "from": "RC",
+      "to": "P_endo",
+      "via": "TS_endo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            11,
+            12
+          ]
+        ],
+        "form": [
+          [
+            2,
+            11
+          ],
+          [
+            4,
+            12
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 9.71,
+      "channel": "endo",
+      "favored": true
+    },
+    {
+      "id": "e_exo",
+      "from": "RC",
+      "to": "P_exo",
+      "via": "TS_exo",
+      "bond_changes": {
+        "break": [
+          [
+            1,
+            2
+          ],
+          [
+            4,
+            5
+          ],
+          [
+            11,
+            12
+          ]
+        ],
+        "form": [
+          [
+            2,
+            11
+          ],
+          [
+            4,
+            12
+          ]
+        ]
+      },
+      "barrier_kcal_mol": 11.04,
+      "channel": "exo",
+      "favored": false
+    }
+  ]
+}

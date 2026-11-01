@@ -1,0 +1,110 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "C=CCOc1ccccc1"
+      ],
+      "properties": {
+        "energy_hartree": -423.894025789,
+        "evidence_log": "gcalcs/rc_conf1/rc_conf1.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP gas phase",
+        "note": "lowest verified allyl phenyl ether minimum (rc_conf1 = rc_conf2, 0 imaginary); rc_conf0 is 0.26 kcal/mol higher"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": null,
+        "evidence_log": null,
+        "level": "B3LYP-D3(BJ)/def2-SVP gas phase",
+        "note": "Declared PLACEHOLDER for the concerted [3,3]-sigmatropic allyl migration RC -> IM1: the elementary step was investigated but its saddle point was not located within the available computational budget, so energy_hartree and evidence_log are null BY DESIGN (not forgotten/omitted) and no barrier_kcal_mol is declared on e1_S1. (a) CONSTRAINED SCAN, s1work/scan_c1c6 (archived execution copy s1work/scan_c1c6/.cloudra/execution-845/results/scan_c1c6.log) (relaxed scan along d(C1...C6), B3LYP-D3(BJ)/def2-SVP gas phase), at every converged point: 2.8082 A, E = -423.882437625 Ha = +7.25 kcal/mol vs rc_conf1, R(3,4) = 1.4462, R(4,5) = 1.3702; 2.7082 A, E = -423.879826770 Ha = +8.91, R(3,4) = 1.4494, R(4,5) = 1.3694; 2.6082 A, E = -423.876494570 Ha = +11.00, R(3,4) = 1.4534, R(4,5) = 1.3682. The energies rise monotonically (+1.66 then +2.09 kcal/mol) over 0.2 A of contact shortening with the chair intact (the six chair torsions change by <= 5 deg), while d(C3-O4) creeps 1.4462 -> 1.4494 -> 1.4534, i.e. about 0.03 A of C3-O4 per 1 A of C1...C6 shortening over the studied range; so this coordinate does not open the pericyclic channel from this arrangement over the range studied. A monotone rise over three points says nothing about where it would turn, and no maximum below 2.6082 A is claimed; the run was stopped after the THIRD converged frame (job 845 cancelled by the coordinator, terminal state cancelled, exit code 143; the log contains exactly three 'Optimization completed' blocks, and scan point 4 had only started its first geometry step and never converged, so no fourth frame exists) because further frames serve no delivery purpose. (b) INDEPENDENTLY, the folded chair is a constrained stationarity about 7.3 kcal/mol above rc_conf1: relaxation with d(C1...C6) held at 2.808 A converged at E = -423.882437693 Ha, +7.27 kcal/mol (log s1work/hold_281/hold_281.log), and the scan's converged first point reproduced it at -423.882437625 Ha, +7.25. Earlier attempts, none of them a saddle: ts_0007 gave a spurious single imaginary mode of -116.06 cm^-1 that is an allyl-CH2 torsion (53 parsed modes, no normal termination) - ts/ts_0007/jobs/declaration_0001/frequency/frequency.log; ts_0011 followed the fold-opening eigenvector (d(C1...C6) 2.808 -> 3.377 A) instead of the [3,3] channel - ts/ts_0011/jobs/declaration_0001/ts_opt/refine.log."
+      }
+    },
+    {
+      "id": "IM1",
+      "role": "intermediate",
+      "smiles": [
+        "C=CCC1C(=O)C=CC=C1"
+      ],
+      "properties": {
+        "energy_hartree": -423.877354698,
+        "evidence_log": "gcalcs/im1b/im1b.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP gas phase",
+        "note": "6-allylcyclohexa-2,4-dien-1-one dienone minimum, 0 imaginary; sp3 C6 still carries the ortho H (map H14) and the allyl CH2 (map C3)"
+      }
+    },
+    {
+      "id": "TS2",
+      "role": "transition_state",
+      "smiles": [],
+      "properties": {
+        "energy_hartree": null,
+        "evidence_log": null,
+        "level": "B3LYP-D3(BJ)/def2-SVP gas phase",
+        "note": "Declared PLACEHOLDER for the aromatizing 1,3-H shift IM1 -> P: investigated but no first-order saddle was located, so energy_hartree and evidence_log are null BY DESIGN and no barrier_kcal_mol is declared on e2_S2. ts_0010 (OptTS from the scan-peak frame) wandered with forces rising again and energy descending monotonically toward IM1 (final -423.873637 Ha, +2.4 kcal/mol vs IM1). The only quantitative information is the constrained relaxed scan scan_s2c/s2_scanc.log (5 of 5 scan points converged, Normal termination; log path scan_s2c/s2_scanc.log) along d(O4...H14) 2.661 -> 1.661 A, which rises monotonically by +1.1/+2.5/+7.4/+16.7/+31.7 kcal/mol with no internal maximum; +31.7 kcal/mol at d(O4...H14) = 1.661 A is therefore a LOWER BOUND on the barrier for the UNASSISTED suprafacial 1,3-H shift described by this scan only - it is not a barrier, not an activation energy, and not the barrier of 2-allylphenol formation as run at 200 C, since an assisted channel was not computed."
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "C=CCc1ccccc1O"
+      ],
+      "properties": {
+        "energy_hartree": -423.912643199,
+        "evidence_log": "gcalcs/p_conf0/p_conf0.log",
+        "level": "B3LYP-D3(BJ)/def2-SVP gas phase",
+        "note": "2-allylphenol minimum, 0 imaginary (p_conf0 = p_conf1)"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1_S1",
+      "from": "RC",
+      "to": "IM1",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [
+          [
+            3,
+            4
+          ]
+        ],
+        "form": [
+          [
+            1,
+            6
+          ]
+        ]
+      },
+      "channel": "concerted [3,3] sigmatropic shift (chair-like), allyl migrates with inversion; no barrier_kcal_mol is declared because no verified saddle was located (see TS1)",
+      "note": "Revised after the computed S1 attempts (scan_s1b monotonic +52 kcal/mol with no maximum; ts_0007 reached only a -116 cm^-1 allyl-CH2 torsion). In the chair the six-atom array is O4-C3-C2=C1...C6=C5: the bond that forms is the allyl TERMINAL CH2 (map C1) to the ortho carbon C6, while O4-C3 breaks and C3 becomes the terminal methylene; O4 becomes the dienone C=O. Per the task atom map the same elementary step reads as form [[3,6]] because unlabelled 2-allylphenol cannot distinguish the two CH2 termini; the two readings are the same single step, not two channels."
+    },
+    {
+      "id": "e2_S2",
+      "from": "IM1",
+      "to": "P",
+      "via": "TS2",
+      "bond_changes": {
+        "break": [
+          [
+            6,
+            14
+          ]
+        ],
+        "form": [
+          [
+            4,
+            14
+          ]
+        ]
+      },
+      "channel": "aromatizing 1,3-H shift (dienone -> phenol); no barrier_kcal_mol is declared because no verified saddle was located. LOWER BOUND only, for the UNASSISTED suprafacial 1,3-H shift: +31.7 kcal/mol vs IM1 at d(O4...H14) = 1.661 A from the fully converged constrained scan scan_s2c/s2_scanc.log (5/5 points, monotonic, no internal maximum). Not a barrier and not the barrier of the reaction as run at 200 C."
+    }
+  ]
+}

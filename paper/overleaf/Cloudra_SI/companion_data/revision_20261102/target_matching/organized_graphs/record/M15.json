@@ -1,0 +1,58 @@
+{
+  "nodes": [
+    {
+      "id": "RC",
+      "role": "reactant",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "energy_hartree": -205.542538467,
+        "evidence_log": "runs/hono_cis_optfreq.log",
+        "annotation": "smiles: O=NO",
+        "note": "cis-HONO minimum (dihedral H-O-N=O = 0 deg), Gaussian16 B3LYP/def2-SVP, gas phase, Opt+Freq in one job, n_imag = 0, six real modes"
+      }
+    },
+    {
+      "id": "TS1",
+      "role": "transition_state",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "energy_hartree": -205.519395063,
+        "evidence_log": "ts/ts_0001/jobs/declaration_0003/ts_opt/refine.log",
+        "annotation": "smiles: O=NO",
+        "note": "first-order saddle for rotation of the OH group about the N-O(H) bond (H-O-N=O dihedral ~85 deg); Opt=(TS,CalcFC) Freq, one imaginary mode at -700.07 cm-1"
+      }
+    },
+    {
+      "id": "P",
+      "role": "product",
+      "smiles": [
+        "O=NO"
+      ],
+      "properties": {
+        "energy_hartree": -205.541835593,
+        "evidence_log": "runs/hono_trans_optfreq.log",
+        "annotation": "smiles: O=NO",
+        "note": "trans-HONO minimum (dihedral H-O-N=O = 180 deg), Gaussian16 B3LYP/def2-SVP, gas phase, Opt+Freq in one job, n_imag = 0, six real modes"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "RC",
+      "to": "P",
+      "via": "TS1",
+      "bond_changes": {
+        "break": [],
+        "form": []
+      },
+      "barrier_kcal_mol": 14.52,
+      "channel": "torsional cis-trans isomerization (rotation about the N-O(H) single bond)",
+      "favored": true
+    }
+  ]
+}
