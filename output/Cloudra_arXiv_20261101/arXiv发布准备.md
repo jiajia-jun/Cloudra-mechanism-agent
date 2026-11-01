@@ -1,6 +1,6 @@
 # Cloudra arXiv 发布准备
 
-核查日期：2026-11-01。独立审阅见 Astra_审阅.md。该审阅未发现需先补实验或重做评分的科学阻断项。本文件记录发布执行准备，不替作者选择许可或提交文章。
+核查日期：2026-11-01。独立审阅见 Astra_审阅.md。该审阅未发现需先补实验或重做评分的科学阻断项。本文件记录发布执行准备；主分类、许可及全体作者公开同意已由作者确认，尚未最终提交文章。
 
 本地当前包已同步 STACKED 架构图及最新正式主文。英文23页、中文19页、SI31页；提交源包63文件，主文图4在第4页。当前可用桌面包为 `~/Desktop/Cloudra_arXiv_提交准备包_20261101.zip`，备份及逐文件校验见本轮本地同步记录。本次不访问或修改远端。
 
@@ -24,10 +24,10 @@
 | SI与数据布局 | 现有桌面准备包已采用两套源文件分别置于manuscript/与supplement/，根目录main.tex和supplement.tex独立编译；数据ZIP位于外层补充数据目录，不混入arXiv源码ZIP。此布局已本地复编，尚未实际上传。 |
 | 参考文献 | 当前.bib齐全。arXiv已支持BibTeX自动处理，缺.bbl并非当前阻断项；也可以附与主文件同名且由同一环境生成的.bbl。 |
 | 版本标识 | 正文首页仍为Working Draft，SI为Draft。正式发布时清理为统一预印本版本/日期属于成稿整理；本轮三处小修不擅自改变它。 |
-| 作者与联系信息 | 当前稿已明确杨程驿（Chengyi Yang）为第一及通讯作者，学校邮箱为202509240114@csust.edu.cn；Qianxin Zhou列第二、Yang Li列第三，不加共同作者标记。ORCID未提供。发布同意及实际提交账户仍按作者决定。 |
-| 分类 | 建议physics.chem-ph为主类，cs.AI可选交叉分类；这是按化学机理与规划/验证内容作出的建议，尚未提交选择。 |
-| 账号与endorsement | 使用实际作者账号。首次投稿或首次进入新类别可能需要endorsement，取决于账户；机构邮箱有助于流程。 |
-| 论文许可 | 由作者结合拟投期刊/基金要求选择，例如CC BY4.0或arXiv非独占分发许可；本轮未代选或接受。论文许可与软件AGPL是不同事项。 |
+| 作者与联系信息 | 当前稿已明确杨程驿（Chengyi Yang）为第一及通讯作者，学校邮箱为202509240114@csust.edu.cn；Qianxin Zhou列第二、Yang Li列第三，不加共同作者标记。ORCID未提供。作者已确认全体作者同意公开；实际作者账号为yyywaa（Chengyi Yang），账户通讯邮箱已验证为202509240114@csust.edu.cn。 |
+| 分类 | 作者已确认主分类为cs.MA（Multiagent Systems，多智能体系统）；未选择交叉分类。沿用提交草稿8312079，账户资格以arXiv实际检查为准。 |
+| 账号与endorsement | 使用实际作者账号yyywaa（Chengyi Yang），学校邮箱202509240114@csust.edu.cn已验证。邮箱变更后需重新登录；新主分类cs.MA的背书资格待在线检查。 |
+| 论文许可 | 作者已明确选择arXiv永久非独占许可，并授权接受提交协议；已在网站接受该协议。论文许可与软件AGPL是不同事项。 |
 
 编译和参考文献依据[TeX Live环境](https://info.arxiv.org/help/faq/texlive.html)、[源文件提交规则](https://info.arxiv.org/help/submit_tex.html)。附件布局依据[ancillary files说明](https://info.arxiv.org/help/ancillary_files.html)。分类依据[官方类别定义](https://arxiv.org/category_taxonomy)。作者字段与发布同意见元信息说明；账号流程见[endorsement](https://info.arxiv.org/help/endorsement.html)；许可选择见[官方许可说明](https://info.arxiv.org/help/license/index.html)。
 
@@ -36,5 +36,5 @@
 1. 三处小修与Overleaf最终导出已完成；后续冻结主稿、SI、数据包为同一发布版本。
 2. 数据公开与正文/SI链接已完成；正式发布时清理Draft字样。
 3. 准备精简英文源包，在TeX Live2025下编译并查看生成PDF。
-4. 作者确认发布及许可，核对账号是否需要endorsement。
+4. 全体作者公开同意和arXiv永久非独占许可已由作者确认，账户邮箱已验证；重新登录后检查cs.MA背书资格。
 5. 在arXiv填写元信息、上传并预览；本轮没有上传或提交arXiv。
