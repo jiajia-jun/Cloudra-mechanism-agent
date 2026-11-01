@@ -22,7 +22,7 @@
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=\textwidth]{figures/bench_delivery.pdf}
-\caption{运行期交付图与最终科学支持。a，每配置50题中的原始根图记录，Guided、Backbone、Record与Brief分别为50、43、50和50；斜线标记从运行自身材料离线组装的7份Backbone图，整理后每配置均为50份。b，每配置全部40道非Impossible题的自洽分布，区分SC=1、部分正分及SC=0；满分数依次为24、7、16和20，Backbone另有4题零分。c，7个未在运行中形成根图的Backbone任务整理后总分，范围0.0333至0.3425，均值0.1537。}
+\caption{运行期交付图与最终科学支持。a，每配置50题中的原始根图记录，Guided、Backbone、Record与Brief分别为50、43、50和50；斜线标记从运行自身材料离线组装的7份Backbone图，整理后每配置均为50份。b，每配置全部40道非Impossible题的自洽分布，区分SC=1、部分正分及SC=0；满分数依次为24、7、16和20，Backbone另有4题零分。c，7个需离线重建根图的Backbone任务整理后总分，范围0.0333至0.3425，均值0.1537。}
 \label{fig:bench-delivery}
 \end{minipage}
 \end{figure*}
@@ -50,7 +50,7 @@
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=\textwidth]{figures/bench_cases.pdf}
-\caption{计算结果的科学归属。a，HA8 分别采用稳定极小值与反应性构象作参照的声明能垒，与 campaign Gold 并列。b，HH1 两组均给出 23.48 kcal/mol 能垒且准确度接近，自洽证据分不同。c，NU6 两个已记录能量之差为 18.836772 kcal/mol；Guided 将其保留为 concerted 鞍点区域的代价，并将目标闭环鞍点留为未解决，Standard 则将 18.837 声明为第二步闭环能垒。计算细节与路径文字取自归档证据记录。}
+\caption{能量参照与路径归属。a，HA8 分别采用稳定极小值与反应性构象作参照的声明能垒，与 campaign Gold 并列。b，HH1 两组均给出 23.48 kcal/mol 能垒且准确度接近，自洽证据分不同。c，NU6 两个已记录能量之差为 18.836772 kcal/mol；Guided 将其保留为 concerted 鞍点区域的代价，并将目标闭环鞍点留为待解决，Standard 则将 18.837 声明为第二步闭环能垒。计算细节与路径文字取自归档证据记录。}
 \label{fig:bench-cases}
 \end{minipage}
 \end{figure*}
@@ -69,7 +69,7 @@
 
 \centering
 \includegraphics[width=\textwidth]{figures/fig06.pdf}
-\caption{分子表示与选项顺序下的化学身份判断。16 对分子各包含四种输入条件；圆形和菱形分别表示正确与错误，内部字母保留模型实际回答。浅色区域为相同字符串条件。右侧显示第 14 对的两种 C\textsubscript{5}H\textsubscript{8} 连接结构及选项含义。 两种连接分别为 \texttt{CC1CC=C1} 与 \texttt{C=C1CCC1}，分子式均为 C\textsubscript{5}H\textsubscript{8}。}
+\caption{分子表示与选项顺序下的化学身份判断。16 对分子各包含四种输入条件；圆形和菱形分别表示正确与错误，内部字母保留模型实际回答。浅色区域为相同字符串条件。右侧显示第 14 对的两种连接结构 \texttt{CC1CC=C1} 与 \texttt{C=C1CCC1} 及选项含义，两者分子式均为 C\textsubscript{5}H\textsubscript{8}。}
 \label{fig:06}
 \end{minipage}
 \end{figure*}
@@ -80,7 +80,7 @@
 \vspace{0pt}
 \centering
 \includegraphics[width=\linewidth]{figures/fig07.pdf}
-\caption{坐标输入与测量距离输入下的几何判断。四个源结构分别在直接回答和开启思考条件下比较，每种条件均包含原始（F）与交换（R）选项顺序。圆形表示正确，菱形表示错误，三角形表示达到输出预算；内部字母保留实际回答。}
+\caption{使用坐标或测量距离，判断两个指定原子间距中哪一个更短。四个源结构分别在直接回答和开启思考条件下比较，每种条件均包含原始（F）与交换（R）选项顺序。圆形表示正确，菱形表示错误，三角形表示达到输出预算；内部字母保留实际回答。}
 \label{fig:07}
 \end{minipage}\hfill
 \begin{minipage}[t]{.31\textwidth}
@@ -131,7 +131,7 @@
 \vspace{4pt}
 \centering
 \includegraphics[width=.92\textwidth]{figures/fig14.pdf}
-\caption{状态干预实验的对照替换。在 p53 进行同状态自替换，以及在 p0 替换未改变的前缀，两种选项顺序下均保持全部词表 logits 不变。表中报告 logit 差值绝对值的最大值。token 位置从零计数。}
+\caption{状态干预实验的对照替换。在 p53 进行同状态自替换，以及在 p0 替换相同的前缀，两种选项顺序下均保持全部词表 logits 原值。表中报告 logit 差值绝对值的最大值。token 位置从零计数。}
 \label{fig:14}
 \end{minipage}
 \end{figure*}
@@ -143,14 +143,14 @@
 \vspace{0pt}
 \centering
 \includegraphics[width=\linewidth]{figures/fig15.pdf}
-\caption{E1 源链中的证据与几何关联。受控输入将频率计算的几何引用从 g\_63 改为 g\_42，同时保持局部终止、收敛、能量和频率数值。图中保留从过渡态优化、双向 IRC 到端点优化与频率计算的关联。}
+\caption{改变 E1 频率计算所对应的几何。受控输入将频率计算的几何引用从 g\_63 改为 g\_42，同时保持局部终止、收敛、能量和频率数值。箭头连接过渡态优化、双向 IRC 与端点优化和频率计算。}
 \label{fig:15}
 \end{minipage}\hfill
 \begin{minipage}[t]{.48\textwidth}
 \vspace{0pt}
 \centering
 \includegraphics[width=\linewidth]{figures/fig16.pdf}
-\caption{四条源链共 32 个输入的关联判断，交叉比较一致或修改后的关联、平铺或关联式表示，以及原始（F）或交换（S）答案顺序。字母保留已保存的 A/B 回答；圆形表示正确关联，菱形表示错误关联。}
+\caption{判断计算引用是否支持指定步骤。四条源链共 32 个输入，交叉比较一致或修改后的关联、平铺或关联式表示，以及原始（F）或交换（S）答案顺序。字母保留已保存的 A/B 回答；圆形表示正确关联，菱形表示错误关联。}
 \label{fig:16}
 \end{minipage}
 \end{minipage}
@@ -160,7 +160,7 @@
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=.96\textwidth]{figures/fig17.pdf}
-\caption{原始 IA1 轨迹中的完成请求与 DAG 反馈。报告仍有未解决的证据后，模型请求完成；系统指出缺少 short\_irc 证明并向模型反馈，随后模型改为请求部分完成。}
+\caption{原始 IA1 轨迹中的完成请求与 DAG 反馈。报告列有待补充的证据时，模型请求完成；系统指出缺少 short\_irc 证明并向模型反馈，随后模型改为请求部分完成。}
 \label{fig:17}
 \end{minipage}
 \end{figure*}

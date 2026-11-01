@@ -3,10 +3,10 @@
   "scope": "Local synchronization of approved STACKED architecture, current bilingual author/contact metadata, final manuscript packages, and submission materials.",
   "languages": {
     "EN": {
-      "pages": 23,
+      "pages": 22,
       "source_files": 39,
-      "pdf_sha256": "8de1dc42c4e91e15e692f2540f89885ffcb1c93f9fc99968b09125b021063b82",
-      "source_zip_sha256": "26146dcddd9af8445e3014466e5ec75a63abc8d1e32bd5bfdb99a11ba6ebcacd",
+      "pdf_sha256": "b7eb290507c3f74fd4d8b010343a2bb874249bac29ce756a83bb4c23266c8a8d",
+      "source_zip_sha256": "84e09a9f193d02b74a9a972895809e0750de87b6f3637dd5f067229fd6dc2dff",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -14,10 +14,10 @@
       "correspondence_email": "202509240114@csust.edu.cn"
     },
     "ZH": {
-      "pages": 19,
+      "pages": 18,
       "source_files": 39,
-      "pdf_sha256": "a66a4795604892c7ce6d2297acef4d658b301aac15720f9e177bc045f8507b86",
-      "source_zip_sha256": "f57b3b9e1c01765ba108bd599a5c95cc41bac0b0fdb54f9262e3c82b95dd9de0",
+      "pdf_sha256": "4c52d2c5243296141f7d6c8d50782d88a858e2a9e2145fc7cad4eec9d3407b2c",
+      "source_zip_sha256": "78419e48e89f052df8a85ecae97b148793d369f5f20f10c99ff61849c715fab4",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -25,10 +25,10 @@
       "correspondence_email": "202509240114@csust.edu.cn"
     },
     "SI": {
-      "pages": 31,
+      "pages": 30,
       "source_files": 26,
-      "pdf_sha256": "4c862fc9f49532d194ea2ce6fd9f3c68553baa1e95b27e5fb09df3bc02f843ae",
-      "source_zip_sha256": "14491627ca2eb9a165f263a45f4b829e2e092cd0ccbfe3d8c6563c3854cc4cff",
+      "pdf_sha256": "711132740c78325d0333284686288e4d5dfcd0d7c6615a0b38ed45bdc7d4e484",
+      "source_zip_sha256": "18163d6a0f2585a1b1f11b612c57781aee68e8f53f7c206211cc61820a2afd34",
       "source_zip_matches_editable_sources": true,
       "unknown_references": 0,
       "out_of_page_text_blocks": 0,
@@ -196,5 +196,32 @@
     "abstract_words": 215,
     "criteria_and_scoring_unchanged": true,
     "new_calculations": false
+  },
+  "plain_language_revision": {
+    "date": "2026-11-01",
+    "scope": "Concrete descriptions of molecular operations and scientific conclusions; affirmative prose in bilingual manuscripts and English SI.",
+    "outputs": {
+      "EN": {
+        "pages": 22,
+        "pdf_sha256": "b7eb290507c3f74fd4d8b010343a2bb874249bac29ce756a83bb4c23266c8a8d",
+        "source_zip_sha256": "84e09a9f193d02b74a9a972895809e0750de87b6f3637dd5f067229fd6dc2dff",
+        "source_files": 39
+      },
+      "ZH": {
+        "pages": 18,
+        "pdf_sha256": "4c52d2c5243296141f7d6c8d50782d88a858e2a9e2145fc7cad4eec9d3407b2c",
+        "source_zip_sha256": "78419e48e89f052df8a85ecae97b148793d369f5f20f10c99ff61849c715fab4",
+        "source_files": 39
+      },
+      "SI": {
+        "pages": 30,
+        "pdf_sha256": "711132740c78325d0333284686288e4d5dfcd0d7c6615a0b38ed45bdc7d4e484",
+        "source_zip_sha256": "18163d6a0f2585a1b1f11b612c57781aee68e8f53f7c206211cc61820a2afd34",
+        "source_files": 26
+      }
+    },
+    "abstract_ascii_characters": 1714,
+    "abstract_words": 220,
+    "scientific_criteria_scores_and_data_unchanged": true
   }
 }

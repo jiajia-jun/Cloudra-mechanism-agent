@@ -22,7 +22,7 @@
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=\textwidth]{figures/bench_delivery.pdf}
-\caption{Runtime graph delivery and final scientific support in P2. (a) Original root mechanism graphs across 50 tasks per arm: Guided 50, Backbone 43, Record 50, and Brief 50. The hatched segment marks seven additional Backbone graphs assembled offline from the runs' own research materials; the organized set contains 50 graphs per arm. (b) Final continuous self-consistency (SC) scores for all 40 non-Impossible tasks per arm, separating SC = 1, partial positive credit, and SC = 0. Full-score counts are 24, 7, 16, and 20; Backbone has four zero-score tasks. (c) Organized composite scores for the seven Backbone tasks without runtime root graphs, ranging from 0.0333 to 0.3425 (mean 0.1537).}
+\caption{Runtime graph delivery and final scientific support in P2. (a) Original root mechanism graphs across 50 tasks per arm: Guided 50, Backbone 43, Record 50, and Brief 50. The hatched segment marks seven additional Backbone graphs assembled offline from the runs' own research materials; the organized set contains 50 graphs per arm. (b) Final continuous self-consistency (SC) scores for all 40 non-Impossible tasks per arm, separating SC = 1, partial positive credit, and SC = 0. Full-score counts are 24, 7, 16, and 20; Backbone has four zero-score tasks. (c) Organized composite scores for the seven Backbone tasks whose root graphs were reconstructed offline, ranging from 0.0333 to 0.3425 (mean 0.1537).}
 \label{fig:bench-delivery}
 \end{minipage}
 \end{figure*}
@@ -50,7 +50,7 @@
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=\textwidth]{figures/bench_cases.pdf}
-\caption{Scientific attribution in matched Guided--Backbone tasks. (a) HA8 barriers use stable-minimum or reactive-conformer references. (b) HH1 retains the same barrier and accuracy, with different evidence closure. (c) NU6's recorded energy difference is assigned to different pathways. Values and assignments derive from the archived records.}
+\caption{Energy references and pathway assignments in matched Guided--Backbone tasks. (a) HA8 barriers use a stable-minimum or reactive-conformer reference and are compared with campaign Gold. (b) Both HH1 runs report 23.48 kcal/mol with similar accuracy but different self-consistency scores. (c) NU6's recorded energy difference is 18.836772 kcal/mol: Guided reports the cost of reaching the concerted saddle region and leaves the target ring-closure saddle unresolved; Backbone reports 18.837 as the second-step ring-closure barrier. Values and assignments derive from the archived records.}
 \label{fig:bench-cases}
 \end{minipage}
 \end{figure*}
@@ -80,7 +80,7 @@
 \vspace{0pt}
 \centering
 \includegraphics[width=\linewidth]{figures/fig07.pdf}
-\caption{Geometry judgments under coordinate inputs and measured-distance inputs. Four source structures are compared under direct response and reasoning-enabled conditions, each with original (F) and reversed (R) option order. Circles indicate correct judgments, diamonds incorrect judgments, and the triangle a response that reached the output budget. Letters retain the actual answers.}
+\caption{Judgments of which of two specified atom-pair distances is shorter, using coordinates or measured distances. Four source structures are compared under direct response and reasoning-enabled conditions, each with original (F) and reversed (R) option order. Circles indicate correct judgments, diamonds incorrect judgments, and the triangle a response that reached the output budget. Letters retain the actual answers.}
 \label{fig:07}
 \end{minipage}\hfill
 \begin{minipage}[t]{.31\textwidth}
@@ -143,14 +143,14 @@
 \vspace{0pt}
 \centering
 \includegraphics[width=\linewidth]{figures/fig15.pdf}
-\caption{Evidence--geometry association in E1. The frequency geometry reference changes from g\_63 to g\_42 while local termination, convergence, energy, and frequency values remain fixed. Arrows retain the TS--IRC--endpoint optimization/frequency chain.}
+\caption{Changing the geometry assigned to the E1 frequency calculation. The frequency geometry reference changes from g\_63 to g\_42 while local termination, convergence, energy, and frequency values remain fixed. Arrows connect the TS, IRC, and endpoint optimization/frequency calculations.}
 \label{fig:15}
 \end{minipage}\hfill
 \begin{minipage}[t]{.48\textwidth}
 \vspace{0pt}
 \centering
 \includegraphics[width=\linewidth]{figures/fig16.pdf}
-\caption{The 32 association judgments cross four source chains, coherent/altered links, flat/linked presentation, and forward/swapped answer order. Saved A/B responses and correctness markers are retained.}
+\caption{Judgments of whether calculation references support the specified step. The 32 inputs cross four source chains, coherent/altered links, flat/linked presentation, and forward/swapped answer order. Saved A/B responses and correctness markers are retained.}
 \label{fig:16}
 \end{minipage}
 \end{minipage}
