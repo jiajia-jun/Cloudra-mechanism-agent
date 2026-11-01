@@ -22,7 +22,7 @@
 
 \subsection{End-to-end benchmark evaluation}
 
-We evaluate Cloudra's ability to construct mechanisms, assemble the physical evidence supporting its claims, and reach task-consistent positive or negative conclusions. We report composite scores together with their graph, self-consistency, and accuracy components. Offline organization assembles each mechanism graph from its run's own research materials and links it to the run's existing score records. The resulting 200-run table contains all three components for every run, with an overall composite mean of 0.7051. Figures~\ref{fig:bench-overview}--\ref{fig:bench-tasks} distinguish final delivery, the support established for individual calculations, and agreement with the task's answer.
+CloudraBench measures end-to-end mechanism-calculation capability: constructing candidate mechanisms, carrying out the required quantum-chemical calculations, and reaching task-consistent positive or negative conclusions. We report composite scores together with their graph, self-consistency, and accuracy components. Offline organization assembles each mechanism graph from its run's own research materials and links it to the run's existing score records. The resulting 200-run table contains all three components for every run, with an overall composite mean of 0.7051. Figures~\ref{fig:bench-overview}--\ref{fig:bench-tasks} distinguish final delivery, the support established for individual calculations, and agreement with the task's answer.
 
 \subsubsection{Cloudra improves research delivery relative to the same backbone}
 
@@ -68,7 +68,7 @@ The seven Standard studies averaged 0.1537 after organization, compared with 0.8
 
 
 
-The graded self-consistency distribution reveals a further difference among the completed task records. For the 40 non-Impossible tasks in each configuration, Guided had self-consistency exactly equal to 1 on 24 tasks and partial positive credit on 16. Standard had seven full-score, 29 partial-score, and four zero-score tasks. Record had 16 full-score and 24 partial-score tasks; Brief-errors had 20 of each. Figure~\ref{fig:bench-delivery} presents these complete evidence-score distributions alongside the separate runtime graph-delivery counts. This view preserves the amount of scientific support assembled within each study.
+The graded self-consistency distribution reveals a further difference among the completed task records. For the 40 non-Impossible tasks in each configuration, Guided had self-consistency exactly equal to 1 on 24 tasks (60.0\%) and partial positive credit on 16. Standard had seven full-score (17.5\%), 29 partial-score, and four zero-score tasks. Record had 16 full-score (40.0\%) and 24 partial-score tasks; Brief-errors had 20 full-score (50.0\%) and 20 partial-score tasks. Figure~\ref{fig:bench-delivery} presents these complete evidence-score distributions alongside the separate runtime graph-delivery counts. This view preserves the amount of scientific support assembled within each study.
 
 \subsubsection{Ablations separate available capabilities from persistent guidance}
 

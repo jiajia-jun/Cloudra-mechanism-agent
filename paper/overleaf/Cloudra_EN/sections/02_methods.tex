@@ -1,7 +1,7 @@
 \section{System Design and Methods}
 
 \subsection{System Overview and Division of Responsibilities}
-Cloudra takes reactant identities, reaction conditions, target species or mechanistic questions, and computational requirements as inputs. It represents candidate elementary steps in a delivery evidence graph, generates molecular configurations, submits quantum chemical calculations, and associates returned structures, energies, frequencies, and paths with the corresponding species or steps. The graph stores proposed and verified chemical objects together with unresolved calculation requirements.
+Cloudra investigates reaction mechanisms by constructing candidate molecular configurations, locating and characterizing stationary points, tracing elementary reaction paths, and comparing competing channels under the specified reaction conditions and computational requirements. Its Delivery DAG represents the chemical species and elementary steps being investigated. Atom mapping, geometric operators, and quantum-chemical validation keep these objects consistent as configurations change and mechanistic hypotheses are revised.
 
 The multi-agent system divides responsibilities by functional role. The Coordinator formulates mechanistic hypotheses, proposes candidate elementary reaction steps, and maintains exploration branches. Computational agents execute assigned reaction steps, invoking geometric operators to assemble three-dimensional coordinates and scheduling quantum chemical calculations. When an assigned step encounters geometric divergence, saddle-point nonconvergence, or pathway bifurcation, the computational agent assesses whether the step remains viable; if the current step appears obstructed, it feeds diagnostic information back to the Coordinator to adjust the hypothesis or switch branches. The Supervisor independently audits the delivery graph against task specifications, maintaining review notes separately from parsed computational facts.
 
@@ -230,7 +230,7 @@ Each task fixes the chemical conditions, charge, spin, deliverables, and allowed
 
 \subsubsection{Scoring and study configurations}
 
-Graph structure, self-consistency, and accuracy are evaluated separately and combined with weights of 0.1, 0.3, and 0.6. Scientific acceptance and delivery completeness are reported separately. Correct recognition of a method limitation does not require an invented barrier. Reference-evidence completeness, special treatment, and unresolved qualifications are documented per task; the presence of a reference graph and complete scientific acceptance are assessed separately.
+Graph structure, self-consistency, and accuracy are evaluated separately and combined with weights of 0.1, 0.3, and 0.6. Graded physical support and runtime delivery completeness are reported separately. Correct recognition of a method limitation does not require an invented barrier. Reference-evidence completeness, special treatment, and unresolved qualifications are documented per task; the presence of a reference graph and complete scientific acceptance are assessed separately.
 
 \subsubsection{Repeated-task study, primary comparison, and workflow ablations}
 
