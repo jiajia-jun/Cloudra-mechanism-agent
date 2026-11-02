@@ -365,9 +365,14 @@ def _script_standard_roles(llm: ScriptedLLM) -> None:
             tool="js_exec", contains=["DELIVERY WRITTEN ok=true"])),
     ])
     llm.script("small_mol", [
-        js(1, _CHILD_SYNC_CHAIN_PROGRAM),
-        text(2, "chain complete, reporting", expect=Receipt(
+        js(1, _CHILD_SYNC_CHAIN_PROGRAM, run=1),
+        text(2, "chain complete, reporting", run=1, expect=Receipt(
             tool="js_exec", contains=["PARSED job="])),
+        # A synchronous submit returns its result independently of the broker's
+        # durable completion notice. The notice can require another turn in
+        # this run, or wake a fresh run after the completion gate parks it.
+        text(3, "compute notice received; chain complete", run=1),
+        text(1, "compute notice received; chain complete", run=2),
     ])
 
 
@@ -527,7 +532,27 @@ def _assert_job_chain(core, *, engine, workspace: Path, project_id: str,
 # ---------------------------------------------------------------------------
 
 @_REQUIRES_HOST_AND_RDKIT
-def test_cli_full_chain_standard_js(tmp_path, monkeypatch, approve_workspace_change):
+@pytest.mark.parametrize("late_compute_notice", [False, True], ids=["normal-notice", "late-notice"])
+def test_cli_full_chain_standard_js(tmp_path, monkeypatch, approve_workspace_change, late_compute_notice):
+    if late_compute_notice:
+        from cloudra.runtime_v2.compute_notify import ComputeNotifyBroker
+
+        prepare_notice = ComputeNotifyBroker._prepare_notice
+
+        async def prepare_after_child_run(self, project_id, *, task_id, state, session_id):
+            agent = self.core.agents.get(session_id)
+            if agent is not None and agent.role_id == "small_mol":
+                # Force the valid ordering seen in CI: the synchronous tool has
+                # returned, but its durable terminal notice follows run teardown.
+                await wait_until(
+                    lambda: "run.finished" in _event_names(self.core, session_id),
+                    what="child run finishing before its compute notice",
+                )
+            return await prepare_notice(
+                self, project_id, task_id=task_id, state=state, session_id=session_id,
+            )
+
+        monkeypatch.setattr(ComputeNotifyBroker, "_prepare_notice", prepare_after_child_run)
     engine = install_engine(monkeypatch, tmp_path / "bin", "gaussian")
     llm = ScriptedLLM()
     _script_standard_roles(llm)
@@ -565,6 +590,22 @@ def test_cli_full_chain_standard_js(tmp_path, monkeypatch, approve_workspace_cha
         f"child ended {child.state.value}:\n{_dump_session(core, child.id)}"
     )
     assert parent.state is AgentState.SUCCEEDED
+    child_events = core.event_log.query_session(child.id)
+    notices = [
+        event for event in child_events
+        if event.type == "agent.message_injected"
+        and (event.data.get("manifest") or {}).get("kind") == "compute_completion"
+    ]
+    assert len(notices) == 1, _dump_session(core, child.id)
+    assert not any(event.type == "llm.failed" for event in child_events)
+    assert next(row for row in rows if row["session_id"] == child.id)["notified_at"]
+    if late_compute_notice:
+        # This branch must actually exercise the fresh-run path, not merely
+        # pass because the notification happened to arrive before the gate.
+        assert any(
+            call["session"] == child.id and call["run_index"] == 2
+            for call in llm.calls_seen
+        ), llm.calls_seen
 
     # 事件级证据：log_parser 真实执行（js_exec 自身不落 invocation 事件，
     # 其内部 guest 调用照常落 requested/finished）
