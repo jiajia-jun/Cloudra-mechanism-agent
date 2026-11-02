@@ -15,5 +15,12 @@
   "native_energy_bytes": 161620449,
   "frozen_scores_modified": false,
   "scorer_modified": false,
-  "new_QM_or_LLM_runs": false
+  "new_QM_or_LLM_runs": false,
+  "numerical_summary_postprocess": {
+    "date": "2026-11-02",
+    "source": "../../revision_20261102/target_matching/accuracy_replay.json",
+    "source_sha256": "ce667f0268025bbb4322aa0038188329e68a010ffb1addf88495865939ceda66",
+    "affected_observation": "standard/L2",
+    "selection": "Existing final target correspondence selects e2 stable tZt reference; original observation notes and cohort members retained."
+  }
 }

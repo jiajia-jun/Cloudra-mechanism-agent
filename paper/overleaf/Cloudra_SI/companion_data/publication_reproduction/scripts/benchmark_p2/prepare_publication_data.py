@@ -1,5 +1,7 @@
 """Assemble the final evaluation results and their recorded score components."""
 
+import argparse
+import hashlib
 import json
 from pathlib import Path
 
@@ -9,6 +11,9 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "paper/figures/benchmark_p2_20261031/source_data"
 OUT = SRC
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument("--postprocess-overlay", type=Path)
+args = parser.parse_args()
 r = pd.read_csv(SRC / "source_final_scores_per_run.csv")
 raw = pd.read_csv(SRC / "raw_scores_p2.csv")
 r["score"] = r.repaired_final.fillna(r.fair_final)
@@ -55,6 +60,33 @@ for i, row in r.iterrows():
         links.append({"arm": row.arm, "task": row.task, "source": str(rel), "source_line": ln, "values": vals})
         dest = OUT / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
+overlay_path = args.postprocess_overlay or SRC / "target_matching_accuracy_corrections.csv"
+overlay_provenance = None
+if args.postprocess_overlay is not None or overlay_path.is_file():
+    corrections = pd.read_csv(overlay_path)
+    assert not corrections.duplicated(["arm", "task"]).any(), "duplicate postprocessing run"
+    applied = []
+    for _, correction in corrections.iterrows():
+        matches = r.index[(r.arm == correction.arm) & (r.task == correction.task)]
+        assert len(matches) == 1, (correction.arm, correction.task)
+        index = matches[0]
+        applied.append(
+            {
+                **correction.to_dict(),
+                "previous_accuracy": float(r.loc[index, "accuracy_publication"]),
+                "previous_score": float(r.loc[index, "score"]),
+                "retained_component_source": r.loc[index, "component_source"],
+            }
+        )
+        r.loc[index, "accuracy_publication"] = float(correction.accuracy)
+        r.loc[index, "score"] = float(correction.score)
+        r.loc[index, "component_source"] += "; Accuracy: target-identity postprocessing"
+    overlay_provenance = {
+        "file": overlay_path.name,
+        "sha256": hashlib.sha256(overlay_path.read_bytes()).hexdigest(),
+        "scope": "Accuracy and composite corrected; recorded Graph and SC retained.",
+        "applied_rows": applied,
+    }
 assert r[["graph_publication", "selfc_all_publication", "accuracy_publication"]].notna().all().all()
 r["recomputed_publication"] = 0.1 * r.graph_publication + 0.3 * r.selfc_all_publication + 0.6 * r.accuracy_publication
 r["rounding_difference"] = r.recomputed_publication - r.score
@@ -62,7 +94,6 @@ assert r.rounding_difference.abs().max() < 0.000051, r.loc[
     r.rounding_difference.abs().gt(0.000051), ["arm", "task", "rounding_difference"]
 ]
 r.to_csv(OUT / "publication_scores_per_run.csv", index=False)
-raw.to_csv(OUT / "raw_scores_p2.csv", index=False)
 (OUT / "component_provenance.json").write_text(
     json.dumps(
         {
@@ -70,6 +101,7 @@ raw.to_csv(OUT / "raw_scores_p2.csv", index=False)
             "recovered_rows": links,
             "max_rounding_difference": r.rounding_difference.abs().max(),
             "rule": "Final evaluation totals aligned with their recorded component scores; preparation does not infer or overwrite run conclusions.",
+            "postprocess_overlay": overlay_provenance,
         },
         ensure_ascii=False,
         indent=2,

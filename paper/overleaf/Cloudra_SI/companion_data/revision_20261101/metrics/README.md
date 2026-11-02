@@ -1,6 +1,8 @@
-# Archived numerical observations and physical-record availability (2026-11-01)
+# Archived numerical observations and physical-record availability (2026-11-01; target selection updated 2026-11-02)
 
 These supplementary analyses use existing P2 records and native logs. They do not change the frozen 200-run score table, the scorer, target matching, weights, scientific criteria, or any calculated structure. No QM or LLM experiment was started.
+
+The observation CSV retains the original historical numerical notes and their selected native files. Current numerical summaries apply the final target correspondence already recorded in `../../revision_20261102/target_matching/accuracy_replay.json`. Only Standard/L2 changes its selected energy reference, from the local cZc edge `e1` to the stable tZt edge `e2`; cohort membership and all other observations remain unchanged. The `before/` files in that target-matching directory preserve the earlier summaries.
 
 ## Numerical population and observed coverage
 
@@ -10,6 +12,8 @@ The eight archived benchmark databases supply 160 explicit `log-derived ... vs g
 
 The final-aligned observed cohort additionally requires the original graph, SC and Accuracy components to match the final publication components at their printed six-decimal precision. Three recovered NU3 observations (Standard, Record and Brief) fail that version-alignment condition and are excluded from this cohort. This leaves 153 observed positive run-edge values: Guided 41/53, Standard 37/53, Record 40/53 and Brief 35/53. Their task coverage is respectively 33/36, 29/36, 32/36 and 30/36. The 59 other positive opportunities remain visible as missing/unresolved observations; they receive neither zero error nor an imputed penalty. Missing observations combine missing delivered targets, missing original numerical notes, source-version differences and unresolved evidence selection; they are not all calculation failures. Final F4 replay notes are available separately in `../../evaluation_records/`, but F4 is excluded from this uniformly sourced original-note cohort. Its exclusion is not a failure finding.
 
+Those eligibility flags preserve the original cohort selection. The final target-correspondence update changes Standard/L2's numerical value within that cohort, without selecting new members. Its 37-edge available-positive MAE is 1.3999238579533224 and RMSE is 3.9928529341854286 kcal/mol; median and maximum absolute errors remain 0.07237482052542354 and 21.47129219580019.
+
 ## Common numerical cohorts
 
 `four_arm_common_final_aligned` is the intersection of eligible `(task, Gold edge)` keys across the four arms: 26 edges from 23 positive tasks, giving 104 observed run-edge values. The same edges enter each arm's mean, without task weighting or Gaussian scoring. Native TS/reference pairs use B3LYP-D3(BJ)/def2-SVP and have no explicit continuum keyword in their original echoed routes. Gaussian's internally generated `SCRF=Check` continuation is not treated as a newly specified solvent model.
@@ -17,15 +21,15 @@ The final-aligned observed cohort additionally requires the original graph, SC a
 | Arm | Edges | Tasks | MAE | RMSE | Median absolute error | Maximum absolute error |
 |---|---:|---:|---:|---:|---:|---:|
 | Guided | 26 | 23 | 1.167647 | 2.856645 | 0.057265 | 10.782605 |
-| Standard | 26 | 23 | 1.899523 | 5.088322 | 0.057390 | 21.471292 |
+| Standard | 26 | 23 | 1.542308 | 4.637379 | 0.057390 | 21.471292 |
 | Record | 26 | 23 | 1.576330 | 5.708178 | 0.073053 | 28.637288 |
 | Brief | 26 | 23 | 1.131023 | 2.307957 | 0.098501 | 9.048638 |
 
 All errors are in kcal/mol. The calculation is `(E_TS - E_reference) * 627.509474 - Gold`, followed by unweighted edge-level MAE, RMSE, median and maximum absolute error. Numerical error has no penalty cap. The Gold values are the frozen task-file references, rather than reconstructed unrounded reference energies.
 
-`four_arm_common_gold_input_corroborated` additionally requires the retained selected Gold input files for the task to corroborate the same method and continuum setting. It contains 19 common edges from 17 tasks (76 observed run-edge values). Its MAEs are Guided 1.010539, Standard 1.290345, Record 0.393356 and Brief 1.281142. Its RMSEs are respectively 2.711816, 3.303847, 0.860936 and 2.621328. The changed ranking shows the dependence of numerical comparisons on the observed subset. Selected input-file corroboration does not establish complete native reference-log or endpoint-chain coverage for every Gold value; in particular, the existing M14 TS-log limitation remains.
+`four_arm_common_gold_input_corroborated` additionally requires the retained selected Gold input files for the task to corroborate the same method and continuum setting. It contains 19 common edges from 17 tasks (76 observed run-edge values). Its MAEs are Guided 1.010539, Standard 0.801525, Record 0.393356 and Brief 1.281142. Its RMSEs are respectively 2.711816, 2.216726, 0.860936 and 2.621328. Standard's maximum absolute error is 9.048646. The changed ranking shows the dependence of numerical comparisons on the observed subset. Selected input-file corroboration does not establish complete native reference-log or endpoint-chain coverage for every Gold value; in particular, the existing M14 TS-log limitation remains.
 
-The error cohorts retain the original scorer's object assignments, including L2's local-reference edge. They assess the selected energy differences and are not complete-pathway or full-task rates. Guided/G2 is excluded: its native historical calculations support an approximately 0.845-kcal/mol value, but its final structured graph lacks the numerical result and TS energy/log bindings. This historical value is not silently restored into the final-aligned cohort. IA5 and IC3 are negative-target questions and have no numerical-barrier error in these cohorts.
+The error cohorts use the original scorer's assignments except for Standard/L2's final target-correspondence selection. The replay records the unchanged saddle energy of -233.203414229 Ha and the selected stable-reference energy of -233.248473327 Ha. With the metrics conversion factor 627.509474, these give 28.27501088489185 kcal/mol and a signed error of -1.494989115108151 against Gold 29.77, replacing the historical local-reference error of -10.782581764639087. They assess selected energy differences and are not complete-pathway or full-task rates. Guided/G2 is excluded: its native historical calculations support an approximately 0.845-kcal/mol value, but its final structured graph lacks the numerical result and TS energy/log bindings. This historical value is not silently restored into the final-aligned cohort. IA5 and IC3 are negative-target questions and have no numerical-barrier error in these cohorts.
 
 ## Physical-record availability and full requested-task completion
 
@@ -47,4 +51,4 @@ Consequently, neither those historical booleans, SC=1 nor Graph=1 intersected wi
 - `historical_binary_auxiliary.csv`: original database booleans and graph scores, retained for tracing only.
 - `task_target_catalogue.csv` and `source_manifest.json`: target types, denominators and source hashes.
 
-Run `python paper/overleaf/Cloudra_SI/companion_data/revision_20261101/metrics/recompute_summaries.py` from the repository root. It recomputes every summary from the stored native Hartree energies and frozen Gold values and checks the reported numbers without writing any score files. The complete source archive is `Cloudra-P2-final-20261031-FULL.tar.gz`; the original databases and native calculation files are retained in its recorded campaign members. The source manifest identifies its previously inventoried checksum and each independently hashed extracted native member. Full native-log review can therefore recover the exact retained bytes without depending on rounded notes.
+Run `python paper/overleaf/Cloudra_SI/companion_data/revision_20261101/metrics/recompute_summaries.py` from the repository root. It reads the historical observation CSV, applies the existing Standard/L2 final selection from `accuracy_replay.json`, then recomputes and checks all 12 summary rows from native Hartree energies and frozen Gold values without writing any score files. The complete source archive is `Cloudra-P2-final-20261031-FULL.tar.gz`; the original databases and native calculation files are retained in its recorded campaign members. The source manifest identifies its previously inventoried checksum and each independently hashed extracted native member. Full native-log review can therefore recover the exact retained bytes without depending on rounded notes.

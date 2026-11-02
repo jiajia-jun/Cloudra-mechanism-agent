@@ -2,9 +2,9 @@
 
 `cloudrabench_200_run_scores.csv` is the final evaluation table for all 200 task/configuration pairs. It supplies the 200 composite scores and 600 components used in the manuscript, SI tables, and final figures. Composite scores are displayed to four decimal places; the CSV retains the source precision of the components.
 
-`task_definitions/` contains the 50 final task definitions, including the molecular inputs, conditions, Gold references, and scoring settings. `cloudrabench_50_task_catalogue.csv` is the task catalogue. `evaluation_manifest.json` records the fixed scorer, reference-file hashes, final score table, and per-run sources. The final F4 evidence records and a read-only reproduction helper are in `evaluation_records/`.
+`task_definitions/` contains the 50 final task definitions, including the molecular inputs, conditions, Gold references, and scoring settings. `cloudrabench_50_task_catalogue.csv` is the task catalogue. `evaluation_manifest.json` records the base evaluator, target-correspondence postprocess, final reference-file hashes, final score table, and per-run sources. The final F4 evidence records and a read-only reproduction helper are in `evaluation_records/`.
 
-The scorer uses weights 0.1 for Graph, 0.3 for Self-consistency, and 0.6 for Accuracy. Run artifacts and native calculation logs are preserved. The four F4 deliveries were evaluated against the same final reference definition; the other 196 final evaluations have unchanged task definitions and scoring rules. No new quantum-chemical calculations or Agent experiments were run for this final evaluation.
+The scorer uses weights 0.1 for Graph, 0.3 for Self-consistency, and 0.6 for Accuracy. Run artifacts and native calculation logs are preserved. The four F4 deliveries were evaluated against the same final reference definition. The subsequent 2 November target-correspondence postprocess checked all 200 organized graphs and replayed Accuracy on the 12 runs for L2, IA5 and IC3; five Accuracy values and their composites changed. All Graph and Self-consistency components and the remaining 195 Accuracy values retain their organized records. No new quantum-chemical calculations or Agent experiments were run for this final evaluation.
 
 To reproduce the four F4 records, use the Cloudra checkout recorded in the manifest and run:
 

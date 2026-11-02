@@ -34,7 +34,7 @@ D3 & Guided & 1.0000 & 0.7500 & 0.7500 & 0.7000 & 0.7450 \\
  & Brief & 0.8333 & 0.7500 & 0.7500 & 0.7000 & 0.7283 \\
 \addlinespace
 L2 & Guided & 1.0000 & 0.7500 & 0.7500 & 0.7000 & 0.7450 \\
- & Standard & 1.0000 & 0.5000 & 0.5000 & 0.7000 & 0.6700 \\
+ & Standard & 1.0000 & 0.5000 & 0.5000 & 0.8832 & 0.7799 \\
  & Record & 1.0000 & 0.7500 & 0.7500 & 0.8832 & 0.8549 \\
  & Brief & 1.0000 & 0.8333 & 0.7500 & 0.8832 & 0.8799 \\
 \bottomrule
@@ -61,4 +61,4 @@ In D3, Guided and Standard reported barriers of 18.14687 and 14.55472~kcal~mol$^
 \paragraph{L2: two reference barriers and the selected comparison edge.}
 Guided used the reactive cZc minimum and obtained 18.98740~kcal~mol$^{-1}$; its graph states that the stable-to-reactive conformer contribution was uncomputed. Record and Brief used the lower tZt reference, giving approximately 28.275. The conformer energy difference is 9.28761~kcal~mol$^{-1}$.
 
-Standard delivered both references and both barriers: 18.99 on edge \texttt{e1} and 28.28 on \texttt{e2}. The archived evaluation selected \texttt{e1}. Both candidates have identical bond-change lists, and the unspecified-stereochemistry reference gives equal endpoint substitution costs for these reactants. The final edge-identifier tie-break selects \texttt{e1}, so the local-reference value receives the capped Accuracy~0.7. Standard's final report explicitly contains the stable-reference barrier and conformer gap.
+Standard delivered both references and both barriers: 18.99 on edge \texttt{e1} and 28.28 on \texttt{e2}. The earlier evaluation selected \texttt{e1}: the candidates have identical bond-change lists, the unspecified-stereochemistry reference gives equal endpoint substitution costs, and the edge-identifier tie-break selects the local-reference value, with capped Accuracy~0.7. The final target-correspondence evaluation instead selects \texttt{e2}, whose verified stable-minimum reference matches the task definition. Its native barrier is 28.27501~kcal~mol$^{-1}$, giving Accuracy~0.883233 and composite~0.7799, as reported in Table~\ref{tab:si-easy-case-audit} and the complete score table. Both values and the conformer gap were already present in Standard's original report; the correction adds no calculation or conclusion.

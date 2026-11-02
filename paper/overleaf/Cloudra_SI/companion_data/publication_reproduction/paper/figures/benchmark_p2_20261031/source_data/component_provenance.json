@@ -146,5 +146,92 @@
     }
   ],
   "max_rounding_difference": 4.971078517046479e-05,
-  "rule": "Final evaluation totals aligned with their recorded component scores; preparation does not infer or overwrite run conclusions."
+  "rule": "Final evaluation totals aligned with their recorded component scores; preparation does not infer or overwrite run conclusions.",
+  "postprocess_overlay": {
+    "file": "target_matching_accuracy_corrections.csv",
+    "sha256": "2cc083fa37718cbd44f823d5ffcee1a22c755b8c507138a70e93c52efdd45691",
+    "scope": "Accuracy and composite corrected; recorded Graph and SC retained.",
+    "applied_rows": [
+      {
+        "arm": "standard",
+        "task": "L2",
+        "accuracy": 0.8832329938516985,
+        "score": 0.7799,
+        "old_accuracy": 0.7,
+        "old_score": 0.67,
+        "matched_edge_before": "e1",
+        "matched_edge_after": "e2",
+        "source_graph_sha256": "c856a6f18176f5a3f7f898910ebbce2dec5ceb3dd62a6b6fc3b666f4d5f17e83",
+        "reference_task_sha256": "2a3f71af0dca11b38adb758e484d33abd216213a366e72f3d9e7ae3ea059de6a",
+        "source_record": "revision_20261102/target_matching/accuracy_replay.json",
+        "previous_accuracy": 0.7,
+        "previous_score": 0.67,
+        "retained_component_source": "final offline score table"
+      },
+      {
+        "arm": "guided",
+        "task": "IA5",
+        "accuracy": 1.0,
+        "score": 1.0,
+        "old_accuracy": 0.0,
+        "old_score": 0.4,
+        "matched_edge_before": "conrotatory_ring_opening",
+        "matched_edge_after": "disrotatory_ring_opening",
+        "source_graph_sha256": "500a8cc037d6bf86e2757a18c9217ef306dc640043bf8b93703341607dedd711",
+        "reference_task_sha256": "da0f35d0dd79b613fe9536f64608b99ff5b85c3a5ed3ee03df446c07b941b03f",
+        "source_record": "revision_20261102/target_matching/accuracy_replay.json",
+        "previous_accuracy": 0.0,
+        "previous_score": 0.4,
+        "retained_component_source": "final offline score table"
+      },
+      {
+        "arm": "record",
+        "task": "IA5",
+        "accuracy": 1.0,
+        "score": 1.0,
+        "old_accuracy": 0.0,
+        "old_score": 0.4,
+        "matched_edge_before": "e_con",
+        "matched_edge_after": "e_dis",
+        "source_graph_sha256": "83fb2f1fd1e2e2c2ee31ef61e4c1260d350c7a5e93c4196c5b44f225873668d1",
+        "reference_task_sha256": "da0f35d0dd79b613fe9536f64608b99ff5b85c3a5ed3ee03df446c07b941b03f",
+        "source_record": "revision_20261102/target_matching/accuracy_replay.json",
+        "previous_accuracy": 0.0,
+        "previous_score": 0.4,
+        "retained_component_source": "final offline score table"
+      },
+      {
+        "arm": "brief-errors",
+        "task": "IA5",
+        "accuracy": 1.0,
+        "score": 0.9667,
+        "old_accuracy": 0.0,
+        "old_score": 0.3667,
+        "matched_edge_before": "e1",
+        "matched_edge_after": "e2",
+        "source_graph_sha256": "66ee1bc46118f0c16bb897be9b6b400cd4d2c0d94a45dbed0220eeaea0b7d330",
+        "reference_task_sha256": "da0f35d0dd79b613fe9536f64608b99ff5b85c3a5ed3ee03df446c07b941b03f",
+        "source_record": "revision_20261102/target_matching/accuracy_replay.json",
+        "previous_accuracy": 0.0,
+        "previous_score": 0.3667,
+        "retained_component_source": "final offline score table"
+      },
+      {
+        "arm": "brief-errors",
+        "task": "IC3",
+        "accuracy": 1.0,
+        "score": 1.0,
+        "old_accuracy": 0.0,
+        "old_score": 0.4,
+        "matched_edge_before": "e1_T1_to_S1",
+        "matched_edge_after": "e2_T1_to_S2",
+        "source_graph_sha256": "dc67f154844cd7a2febbfd8ea3290424742b8d04ca73baf8442f82c5c475fc52",
+        "reference_task_sha256": "c91f34ebd04cfd885a08eb4bbca69b9d4dc30b00eae8c9ee398651c5624bc3b0",
+        "source_record": "revision_20261102/target_matching/accuracy_replay.json",
+        "previous_accuracy": 0.0,
+        "previous_score": 0.4,
+        "retained_component_source": "final offline score table"
+      }
+    ]
+  }
 }

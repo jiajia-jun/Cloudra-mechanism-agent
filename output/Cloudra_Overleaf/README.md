@@ -1,5 +1,9 @@
 # Cloudra Overleaf 交付
 
+2026年11月2日同行审稿后修订：SI 的 L2 最终表、26/19-edge误差统计、manifest 与独立复现源树已同步；Impossible 使用“在当前允许方法下的物理不可达”表述。Tectonic/XeTeX 本地重编英文24页、中文20页、SI32页，上传源无未解析引用或 Overfull。200条正式评分不变，未增加计算。
+
+以下保留此前各轮记录；当前构建核对见 `output/Cloudra_Overleaf/local_sync_20261102_peer_review.json`。
+
 更新日期：2026年11月2日。
 
 本轮本地同步：正式分数接入 target-correspondence Accuracy overlay（整体均分 0.7176；Impossible Brief 0.6029 / Guided 0.5051 / Record 0.2925）；中英文结果与讨论、SI 详细结果与 matcher 节已对齐；bench 图件已拷入 Overleaf 工程；交付 ZIP 已重建。本机无 XeLaTeX，PDF 预览未重编译；在线 Overleaf 另传。核对见 output/Cloudra_Overleaf/local_sync_20261102.json。
