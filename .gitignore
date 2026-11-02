@@ -208,6 +208,35 @@ vector_store/vectors.f16.npy
 /tmp_chemcat.pdf
 /tmp_review2024.pdf
 
-# Supplementary-information deliverables
-!/output/Cloudra_SI/Cloudra_SI_Overleaf.zip
+# Research data package
 !/output/Cloudra_SI/Cloudra_SI_Data.zip
+
+# Manuscripts and editorial work stay local; research inputs remain versioned.
+/paper/*
+!/paper/README.md
+!/paper/figures/
+!/paper/literature/
+!/paper/overleaf/
+/paper/overleaf/*
+!/paper/overleaf/README.md
+!/paper/overleaf/Cloudra_SI/
+/paper/overleaf/Cloudra_SI/*
+!/paper/overleaf/Cloudra_SI/README.md
+!/paper/overleaf/Cloudra_SI/companion_data/
+/output/Cloudra_Overleaf/
+/output/Cloudra_论文当前稿/
+/output/Cloudra_arXiv_*/
+/output/Cloudra_Peer_Review_*/
+/output/Cloudra_Editing_*/
+/output/Cloudra_Wording_Audit_*/
+/output/Cloudra_Revision_*/
+/output/EN.txt
+/output/ZH.txt
+/output/SI.txt
+/output/Cloudra_SI/*
+!/output/Cloudra_SI/README.md
+!/output/Cloudra_SI/Cloudra_SI_Data.zip
+!/output/Cloudra_SI/reproduction_verification.json
+/output/Cloudra_Public_Data_20261101/*.png
+/scripts/model_semantics/build_chapter_docx.py
+/scripts/model_semantics/integrate_manuscript.py

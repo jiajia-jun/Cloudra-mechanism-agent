@@ -1,34 +1,13 @@
-# Cloudra SI 初稿
+# Cloudra 配套数据与复现材料
 
-2026年11月2日同行审稿后修订：SI 的 L2 最终表、26/19-edge误差统计、manifest 与独立复现源树已同步；Impossible 使用“在当前允许方法下的物理不可达”表述。Tectonic/XeTeX 本地重编英文24页、中文20页、SI32页，上传源无未解析引用或 Overfull。200条正式评分不变，未增加计算。
+[Cloudra_SI_Data.zip](Cloudra_SI_Data.zip) 包含任务定义、完整精度评分、评测记录和复现脚本，解压后得到 `companion_data/`。当前数据包为 18,969,168 字节，SHA-256：
 
-以下保留此前各轮记录；当前构建核对见 `output/Cloudra_Overleaf/local_sync_20261102_peer_review.json`。
+```text
+93f551bba698bbeadad64646789ce269378b57ce4e8db2cbb737f23d90c474a5
+```
 
-更新日期：2026年11月2日。
+- [仓库内的配套数据与脚本](../../paper/overleaf/Cloudra_SI/companion_data/README.md)
+- [公开数据下载说明](../../docs/RESEARCH_DATA_CN.md)
+- [P2 完整实验包与校验说明](../../docs/benchmarks/P2_DELIVERY.md)
 
-本轮本地同步：正式分数接入 target-correspondence Accuracy overlay（整体均分 0.7176；Impossible Brief 0.6029 / Guided 0.5051 / Record 0.2925）；中英文结果与讨论、SI 详细结果与 matcher 节已对齐；bench 图件已拷入 Overleaf 工程；交付 ZIP 已重建。本机无 XeLaTeX，PDF 预览未重编译；在线 Overleaf 另传。核对见 output/Cloudra_Overleaf/local_sync_20261102.json。
-
-日期：2026年10月31日。英文 SI 共31页，已在 Overleaf 使用 XeLaTeX、TeX Live 2026 编译。
-
-2026年11月1日本地同步：SI正文和当前正式PDF未改；已将落后的Overleaf源码ZIP和数据ZIP同步为当前正式源稿及 CloudraBench-P2-final-20261101 配套材料。源码包26文件，数据包489文件；通讯邮箱为 `202509240114@csust.edu.cn`。桌面旧SI副本已换为当前31页正式PDF，提交准备包内已核验正确的SI预览保持。
-
-- [SI初稿PDF](Cloudra_SI_EN_Draft.pdf)
-- [Overleaf可编辑项目包](Cloudra_SI_Overleaf.zip)
-- [配套数据与复现材料](Cloudra_SI_Data.zip)，约17.8MB，解压得到 companion_data/。
-- [公开下载配套数据](https://drive.google.com/file/d/1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf/view?usp=drivesdk)；[研究数据总目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)同时提供P2完整实验包、48次P1b实验和Gold参考证据。
-- [第三章完整行为与激活原始档案](https://drive.google.com/drive/folders/1Zkn6_2aDlloAe-bmfd7w27zxmQKj5L9K)，三个ZIP共164.7MB，附源数据库、事件轨迹、绘图材料、历史稿件索引及校验表。
-- [在线Overleaf项目](https://www.overleaf.com/project/6ae5e126e8645869834e129f)
-
-SI包含7节、50题完整定义、200次运行的800个总分与评分分项、速度/交付/科学归属分析、行为实验与激活干预、85个化学Agent系统的原始来源、复现入口。正式数据离线整理按论文方法说明，未运行新实验。
-
-数据包保留50个原任务JSON、完整精度分数CSV、原始请求与响应、目标几何与证据案例、完整激活读出、文献来源与文件级哈希。模型权重不包含在内。排版项目与数据包分开，便于编辑正文。
-
-作者顺序：杨程驿（Chengyi Yang）；Qianxin Zhou；李洋（Yang Li）。Qianxin Zhou列第二，李洋列第三，不加共同作者标记。杨程驿和李洋的单位为长沙理工大学化学与医药工程学院；Zhou为图片所示福州大学单位。
-
-可编辑源稿见 paper/overleaf/Cloudra_SI/。首页署名已同步至中英文正文。
-
-本轮审稿修订加入主干模型与调用元数据、5个Easy反例的原始轨迹分析，以及IA5/IC3目标匹配的四情景敏感性表；正式200次运行的800个数值保持不变。模型为DeepSeek-v4.1-flash（1017），归档API别名另列。标题改为强调科学有效性检验；相关限制集中在Discussion。
-
-2026年11月1日：已落实Astra提出的三处小修，统一Mean S列头、相对位移表述及B_axis总分符号；中英文正文与SI已同步Overleaf并重新导出，页数保持23/19/31。公式、阈值、正式分数和数据包未改。审阅和arXiv准备清单见 [发布准备目录](../Cloudra_arXiv_20261101/arXiv发布准备.md)。
-
-2026年11月1日数据公开更新：中英文正文和SI第S7节已加入[研究数据公开目录](https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7)，并同步Overleaf。新版PDF为23/19/31页；正式评分与SI数据ZIP保持不变。各包获取方式见[数据交付说明](../../docs/benchmarks/P2_DELIVERY.md)。
+稿件 PDF、排版源码和编辑记录保留在本机；已入库的旧版仍可从 Git 历史追溯。论文链接将在 arXiv 正式公告后补充。

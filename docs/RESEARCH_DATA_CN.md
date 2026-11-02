@@ -2,7 +2,9 @@
 
 [English](RESEARCH_DATA.md) · [返回文档中心](README.md)
 
-当前论文题目为 **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration**，已提交 arXiv，等待公告。[中英文主稿与 SI](../paper/overleaf/README.md)是论文源文件入口。
+本仓库提供 **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** 的代码、实验数据与分析脚本。公开论文链接将在 arXiv 正式公告后补充。
+
+[SI 复现源材料](../paper/overleaf/Cloudra_SI/companion_data/)、[绘图脚本](../paper/figures/)和 [SI 数据包](../output/Cloudra_SI/Cloudra_SI_Data.zip)保留当前路径。稿件源码、PDF、排版、审稿与提交产物仅在本机保留，已跟踪的旧版本可从 Git 历史追溯。
 
 ## 按目的选择入口
 
@@ -27,4 +29,4 @@ Gold 的原件缺失、真实 IRC 来源限制及人工验收例外见[当前参
 
 检查已发布结果时使用对应数据包记录的代码快照。重新运行时记录所用提交、模型与计算设置；当前分支可能已经包含后续开发改动。
 
-论文引用见根目录 [CITATION.bib](../CITATION.bib)，GitHub 引用信息见 [CITATION.cff](../CITATION.cff)。arXiv 编号将在论文正式发布后补充。
+论文引用见根目录 [CITATION.bib](../CITATION.bib)，GitHub 引用信息见 [CITATION.cff](../CITATION.cff)。公开论文链接及 arXiv 编号将在正式公告后补充。

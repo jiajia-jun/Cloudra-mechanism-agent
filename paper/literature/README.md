@@ -26,4 +26,4 @@ These files are preserved byte-for-byte for provenance. They are **not usable PD
 | [kin21642.html](download_artifacts/kin21642.html) | `.lit_kin21642.pdf` | HTML |
 | [pnas.xml](download_artifacts/pnas.xml) | `.lit_pnas.xml` | Empty file |
 
-The dated [chemistry AI agents literature survey](../archive/chemistry_ai_agents_literature_report.md) is in `paper/archive/`; [literature gap analysis](../literature_gap_analysis.md) stays with the manuscript.
+Earlier manuscript surveys and literature gap analyses remain in Git history.

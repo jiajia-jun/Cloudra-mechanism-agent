@@ -50,7 +50,7 @@ The `chem-kb` plugin retrieves complete source knowledge texts through graph-key
 | `cloudra/knowledge/`, `kg_data/`, `知识卡片/` | Knowledge retrieval, graph inputs and source texts. `vector_store/` is a historical offline asset. |
 | `cloudra/benchmark/`, `ideapool/` | Benchmark implementation and versioned task sources. |
 | `gold_compute/` | Reference evidence indexes and reproduction instructions. |
-| `paper/overleaf/` | Current manuscript and SI sources. |
+| `paper/` | Research inputs, figure sources, and companion-data reproduction scripts. |
 | `deploy/`, `scripts/`, `tests/` | Deployment guides, maintenance scripts and regression tests. |
 
 ## Maintenance pointers

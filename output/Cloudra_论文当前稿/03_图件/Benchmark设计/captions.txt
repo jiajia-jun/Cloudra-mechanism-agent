@@ -1,3 +1,0 @@
-Figure 5. CloudraBench task composition and research themes. (a) Counts and evaluation focus of the four task tiers. (b) Two-dimensional PCA of BAAI/bge-m3 embeddings of all 50 original task names. E1, NB1, HA1, and IA1 are the four tasks used in the repeated-run experiment. Colors and marker shapes encode the predefined task tiers.
-
-图 5. CloudraBench 的任务组成与研究主题。a，四档任务的数量及评估重点。b，50 道原始任务名称的 BAAI/bge-m3 嵌入经主成分分析得到的二维投影，E1、NB1、HA1 和 IA1 为重复实验采用的四题。颜色和点形表示预先规定的任务类别。

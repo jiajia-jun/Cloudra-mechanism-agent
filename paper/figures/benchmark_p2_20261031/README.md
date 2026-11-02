@@ -64,9 +64,6 @@ uv run python scripts/benchmark_p2/plot_imp.py
 
 第一步从本目录保留的来源记录生成完整出版分项及聚合表，后三步生成 7 组正文图件、绘图数据与图注，并保留两张原逐题分图的来源档案。P1b 批次时间和 P2 投入的独立整理脚本也保存在 `source_data/speed_delivery/`，各图的 JSON 记录绘图数据及来源。
 
-## 对应论文源文件
+## 论文与数据入口
 
-- 英文结果 3.1：[03_benchmark_results.tex](../../overleaf/Cloudra_EN/sections/03_benchmark_results.tex)；讨论 3.4：[03_benchmark_discussion.tex](../../overleaf/Cloudra_EN/sections/03_benchmark_discussion.tex)。
-- 中文结果 3.1：[03_benchmark_results.tex](../../overleaf/Cloudra_ZH/sections/03_benchmark_results.tex)；讨论 3.4：[03_benchmark_discussion.tex](../../overleaf/Cloudra_ZH/sections/03_benchmark_discussion.tex)。
-
-两版均由各自的 `sections/03_results.tex` 接入新增内容，原 3.2 与 3.3 保留。最终中英文主稿页数由最终编译结果补入交付说明。
+稿件源码在本机留存；公开论文链接将在 arXiv 正式公告后补充。[研究数据说明](../../../docs/RESEARCH_DATA_CN.md)列出配套实验数据和下载方式。

@@ -39,4 +39,4 @@ See [Contributing](../CONTRIBUTING.md) for checks and submissions, and [AGENTS.m
 
 ## Historical records
 
-Completed plans, earlier designs and acceptance records remain in `docs/archive/`, `docs/superpowers/`, `gold_compute/archive/`, `paper/archive/` and `ideapool/archive/` for reference. They do not replace the current guides or authorize new calculations. See [CHANGELOG](../CHANGELOG.md) for version history.
+Completed plans, earlier designs and acceptance records remain in `docs/archive/`, `docs/superpowers/`, `gold_compute/archive/` and `ideapool/archive/` for reference. Earlier manuscripts and editorial artifacts remain in Git history; the current branch provides research data and reproduction code. Historical materials do not replace the current guides or authorize new calculations. See [CHANGELOG](../CHANGELOG.md) for version history.

@@ -2,7 +2,9 @@
 
 [中文](RESEARCH_DATA_CN.md) · [Documentation](README_EN.md)
 
-The manuscript **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** has been submitted to arXiv and is awaiting announcement. Start with the [English and Chinese manuscript sources and SI](../paper/overleaf/README.md).
+This repository provides code, experimental data and analysis scripts for **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration**. A public paper link will be added after the official arXiv announcement.
+
+The [SI reproduction sources](../paper/overleaf/Cloudra_SI/companion_data/), [figure scripts](../paper/figures/) and [SI data package](../output/Cloudra_SI/Cloudra_SI_Data.zip) remain at their current paths. Manuscript sources, PDFs and editorial or submission materials are kept locally; earlier tracked versions remain in Git history.
 
 ## Choose what to reproduce
 
@@ -27,4 +29,4 @@ Missing Gold originals, limitations in IRC provenance and manual acceptance exce
 
 Use the code snapshot recorded in the relevant package when inspecting published results. For a new run, record the commit, model and calculation settings; the current branch may include subsequent development changes.
 
-Use [CITATION.bib](../CITATION.bib) for the manuscript citation and [CITATION.cff](../CITATION.cff) for GitHub citation metadata. The arXiv identifier will be added after publication.
+Use [CITATION.bib](../CITATION.bib) for the manuscript citation and [CITATION.cff](../CITATION.cff) for GitHub citation metadata. The public paper link and arXiv identifier will be added after the official announcement.
