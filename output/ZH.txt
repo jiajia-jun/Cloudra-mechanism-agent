@@ -10,9 +10,9 @@ Cloudraဒ
 ᅋေ
 Ӂ໾bնე࿽ଆ྘čLLMĎᇆି
 ҄ᇧb
-Ч໓ิԛ CloudraݖDelivery DAGٳ
-༢Ġοᅶoᇆିक़
-ބIRC໾ᇕbᇆିุऌ
+Ч໓ิԛ Cloudraᇹ Delivery DAG੣
+༢Ġᇆିุ࿊ᄴ
+ބIRC࡟
 ৘b
 CloudraBenchݣ50अ
 ປӮ 200 Ցᄎྛđᇶေ Guidedູ 0.805֥Standardཌູ 0.584bᄝ
@@ -81,10 +81,10 @@ a 化学 AI Agent 系统 n = 85
 ๭ 3б
 Cloudrab஥ส໓ངҋਘЌ਽ປ
 ᇯཛটჷb
-ჰᄵđ Cloudra۳ࢌ
-ྟӱ྽bMCSđჰሰ႘ഝ
-࡯؎ࠇ࡯
-ა৫ุหᆘđ
+Cloudraሰቕѓb MCS
+ႋ໾ა
+b ӱ྽ҩਈ
+௜၍࿊
 b
 Delivery DAG๭bૄ
 ཌྷႋ
@@ -182,7 +182,7 @@ Cloudraީ
 ࢳ
 љЌթb
 2.1.1৘
-ෘᅬЧ čComputeDB৫
+ෘඔऌ९čComputeDB৫
 ӱa ჹӱSSHބSlurm
 ऌ Cartesian
 ෘ SHA-256 ᅋေĠ೏
@@ -647,7 +647,7 @@ b ࿊ี၇
 ࠣ
 ٚ
 b
-2.6.2ࣥ
+2.6.2مٚࡎ
 ٓمٚބ
 ຶbEasyaNormalބHard ಩ༀᄍྸ xTB[27]aPM7[28]
 ა B3L YP-D3(BJ)/def2-SVP[29–34]đImpossible ಩ༀཋ
@@ -655,14 +655,16 @@ b
 MOPAC ჰളರᆽb [35–38]ჭ
 ଢѓb ඔᆴҕॉο๝
 ཬᆴҕᅶაᆇൌ
-IRCႋ҄đ TS ௔
-ੱaචཟ IRC߄/ Ӯᆣऌ৽Ġ
+IRC࡟
+Ұ TS ௔ੱaචཟ IRCൌ
+࠽IRCބ
 ဒb
 ಃᇗູ 0.1a
 0.3ބ0.6љ
 ંቔູ
 ճσb
-׿
+ࠣ
+ປ
 b
 2.6.3ቔੀཨವ
 č P1bࢠE1aNB1aHA1 ა IA1 ᄝ
@@ -676,17 +678,17 @@ GuidedaStandardaRecordބBrief-errorsі
 ༀᄎྛb ಆ҆P2ݖDeepSeekੀൔ
 OpenAIಸ chat completionsႨ DeepSeek-v4.1-
 flashč1017֖݂API љ଀ູ deepseek-v4-flashđ ౨
-౰ minimal౨౰ /੣
-֥ۄGuided
-ა StandardູBackbonebP1b ა P2 ൞
-ѓ്b P2 ᆳྛϱЧ
+౰ minimalປ
+֥ۄ
+Guided ა Standardູ BackbonebP1b
+ა P2ѓ്bP2 ᆳ
 ࡮SIֻS1b
 Standard ႅҟཁൔ DAGဒჿඏѩ
 ঌĠ GuidedҰა
 bRecordဒႮᄎ
 ྛሱྛ࿊ᄴĠBrief-errors஥ᇂ
-ඏჰၹ
-σᇏb
+ս઒
+b
 ࠏ
 ᆜ৘၇ऌ Agentބۡ
 ႋ
@@ -730,11 +732,9 @@ CloudraBenchࠏ
 ᆞ
 ໾
 a
-ऌૄՑᄎྛሱ
-ႋ
-ሰ෿
-ቔੀҐႨཌྷ๝
-֤֞200đ ᆜุन
+֥
+ႋ๙
+భđ
 6
 ===== PAGE 7 =====
 a
@@ -868,8 +868,11 @@ a
 b c
 ๭ 7. P2აᇯีҵၳbađCloudra Guided ა๝၂ backbone֥Standardཌᄝಆ҆ 50ĠEasy
 ູ 20۲10 ีbbđЌ਽ಆ҆ 50bcनҵა 100,000 Ցο಩ༀᆜቆ bootstrap֥95%b
-ູ 0.7176b ๭7ᇀ๭ 11๭ളӮ౦ঃaTS
-iIRCb
+ଢѓ௄஥bඹ
+֤֞200ਈ
+ູ0.7176b ๭7ᇀ๭ 11ᄎྛ௹
+๭ളӮ౦ঃaTSiIRCა಩ༀ
+b
 3.2.1 ๝၂ଆ྘༯đCloudra֤
 ٳ
 Guidedູ 0.8050đStandard ູ 0.5836b50֡
@@ -916,7 +919,6 @@ HH1২ሰb Guided ა Standard৳
 नჿູ 1đሱటྟႮ 0.2333
 ᇀ 1.0Ⴎ 0.7032ᇀ 0.9999bၹՎđಒ
 ཬᆴđಯླҀԉ IRC࠹ׄ؊ࠣ
-ෘb
 8
 ===== PAGE 9 =====
 Easy Normal Hard IMP
@@ -1033,10 +1035,11 @@ Graph Self-consistency Accuracy
 Where the paired score gains arise
 a b c
 d
-๭ 8. ಆ҆ 200Ҫba–c֥Graphaሱటྟა Accuracy नᆴĠૄ஥ᇂሹุ 50 ีđEasy
+๭ 8. ಆ҆ 200ਈba–c֥Grapha ሱటྟაAccuracy नᆴĠ ૄ஥ᇂሹุ50 ีđEasy
 ູ 20Ҫ 10 ีbdקܥ0.1/0.3/0.6ࢳٳGuidedؓBackboneनҵđಆ҆aNormal ა Hardљ൐Ⴈປᆜ
-50a10ބ10b
-3.2.3੣
+50a10ބ10ଽ၂ᇁb
+ෘb
+3.2.3؇
 ٳ
 ੣č๭ 9Ď bჰᄎྛᇏđStandard ᄝ 50ڱࢌ
 43๭đGuidedaRecord ა Brief-errorsڱࢌ۲50b
@@ -1088,7 +1091,6 @@ P2֥15ധ຋಩ༀbGuided
 errorsෘൈӉഒ 28.9%ۚٳ0.0851bᄝ 15
 ಩ༀᇏđGuided Ⴕ 7 ี๝ൈб Brief-errors ൐Ⴈ
 b
-๝಩ༀᇏđGuided੣ 789࿐ቔြđStan-
 9
 ===== PAGE 10 =====
 Guided Backbone Record Brief
@@ -1129,7 +1131,7 @@ Offline-organized Backbone results
 Seven graphs organized offline from their existing research artifacts
 a b
 c
-๭ 9.๭აቋᇔ॓࿐ᆦӻb ađૄ஥ᇂ 50੣đ GuidedaBackboneaRecord ა Briefљູ 50a43a
+๭ 9.bađ ૄ஥ᇂ50੣đGuidedaBackboneaRecord ა Briefљູ 50a43a
 50ބ50֥7ٺBackboneૄ஥ᇂनູ 50bbđૄ஥ᇂಆ҆ 40٤֡Impossible
 ٳSC=1ࠣٳSC=0ඔ၇Ցູ 24a7a16ބ20đBackbone ਸ਼Ⴕ 4bcđ7۴ࡹ
 ֥Backboneຶ 0.0333 ᇀ 0.3425đनᆴ 0.1537b
@@ -1649,6 +1651,7 @@ Chemical identity across notation and option order Same formula, different ident
 ๭ 14.b16љіൕᆞಒაհ༂đଽ҆ሳଛЌ
 ֻ14ܒࢲࢤCC1CC=C1 ა C=C1CCC1ٳ
 ሰൔनູ C5H8b
+๝಩ༀᇏđGuided੣ 789࿐ቔြđStan-
 dard ູ 419đRecord ູ 431đBrief-errors ູ 883Ġఃᇏ
 љູ 114a45a62ބ167࠺
 ੣bNU3aNU5aNU6ބNR1֥࣮16 Ցᄎ
@@ -1667,12 +1670,11 @@ b
 Ⴕ
 ݣ23֥26۲
 ੣၂
-ײ
-ෘ
+ႋაିਈҕᅶđ ᇯшაЧϱ
+ೆ၂
 ֻ2ၬbі 1༂ҵb
 ෮࿢෪
 ᇏđGuided֥MAEބRMSE न
-Ⴟ StandardđBrief-errors૭
 Table 1.๝ 26ሰିৈ༂ҵđֆ໊
 ູ kcal/molb
 ቆљ MAE RMSE༂ҵᇏ໊ඔ
@@ -1680,6 +1682,7 @@ Guided 1.17 2.86 0.057
 Standard 1.54 4.64 0.057
 Record 1.58 5.71 0.073
 Brief-errors 1.13 2.31 0.099
+Ⴟ StandardđBrief-errors૭
 ໾৘ᆦӻႮሱ
 ਈbSIֻS4ؓ53
 ຓ Gold
@@ -1695,7 +1698,6 @@ GuidedaStandardބBrief-errorsљູ 0.9628a0.9128
 NU3 ᇏ Brief-errorsb
 ऎุିৈҵၳč๭ 12Ď bHA8
 ᇏđGuidedԛ 29.46 kcal/mol đStandardԛ 20.43
-kcal/molđҕॉູ 29.48 kcal/molࡼ9.03 kcal/mol
 13
 ===== PAGE 14 =====
 XYZ
@@ -2154,6 +2156,7 @@ disposition:
 "partial"
 ๭ 25. ჰ൓ IA1ປӮ౨౰ა DAGᆣऌൈđଆ྘౨౰ປӮĠ༢๤ᆷԛಌഒ short_irc ᆣૼѩཟ
 ປӮb
+kcal/molđҕॉູ 29.48 kcal/molࡼ9.03 kcal/mol
 ҵљሔිᇀିਈҕᅶğGuided֮all-s-transّ
 ཬᆴđStandardႋྟ cisoidའb
 IRCିൈđᄵҐ
@@ -2181,18 +2184,19 @@ D1ބD3 ᇏ 0.7ഈ
 D3ԛਔᆃུσ২
 b
 3.2.8 Impossibleં
-Impossibleູ
-֥xTB/PM7ԩ৘
-ၹ
-ሰ෿bBrief-errorsູ
-0.6029đGuided ູ 0.5051đStandard ູ 0.2473đRecord ູ
-0.2925č๭ 13Ď bBrief-errorsؓGuided ႓ 4ڵ5 ีa
-௜ 1 ีbBrief-errorsࡨGuided नᆴູ +0.09788đ95%
-಩ༀ bootstrapູ [−0.160, +0.361]ངູ
-ܒࢲ−0.00661a ሱటྟ−0.01550؇0.12000b
-ᇯี Brief-errorsࡨGuided ҵᆴູğIA1 +0.8283đIA9
-+0.5666đIC3 +0.6000đIF3 +0.0333đIA7 0đIA5 −0.0333đ
-IB9 −0.0500đID2 −0.1500đIE2 −0.1500đIG8 −0.6661b
+Impossibleק
+֥xTB/PM7ԩ৘ᄝ
+ሰ෿აีଢᆷ
+ࠇࣥ
+ሰ෿bBrief-errorsູ 0.6029đGuided ູ 0.5051đ
+Standard ູ 0.2473đRecord ູ 0.2925č๭ 13Ď bBrief-
+errorsؓGuided ႓ 4ڵ5 ีa ௜1 ีbBrief-errors
+ࡨGuided नᆴູ +0.09788đ95% ಩ༀ bootstrapູ
+[−0.160, +0.361]ܒࢲ−0.00661aሱ
+టྟ −0.01550؇0.12000bᇯี Brief-errorsࡨ
+Guided ҵᆴູğIA1 +0.8283đIA9 +0.5666đIC3 +0.6000đ
+IF3 +0.0333đIA7 0đIA5 −0.0333đIB9 −0.0500đID2
+−0.1500đIE2 −0.1500đIG8 −0.6661b
 IA1ଢѓđBrief-
 errorsनູ 1đGuided ሙಒ
 ູ 0bIA9đਆቆሱటྟन
@@ -2246,10 +2250,10 @@ Cloudraჰ
 đϖՑनᆞಒđѩᄝ࿊ཛ
 đ XYZࡱ
 ᆞಒճσđਸ਼၂Ցᄝ 1,024ളӮ token ൈղ
-đᄝ 1,353ളӮ
-tokenᆞಒճσb
 16
 ===== PAGE 17 =====
+đᄝ 1,353ളӮ
+tokenᆞಒճσb
 ϖቆ
 ᇏđXYZളӮ tokenљ
 ູ 807.5ބ86b
@@ -2299,14 +2303,14 @@ b[41]ए
 ඨ྽၇ঠb
 3.4ࣥ
 3.4.1௔ੱა IRCׄ
-aିਈa
-ࢲٺ
-ᆃ่ᆦӻ৽ğ௔ੱ
-đIRCđਆҧଌᆠ
-b DAGa௔
-ෘaIRC҄ᇧđѩ
-Ġ
-ෘಯॖିഉಌb
+۲
+ႋ҄
+đ IRCđ
+b DAG߄
+ෘaIRCࠇ
+Ұ
+ෘಯॖିഉ
+ಌb
 ৳
 ބ
 ֤֞32љ
@@ -2321,9 +2325,9 @@ aIRCଢѓ໾
 ৳
 ٚ
 ҳ၂ᇁb
-[42] Cloudra੣ཌྷႋӁ
-a ଧ่IRCଧ
-ෘb
+[42] Cloudraෘ
+aIRCّ
+ႋ҄ᇧb
 3.4.2 IRCঌ
 ࠹ބ
 ෘbCloudraᆷԛऎุ໙ีđ২ೂ໊ቅԊ
@@ -2349,17 +2353,17 @@ IA1॓࿐ေ౰
 Ӯေ౰bᄝቋྍᅋေა 12ّ
 ֥6ൻೆᇏđ12नᆞಒ č100%Ď b
 3.5აᅚຬ
-ෘᆳྛbCloudra֥Delivery DAG
-৘ᇏ
-ܱ࡯
-ٺ
-ࠣIRC/ෘᆦӻ
-b 50৘
-іགྷb Guidedन
-Ⴟ StandardĠHardљູ
-+0.1353ބ0.1274bHH1ބHI1ି
-ཬᆴđ ಯླҀԉIRC؊ࠣ
-ෘb
+ᆳྛඨ྽b Cloudra֥De-
+livery DAGіൕ໾ᇕ
+ࠫ
+ࢠ
+ࠣIRC/ק
+໾ᇕb 50ޙ
+іགྷb Guided֥
+Ⴟ StandardĠHard ᇏđਆᆀ
+љູ +0.1353ބ0.1274bHH1ބ
+HI1ࠞ
+ཬᆴđಯླҀԉ IRCෘb
 HA8ބNU6݂
 උbHA8طIRC
 འb NU6 ᇏđႨႿ࿙
@@ -2367,10 +2371,10 @@ HA8ބNU6݂
 ࣥ
 bDAGa
 IRC࡟ުْ߭
-ݔࢲ
-ቔ
 17
 ===== PAGE 18 =====
+ݔࢲ
+ቔ
 Ⴈ၂ᇁb[44]
 ਸ਼
 ሰ
@@ -2401,9 +2405,10 @@ P2 ૄีૄ஥ᇂЌ਽၂Ցᄎྛđ಩ༀ՛ bootstrapࡗ
 ܋48ۂڭP2֥
 50֥ުP2ۂڭ200ࠣ
 ٳHardྟ
-ඔᆴି
-ࡗ
-࿊ᄴ௔ੱb
+ෘ
+đ
+࿊ᄴ௔
+ੱb
 Impossibleູ໾৘҂ॖ
 ҐႨ
 ሱటྟ 1֥ࣥTSi
@@ -2420,10 +2425,10 @@ b
 ࿃Ҡቔb
 StandardඏĠ
 Guided/HI1րሑ෿b ਆ
-ݔࢲ
-߄
-౵თđ NU6ॖၛ
-ა༵భӇ൫đϺᇹᇆିุ࿊ᄴ༯၂ՑԚ҉
+ෘ
+֞߄
+౵თđ NU6ॖၛб
+ࠇ
 ഡb
 CloudraଏಪყቆᆮҐဢ 32ྛ
 अ҆ MMFF94࿊b௔ੱ
@@ -2495,12 +2500,12 @@ Chemical Simulations. Journal of Chemical Theory and Computa-
 tion, 22(13):6557–6571, 2026. doi: 10.1021/acs.jctc.6c00591. URL
 https://doi.org/10.1021/acs.jctc.6c00591.
 [7] Jiaru Bai, Abdulrahman Aldossary, Thomas Swanick, Marcel Müller,
+18
+===== PAGE 19 =====
 Y eonghun Kang, Changhyeok Choi, Naruki Y oshikawa, Zijian Zhang,
 Jin Won Lee, Tsz Wai Ko, Aiwei Yin, Mohammad Ghazi Vakili, Chris
 Crebolder, Varinia Bernales, and Alán Aspuru-Guzik. El Agente
 Gráfico: A Semantic Execution Runtime for Scientific Agents, 2026.
-18
-===== PAGE 19 =====
 URL https://arxiv.org/abs/2602.17902v2 . Version 2, 7
 August 2026.
 [8] Changhyeok Choi, Yunheng Zou, Marcel Müller, Han Hao,
@@ -2642,13 +2647,13 @@ Chemical Physics, 7:3297–3305, 2005. doi: 10.1039/B508541A.
 doi: 10.1002/wcms.70019.
 [36] M. J. Frisch, G. W. Trucks, H. B. Schlegel, G. E. Scuseria, M. A.
 Robb, J. R. Cheeseman, G. Scalmani, V . Barone, G. A. Petersson,
+19
+===== PAGE 20 =====
 H. Nakatsuji, et al. Gaussian 16. Gaussian, Inc., Wallingford, CT,
 2016. URL https://gaussian.com/citation/.
 [37] Jonathan E. Moussa and James J. P . Stewart. MOPAC: An open-
 source semiempirical molecular orbital program. Journal of Open
 Source Software, 11(119):8025, 2026. doi: 10.21105/joss.08025.
-19
-===== PAGE 20 =====
 [38] FACCTs. ORCA 6.1 Manual, 2025. URL https://www.faccts.d
 e/docs/orca/6.1/manual/ . Online documentation; accessed 31
 October 2026.

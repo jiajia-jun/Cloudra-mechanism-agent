@@ -22,8 +22,8 @@ S1.4 Allowed calculations and reference definitions . . . . . . . . . . . . . . 
 S1.5 Physical evidence associated with a mechanism . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S4
 S1.6 Offline organization and publication records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S4
 S1.7 Paired statistical analysis and time measurements . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
-S2 Layered scoring and scientific completion S5
-S2.1 Composite and reporting layers . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
+S2 Score components and scientific completion S5
+S2.1 Composite score and reported outcomes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
 S2.2 Graph structure and chemical correspondence . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
 S2.3 Graded physical self-consistency . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
 S2.4 Electronic barriers and numerical accuracy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S6
@@ -233,10 +233,9 @@ measured on the 15 tasks with records for all four configurations, comprising 60
 cumulative quantum-chemical job-hours are reported; job-hours sum the individual calculation durations within each run.
 For Standard/M1, native-log CPU time is divided by four to estimate job duration. The tables keep job-hours separate from
 core-hours and from the elapsed time of an entire P2 research run.
-S2 Layered scoring and scientific completion
-S2.1 Composite and reporting layers
-For a formally organized run, the reported composite combines graph structure G, physical self-consistency SC, and
-accuracy A:
+S2 Score components and scientific completion
+S2.1 Composite score and reported outcomes
+The composite score combines graph structure G, physical self-consistency SC, and accuracy A:
 S = 0.1G + 0.3SC + 0.6A. (S3)
 The three components are reported separately, alongside execution status, original graph delivery, and completion of the
 requested steps. Complete scientific validation additionally requires every requested species and step to meet its physical
@@ -260,7 +259,7 @@ side and 0.50 for both sides.
 Evidence stage Contribution
 Verified first-order saddle: exactly one imaginary frequency 0.35
 IRC starting geometry consistent with the selected saddle 0.15
-Native outer-frame–optimization–frequency lineage to both declared endpoint minima 0.50
+Logs linking both actual IRC terminal frames through Opt/Freq to the declared minima 0.50
 For graphs containing reaction edges, SC is the mean of the delivered edge scores. An edge represented by its endpoints
 alone requires coverage of both endpoint species. For a species-only graph, SC is the mean species-coverage score. Explicit
 targets judged physically inaccessible under the task’s permitted methods are exempt from the corresponding stationary-
@@ -715,14 +714,14 @@ qualitative channel preference; NB1_E2 and NQ5_E2 have no numerical reference. T
 including IB9’s one numerical edge and its negative target. We recovered 160 explicit log-derived-versus-Gold comparison
 notes from the original benchmark databases, comprising 159 positive-target observations and one Guided/IB9 observation.
 Native TS and reference energies, their echoed methods, and file hashes are retained with the accompanying analysis.
-For the positive targets, 156 observations were reproduced from normally terminated native logs using the selected TS
-and reference files, consistent methods and continuum settings, and agreement with the original comparison note at its
-recorded 0.001-kcal mol −1 precision. Three further observations belong to runs whose original score components differ
-from the final publication components; excluding these leaves 153 final-aligned observations: Guided 41, Standard 37,
-Record 40, and Brief 35, from 33, 29, 32, and 30 tasks, respectively. The 59 remaining opportunities out of 212 positive
-numerical run–edge pairs remain listed as unavailable or unresolved observations. Missing values receive neither zero error
-nor an imputed numerical penalty. The separate final F4 replay records are outside this uniformly sourced original-note
-cohort.
+For 156 positive-target observations, barriers recalculated from the selected, normally terminated TS and reference logs
+agreed with the original comparison notes to the recorded precision of 0.001 kcal mol −1. The TS and reference calcu-
+lations used consistent methods and continuum settings. Three further observations belong to runs whose original score
+components differ from the final publication components; excluding these leaves 153 final-aligned observations: Guided
+41, Standard 37, Record 40, and Brief 35, from 33, 29, 32, and 30 tasks, respectively. The 59 remaining opportunities out
+of 212 positive numerical run–edge pairs remain listed as unavailable or unresolved observations. Missing values receive
+neither zero error nor an imputed numerical penalty. The final F4 replay records are not included in this set, which was
+assembled from the original comparison notes.
 The original comparison notes identify this observed cohort. Final target correspondence then selects the task-specified
 reference from the same run’s existing calculations. This changes Standard/L2 from the local-reference edge e1 to the
 stable-reference edge e2, with a native barrier of 28.27501 kcal mol −1. Cohort membership is retained; the statistics
@@ -746,10 +745,10 @@ Guided 1.1676 2.8566 0.0573 10.7826
 Standard 1.5423 4.6374 0.0574 21.4713
 Record 1.5763 5.7082 0.0731 28.6373
 Brief 1.1310 2.3080 0.0985 9.0486
-Retained selected Gold input files corroborate the same method and continuum setting for a further-defined common
-subset of 19 edges from 17 tasks (Table S11). This corroboration concerns the selected inputs; complete reference-log and
-endpoint-chain coverage remains a separate question. Record has the lowest MAE in this subset. The changed ordering
-shows that the numerical ranking depends on which archived reference comparisons are available.
+For a common subset of 19 edges from 17 tasks, the saved Gold input files confirm that the method and continuum setting
+match those of the run calculations (Table S11). This check covers the selected inputs and does not establish complete
+reference-log or endpoint-chain coverage. Record has the lowest MAE in this subset. The changed ordering shows that the
+numerical ranking depends on which archived reference comparisons are available.
 Table S11. Uncapped differences for the 19 common reference edges with additional corroboration from retained selected Gold input
 files, covering 17 positive tasks. Units and statistics follow Table S10.
 Workflow MAE RMSE Median absolute error Maximum absolute error
@@ -757,18 +756,18 @@ Guided 1.0105 2.7118 0.0388 10.7826
 Standard 0.8015 2.2167 0.0424 9.0486
 Record 0.3934 0.8609 0.0424 3.0918
 Brief 1.2811 2.6213 0.0744 9.0486
-The archive also permits an explicit inventory of physical-record availability across the 160 positive runs. Guided,
-Record, and Brief each retain delivery-DAG element states for all 40 tasks; Standard’s configuration has no delivery-DAG
-objects. Frozen delivery-disposition reports exist for Guided 28, Record 39, Brief 5, and Standard 0 runs, totalling 72/160.
-Reports containing native scientific checks with a graph hash matching the archived final root graph exist for Guided 28
+We checked which physical-validation records were available for the 160 positive runs. Guided, Record, and Brief each
+retain delivery-DAG element states for all 40 tasks; Standard’s configuration has no delivery-DAG objects. Frozen delivery-
+disposition reports exist for Guided 28, Record 39, Brief 5, and Standard 0 runs, totalling 72/160. Reports containing
+native scientific checks with a graph hash matching the archived final root graph exist for Guided 28 and Brief 5 runs,
 S11
 ===== PAGE 12 =====
-and Brief 5 runs, totalling 33/160. These records concern the delivery scope selected during a run. Historical binary
-self-consistency checks cover delivered graph elements, and a DAG completion report can include documented skipped or
-not-applicable stages. A common rate of fully supported requested mechanisms therefore requires a uniform offline review
-of requested-object coverage and the existing native physical conditions in the final organized graphs, keeping additional
-exploratory branches separate. The present analysis reports the available records and numerical observations; the frozen
-component and composite scores remain unchanged.
+totalling 33/160. These records concern the delivery scope selected during a run. Historical binary self-consistency checks
+cover delivered graph elements, and a DAG completion report can include documented skipped or not-applicable stages.
+Estimating the fraction of runs that fully support the requested mechanism still requires an offline review of every requested
+species and step in each final graph against the existing physical criteria and calculation evidence. Additional exploratory
+branches must be assessed separately. The present analysis reports the available records and numerical observations; the
+frozen component and composite scores remain unchanged.
 The companion directory companion_data/revision_20261101/metrics/ provides every numerical opportunity,
 original comparison note, recovered native energy and method, source/version relation, exclusion, and cohort membership.
 Its reproduction script applies the final selections in revision_20261102/target_matching/accuracy_replay.js
@@ -869,8 +868,8 @@ longer; relative to Brief, it is 7.8% shorter. These observations include waitin
 the research after results return.
 The P2 effort comparison uses the common 15-task set D3, M1, M8, NB1, NQ5, NR1, NU3, NU5, NU6, HA1, HA6,
 HB1, HB10, HD2, and HF1. This yields 60 run-level effort records, with all four configurations represented for each task.
-Table S17 gives the total and mean job-hours, job counts, terminal outcomes, and corresponding final scores. Recorded
-ledger durations are summed across quantum-chemical jobs. For Standard/M1, the archived effort reconstruction uses
+Table S17 gives the total and mean job-hours, job counts, terminal outcomes, and corresponding final scores. Job-hours
+sum the durations recorded for individual quantum-chemical jobs. For Standard/M1, the archived effort reconstruction uses
 native-log CPU time divided by four, as specified in the source record. The measurement unit throughout this comparison
 is accumulated job-hours.
 Guided used a mean of 11.0793 job-hours and obtained a mean composite of 0.812413. Relative to Standard, it used
@@ -1801,7 +1800,7 @@ Native, thinking off Association 16 14 2 0
 Native, thinking on Identity 20 8 0 12
 Native, thinking on Association 16 16 0 0
 The first-stage rows are the selected records from the existing 96-input identity/association study. The four native rows contain 72 additional calls. All
-selected base cases retain their complete frozen variants; budget-truncated inputs remain in the denominators.
+saved input variants are included for each selected case; responses truncated by the output limit remain in the denominators.
 S5.7 From a detected gap to the next research action
 The HA1 and NB1 trajectories show what the agents did after receiving diagnostics. In a Brief HA1 run, the agent repeat-
 edly changed the source-minimum reference after compact feedback, while the IRC endpoint link remained unresolved. In

@@ -108,5 +108,31 @@
     "online_overleaf_updated": false,
     "remote_data_archive_updated": true,
     "remote_data_archive_file_id": "1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf"
+  },
+  "wording_revision_20261102": {
+    "date": "2026-11-02",
+    "source_base_commit": "0974334b30625d32a2df4c69e2f9bc1a83b9afa2",
+    "scope": "Copyedit the approved wording list in English and Chinese manuscripts and English SI; replace abstract management language with explicit calculation and checking actions.",
+    "pdf_pages": {
+      "EN": 24,
+      "ZH": 20,
+      "SI": 32
+    },
+    "new_qm_jobs": 0,
+    "new_agent_runs": 0,
+    "scientific_numbers_unchanged": true,
+    "scores_unchanged": true,
+    "references_unchanged": true,
+    "data_zip_unchanged": true,
+    "si_data_sha256": "15cb8090f00631d3f25334fdda1b30d7da6fa6a1ed4dc16e4ab9fc30fec70fca",
+    "source_zip_sha256": "8af300b98ad77f7e64402839545813d344a01f819b10eb36bd1d5b6b88891667",
+    "abstract_characters": 1758,
+    "main_pdf_sha256": "6b9c246ef644b101ebddd55a44e3469762093ce72b99cf72655e4125eb4bc00f",
+    "si_pdf_sha256": "b97754388e4a0fd0b5d5f3895f44ebb66fa643bdcfbccfcfc708c1140b88b023",
+    "compiler": "Tectonic 0.17.0 / XeTeX",
+    "undefined_citations": 0,
+    "overfull_warnings": 0,
+    "uploaded_to_arxiv": false,
+    "online_overleaf_updated": false
   }
 }

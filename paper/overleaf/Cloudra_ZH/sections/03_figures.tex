@@ -20,7 +20,7 @@
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=\textwidth]{figures/bench_components.pdf}
-\caption{全部200次整理后运行的三个评分层。a--c，各配置、难度层的Graph、自洽性与Accuracy均值；每配置总体50题，Easy为20题，其余各层10题。d，按固定0.1/0.3/0.6权重分解Guided相对Backbone的均差，全部、Normal与Hard分别使用完整50、10和10个配对。各运行分量由其自身研究材料与评分记录对齐至最终整理总分。}
+\caption{全部200次整理后运行的三个评分分量。a--c，各配置、难度层的Graph、自洽性与Accuracy均值；每配置总体50题，Easy为20题，其余各层10题。d，按固定0.1/0.3/0.6权重分解Guided相对Backbone的均差，全部、Normal与Hard分别使用完整50、10和10个配对。各次运行的分量来自该次运行的最终评估；按既定权重求和后，与发表的综合分在所报精度内一致。}
 \label{fig:bench-components}
 \end{minipage}
 \end{figure*}
@@ -29,7 +29,7 @@
 \begin{minipage}{\textwidth}
 \centering
 \includegraphics[width=\textwidth]{figures/bench_delivery.pdf}
-\caption{运行期交付图与最终科学支持。a，每配置50题中的原始根图记录，Guided、Backbone、Record与Brief分别为50、43、50和50；斜线标记从运行自身材料离线组装的7份Backbone图，整理后每配置均为50份。b，每配置全部40道非Impossible题的自洽分布，区分SC=1、部分正分及SC=0；满分数依次为24、7、16和20，Backbone另有4题零分。c，7个需离线重建根图的Backbone任务整理后总分，范围0.0333至0.3425，均值0.1537。}
+\caption{运行中生成的机理图与自洽性评分。a，每配置50题中的原始根图记录，Guided、Backbone、Record与Brief分别为50、43、50和50；斜线标记从运行自身材料离线组装的7份Backbone图，整理后每配置均为50份。b，每配置全部40道非Impossible题的自洽分布，区分SC=1、部分正分及SC=0；满分数依次为24、7、16和20，Backbone另有4题零分。c，7个需离线重建根图的Backbone任务整理后总分，范围0.0333至0.3425，均值0.1537。}
 \label{fig:bench-delivery}
 \end{minipage}
 \end{figure*}

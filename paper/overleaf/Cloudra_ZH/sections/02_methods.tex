@@ -15,7 +15,7 @@ Cloudra 根据规定的反应条件与计算要求，通过构造候选分子构
 \end{figure*}
 
 \subsubsection{异步计算调度与资源管理}
-中央计算账本（\texttt{ComputeDB}）记录每个作业的状态。独立容量池分别限制本地工作进程、远程 SSH 集群和 Slurm 队列中的并发计算数。提交前，调度器根据 Cartesian 坐标、自旋、电荷及理论级别计算 SHA-256 摘要；若有相同的在运行作业或缓存结果，则直接复用，避免重复提交。操作系统的文件排他锁（\texttt{flock}）用于跟踪运行进程和并发数；监控异常期间，持有锁的量子化学进程继续运行。计算结束后，调度器通知计算智能体，由通知触发异步读取输出。
+计算数据库（\texttt{ComputeDB}）记录每个作业的状态。独立容量池分别限制本地工作进程、远程 SSH 集群和 Slurm 队列中的并发计算数。提交前，调度器根据 Cartesian 坐标、自旋、电荷及理论级别计算 SHA-256 摘要；若有相同的在运行作业或缓存结果，则直接复用，避免重复提交。操作系统的文件排他锁（\texttt{flock}）用于跟踪运行进程和并发数；监控异常期间，持有锁的量子化学进程继续运行。计算结束后，调度器通知计算智能体，由通知触发异步读取输出。
 
 \subsection{分子表征与几何算子}
 分子输入包括属性图 $H=(A,B)$ 和 Cartesian 坐标矩阵 $\mathbf{X}\in\mathbb{R}^{n\times 3}$。其中 $A$ 为原子集合，$B$ 为化学键集合，$\mathbf{X}$ 的每一行给出一个原子的坐标。图中记录原子与化学键属性。几何算子修改坐标并返回所得结构的测量值；替换原子或官能团时也修改 $H$。
@@ -257,9 +257,9 @@ CloudraBench 用 50 题评估端到端机理计算能力：Easy 20 题检验基�
 
 
 
-\subsubsection{参考答案与评价口径}
+\subsubsection{参考答案与评价方法}
 
-每题固定化学条件、电荷、自旋、交付目标和方法范围。Easy、Normal 和 Hard 任务允许 xTB\citep{gfn2xtb2019}、PM7\citep{pm72013} 与 B3LYP-D3(BJ)/def2-SVP\citep{becke1993,lyp1988,stephens1994,d32010,d3bj2011,def22005}，Impossible 任务限于 xTB 与 PM7；计算证据读取 ORCA、Gaussian 或 MOPAC 原生日志。\citep{orca2025,gaussian16,mopac2026,ref11}\ 参考答案包含物种、基元步、立体身份及适用的数值或否定目标。数值参考按同一方法下的纯电子能差登记，稳定极小值参照与真实 IRC 连接分别核验。对要求验证的可达反应步，TS 频率、双向 IRC、末帧来源和端点优化/频率构成证据链；物种性质和电子态问题则按其指定目标核验。
+每题固定化学条件、电荷、自旋、交付目标和方法范围。Easy、Normal 和 Hard 任务允许 xTB\citep{gfn2xtb2019}、PM7\citep{pm72013} 与 B3LYP-D3(BJ)/def2-SVP\citep{becke1993,lyp1988,stephens1994,d32010,d3bj2011,def22005}，Impossible 任务限于 xTB 与 PM7；计算证据读取 ORCA、Gaussian 或 MOPAC 原生日志。\citep{orca2025,gaussian16,mopac2026,ref11}\ 参考答案包含物种、基元步、立体身份及适用的数值或否定目标。数值参考按同一方法下的纯电子能差登记，稳定极小值参照与真实 IRC 连接分别核验。对要求验证的可达反应步，我们检查 TS 频率、双向 IRC 及端点优化和频率计算，并核实每个端点优化是否从实际 IRC 末帧出发；物种性质和电子态问题则按其指定目标核验。
 
 
 
@@ -267,15 +267,15 @@ CloudraBench 用 50 题评估端到端机理计算能力：Easy 20 题检验基�
 
 
 
-各题参考答案的证据完整性、特别处理和保留项单独记录，参考图是否存在与科学验证是否完整分别判断。
+各题均列出已有参考计算、题目特有的例外处理及尚未完成的检查，参考图是否存在与科学验证是否完整分别判断。
 
 \subsubsection{重复实验、主对照与工作流消融}
 
-重复任务研究（P1b）比较 E1、NB1、HA1 与 IA1 在 Guided、Standard、Record 和 Brief-errors 四配置下的表现，每种题目与配置组合独立运行三次，共48次任务运行。重复实验使用 DeepSeek-v4.1-flash（1017）。\citep{deepseekv42026} 四题分别涉及消除预组织、多步脱羧、立体化学开环及电子结构方法边界，其轨迹用于后续局部诊断。耗时单位为并发二、四题一批的实际批次，每配置三批。全基准研究（P2）保留50题、四配置各一次运行，共200次任务运行。全部 P2 配置均通过 DeepSeek 官方端点的流式 OpenAI 兼容 chat completions 接口调用 DeepSeek-v4.1-flash（1017），归档 API 别名为 \texttt{deepseek-v4-flash}，请求 minimal 推理设置；冻结配置与实际请求/完成记录中的模型标识一致。主比较为使用同一主干的 Guided 与 Standard，后者在图中标记为 Backbone。P1b 与 P2 是重复任务及全基准研究沿用的归档标识。P2 执行版本和请求设置见 SI 第 S1 节。
+重复任务研究（P1b）比较 E1、NB1、HA1 与 IA1 在 Guided、Standard、Record 和 Brief-errors 四配置下的表现，每种题目与配置组合独立运行三次，共48次任务运行。重复实验使用 DeepSeek-v4.1-flash（1017）。\citep{deepseekv42026} 四题分别涉及消除预组织、多步脱羧、立体化学开环及电子结构方法边界，其轨迹用于后续局部诊断。耗时单位为并发二、四题一批的实际批次，每配置三批。全基准研究（P2）保留50题、四配置各一次运行，共200次任务运行。全部 P2 配置均通过 DeepSeek 官方端点的流式 OpenAI 兼容 chat completions 接口调用 DeepSeek-v4.1-flash（1017），归档 API 别名为 \texttt{deepseek-v4-flash}，请求 minimal 推理设置；保存的实验配置与实际请求及完成记录中的模型标识一致。主比较为使用同一主干的 Guided 与 Standard，后者在图中标记为 Backbone。P1b 与 P2 是重复任务及全基准研究沿用的归档标识。P2 执行版本和请求设置见 SI 第 S1 节。
 
 
 
-Standard 隐藏显式 DAG 工具、取消物理检验约束并提供中性计算反馈；Guided 保留研究图、科学检查与详细诊断。Record 保留可用工具和记录，物理检验由运行自行选择；Brief-errors 保留引导而缩短诊断。各配置采用相同题目与方法限制，运行版本、预算、结束原因及产物来源保留在档案中。
+Standard 隐藏显式 DAG 工具、取消物理检验约束并提供中性计算反馈；Guided 保留研究图、科学检查与详细诊断。Record 保留可用工具和记录，物理检验由运行自行选择；Brief-errors 保留引导而缩短诊断。各配置采用相同题目与方法限制；档案保存各次运行的代码版本、预算、结束原因及其计算源文件。
 
 
 

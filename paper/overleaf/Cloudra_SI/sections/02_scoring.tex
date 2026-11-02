@@ -1,8 +1,8 @@
-\section{Layered scoring and scientific completion}
+\section{Score components and scientific completion}
 \label{sec:si-scoring}
 
-\subsection{Composite and reporting layers}
-For a formally organized run, the reported composite combines graph structure $G$, physical self-consistency $\mathrm{SC}$, and accuracy $A$:
+\subsection{Composite score and reported outcomes}
+The composite score combines graph structure $G$, physical self-consistency $\mathrm{SC}$, and accuracy $A$:
 \begin{equation}
 S=0.1G+0.3\mathrm{SC}+0.6A.
 \label{eq:si-composite}
@@ -28,7 +28,7 @@ Evidence stage & Contribution \\
 \midrule
 Verified first-order saddle: exactly one imaginary frequency & 0.35 \\
 IRC starting geometry consistent with the selected saddle & 0.15 \\
-Native outer-frame--optimization--frequency lineage to both declared endpoint minima & 0.50 \\
+Logs linking both actual IRC terminal frames through Opt/Freq to the declared minima & 0.50 \\
 \bottomrule
 \end{tabular}
 \end{table}
