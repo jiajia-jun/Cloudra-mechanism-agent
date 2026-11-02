@@ -779,41 +779,43 @@ Impossible
 20
 40
 60
-ΔE relative to RC (kcal mol−1)
 RC  0.00
 TS1  +28.12
-I  -12.44 I′  -11.73
+I  -12.44
+e1   ΔE ‡  = 28.12
+−20
+0
+20
+40
+60
+I′  -11.73
 TS2  +45.49
 P  -3.12
-e1
-e2
-ΔE(I′ − I) = 0.71
-Conformer interconversion
-calculation pending
-ΔE‡(e1) = 28.12 ΔE‡(e2) = 57.92 vs I; 57.21 vs I′
-a Calculated molecular objects
+e2   ΔE ‡  = 57.92 (vs I) / 57.21 (vs I′)
+Optimized structures
 RC
-reactant complex
+Reactants
 TS1
-addition saddle
+Addition TS
 I
-lowest conformer
+Lowest conformer
 I′
-e2 endpoint conformer
+IRC conformer
 TS2
-dehydration saddle
+Dehydration TS
 P
-imine + water
-1 imag.: −1481.1 cm−1 1 imag.: −1796.8 cm−1
-I and I′ are conformers of the same carbinolamine object.
+Products
+νimag = -1481.1 cm−1 νimag = -1796.8 cm−1
 C H N O
-b Electronic energies and verified step connections
-e1 and e2: same-TS short IRC (24 + 24 points) → endpoint Opt/Freq; both minima have 0 imaginary frequencies.
-B3LYP-D3(BJ)/def2-SVP · gas phase · charge 0, singlet · electronic energies
-Reaction progress is schematic; dashed molecular contacts mark the TS reaction center.
+Electronic energy profile
+ΔE relative to RC / kcal mol−1
+Reaction progress (schematic)
+B3LYP-D3(BJ)/def2-SVP · gas phase · neutral singlet · electronic energies
+a
+b
 ๭ 6. Guided/NI1֥B3L YP-
-D3(BJ)/def2-SVP؋IRC϶෪ς
-འ I࠽IRCའ I ′ ཌྷҵ 0.71 kcal/molෘb
+D3(BJ)/def2-SVP؋IRCିਈ๭
+नၛ RCའ I࠽IRCའ I ′ ཌྷҵ 0.71 kcal/molෘb
 7
 ===== PAGE 8 =====
 All

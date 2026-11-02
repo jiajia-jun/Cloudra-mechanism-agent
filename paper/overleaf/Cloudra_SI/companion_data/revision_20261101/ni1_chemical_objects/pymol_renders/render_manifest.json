@@ -1,0 +1,582 @@
+{
+  "renderer": "PyMOL internal ray tracer; CYLview-inspired ball-and-cylinder style, not CYLview native output",
+  "documentation": [
+    "https://github.com/schrodinger/pymol-open-source/blob/master/data/setting_help.csv",
+    "https://www.cylview.org/wiki.html"
+  ],
+  "source_dir": ".",
+  "image_size": [
+    1800,
+    1800
+  ],
+  "background": "transparent alpha, white compositing background",
+  "settings": {
+    "orthoscopic": 1,
+    "ray_orthoscopic": 1,
+    "ray_opaque_background": 0,
+    "opaque_background": 0,
+    "ray_trace_mode": 1,
+    "ray_trace_gain": 0.045,
+    "ray_trace_slope_factor": 0.65,
+    "ray_shadows": 1,
+    "ray_shadow_decay_factor": 0.8,
+    "ray_shadow_decay_range": 3.0,
+    "ambient": 0.52,
+    "direct": 0.48,
+    "reflect": 0.13,
+    "specular": 0.22,
+    "shininess": 35,
+    "antialias": 2,
+    "depth_cue": 0,
+    "ray_trace_fog": 0,
+    "gamma": 1.0,
+    "light_count": 3,
+    "ambient_occlusion_mode": 0,
+    "max_threads": 4
+  },
+  "sphere_radii_angstrom": {
+    "C": 0.235,
+    "N": 0.245,
+    "O": 0.245,
+    "H": 0.145
+  },
+  "single_bond_radius_angstrom": 0.066,
+  "double_bond_radius_angstrom": 0.047,
+  "double_bond_axis_offset_angstrom": 0.09,
+  "contact_radius_angstrom": 0.047,
+  "common_camera": [
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    -16.81851563113382,
+    0,
+    0,
+    0,
+    9.81851563113382,
+    23.81851563113382,
+    20.0
+  ],
+  "common_vertical_span_angstrom": 5.931116162471899,
+  "common_angstrom_per_pixel": 0.003295064534706611,
+  "conformer_alignment": {
+    "I_zero_based_indices": [
+      4,
+      5,
+      0,
+      1
+    ],
+    "I_prime_zero_based_indices": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "rotation_determinant": 1.0000000000000016
+  },
+  "molecules": [
+    {
+      "id": "RC1",
+      "output": "RC1.png",
+      "output_sha256": "f6568e46899b63b9ec6b588b99b7fd4d9335d9eb30776b112bd7ec27a5b46d18",
+      "source_xyz": "NI1_RC1.xyz",
+      "source_sha256": "1977656d0368b121b564be0eaee02c01f13b43f4aa6fe6f326b09fada93dd8f7",
+      "source_matches_provenance": true,
+      "source_unchanged_after_render": true,
+      "atom_count": 11,
+      "element_order": [
+        "C",
+        "O",
+        "H",
+        "H",
+        "C",
+        "N",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H"
+      ],
+      "covalent_bonds_zero_based": [
+        [
+          1,
+          0,
+          2
+        ],
+        [
+          2,
+          0,
+          1
+        ],
+        [
+          3,
+          0,
+          1
+        ],
+        [
+          5,
+          4,
+          1
+        ],
+        [
+          6,
+          4,
+          1
+        ],
+        [
+          7,
+          4,
+          1
+        ],
+        [
+          8,
+          4,
+          1
+        ],
+        [
+          9,
+          5,
+          1
+        ],
+        [
+          10,
+          5,
+          1
+        ]
+      ],
+      "dashed_contacts_zero_based": [],
+      "png_width": 1800,
+      "png_height": 1800,
+      "png_color_type": "RGBA",
+      "ray_trace_elapsed_seconds": 0.907,
+      "max_pair_distance_error_angstrom": 1.3322676295501878e-15,
+      "rotation_determinant": 1.0000000000000002
+    },
+    {
+      "id": "TS1",
+      "output": "TS1.png",
+      "output_sha256": "414ff770356237cd2c0ee85990bd5adbd025cf8c25ca19c8c399e59093a33feb",
+      "source_xyz": "NI1_TS1.xyz",
+      "source_sha256": "fb7ad3b40d8f1aaafd33913ec900a1f1e674ff1bc7370bb2d4db9b6a1d9ffd3f",
+      "source_matches_provenance": true,
+      "source_unchanged_after_render": true,
+      "atom_count": 11,
+      "element_order": [
+        "C",
+        "O",
+        "H",
+        "H",
+        "C",
+        "N",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H"
+      ],
+      "covalent_bonds_zero_based": [
+        [
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          2,
+          1
+        ],
+        [
+          0,
+          3,
+          1
+        ],
+        [
+          4,
+          5,
+          1
+        ],
+        [
+          4,
+          6,
+          1
+        ],
+        [
+          4,
+          7,
+          1
+        ],
+        [
+          4,
+          8,
+          1
+        ],
+        [
+          5,
+          10,
+          1
+        ]
+      ],
+      "dashed_contacts_zero_based": [
+        [
+          0,
+          5
+        ],
+        [
+          1,
+          9
+        ],
+        [
+          5,
+          9
+        ]
+      ],
+      "png_width": 1800,
+      "png_height": 1800,
+      "png_color_type": "RGBA",
+      "ray_trace_elapsed_seconds": 0.474,
+      "max_pair_distance_error_angstrom": 8.881784197001252e-16,
+      "rotation_determinant": 1.0000000000000007
+    },
+    {
+      "id": "INT1_lowest",
+      "output": "INT1_lowest.png",
+      "output_sha256": "5915c278f4052d6b6cd9a218d4d279fa2cad4600452ded98d6c20f2e44452742",
+      "source_xyz": "NI1_INT1_lowest.xyz",
+      "source_sha256": "17f790046f8ad5815f4bbd2a10975183f5183c8db60a944fc24dae47c4a51726",
+      "source_matches_provenance": true,
+      "source_unchanged_after_render": true,
+      "atom_count": 11,
+      "element_order": [
+        "C",
+        "O",
+        "H",
+        "H",
+        "C",
+        "N",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H"
+      ],
+      "covalent_bonds_zero_based": [
+        [
+          1,
+          0,
+          1
+        ],
+        [
+          2,
+          0,
+          1
+        ],
+        [
+          3,
+          0,
+          1
+        ],
+        [
+          5,
+          4,
+          1
+        ],
+        [
+          5,
+          0,
+          1
+        ],
+        [
+          6,
+          4,
+          1
+        ],
+        [
+          7,
+          4,
+          1
+        ],
+        [
+          8,
+          4,
+          1
+        ],
+        [
+          9,
+          1,
+          1
+        ],
+        [
+          10,
+          5,
+          1
+        ]
+      ],
+      "dashed_contacts_zero_based": [],
+      "png_width": 1800,
+      "png_height": 1800,
+      "png_color_type": "RGBA",
+      "ray_trace_elapsed_seconds": 0.515,
+      "max_pair_distance_error_angstrom": 8.881784197001252e-16,
+      "rotation_determinant": 0.9999999999999994
+    },
+    {
+      "id": "INT1_IRC2",
+      "output": "INT1_IRC2.png",
+      "output_sha256": "75ff3d81e445fd7c6ff304b0ece08843734ce037a3bb00a6068f2f0504c8b5e0",
+      "source_xyz": "NI1_INT1_IRC2.xyz",
+      "source_sha256": "1207bcb1c055ff55b612e3585a3c6e8d00d42a0921e33a1f45ec7dc168845b44",
+      "source_matches_provenance": true,
+      "source_unchanged_after_render": true,
+      "atom_count": 11,
+      "element_order": [
+        "C",
+        "N",
+        "C",
+        "O",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H"
+      ],
+      "covalent_bonds_zero_based": [
+        [
+          1,
+          0,
+          1
+        ],
+        [
+          2,
+          1,
+          1
+        ],
+        [
+          3,
+          2,
+          1
+        ],
+        [
+          4,
+          0,
+          1
+        ],
+        [
+          5,
+          0,
+          1
+        ],
+        [
+          6,
+          0,
+          1
+        ],
+        [
+          7,
+          1,
+          1
+        ],
+        [
+          8,
+          2,
+          1
+        ],
+        [
+          9,
+          2,
+          1
+        ],
+        [
+          10,
+          3,
+          1
+        ]
+      ],
+      "dashed_contacts_zero_based": [],
+      "png_width": 1800,
+      "png_height": 1800,
+      "png_color_type": "RGBA",
+      "ray_trace_elapsed_seconds": 0.523,
+      "max_pair_distance_error_angstrom": 2.6645352591003757e-15,
+      "rotation_determinant": 1.0000000000000007
+    },
+    {
+      "id": "TS2",
+      "output": "TS2.png",
+      "output_sha256": "e07ad244e6fcd0cd1e0abd159f09ec6bb0179e91a099ea6587e6384c1e35ec5a",
+      "source_xyz": "NI1_TS2.xyz",
+      "source_sha256": "7877ffb0aeb7899f81d05c123d31d8fade50846d3fb950e0aaa2836f36228445",
+      "source_matches_provenance": true,
+      "source_unchanged_after_render": true,
+      "atom_count": 11,
+      "element_order": [
+        "C",
+        "N",
+        "C",
+        "O",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H"
+      ],
+      "covalent_bonds_zero_based": [
+        [
+          0,
+          1,
+          1
+        ],
+        [
+          1,
+          2,
+          1
+        ],
+        [
+          0,
+          4,
+          1
+        ],
+        [
+          0,
+          5,
+          1
+        ],
+        [
+          0,
+          6,
+          1
+        ],
+        [
+          2,
+          8,
+          1
+        ],
+        [
+          2,
+          9,
+          1
+        ],
+        [
+          3,
+          10,
+          1
+        ]
+      ],
+      "dashed_contacts_zero_based": [
+        [
+          1,
+          7
+        ],
+        [
+          2,
+          3
+        ],
+        [
+          3,
+          7
+        ]
+      ],
+      "png_width": 1800,
+      "png_height": 1800,
+      "png_color_type": "RGBA",
+      "ray_trace_elapsed_seconds": 0.475,
+      "max_pair_distance_error_angstrom": 2.6645352591003757e-15,
+      "rotation_determinant": 1.000000000000002
+    },
+    {
+      "id": "P1_lowest",
+      "output": "P1_lowest.png",
+      "output_sha256": "9807fc5cc90885e336fbc9a92084e4dbd671cc6c272a780b84c39995849a70f9",
+      "source_xyz": "NI1_P1_lowest.xyz",
+      "source_sha256": "05095c6fc4cb2292606ab945ef8c9fb639679e0e6ffd988f81de8c2a57752a8c",
+      "source_matches_provenance": true,
+      "source_unchanged_after_render": true,
+      "atom_count": 11,
+      "element_order": [
+        "C",
+        "N",
+        "C",
+        "H",
+        "H",
+        "H",
+        "H",
+        "H",
+        "O",
+        "H",
+        "H"
+      ],
+      "covalent_bonds_zero_based": [
+        [
+          1,
+          0,
+          2
+        ],
+        [
+          2,
+          1,
+          1
+        ],
+        [
+          3,
+          0,
+          1
+        ],
+        [
+          4,
+          0,
+          1
+        ],
+        [
+          5,
+          2,
+          1
+        ],
+        [
+          6,
+          2,
+          1
+        ],
+        [
+          7,
+          2,
+          1
+        ],
+        [
+          9,
+          8,
+          1
+        ],
+        [
+          10,
+          8,
+          1
+        ]
+      ],
+      "dashed_contacts_zero_based": [],
+      "png_width": 1800,
+      "png_height": 1800,
+      "png_color_type": "RGBA",
+      "ray_trace_elapsed_seconds": 0.542,
+      "max_pair_distance_error_angstrom": 1.3322676295501878e-15,
+      "rotation_determinant": 1.0000000000000004
+    }
+  ],
+  "pymol_version": [
+    "3.1.0",
+    3.0,
+    3000000,
+    1774376360,
+    "",
+    0
+  ]
+}

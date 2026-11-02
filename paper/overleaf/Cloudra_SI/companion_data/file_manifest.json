@@ -2171,6 +2171,11 @@
       "sha256": "90fd9495f31df5a3dfa49adc19ecb3786159c292281182e4ea18dc45d96651e3"
     },
     {
+      "file": "publication_reproduction/scripts/model_semantics/figure_style.py",
+      "bytes": 2556,
+      "sha256": "1dd696b58551f9ddde9f9ac6c233e3d52322b4ec94c42eba69b69fdeeb295d3a"
+    },
+    {
       "file": "revision_20261031/easy_case_findings.md",
       "bytes": 24629,
       "sha256": "dcdb5c191117e65858835dfaedcda2be972204567ee62587b07e80a7657bd797"
@@ -2302,8 +2307,8 @@
     },
     {
       "file": "revision_20261101/ni1_chemical_objects/README.md",
-      "bytes": 2278,
-      "sha256": "398674b94aef0bb94e8948c5841776311a411e8a5aa69ffcb5b693b2e4453126"
+      "bytes": 3253,
+      "sha256": "5d85212331885090194566096f1075c8801978651836f20202a4b988e93d59f9"
     },
     {
       "file": "revision_20261101/ni1_chemical_objects/energies.csv",
@@ -2312,13 +2317,53 @@
     },
     {
       "file": "revision_20261101/ni1_chemical_objects/plot_ni1_chemical_objects.py",
-      "bytes": 9585,
-      "sha256": "fc5efa863b39ea0a970512d6d129fcfd5c7d45e2dde0652ff1f845bfcae5aedd"
+      "bytes": 5394,
+      "sha256": "a846f612fbae5269d0f01b9074bfe30a5ebb6a6715f521ab3ba08693d5193309"
     },
     {
       "file": "revision_20261101/ni1_chemical_objects/provenance.json",
       "bytes": 13263,
       "sha256": "a0e9bc6d0a90be73c3083468b92dc4340c1071245fdfbf13af80188cd29890c8"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/pymol_renders/INT1_IRC2.png",
+      "bytes": 196898,
+      "sha256": "75ff3d81e445fd7c6ff304b0ece08843734ce037a3bb00a6068f2f0504c8b5e0"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/pymol_renders/INT1_lowest.png",
+      "bytes": 206585,
+      "sha256": "5915c278f4052d6b6cd9a218d4d279fa2cad4600452ded98d6c20f2e44452742"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/pymol_renders/P1_lowest.png",
+      "bytes": 196225,
+      "sha256": "9807fc5cc90885e336fbc9a92084e4dbd671cc6c272a780b84c39995849a70f9"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/pymol_renders/RC1.png",
+      "bytes": 188537,
+      "sha256": "f6568e46899b63b9ec6b588b99b7fd4d9335d9eb30776b112bd7ec27a5b46d18"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/pymol_renders/TS1.png",
+      "bytes": 221253,
+      "sha256": "414ff770356237cd2c0ee85990bd5adbd025cf8c25ca19c8c399e59093a33feb"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/pymol_renders/TS2.png",
+      "bytes": 232540,
+      "sha256": "e07ad244e6fcd0cd1e0abd159f09ec6bb0179e91a099ea6587e6384c1e35ec5a"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/pymol_renders/render_manifest.json",
+      "bytes": 10742,
+      "sha256": "40988abfac372d5dc86ddaf6b22fdd7abb58db53c1eda235c7a3ce457814e11a"
+    },
+    {
+      "file": "revision_20261101/ni1_chemical_objects/render_ni1_pymol.py",
+      "bytes": 12702,
+      "sha256": "23a85075f7c9774304bc633a4e73cc3839985b1ebd792fe63d6dcf947b8c37f7"
     },
     {
       "file": "revision_20261102/target_matching/README.md",
@@ -3781,6 +3826,6 @@
       "sha256": "898e12abaabc62ec3c3122566ced4fc63005db396627c02bc0307d5e07f570c6"
     }
   ],
-  "count": 756,
-  "total_bytes": 34213831
+  "count": 765,
+  "total_bytes": 35478653
 }
