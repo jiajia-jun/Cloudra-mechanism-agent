@@ -4,10 +4,10 @@ Supplementary Information
 Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism
 Exploration
 Chengyi Y ang1,*, Qianxin Zhou 2,†, and Y ang Li1,†
-1College of Chemistry and Pharmaceutical Engineering, Changsha University of Science and Technology, Changsha 410114, China
-2State Key Laboratory of Photocatalysis on Energy and Environment, College of Chemistry, Fuzhou University, Fuzhou 350002, China
-*Corresponding author: Chengyi Y ang. E-mail: 202509240114@csust.edu.cn.
-†Qianxin Zhou and Y ang Li contributed equally as second authors.
+1 College of Chemistry and Pharmaceutical Engineering, Changsha University of Science and Technology, Changsha 410114, China
+2 State Key Laboratory of Photocatalysis on Energy and Environment, College of Chemistry, Fuzhou University, Fuzhou 350002, China
+* Corresponding author: Chengyi Y ang. E-mail: 202509240114@csust.edu.cn.
+† Qianxin Zhou and Y ang Li contributed equally as second authors.
 2 November 2026
 This supplement provides the experimental protocol, layered evaluation, complete task and score tables, expanded diagnos-
 tic analyses, literature source register, and machine-readable materials accompanying the manuscript. Standard denotes

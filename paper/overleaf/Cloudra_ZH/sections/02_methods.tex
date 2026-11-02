@@ -88,17 +88,15 @@ S(\mathbf{X})=\max_{(i,j)\in W}\{0,\,l_{ij}-d_{ij}(\mathbf{X}),\,d_{ij}(\mathbf{
 低惩罚构型进行带谐性距离约束的 MMFF94 力场优化\citep{mmff941996}，使指定原子对的距离进入目标窗口，同时松弛非键接触。只保留力场优化收敛、距离落入窗口、立体构型得到保留且片段接触满足 $d_{i^*j^*}\le 1.7(r_{i^*}+r_{j^*})$ 的构型。随后按无约束力场单点能排序，并采用 0.5 Å 的重原子 Kabsch RMSD 阈值聚类去重，得到后续计算的初始构型。
 
 \subsubsection{端点刚体对齐与 IDPP 路径插值}
-将产物原子排成反应物的原子顺序后，两端构型分别中心化。令 $\mathbf{P}$ 与 $\mathbf{R}$ 为中心化后的产物与反应物坐标矩阵，Kabsch 最小二乘刚体旋转\citep{ref07}\ 求解：
+令 $\mathbf{P}$ 与 $\mathbf{R}$ 分别表示原子对应且已中心化的产物与反应物坐标。Kabsch 对齐\citep{ref07}\ 在保向旋转约束（\mbox{$\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I}$}、\mbox{$\det\mathbf{Q}=1$}）下，使 $\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2$ 最小。
+
+\begin{samepage}
+对 $\mathbf{P}^{\mathsf{T}}\mathbf{R}=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}}$ 作奇异值分解后，最优旋转为：
 
 \begin{equation}\label{eq:methods-07}
-\begin{array}{@{}l@{}}
-\displaystyle\min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\[2pt]
-\begin{aligned}
-\mathbf{P}^{\mathsf{T}}\mathbf{R}&=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
-\mathbf{Q}&=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
-\end{aligned}
-\end{array}
+\mathbf{Q}=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
 \end{equation}
+\end{samepage}
 
 矩阵 $\mathbf{Q}$ 给出两端构型之间的刚体旋转。行列式因子 $\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})$ 使 $\det\mathbf{Q}=+1$，排除镜像反射，保留原有手性构型。
 

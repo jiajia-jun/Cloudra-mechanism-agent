@@ -30,12 +30,12 @@
   "overleaf_project": "https://www.overleaf.com/project/6ae5e126e8645869834e129f",
   "files": {
     "Cloudra_SI_EN_Draft.pdf": {
-      "bytes": 309310,
-      "sha256": "d30d42418c1714ee4d8e1e0b58958ecb53297b76a0577ea2c2271c359a1c600e"
+      "bytes": 309316,
+      "sha256": "f5688830d6c183344419d7f15fc91b64028519bd448d39bb312898e06b6a3ac7"
     },
     "Cloudra_SI_Overleaf.zip": {
-      "bytes": 151054,
-      "sha256": "1a92a7de23c88167df5592e8f8e52cf51163372b1d62ba1d9261ed2df9dc102b"
+      "bytes": 151057,
+      "sha256": "0c5afa8dd359bd8d5d1783037c76f61792bd65cd46a352f6901c73d82430cb60"
     },
     "Cloudra_SI_Data.zip": {
       "bytes": 18969168,
@@ -48,8 +48,8 @@
     "mismatches": 0,
     "new_model_or_qm_calculations": 0
   },
-  "pdf_sha256": "d30d42418c1714ee4d8e1e0b58958ecb53297b76a0577ea2c2271c359a1c600e",
-  "source_zip_sha256": "1a92a7de23c88167df5592e8f8e52cf51163372b1d62ba1d9261ed2df9dc102b",
+  "pdf_sha256": "f5688830d6c183344419d7f15fc91b64028519bd448d39bb312898e06b6a3ac7",
+  "source_zip_sha256": "0c5afa8dd359bd8d5d1783037c76f61792bd65cd46a352f6901c73d82430cb60",
   "bibliography_entries": 48,
   "authorship_verified": true,
   "deployment": "DeepSeek-v4.1-flash (1017)",
@@ -469,5 +469,9 @@
     "overfull_warnings": 0,
     "uploaded_to_arxiv": false,
     "online_overleaf_updated": false
+  },
+  "publication_layout_20261102": {
+    "scope": "Affiliation superscript spacing only; scientific tables, score files and companion-data archive unchanged.",
+    "online_supplement_pages": 31
   }
 }

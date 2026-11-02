@@ -1,6 +1,6 @@
 {
   "date": "2026-11-02",
-  "scope": "Math typography only: centered display blocks, consistent 6pt display spacing, aligned multiline relations, separate definitions, and a clear 2pt gap after the Kabsch objective.",
+  "scope": "Publication layout: centered equations; Eq. (2.7) displays the rotation alone while prose retains the objective, constraints and SVD; delete the Figure 3 draft-status sentence; use natural caption spacing; separate affiliation superscripts from institution names.",
   "equations_updated": [
     "2.1",
     "2.5",
@@ -9,24 +9,29 @@
     "2.9",
     "unnumbered endpoint conditions"
   ],
-  "mathematical_symbols_labels_and_prose_unchanged": true,
+  "mathematical_definitions_and_equation_labels_unchanged": true,
+  "scores_and_scientific_data_unchanged": true,
   "local_revision_uploaded_to_arxiv": true,
   "arxiv_existing_submission": "8312079; centered equation revision submitted",
   "outputs": {
     "EN": {
       "pages": 22,
-      "sha256": "e784623dc561a7ff5ab26a27160c07617448ecaebf27d42e3b79401e8eaa315a"
+      "sha256": "8e3eae4d5b59384238781bb72be6e18ebfa5a183a259d30b431e3aea8d16ae68"
     },
     "ZH": {
       "pages": 19,
-      "sha256": "456fbfee0c36b05696714f281de8e2ffc9658d7050dac10dbdb10e2171618825"
+      "sha256": "bca88178d9cb2ab2b573efd9d66a5bbac3dd3b820dd7afc29f17fca57ccdf116"
+    },
+    "SI": {
+      "pages": 31,
+      "sha256": "f5688830d6c183344419d7f15fc91b64028519bd448d39bb312898e06b6a3ac7"
     }
   },
-  "verified_at_utc": "2026-11-02T10:29:04.406515+00:00",
+  "verified_at_utc": "2026-11-02T10:43:17.027239+00:00",
   "status": "submitted",
-  "uploaded_delta_zip_sha256": "f6e1d144ef60b0a040b7da7e56a4bbfc1f31774499ce40f1f0adf437d268cfb6",
-  "complete_source_zip_sha256": "41344861fc18f6bd277bd7fb7e69c20a692fc1841267981caab763e1287c0cd9",
-  "online_pdf_sha256": "cf3df0b449a3b5c82d4ad5a0284002ebdee6ee25b85219518a1b18379154ca0e",
+  "uploaded_delta_zip_sha256": "f0e319ec047ae8aa12390ef20fd3599eda3b9d7d1f4cdaf6debd18d2ef31d81c",
+  "complete_source_zip_sha256": "52f7fb22e6637588742d2c70caf90ac779c5ba59d1767fd4740eb58be13423fb",
+  "online_pdf_sha256": "20400a272fd4fe87f687a733a01e69ae243c9fa649d06c124d50049b48812098",
   "online_pages": 53,
   "online_compiler": "XeLaTeX / TeX Live 2025",
   "online_overfull_warnings": 0,

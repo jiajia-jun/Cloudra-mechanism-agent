@@ -5,7 +5,7 @@ Cloudraဒ
 1ӱ࿐ჽđӉ೬ 410114ݓ
 2ᇜ 350002ݓ
 *๙࿟ቔᆀğဗӱើčChengyi Y angሰႯདğ202509240114@csust.edu.cnb
-†Qianxin Zhouቔᆀb
+† Qianxin Zhouቔᆀb
 2026 ୍ 11 ᄅ 2 ರ
 ᅋေ
 Ӂ໾bնე࿽ଆ྘čLLMĎᇆି
@@ -69,9 +69,9 @@ a 化学 AI Agent 系统 n = 85
 23
 12
 11
-๭ 1. 85࿐ AI Agent໓ངဢЧğҋਘ /і૫
-39ሰ/໾ 23 ཛa ೈ໾ᇉ/ሰ 12 ཛa ॴো
-༢๤ 11 ཛb
+๭ 1. 85࿐ AI Agent໓ངဢЧğҋਘ/і૫
+39ሰ/໾ 23 ཛaೈ໾ᇉ/ሰ 12 ཛaॴ
+ো༢๤ 11 ཛb
 Cloudraሰቕѓb MCS
 ႋ໾ა
 b ӱ྽ҩਈ
@@ -113,10 +113,10 @@ d 有限分子 / 配合物 n = 23 · 1/2
 13 OpenClaw comp. chemistry
 14 Protomia
 已展示 未编码
-๭ 2.ሰ/ֻ1/2܋23۱
-࿐ AI Agent ༢๤Ď bTࡹܒܒࢲ/ĠE෿ିਈ/ྟᇉĠ
-OĠF׮/࿐ĠRࣥ/෿ĠDٳ
-ሰ/ି৯
+๭ 2.ሰ/ֻ1/2܋23
+࿐ AI Agent ༢๤Ď bTࡹܒܒࢲ/ĠE෿ିਈ/ྟ
+ᇉĠOĠF׮/࿐ĠRࣥ/෿Ġ
+Dሰ/ᆞ૫ᆣऌđॢϢཛ
 Ќ਽ູໃᆩb
 d 有限分子 / 配合物 n = 23 · 2/2
 化学 AI Agent 系统 T E O F R D
@@ -134,8 +134,6 @@ Cloudra（本工作）
 已展示 未编码
 ๭ 3.ሰ/࿐ AI Agentֻ2/2
 ૫ϰĎ đ ս઒๝๭2ᅚൕCloudrab
-ಆ҆ 85࿐ AI Agent࡮
-஥สҋਘb
 ৘b
 Ⴟ MCS׮
 ል஥b ᇆିุॖ࿈ሇ
@@ -407,20 +405,16 @@ S(X) = max
 ᇗჰሰ Kabsch RMSD֥
 ྘b
 2.2.4ఊა IDPPҬᆴ
-љ
-b਷ P ა Rႋ໾ቕѓइ
-ᆔđKabschุ࿈ሇ [15]ğ
-min
-QTQ=I,det Q=1
-∥PQ − R∥2
-F,
-PTR = UΣVT,
+਷ P ა Rႋ
+໾ቕѓbKabschఊ [15] ᄝЌཟ࿈ሇჿඏč QTQ = Ia
+det Q = 1Ď༯đ൐ ∥PQ − R∥2
+F ቋཬb
+ؓPTR = UΣVTđቋႪ࿈ሇູğ
 Q = U diag
 (
 1, 1, det(UVT)
 )
-VT.
-(2.7)
+VT. (2.7)
 इᆔ Qุ࿈ሇbྛਙൔၹሰ
 det(UVT) ൐ det Q = +1ഝđЌ਽ჰႵ൭
 ྘b
@@ -477,9 +471,9 @@ b ༢๤๙
 Ⴟཌྷႋ໾ᇕĠ
 ༢b
 ႋ҄
+b ௔ੱა
 4
 ===== PAGE 5 =====
-b ௔ੱა
 IRCק
 ၬb
 ކࠢKb
@@ -753,7 +747,7 @@ Easy
 Normal
 Hard
 Impossible
-๭ 5. CloudraBenchᇶีbab bđ50֥BAAI/bge-m3 ళೆ [24]
+๭ 5. CloudraBenchᇶีbabbđ50֥BAAI/bge-m3 ళೆ [24]
 ൐Ⴈ scikit-learn[25]ົ๧႕đE1aNB1aHA1ބIA1ܿ
 ಩ༀোљb
 −20
@@ -795,9 +789,9 @@ Reaction progress
 B3LYP-D3(BJ)/def2-SVP · gas phase · neutral singlet · electronic energies
 a
 b
-๭ 6. Guided/NI1֥B3L YP-
-D3(BJ)/def2-SVP؋IRCିਈ๭
-नၛ RCb
+๭ 6. Guided/NI1֥
+B3L YP-D3(BJ)/def2-SVP؋IRCږ
+ିਈ๭नၛ RCb
 7
 ===== PAGE 8 =====
 All
@@ -850,8 +844,8 @@ Matched backbone comparison
 Paired task scores Paired gains and 95% intervals
 a
 b c
-๭ 7. P2აᇯีҵၳbađCloudra Guided ა๝၂ backbone֥Standardཌᄝಆ҆ 50ĠEasy
-ູ 20۲10 ีbbđЌ਽ಆ҆ 50bcनҵა 100,000 Ցο಩ༀᆜቆ bootstrap֥95%b
+๭ 7. P2აᇯีҵၳbađCloudra Guided ა๝၂ backbone֥Standardཌᄝಆ҆ 50Ġ
+Easy ູ 20۲10 ีbbđЌ਽ಆ҆ 50bcनҵა 100,000 Ցο಩ༀᆜቆ bootstrap֥95%b
 ູ [0.1349, 0.3124]bGuided ᄝ 35a8 ี
 a7ᇏ໊ඔູ0.1142č๭ 7Ď b
 नᆴ္Ⴕҵљğ Guided ູ 0.3374đ
@@ -1020,9 +1014,9 @@ Graph Self-consistency Accuracy
 Where the paired score gains arise
 a b c
 d
-๭ 8. ಆ҆ 200ਈba–c֥Grapha ሱటྟაAccuracy नᆴĠ ૄ஥ᇂሹุ50 ีđEasy
-ູ 20Ҫ 10 ีbdקܥ0.1/0.3/0.6ࢳٳGuidedؓBackboneनҵđಆ҆aNormal ა Hardљ൐Ⴈປᆜ
-50a10ބ10ଽ၂ᇁb
+๭ 8. ಆ҆ 200ਈba–c֥Graphaሱటྟა Accuracy नᆴĠૄ஥ᇂሹุ 50 ีđ
+Easy ູ 20Ҫ 10 ีbdקܥ0.1/0.3/0.6ࢳٳGuidedؓBackboneनҵđಆ҆aNormal ა Hardљ൐Ⴈ
+ປᆜ 50a10ބ10ଽ၂ᇁb
 Brief-errors Ⴕ 20č 50.0%ࠣ20b
 ๭ 9ࢌ
 ඔb
@@ -1116,9 +1110,9 @@ Offline-organized Backbone results
 Seven graphs organized offline from their existing research artifacts
 a b
 c
-๭ 9.bađ ૄ஥ᇂ50੣đGuidedaBackboneaRecord ა Briefљູ 50a43a
-50ބ50֥7ٺBackboneૄ஥ᇂनູ 50bbđૄ஥ᇂಆ҆ 40٤֡Impossible
-ٳSC=1ࠣٳSC=0ඔ၇Ցູ 24a7a16ބ20đBackbone ਸ਼Ⴕ 4bcđ7۴ࡹ
+๭ 9.bađૄ஥ᇂ 50੣đGuidedaBackboneaRecord ა Briefљູ 50a
+43a50ބ50֥7ٺBackboneૄ஥ᇂनູ 50bbđૄ஥ᇂಆ҆ 40٤֡
+ImpossibleٳSC=1ࠣٳSC=0ඔ၇Ցູ 24a7a16ބ20đBackbone ਸ਼Ⴕ 4bcđ7ླ
 ֥Backboneຶ 0.0333 ᇀ 0.3425đनᆴ 0.1537b
 Table 1.๝ 26ሰିৈ༂ҵđֆ໊
 ູ kcal/molb
@@ -1236,8 +1230,8 @@ Points: runs; line: mean
 15 matched tasks/arm
 a b c
 d
-๭ 10.ෘ๧ೆb ađP1b֥12ᆇൌ஻Ցđૄ஥ᇂ 3 ஻đૄ஻ 4ູ 2ཌູनᆴb bđ
-P2๝ 15࠹QM job-hoursनᆴbc౼ཨቔြඔਈb dđStandard ა
+๭ 10.ෘ๧ೆbađP1b֥12ᆇൌ஻Ցđૄ஥ᇂ 3 ஻đૄ஻ 4ູ 2ཌູनᆴbbđP2
+๝ 15࠹QM job-hoursनᆴbc౼ཨቔြඔਈbdđStandard ა
 Guidedᄎྛb
 ູ 0bIA9đਆቆሱటྟन
 ູ 1љູ 1ބ0ऊุଢѓ IG8 ᄵӯཌྷ
@@ -1580,7 +1574,7 @@ a
 b
 c
 ๭ 12.උbađHA8ലૼିৈđა campaign Gold ѩਙbbđHH1
-ԛ 23.48 kcal/mol҂๝bcđNU6੣ିਈᆭҵູ 18.836772 kcal/molĠGuidedࡼ
+ԛ 23.48 kcal/mol҂๝bcđNU6੣ିਈᆭҵູ 18.836772 kcal/molĠGuided
 ఃЌ਽ູ concertedथđStandardࡼ18.837ିৈb
 Guided Backbone Record Brief
 IA1
@@ -1688,10 +1682,10 @@ Mean score contributions
 Brief − Guided; 10 paired tasks
 a b c
 d e
-๭ 13.֥ުٳImpossibleba–cđಆ҆ 10aሱటྟč SCđ೤ѓ๤၂ູ 0–1b
-Backbone іൕ StandardbBriefٳ0.603đGuidedٳ0.505bdđGuided ᄝ 5đBrief ᄝ 4đ1 ีӻ௜beđ+0.09788
-؇0.12000aGraph −0.00661ሱటྟ −0.01550಩ༀ bootstrap֥95%ູ −0.160 ᇀ
-+0.361b
+๭ 13.֥ުٳImpossibleba–cđಆ҆ 10aሱటྟčSCđ೤ѓ๤၂ູ 0–1b
+Backbone іൕ StandardbBriefٳ0.603đGuidedٳ0.505bdđGuided ᄝ 5đBrief ᄝ 4đ1 ีӻ௜beđ
++0.09788؇0.12000aGraph −0.00661ሱటྟ −0.01550಩ༀ bootstrap֥95%ູ
+−0.160 ᇀ +0.361b
 13
 ===== PAGE 14 =====
 Pair / task system Source strings Equivalent rewrite
@@ -1885,8 +1879,8 @@ Reasoning enabled · 8 pairs
 Median: 808 → 86 tokens
 a b
 ๭ 15.ٳܒࢲ
-ჰ൓čFčRĎ࿊ཛ
-ൻԛყෘĠଽ҆ሳଛЌ਽ൌ
+ჰ൓čFčRĎ࿊
+ൻԛყෘĠଽ҆ሳଛЌ਽
 ճb
 XYZ
 F R
@@ -1961,7 +1955,7 @@ Target-angle residual Next action
 ○ H7 specified target    □ H5 comparator
 a
 b c
-๭ 17. E1Ҡቔb Newman࿊ቕѓခ C2→C3ཟbH7࿊
+๭ 17. E1ҠቔbNewman࿊ቕѓခ C2→C3ཟbH7࿊
 AaBљູ 59.4°ބ179.4°b๧႕கਙԛཌྷႋҠቔඨ྽b
 Cl4
 H8
@@ -2164,8 +2158,8 @@ g_17 → g_08
 same
 TS
 ๭ 23.э E1ෘ
-ႄႨՖ g_63ູ g_42đ ๝ൈЌӻअ҆ᇔᆸa ൬৻a ି
-aචཟ IRC߄
+ႄႨՖ g_63ູ g_42đ๝ൈЌӻअ҆ᇔᆸa൬৻a
+aචཟ IRCႪ
 ෘb
 same
 TSTS optimization

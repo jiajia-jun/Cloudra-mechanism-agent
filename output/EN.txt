@@ -3,10 +3,10 @@
 Cloudra: Geometric Reasoning and Scientific Validation for
 Autonomous Reaction Mechanism Exploration
 Chengyi Y ang1,*, Qianxin Zhou 2,†, and Y ang Li1,†
-1College of Chemistry and Pharmaceutical Engineering, Changsha University of Science and Technology, Changsha 410114, China
-2State Key Laboratory of Photocatalysis on Energy and Environment, College of Chemistry, Fuzhou University, Fuzhou 350002, China
-*Corresponding author: Chengyi Y ang. E-mail: 202509240114@csust.edu.cn.
-†Qianxin Zhou and Y ang Li contributed equally as second authors.
+1 College of Chemistry and Pharmaceutical Engineering, Changsha University of Science and Technology, Changsha 410114, China
+2 State Key Laboratory of Photocatalysis on Energy and Environment, College of Chemistry, Fuzhou University, Fuzhou 350002, China
+* Corresponding author: Chengyi Y ang. E-mail: 202509240114@csust.edu.cn.
+† Qianxin Zhou and Y ang Li contributed equally as second authors.
 2 November 2026
 Abstract
 Autonomous reaction-mechanism exploration requires proposing reaction steps, preparing three-dimensional structures, and determining
@@ -108,10 +108,10 @@ AI agent systems
 23
 12
 11
-Figure 1. Physical targets in a structured literature sample of
-85 chemical AI agent systems: 39 materials/surface, 23 finite-
-molecule/complex, 12 soft-matter/biomolecular, and 11 cross-
-class systems.
+Figure 1. Physical targets in a structured literature sample of 85
+chemical AI agent systems: 39 materials/surface, 23
+finite-molecule/complex, 12 soft-matter/biomolecular, and 11
+cross-class systems.
 d Molecules / complexes n = 23 · 1/2
 AI agent system T E O F R D
 01 Buehler molecular DFT
@@ -131,10 +131,11 @@ AI agent system T E O F R D
 Demonstrated Unencoded
 Figure 2. Documented tasks in the finite-molecule/complex class
 (panel 1 of 2; 23 chemical AI agent systems in total). T: structure
-construction/editing; E: static energy/properties; O: geometry opti-
-mization; F: vibrations/thermochemistry; R: explicit pathways/TS;
-D: molecular/quantum dynamics. Filled cells denote positive evi-
-dence; blanks leave capability coverage unspecified.
+construction/editing; E: static energy/properties; O: geometry
+optimization; F: vibrations/thermochemistry; R: explicit
+pathways/TS; D: molecular/quantum dynamics. Filled cells
+denote positive evidence; blanks leave capability coverage
+unspecified.
 d Molecules / complexes n = 23 · 2/2
 AI agent system T E O F R D
 15 El Agente Forjador
@@ -149,11 +150,10 @@ Operating System
 23 PULSES
 Cloudra (this work)
 Demonstrated Unencoded
-Figure 3. Chemical AI agent systems in the finite-
-molecule/complex class, continued (panel 2 of 2), using the
+Figure 3. Chemical AI agent systems in the
+finite-molecule/complex class, continued (panel 2 of 2), using the
 codes in Figure 2. Cloudra (this work) is benchmarked at the
-bottom. Complete matrices for all 85 chemical AI agent systems
-and source-level qualifications accompany the draft.
+bottom.
 geometries, bonding topology, stereochemistry, and asso-
 ciated calculation results. Each elementary-step edge car-
 ries the transition state and the reaction path connecting
@@ -190,9 +190,9 @@ calculation capability using CloudraBench, which measures
 graph coverage, physical self-consistency, and task-defined
 target accuracy from native computational outputs. Its 50
 tasks cover elementary and multistep reactions, stereochem-
+istry, and the applicability limits of the allowed methods.
 2
 ===== PAGE 3 =====
-istry, and the applicability limits of the allowed methods.
 The experiments comprise 48 independent runs with three re-
 peats on four tasks and a completed study of 200 runs under
 four workflow configurations across all 50 tasks. Standard
@@ -389,8 +389,8 @@ revise
 Figure 4. Cloudra’s mechanism exploration workflow. Atom mapping and conformer sampling prepare reactant and product structures;
 ComputeDB and the scheduler manage the calculations. Mode diagnostics measure motion on monitored atom pairs. Bidirectional IRCs
 start from the same transition state, and their outer frames undergo endpoint optimization and frequency analysis. The resulting structures
-are compared with the species declared in the Delivery DAG. The Supervisor reviews the graph and identifies calculations to complete and
-assignments to resolve.
+are compared with the species declared in the Delivery DAG. The Supervisor reviews the graph and identifies calculations to complete
+and assignments to resolve.
 maining hydrogens are paired by isotope on corresponding
 heavy atoms. For remaining isotope groups of sizes hg,
 the remaining NH = ∏
@@ -512,21 +512,17 @@ retained configurations are ranked by unconstrained single-
 point energy and clustered with a heavy-atom Kabsch
 RMSD threshold of 0.5 Å to provide starting structures.
 2.2.4 Endpoint Alignment and IDPP Interpolation
-After reordering the product atoms to match the reactant,
-each endpoint is centered. Let P and R be the centered prod-
-uct and reactant coordinate matrices. Kabsch alignment[ 15]
-solves
-min
-QTQ=I,det Q=1
+Let P and R denote the centered, atom-matched product
+and reactant coordinates. Kabsch alignment[ 15] minimizes
 ∥PQ − R∥2
-F,
-PTR = UΣVT,
+F over proper rotations (QTQ = I, det Q = 1).
+Given the singular-value decomposition PTR = UΣVT,
+the optimal rotation is
 Q = U diag
 (
 1, 1, det(UVT)
 )
-VT.
-(2.7)
+VT. (2.7)
 The resulting matrix Q is the proper rigid-body rotation
 matrix. The determinant correction factor det (UVT) en-
 forces det Q = +1 , ruling out improper reflections and pre-
@@ -594,9 +590,9 @@ cent species. Canonical molecular graphs and stereochemi-
 cal labels are compared when assigning structures to species;
 atom mapping identifies corresponding atoms in reactant
 and product structures. Species nodes record stationary-
+point geometries, frequencies, and absolute energies; step
 5
 ===== PAGE 6 =====
-point geometries, frequencies, and absolute energies; step
 edges record transition-state geometries, imaginary-mode
 displacement vectors, and reaction paths. Frequency and
 IRC calculations characterize these stationary points and
@@ -873,9 +869,9 @@ Easy
 Normal
 Hard
 Impossible
-Figure 5. CloudraBench task composition and research themes. (a) Counts and evaluation focus of the four task tiers. (b) T wo-dimensional
-PCA, computed with scikit-learn[37], of BAAI/bge-m3 embeddings[38] of all 50 original task names. E1, NB1, HA1, and IA1 are the four
-tasks used in the repeated-run experiment. Colors and marker shapes encode the predefined task tiers.
+Figure 5. CloudraBench task composition and research themes. (a) Counts and evaluation focus of the four task tiers. (b)
+T wo-dimensional PCA, computed with scikit-learn[37], of BAAI/bge-m3 embeddings[38] of all 50 original task names. E1, NB1, HA1,
+and IA1 are the four tasks used in the repeated-run experiment. Colors and marker shapes encode the predefined task tiers.
 archived API alias deepseek-v4-flash through the oﬀi-
 cial DeepSeek endpoint and streaming OpenAI-compatible
 chat completions, with requested minimal reasoning effort.
@@ -1278,9 +1274,9 @@ Where the paired score gains arise
 a b c
 d
 Figure 8. CloudraBench score layers across all 200 organized runs. (a–c) Means of Graph, Self-consistency, and Accuracy in each arm
-and tier, using 50 tasks per arm overall, 20 Easy tasks, and ten tasks in each other tier. (d) Guided–Backbone mean differences decomposed
-with the fixed weights 0.1/0.3/0.6, using all 50 pairs, ten Normal pairs, and ten Hard pairs. The component values come from each run’s
-final evaluation; their weighted sum gives the published composite score to the reported precision.
+and tier, using 50 tasks per arm overall, 20 Easy tasks, and ten tasks in each other tier. (d) Guided–Backbone mean differences
+decomposed with the fixed weights 0.1/0.3/0.6, using all 50 pairs, ten Normal pairs, and ten Hard pairs. The component values come from
+each run’s final evaluation; their weighted sum gives the published composite score to the reported precision.
 than Brief-errors on average. The figure shows all 12 ob-
 served batches, retaining their variation and original out-
 comes. These measurements include the batch’s research
@@ -1374,11 +1370,11 @@ c
 Figure 9. Runtime graph delivery and final scientific support in P2. (a) Original root mechanism graphs across 50 tasks per arm: Guided
 50, Backbone 43, Record 50, and Brief 50. The hatched segment marks seven additional Backbone graphs assembled offline from the
 runs’ own research materials; the organized set contains 50 graphs per arm. (b) Final continuous self-consistency (SC) scores for all 40
-non-Impossible tasks per arm, separating SC = 1, partial positive credit, and SC = 0. Full-score counts are 24, 7, 16, and 20; Backbone has
-four zero-score tasks. (c) Organized composite scores for the seven Backbone tasks whose root graphs were reconstructed offline, ranging
-from 0.0333 to 0.3425 (mean 0.1537).
-Table 1. Uncapped electronic-barrier errors for the same 26 refer-
-ence edges in all four configurations, in kcal/mol.
+non-Impossible tasks per arm, separating SC = 1, partial positive credit, and SC = 0. Full-score counts are 24, 7, 16, and 20; Backbone
+has four zero-score tasks. (c) Organized composite scores for the seven Backbone tasks whose root graphs were reconstructed offline,
+ranging from 0.0333 to 0.3425 (mean 0.1537).
+Table 1. Uncapped electronic-barrier errors for the same 26
+reference edges in all four configurations, in kcal/mol.
 Workflow MAE RMSE Median |∆|
 Guided 1.17 2.86 0.057
 Standard 1.54 4.64 0.057
@@ -1491,11 +1487,11 @@ Points: runs; line: mean
 15 matched tasks/arm
 a b c
 d
-Figure 10. Research elapsed time and computational investment. (a) T welve P1b four-task batches at concurrency two, three per arm; lines
-mark means. (b) Cumulative QM process durations for the 15 P2 tasks shared by all arms. (c) Mean completed, failed, and cancelled jobs in
-that cohort. (d) Same-task Backbone-to-Guided changes in investment and final score; diamonds mark offline-organized Backbone graphs.
-Job-hours sum process walltime; panel a measures batch latency. Backbone/M1 effort is reconstructed from native CPU time divided by
-four.
+Figure 10. Research elapsed time and computational investment. (a) T welve P1b four-task batches at concurrency two, three per arm;
+lines mark means. (b) Cumulative QM process durations for the 15 P2 tasks shared by all arms. (c) Mean completed, failed, and cancelled
+jobs in that cohort. (d) Same-task Backbone-to-Guided changes in investment and final score; diamonds mark offline-organized Backbone
+graphs. Job-hours sum process walltime; panel a measures batch latency. Backbone/M1 effort is reconstructed from native CPU time
+divided by four.
 3.2.8 Impossible tasks distinguish local support from
 the requested negative conclusion
 The Impossible tier tests whether research identifies the
@@ -1800,9 +1796,9 @@ Guided BackboneRecord Brief
 Composite Graph Self-consistency Accuracy
 Easy · 20Normal · 10Hard · 10Impossible · 10
 a b c d
-Figure 11. Complete CloudraBench results for all 50 tasks and four configurations. The aligned blocks show composite, Graph, Self-
-consistency, and Accuracy on the same 0–1 scale; all 800 cells are present. Values are rounded to two decimals; the source table retains
-full precision.
+Figure 11. Complete CloudraBench results for all 50 tasks and four configurations. The aligned blocks show composite, Graph,
+Self-consistency, and Accuracy on the same 0–1 scale; all 800 cells are present. Values are rounded to two decimals; the source table
+retains full precision.
 14
 ===== PAGE 15 =====
 0 5 10 15 20 25 30
@@ -1945,10 +1941,10 @@ Mean score contributions
 Brief − Guided; 10 paired tasks
 a b c
 d e
-Figure 13. Impossible-tier outcomes after offline organization and scoring. (a–c) Composite score, self-consistency (SC), and accuracy for
-ten tasks and four arms, using a shared 0–1 color scale. Backbone denotes Standard. Brief averages 0.603 and Guided 0.505. (d) Guided
-scores higher on 5 tasks, Brief on 4, and 1 tie. (e) The +0.09788 mean difference comprises accuracy +0.12000, Graph −0.00661, and SC
-−0.01550 after weighting. The paired task-bootstrap 95% interval is −0.160 to +0.361.
+Figure 13. Impossible-tier outcomes after offline organization and scoring. (a–c) Composite score, self-consistency (SC), and accuracy
+for ten tasks and four arms, using a shared 0–1 color scale. Backbone denotes Standard. Brief averages 0.603 and Guided 0.505. (d)
+Guided scores higher on 5 tasks, Brief on 4, and 1 tie. (e) The +0.09788 mean difference comprises accuracy +0.12000, Graph −0.00661,
+and SC −0.01550 after weighting. The paired task-bootstrap 95% interval is −0.160 to +0.361.
 15
 ===== PAGE 16 =====
 Pair / task system Source strings Equivalent rewrite
@@ -2140,11 +2136,11 @@ Geometry decisions under option reversal Numerical reasoning work
 Reasoning enabled · 8 pairs
 Median: 808 → 86 tokens
 a b
-Figure 15. Judgments of which of two specified atom-pair distances is shorter, using coor-
-dinates or measured distances. Four source structures are compared under direct response
-and reasoning-enabled conditions, each with original (F) and reversed (R) option order.
-Circles indicate correct judgments, diamonds incorrect judgments, and the triangle a re-
-sponse that reached the output budget. Letters retain the actual answers.
+Figure 15. Judgments of which of two specified atom-pair distances is shorter, using
+coordinates or measured distances. Four source structures are compared under direct
+response and reasoning-enabled conditions, each with original (F) and reversed (R)
+option order. Circles indicate correct judgments, diamonds incorrect judgments, and the
+triangle a response that reached the output budget. Letters retain the actual answers.
 XYZ
 F R
 Measured
@@ -2176,11 +2172,11 @@ Median: 808 → 86 tokens
 a b
 Figure 16. Generated-token counts with
 reasoning enabled. Each line connects
-Cartesian-coordinate input and measured-
-distance input for the same source structure
-and option order; eight paired comparisons
-are shown. The dashed line marks the out-
-put limit.
+Cartesian-coordinate input and
+measured-distance input for the same
+source structure and option order; eight
+paired comparisons are shown. The
+dashed line marks the output limit.
 semantic answer when option order was reversed. With
 thinking enabled, the XYZ condition produced seven correct
 answers; the remaining response reached the output limit of
@@ -2290,8 +2286,8 @@ Target-angle residual Next action
 a
 b c
 Figure 17. Target-specific geometry operations in E1. Newman projections retain the directions of the original candidate coordinates
-viewed down C2→C3. H7 is the specified transferring atom. Candidate A and candidate B give target angles of 59.4° and 179.4°, respec-
-tively. The operation sequence is shown alongside the projections.
+viewed down C2→C3. H7 is the specified transferring atom. Candidate A and candidate B give target angles of 59.4° and 179.4°,
+respectively. The operation sequence is shown alongside the projections.
 Cl4
 H8
 H9
@@ -2332,9 +2328,9 @@ Target-angle residual Next action
 ○ H7 specified target    □ H5 comparator
 a
 b c
-Figure 18. Circular angular residuals from the specified 180° target
-for candidates A and B. H7 is the specified target atom; H5 is the
-comparator.
+Figure 18. Circular angular residuals from the specified 180°
+target for candidates A and B. H7 is the specified target atom; H5
+is the comparator.
 Cl4
 H8
 H9
@@ -2375,9 +2371,10 @@ Target-angle residual Next action
 ○ H7 specified target    □ H5 comparator
 a
 b c
-Figure 19. Next-action choices under three local option permu-
-tations. When only H5 measurements are supplied, the model re-
-quests H7 measurements; with H7 supplied, it selects candidate B.
+Figure 19. Next-action choices under three local option
+permutations. When only H5 measurements are supplied, the
+model requests H7 measurements; with H7 supplied, it selects
+candidate B.
 the first two tested layers, while the last two remained close
 to the modified-input baseline.
 Self-replacement controls and control replacements at an
@@ -2480,8 +2477,8 @@ a
 b
 c
 Figure 21. Original-fact answer probability after state replacement. Curves show full-vocabulary probability mass for the original-fact
-answer under forward (B) and swapped (A) option order, including bare and leading-space token spellings. Horizontal lines show original-
-input and changed-input baselines. Layer indices are zero-based.
+answer under forward (B) and swapped (A) option order, including bare and leading-space token spellings. Horizontal lines show
+original-input and changed-input baselines. Layer indices are zero-based.
 Reported distances (Å) Original Changed
 r(C2–C4) 2.029 1.029
 r(O3–H8) 1.248 1.248
@@ -2522,9 +2519,9 @@ Original input Changed input Original-state patch
 a
 b
 c
-Figure 22. Control substitutions for the state-intervention experiment. Same-state self replacement at p53 and replacement of the unchanged
-prefix at p0 preserve all vocabulary logits in both option orders. The table reports the maximum absolute logit difference. Token positions
-are zero-based.
+Figure 22. Control substitutions for the state-intervention experiment. Same-state self replacement at p53 and replacement of the
+unchanged prefix at p0 preserve all vocabulary logits in both option orders. The table reports the maximum absolute logit difference.
+Token positions are zero-based.
 Evidence–geometry association
 TS optimization
 final geometry: g_63
@@ -2545,10 +2542,10 @@ g_17 → g_08
 same
 TS
 Figure 23. Changing the geometry assigned to the E1 frequency
-calculation. The frequency geometry reference changes from g_63
-to g_42 while local termination, convergence, energy, and fre-
-quency values remain fixed. Arrows connect the TS, IRC, and end-
-point optimization/frequency calculations.
+calculation. The frequency geometry reference changes from
+g_63 to g_42 while local termination, convergence, energy, and
+frequency values remain fixed. Arrows connect the TS, IRC, and
+endpoint optimization/frequency calculations.
 same
 TSTS optimization
 final geometry: g_63
@@ -2600,10 +2597,10 @@ Completion request and DAG response
 a b
 c
 Figure 24. Judgments of whether calculation references support
-the specified step. The 32 inputs cross four source chains, coher-
-ent/altered links, flat/linked presentation, and forward/swapped an-
-swer order. Saved A/B responses and correctness markers are re-
-tained.
+the specified step. The 32 inputs cross four source chains,
+coherent/altered links, flat/linked presentation, and
+forward/swapped answer order. Saved A/B responses and
+correctness markers are retained.
 19
 ===== PAGE 20 =====
 Completion request and DAG response
