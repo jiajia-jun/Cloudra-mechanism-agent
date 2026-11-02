@@ -1,0 +1,32 @@
+{
+  "date": "2026-11-02",
+  "source_base_commit": "ee2caf414f6091a412bcad4044b11558411c4e4c",
+  "scope": "Resolve PDF annotations on Figures 5, 6 and 10: separate PCA labels from marks and leaders, show only the actual e2 IRC-endpoint barrier, remove conformer comparisons from the caption, and expand the paired-investment panel. Raw data, geometry, scores and calculation status are unchanged.",
+  "pdf_pages": {
+    "EN": 23,
+    "ZH": 20,
+    "SI": 32
+  },
+  "new_qm_jobs": 0,
+  "new_agent_runs": 0,
+  "scientific_data_unchanged": true,
+  "scores_unchanged": true,
+  "pending_calculations_unchanged": true,
+  "scientific_files_checked": 24,
+  "data_zip_unchanged": false,
+  "drive_data_sync_status": "blocked_pending_user_approval",
+  "previous_drive_data_sha256": "15cb8090f00631d3f25334fdda1b30d7da6fa6a1ed4dc16e4ab9fc30fec70fca",
+  "si_data_sha256": "6a8383cce8b578a3d38d75e48b4f0b23f3613334cb34861340ab29b670214104",
+  "si_data_bytes": 18969253,
+  "source_zip_sha256": "038b363d1e1f540f61c8c62c5f85a5a19ef9d5018da915b8f1343ca9e68ccb74",
+  "figure_pdf_sha256": "d6a49ed6254cc7b377256b78a97cfa7ad522ec90f8abf373df352dd083f7e34d",
+  "abstract_characters": 1758,
+  "main_pdf_sha256": "227bf8f10a96e6cf993ed810bf53c40d1c8a9012d2271cf68fc3aa7ea94aa071",
+  "zh_pdf_sha256": "f869fe102e22a038cfaace85d7b034333ae84d9eba60b2fbaa00bfee23ccb80d",
+  "si_pdf_sha256": "501ddf28ba9be1c80aa815b28561b3bed544ca80ee75764716371e7bfb9077db",
+  "compiler": "Tectonic 0.17.0 / XeTeX",
+  "undefined_citations": 0,
+  "overfull_warnings": 0,
+  "uploaded_to_arxiv": false,
+  "online_overleaf_updated": false
+}

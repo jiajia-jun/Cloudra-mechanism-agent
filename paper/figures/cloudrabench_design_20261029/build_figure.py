@@ -251,11 +251,18 @@ def main():
                 task["task_id"] in highlighted,
                 task["task_id"],
             )
-        offsets = {"E1": (-11, 28), "NB1": (-48, -10), "HA1": (-27, -14), "IA1": (9, 21)}
-        for task_id, (dx, dy) in offsets.items():
+        # Text center/baseline, marker-to-leader offset, and leader endpoint.
+        # Keep the labels in empty regions and stop leaders before the text.
+        annotations = {
+            "E1": ((332, 121), (0, 5), (332, 112.5)),
+            "NB1": ((299, 113), (-4.5, 4.5), (310.5, 110)),
+            "HA1": ((450, 43), (-4.5, -4.5), (460.8, 40.3)),
+            "IA1": ((414, 121), (-4.5, 5.5), (414, 112.5)),
+        }
+        for task_id, (label_position, point_offset, leader_end) in annotations.items():
             x, y = xy(by_id[task_id]["pca"])
-            fig.line(x + dx * 0.2, y + dy * 0.2, x + dx, y + dy - 3, MUTED, 0.55)
-            fig.text(x + dx, y + dy, task_id, 8, True)
+            fig.line(x + point_offset[0], y + point_offset[1], *leader_end, MUTED, 0.55)
+            fig.text(*label_position, task_id, 8, True, anchor="middle")
         for tier, x, y in [("easy", 293, 205), ("normal", 383, 205), ("hard", 293, 219), ("impossible", 383, 219)]:
             fig.mark(x, y - 2.5, tier, 2.7)
             fig.text(x + 8, y, tier.capitalize(), 7.5)

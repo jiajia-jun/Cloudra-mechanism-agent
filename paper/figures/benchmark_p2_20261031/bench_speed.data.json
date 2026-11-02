@@ -2,7 +2,7 @@
   "figure": "bench_speed",
   "size_mm": [
     180,
-    120
+    144
   ],
   "arm_order": [
     "guided",

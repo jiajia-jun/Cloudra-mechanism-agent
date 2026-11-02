@@ -55,10 +55,10 @@ def render(output_dir):
 
     panel(fig, "b", "Electronic energy profile", 0.025, 0.505)
     ys = np.array([float(data[key]["relative_energy_kcal_mol"]) for key in selected])
-    e1, e2_i, e2_ip = ys[1] - ys[0], ys[4] - ys[2], ys[4] - ys[3]
+    e1, e2 = ys[1] - ys[0], ys[4] - ys[3]
     headers = [
         rf"e1   $\Delta E^\ddagger$ = {e1:.2f}",
-        rf"e2   $\Delta E^\ddagger$ = {e2_i:.2f} (vs I) / {e2_ip:.2f} (vs I′)",
+        rf"e2   $\Delta E^\ddagger$ = {e2:.2f}",
     ]
     # Separate axes show the two computed steps without implying an I-to-I' path.
     # Both axes retain RC as the common zero and exactly the same energy scale.

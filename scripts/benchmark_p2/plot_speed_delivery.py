@@ -79,20 +79,20 @@ def build_speed(source: Path, output: Path) -> None:
     tasks = sorted({r["task"] for r in effort})
     assert len(tasks) == 15 and len(index) == 60
 
-    fig = plt.figure(figsize=(180 * MM, 120 * MM))
+    fig = plt.figure(figsize=(180 * MM, 144 * MM))
     axes = {
-        "a": fig.add_axes([0.10, 70 / 120, 0.355, 33 / 120]),
-        "b": fig.add_axes([0.60, 70 / 120, 0.355, 33 / 120]),
-        "c": fig.add_axes([0.10, 12 / 120, 0.355, 29.5 / 120]),
-        "d": fig.add_axes([0.60, 12 / 120, 0.355, 29.5 / 120]),
+        "a": fig.add_axes([14 / 180, 86 / 144, 48 / 180, 37 / 144]),
+        "b": fig.add_axes([70 / 180, 86 / 144, 48 / 180, 37 / 144]),
+        "c": fig.add_axes([126 / 180, 86 / 144, 48 / 180, 37 / 144]),
+        "d": fig.add_axes([14 / 180, 14 / 144, 160 / 180, 49 / 144]),
     }
-    panel(fig, "a", "Pilot batch elapsed time", 0.035, 117 / 120)
-    panel(fig, "b", "P2 computation per run", 0.535, 117 / 120)
-    panel(fig, "c", "P2 terminal job states", 0.035, 58 / 120)
-    panel(fig, "d", "P2 paired investment (n=15)", 0.535, 58 / 120)
-    fig.text(0.10, 110 / 120, "3 batches/arm · 4 tasks/batch · concurrency 2", fontsize=7.4)
-    fig.text(0.60, 110 / 120, "15 matched tasks/arm · points: runs; line: mean", fontsize=7.4)
-    fig.text(0.10, 51.5 / 120, "15 matched tasks/arm · mean jobs per run", fontsize=7.4)
+    panel(fig, "a", "Pilot batch elapsed time", 3 / 180, 141 / 144)
+    panel(fig, "b", "P2 computation per run", 59 / 180, 141 / 144)
+    panel(fig, "c", "P2 terminal job states", 115 / 180, 141 / 144)
+    panel(fig, "d", "P2 paired investment (n=15)", 3 / 180, 77 / 144)
+    fig.text(14 / 180, 134 / 144, "3 batches/arm · 4 tasks/batch\nConcurrency 2", fontsize=7.4, va="top")
+    fig.text(70 / 180, 134 / 144, "15 matched tasks/arm\nPoints: runs; line: mean", fontsize=7.4, va="top")
+    fig.text(126 / 180, 134 / 144, "15 matched tasks/arm", fontsize=7.4, va="top")
 
     ax = axes["a"]
     for x, arm in enumerate(ARMS):
@@ -140,7 +140,7 @@ def build_speed(source: Path, output: Path) -> None:
         mean_line(ax, x, mean(r["job_hours"] for r in rows), COLORS[arm])
     ax.set_ylim(0, 56)
     ax.set_yticks([0, 10, 20, 30, 40, 50])
-    ax.set_ylabel("Cumulative QM job-hours", labelpad=4)
+    ax.set_ylabel("Cumulative QM job-hours", labelpad=1)
     arm_ticks(ax)
     clean_axis(ax, "y")
 
@@ -169,13 +169,14 @@ def build_speed(source: Path, output: Path) -> None:
         job_means.append({"arm": arm, "n_runs": 15, **values})
     ax.set_ylim(0, 68)
     ax.set_yticks([0, 20, 40, 60])
-    ax.set_ylabel("Mean QM jobs per run", labelpad=4)
+    ax.set_ylabel("Mean QM jobs per run", labelpad=1)
     arm_ticks(ax)
     clean_axis(ax, "y")
     ax.legend(
         handles=[Patch(facecolor=color, label=label) for _, label, color in job_states],
-        loc="upper left",
-        bbox_to_anchor=(0, 1.035),
+        loc="lower left",
+        bbox_to_anchor=(126 / 180, 126.5 / 144),
+        bbox_transform=fig.transFigure,
         ncol=3,
         frameon=False,
         handlelength=0.9,
@@ -215,16 +216,17 @@ def build_speed(source: Path, output: Path) -> None:
                 zorder=4,
             )
         pairs.append({"task": task, "backbone": backbone, "guided": guided})
-    for task, offset in (("HF1", (-3, -12)), ("NU5", (4, -11)), ("NR1", (4, 4))):
+    for task, position in (("HF1", (39.1, 0.87)), ("NU5", (28.0, 0.24)), ("NR1", (9.4, 0.50))):
         row = index["guided", task]
         ax.annotate(
             task,
             (row["job_hours"], row["official_final"]),
-            xytext=offset,
-            textcoords="offset points",
+            xytext=position,
             ha="left",
+            va="center",
             fontsize=7.4,
             color=GREEN,
+            arrowprops={"arrowstyle": "-", "color": GREEN, "linewidth": 0.5, "shrinkA": 2, "shrinkB": 4},
         )
     ax.set_xlim(-1.4, 42)
     ax.set_ylim(-0.04, 1.08)
@@ -257,9 +259,10 @@ def build_speed(source: Path, output: Path) -> None:
                 label="Offline organized",
             ),
         ],
-        loc="upper left",
-        bbox_to_anchor=(0, 1.23),
-        ncol=2,
+        loc="center right",
+        bbox_to_anchor=(174 / 180, 69 / 144),
+        bbox_transform=fig.transFigure,
+        ncol=3,
         frameon=False,
         handlelength=0.7,
         columnspacing=0.8,
@@ -269,7 +272,7 @@ def build_speed(source: Path, output: Path) -> None:
 
     data = {
         "figure": "bench_speed",
-        "size_mm": [180, 120],
+        "size_mm": [180, 144],
         "arm_order": list(ARMS),
         "arm_labels": LABELS,
         "arm_colors": COLORS,

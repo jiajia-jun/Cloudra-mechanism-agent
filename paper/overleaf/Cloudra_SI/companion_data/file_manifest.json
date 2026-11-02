@@ -2162,8 +2162,8 @@
     },
     {
       "file": "publication_reproduction/scripts/benchmark_p2/plot_speed_delivery.py",
-      "bytes": 20296,
-      "sha256": "78fd35ae9b1383c967d7be9e3ff296387addcb138067b06114f80f00e25d6222"
+      "bytes": 20566,
+      "sha256": "d34e6fd527a46b03a818d8c8345f0d87d5b16148e78795e9b930d5e1fb734ec6"
     },
     {
       "file": "publication_reproduction/scripts/benchmark_p2/prepare_publication_data.py",
@@ -2317,8 +2317,8 @@
     },
     {
       "file": "revision_20261101/ni1_chemical_objects/plot_ni1_chemical_objects.py",
-      "bytes": 5394,
-      "sha256": "a846f612fbae5269d0f01b9074bfe30a5ebb6a6715f521ab3ba08693d5193309"
+      "bytes": 5337,
+      "sha256": "4cbb728479854f29de4c4df1dcc2d53520d53011b258c2a0dcba7befee43a152"
     },
     {
       "file": "revision_20261101/ni1_chemical_objects/provenance.json",
@@ -3827,5 +3827,5 @@
     }
   ],
   "count": 765,
-  "total_bytes": 35478653
+  "total_bytes": 35478866
 }

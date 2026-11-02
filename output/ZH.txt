@@ -791,7 +791,7 @@ e1   ΔE ‡  = 28.12
 I′  -11.73
 TS2  +45.49
 P  -3.12
-e2   ΔE ‡  = 57.92 (vs I) / 57.21 (vs I′)
+e2   ΔE ‡  = 57.21
 Optimized structures
 RC
 Reactants
@@ -815,7 +815,7 @@ a
 b
 ๭ 6. Guided/NI1֥B3L YP-
 D3(BJ)/def2-SVP؋IRCିਈ๭
-नၛ RCའ I࠽IRCའ I ′ ཌྷҵ 0.71 kcal/molෘb
+नၛ RCb
 7
 ===== PAGE 8 =====
 All
@@ -1137,6 +1137,70 @@ c
 50ބ50֥7ٺBackboneૄ஥ᇂनູ 50bbđૄ஥ᇂಆ҆ 40٤֡Impossible
 ٳSC=1ࠣٳSC=0ඔ၇Ցູ 24a7a16ބ20đBackbone ਸ਼Ⴕ 4bcđ7۴ࡹ
 ֥Backboneຶ 0.0333 ᇀ 0.3425đनᆴ 0.1537b
+Table 1.๝ 26ሰିৈ༂ҵđֆ໊
+ູ kcal/molb
+ቆљ MAE RMSE༂ҵᇏ໊ඔ
+Guided 1.17 2.86 0.057
+Standard 1.54 4.64 0.057
+Record 1.58 5.71 0.073
+Brief-errors 1.13 2.31 0.099
+๝಩ༀᇏđGuided੣ 789࿐ቔြđStan-
+dard ູ 419đRecord ູ 431đBrief-errors ູ 883Ġఃᇏ
+љູ 114a45a62ބ167࠺
+੣bNU3aNU5aNU6ބNR1֥࣮16 Ցᄎ
+൐Ⴈ 163.5 job-hoursđ ᅝॖႨ63σ 673.82
+job-hours֥24.3%đಯႵ҄ᇧ
+֥֖݂Standardॖିພ
+࣮
+ᆭຓb
+GuidedؓBrief-errorsሹุᄹၭູ 0.0268ູ
+[−0.0486, 0.0996]đ26a11a13 ีӻ௜b б
+эğGuided ᄝ Normalۚ0.1514đ
+ᄝ Hardۚ0.1295طBrief-errors֥Impossibleٳ
+b
+3.2.6ሰିৈ༂ҵ
+֥
+Ⴕ
+ݣ23֥26۲
+੣၂
+ႋაିਈҕᅶđ ᇯшაЧϱ
+ೆ၂
+ֻ2ၬbі 1༂ҵb
+෮࿢෪
+ᇏđGuided֥MAEބRMSE न
+Ⴟ StandardđBrief-errors૭
+໾৘ᆦӻႮሱ
+ਈbSIֻS4ؓ53
+ຓ Gold
+ٓۂڭ
+b
+3.2.7ෘᆣऌ
+๭ 11ᅚൕಆ҆ 50ਈbNB1
+ބNI1౦ঃb NB1 ᇏđ
+GuidedaStandardބBrief-errorsљູ 0.9628a0.9128
+ބ0.9900đGuided ა Brief-errorsሱటྟनູ 1ĠNI1
+ᇏđGuided ູ 0.9958đStandard ູ 0.6196љ
+ູ 1ބ0.35bაՎ๝ൈđ NQ5 ᇏ RecordႿ Guidedđ
+NU3 ᇏ Brief-errorsb
+ऎุିৈҵၳč๭ 12Ď bHA8
+ᇏđGuidedԛ 29.46 kcal/mol đStandardԛ 20.43
+kcal/molđҕॉູ 29.48 kcal/molࡼ9.03 kcal/mol
+ҵљሔිᇀିਈҕᅶğGuided֮all-s-transّ
+ཬᆴđStandardႋྟ cisoidའb
+IRCିൈđᄵҐ
+ཬᆴቔିਈҕᅶb
+NU6эbGuided
+֥concertedିਈູ −247.030042392 Hađbe-
+taineཬᆴູ −247.060060699 Hađ ਆᆀҵູ18.836772
+kcal/molbGuidedݖࣜconcerted֥
+ଢѓ betaineЌ਽ູր
+थሑ෿ĠStandardࡼ18.837 kcal/mol҄
+ਔ҂
+ӱbGuided Ֆ betaineԛ
+֥
+ᇗྍ஑
+10
+===== PAGE 11 =====
 Guided Backbone Record Brief
 0
 2
@@ -1167,7 +1231,8 @@ Guided Backbone Record Brief
 39.7
 11.1
 8.0
-58.9Done Failed Cancelled
+58.9
+Done Failed Cancelled
 0 10 20 30 40
 Cumulative QM job-hours
 0
@@ -1178,20 +1243,69 @@ Cumulative QM job-hours
 HF1
 NU5
 NR1
-Backbone
-Guided
-Offline organized
-Pilot batch elapsed time P2 computation per run
-P2 terminal job states P2 paired investment (n=15)
-3 batches/arm · 4 tasks/batch · concurrency 2 15 matched tasks/arm · points: runs; line: mean
-15 matched tasks/arm · mean jobs per run
-a b
-c d
+Backbone Guided Offline organized
+Pilot batch elapsed time P2 computation per run P2 terminal job states
+P2 paired investment (n=15)
+3 batches/arm · 4 tasks/batch
+Concurrency 2
+15 matched tasks/arm
+Points: runs; line: mean
+15 matched tasks/arm
+a b c
+d
 ๭ 10.ෘ๧ೆb ađP1b֥12ᆇൌ஻Ցđૄ஥ᇂ 3 ஻đૄ஻ 4ູ 2ཌູनᆴb bđ
 P2๝ 15࠹QM job-hoursनᆴbc౼ཨቔြඔਈb dđStandard ა
 Guidedᄎྛb
-10
-===== PAGE 11 =====
+b
+G2 ᇏđGuidedٳ֤0.2389đStandard ູ 0.7769bGuided
+ჰളರᆽᆦӻჿ 0.845 kcal/molච౟ሇ၍ିৈbϴෛ
+đAgent ೷Ԣਔඔᆴሳ
+ĠSupervisorෛ
+ࠣ
+Ќ਽ᄝ໓ሳඪૼᇏđሙಒ
+ູ 0bBrief-errorsٳ֤0.8500b
+D1ބD3 ᇏ 0.7ഈ
+ཋbD1 ა Standardའҕᅶđ
+D3ԛਔᆃུσ২
+b
+3.2.8 Impossibleં
+Impossibleק
+֥xTB/PM7ԩ৘ᄝ
+ሰ෿აีଢᆷ
+ࠇࣥ
+ሰ෿bBrief-errorsູ 0.6029đGuided ູ 0.5051đ
+Standard ູ 0.2473đRecord ູ 0.2925č๭ 13Ď bBrief-
+errorsؓGuided ႓ 4ڵ5 ีa ௜1 ีbBrief-errors
+ࡨGuided नᆴູ +0.09788đ95% ಩ༀ bootstrapູ
+[−0.160, +0.361]ܒࢲ−0.00661aሱ
+టྟ −0.01550؇0.12000bᇯี Brief-errorsࡨ
+Guided ҵᆴູğIA1 +0.8283đIA9 +0.5666đIC3 +0.6000đ
+IF3 +0.0333đIA7 0đIA5 −0.0333đIB9 −0.0500đID2
+−0.1500đIE2 −0.1500đIG8 −0.6661b
+IA1ଢѓđBrief-
+errorsनູ 1đGuided ሙಒ
+ູ 0bIA9đਆቆሱటྟन
+ູ 1љູ 1ބ0ऊุଢѓ IG8 ᄵӯཌྷ
+đ GuidedaRecord ა
+Brief-errors ᄝ IA5ଢѓሙ
+đBrief-errors ᄝ IC3֋༖Ď
+ĠGuided/IC3؇0๭
+აሱటྟनູ 1bᄝ Brief-errors ა Guided؇
+ఃჅ 6 ีᇏđBrief-errors֮0.0583bၹՎđ
+Brief-errorsط
+Guidedअ҆ᆦӻb
+ಆ҆ 40 Ց Impossible ᄎྛᇏđ 8ູ 1đ10
+Ց๝ൈऎႵሱటྟ 1؇0bIF3ᆀğBrief-
+errors ა Guidedनູ 0đሱటྟनູ 1࡙
+֥IB9नູ 0.7b
+3.3࿈ሇ
+एa
+֥IRC
+ĠҐႨ
+Qwen3.8:27bэൻೆྐ༏aճσඨ྽
+႕ཙb
+11
+===== PAGE 12 =====
 Guided BackboneRecord Brief
 D1
 D3
@@ -1452,8 +1566,8 @@ Easy · 20Normal · 10Hard · 10Impossible · 10
 a b c d
 ๭ 11. CloudraBench ಆ҆ 50aGraphaሱటྟა Accuracyđ೤
 ѓ๤၂ູ 0–1đ800b
-11
-===== PAGE 12 =====
+12
+===== PAGE 13 =====
 0 5 10 15 20 25 30
 Reported electronic barrier (kcal mol−1)
 Guided: stable minimum
@@ -1598,8 +1712,8 @@ d e
 đBrief ᄝ 4đ1 ีӻ௜beđ+0.09788؇0.12000aGraph −0.00661ሱటྟ −0.01550
 ಩ༀ bootstrap֥95%ູ −0.160 ᇀ +0.361ູਬѩ҂௴ђіൕհ
 ္҂൞॓࿐ဒ൬ੱb
-12
-===== PAGE 13 =====
+13
+===== PAGE 14 =====
 Pair / task system Source strings Equivalent rewrite
 Fwd Swap Fwd Swap
 Same identity
@@ -1653,55 +1767,56 @@ Chemical identity across notation and option order Same formula, different ident
 ๭ 14.b16љіൕᆞಒაհ༂đଽ҆ሳଛЌ
 ֻ14ܒࢲࢤCC1CC=C1 ა C=C1CCC1ٳ
 ሰൔनູ C5H8b
-๝಩ༀᇏđGuided੣ 789࿐ቔြđStan-
-dard ູ 419đRecord ູ 431đBrief-errors ູ 883Ġఃᇏ
-љູ 114a45a62ބ167࠺
-੣bNU3aNU5aNU6ބNR1֥࣮16 Ցᄎ
-൐Ⴈ 163.5 job-hoursđ ᅝॖႨ63σ 673.82
-job-hours֥24.3%đಯႵ҄ᇧ
-֥֖݂Standardॖିພ
-࣮
-ᆭຓb
-GuidedؓBrief-errorsሹุᄹၭູ 0.0268ູ
-[−0.0486, 0.0996]đ26a11a13 ีӻ௜b б
-эğGuided ᄝ Normalۚ0.1514đ
-ᄝ Hardۚ0.1295طBrief-errors֥Impossibleٳ
+3.3.1ࡎ֩SMILES؎
+۱
+֥SMILES
+༢b ູॉ
+ᄯਔ 16ٺ
+ა
+ؓ
+֤
+֞64b
+ଆ྘ᄝఃᇏ 58эਔ 32
+֥4эਔ
+32֥6࿊ᄴሳଛ
+Ab๭ 14ؓC5H8ߌ
+ճ
+AطAљսі oཌྷ๝p ა o҂๝p b ၹ
+ࢲ۱
 b
-3.2.6ሰିৈ༂ҵ
+Cloudraჰ
+ׄ؊
+༢đ
+ႋb
+3.3.2ඔᆴ๷৘
+໡ૌ࿊౼ NB1؎
+ճ
+ປᆜ XYZए৖bਆ
+ቔճაषఓනॉđྙӮ 32
+Ⴈč๭ 15Ď b
+ቔճൈđ XYZϖՑཙႋಆ҆࿊ᄴ Ađః
+đϖՑनᆞಒđѩᄝ࿊ཛ
+đ XYZࡱ
+ᆞಒճσđਸ਼၂Ցᄝ 1,024ളӮ token ൈղ
+đᄝ 1,353ളӮ
+tokenᆞಒճσb
+ϖቆ
+ᇏđXYZളӮ tokenљ
+ູ 807.5ބ86b
+ඔᆴb
+CloudrađѩႨಒ
+ჰ
+b ᆃ
 ֥
-Ⴕ
-ݣ23֥26۲
-੣၂
-ႋაିਈҕᅶđ ᇯшაЧϱ
-ೆ၂
-ֻ2ၬbі 1༂ҵb
-෮࿢෪
-ᇏđGuided֥MAEބRMSE न
-Table 1.๝ 26ሰିৈ༂ҵđֆ໊
-ູ kcal/molb
-ቆљ MAE RMSE༂ҵᇏ໊ඔ
-Guided 1.17 2.86 0.057
-Standard 1.54 4.64 0.057
-Record 1.58 5.71 0.073
-Brief-errors 1.13 2.31 0.099
-Ⴟ StandardđBrief-errors૭
-໾৘ᆦӻႮሱ
-ਈbSIֻS4ؓ53
-ຓ Gold
-ٓۂڭ
-b
-3.2.7ෘᆣऌ
-๭ 11ᅚൕಆ҆ 50ਈbNB1
-ބNI1౦ঃb NB1 ᇏđ
-GuidedaStandardބBrief-errorsљູ 0.9628a0.9128
-ބ0.9900đGuided ა Brief-errorsሱటྟनູ 1ĠNI1
-ᇏđGuided ູ 0.9958đStandard ູ 0.6196љ
-ູ 1ބ0.35bაՎ๝ൈđ NQ5 ᇏ RecordႿ Guidedđ
-NU3 ᇏ Brief-errorsb
-ऎุିৈҵၳč๭ 12Ď bHA8
-ᇏđGuidedԛ 29.46 kcal/mol đStandardԛ 20.43
-13
-===== PAGE 14 =====
+නਫ਼၂ᇁb[40]
+3.3.3ଢѓ
+ᄝ E1ሇ၍౟ H7aC2a
+C3 ა৖ಀჰሰ Cl4࣍ࢤ180°b෱ຶ
+ಡ C2⚶C3љ࿈ሇ C3؍120° ა −120°ܒ
+࿊ AބBࡼC3⚶Cl4֞2.35 Åbଏಪ
+ࠣH5ࠣ
+14
+===== PAGE 15 =====
 XYZ
 F R
 Measured
@@ -1952,8 +2067,8 @@ a
 b c
 ๭ 19.܂H5 ҩਈᆴ
 ൈđଆ྘౨౰ H7 ҩਈĠҀԉ H7࿊ Bb
-14
-===== PAGE 15 =====
+15
+===== PAGE 16 =====
 A one-digit edit at the same input position
 Reported distances (Å) Original Changed
 r(C2–C4) 2.029 1.029
@@ -2126,8 +2241,8 @@ c
 ৳ൔіൕđၛ
 ჰ൓čFčS֥A/B
 ৳b
-15
-===== PAGE 16 =====
+16
+===== PAGE 17 =====
 Completion request and DAG response
 Structured
 report
@@ -2158,119 +2273,6 @@ disposition:
 "partial"
 ๭ 25. ჰ൓ IA1ປӮ౨౰ა DAGᆣऌൈđଆ྘౨౰ປӮĠ༢๤ᆷԛಌഒ short_irc ᆣૼѩཟ
 ປӮb
-kcal/molđҕॉູ 29.48 kcal/molࡼ9.03 kcal/mol
-ҵљሔිᇀିਈҕᅶğGuided֮all-s-transّ
-ཬᆴđStandardႋྟ cisoidའb
-IRCିൈđᄵҐ
-ཬᆴቔିਈҕᅶb
-NU6эbGuided
-֥concertedିਈູ −247.030042392 Hađbe-
-taineཬᆴູ −247.060060699 Hađ ਆᆀҵູ18.836772
-kcal/molbGuidedݖࣜconcerted֥
-ଢѓ betaineЌ਽ູր
-थሑ෿ĠStandardࡼ18.837 kcal/mol҄
-ਔ҂
-ӱbGuided Ֆ betaineԛ
-֥
-ᇗྍ஑
-b
-G2 ᇏđGuidedٳ֤0.2389đStandard ູ 0.7769bGuided
-ჰളರᆽᆦӻჿ 0.845 kcal/molච౟ሇ၍ିৈbϴෛ
-đAgent ೷Ԣਔඔᆴሳ
-ĠSupervisorෛ
-ࠣ
-Ќ਽ᄝ໓ሳඪૼᇏđሙಒ
-ູ 0bBrief-errorsٳ֤0.8500b
-D1ބD3 ᇏ 0.7ഈ
-ཋbD1 ა Standardའҕᅶđ
-D3ԛਔᆃུσ২
-b
-3.2.8 Impossibleં
-Impossibleק
-֥xTB/PM7ԩ৘ᄝ
-ሰ෿აีଢᆷ
-ࠇࣥ
-ሰ෿bBrief-errorsູ 0.6029đGuided ູ 0.5051đ
-Standard ູ 0.2473đRecord ູ 0.2925č๭ 13Ď bBrief-
-errorsؓGuided ႓ 4ڵ5 ีa ௜1 ีbBrief-errors
-ࡨGuided नᆴູ +0.09788đ95% ಩ༀ bootstrapູ
-[−0.160, +0.361]ܒࢲ−0.00661aሱ
-టྟ −0.01550؇0.12000bᇯี Brief-errorsࡨ
-Guided ҵᆴູğIA1 +0.8283đIA9 +0.5666đIC3 +0.6000đ
-IF3 +0.0333đIA7 0đIA5 −0.0333đIB9 −0.0500đID2
-−0.1500đIE2 −0.1500đIG8 −0.6661b
-IA1ଢѓđBrief-
-errorsनູ 1đGuided ሙಒ
-ູ 0bIA9đਆቆሱటྟन
-ູ 1љູ 1ބ0ऊุଢѓ IG8 ᄵӯཌྷ
-đ GuidedaRecord ა
-Brief-errors ᄝ IA5ଢѓሙ
-đBrief-errors ᄝ IC3֋༖Ď
-ĠGuided/IC3؇0๭
-აሱటྟनູ 1bᄝ Brief-errors ა Guided؇
-ఃჅ 6 ีᇏđBrief-errors֮0.0583bၹՎđ
-Brief-errorsط
-Guidedअ҆ᆦӻb
-ಆ҆ 40 Ց Impossible ᄎྛᇏđ 8ູ 1đ10
-Ց๝ൈऎႵሱటྟ 1؇0bIF3ᆀğBrief-
-errors ა Guidedनູ 0đሱటྟनູ 1࡙
-֥IB9नູ 0.7b
-3.3࿈ሇ
-एa
-֥IRC
-ĠҐႨ
-Qwen3.8:27bэൻೆྐ༏aճσඨ྽
-႕ཙb
-3.3.1ࡎ֩SMILES؎
-۱
-֥SMILES
-༢b ູॉ
-ᄯਔ 16ٺ
-ა
-ؓ
-֤
-֞64b
-ଆ྘ᄝఃᇏ 58эਔ 32
-֥4эਔ
-32֥6࿊ᄴሳଛ
-Ab๭ 14ؓC5H8ߌ
-ճ
-AطAљսі oཌྷ๝p ა o҂๝p b ၹ
-ࢲ۱
-b
-Cloudraჰ
-ׄ؊
-༢đ
-ႋb
-3.3.2ඔᆴ๷৘
-໡ૌ࿊౼ NB1؎
-ճ
-ປᆜ XYZए৖bਆ
-ቔճაषఓනॉđྙӮ 32
-Ⴈč๭ 15Ď b
-ቔճൈđ XYZϖՑཙႋಆ҆࿊ᄴ Ađః
-đϖՑनᆞಒđѩᄝ࿊ཛ
-đ XYZࡱ
-ᆞಒճσđਸ਼၂Ցᄝ 1,024ളӮ token ൈղ
-16
-===== PAGE 17 =====
-đᄝ 1,353ളӮ
-tokenᆞಒճσb
-ϖቆ
-ᇏđXYZളӮ tokenљ
-ູ 807.5ބ86b
-ඔᆴb
-CloudrađѩႨಒ
-ჰ
-b ᆃ
-֥
-නਫ਼၂ᇁb[40]
-3.3.3ଢѓ
-ᄝ E1ሇ၍౟ H7aC2a
-C3 ა৖ಀჰሰ Cl4࣍ࢤ180°b෱ຶ
-ಡ C2⚶C3љ࿈ሇ C3؍120° ა −120°ܒ
-࿊ AބBࡼC3⚶Cl4֞2.35 Åbଏಪ
-ࠣH5ࠣ
 H7֥H7⚶C2⚶C3⚶Cl4֤ࠆ
 ჿ 59.4°ބ179.4°࿊ Bb
 ๭ 17֥C2→C3ཟ
@@ -2364,6 +2366,8 @@ livery DAGіൕ໾ᇕ
 іགྷb Guided֥
 Ⴟ StandardĠHard ᇏđਆᆀ
 љູ +0.1353ބ0.1274bHH1ބ
+17
+===== PAGE 18 =====
 HI1ࠞ
 ཬᆴđಯླҀԉ IRCෘb
 HA8ބNU6݂
@@ -2373,8 +2377,6 @@ HA8ބNU6݂
 ࣥ
 bDAGa
 IRC࡟ުْ߭
-17
-===== PAGE 18 =====
 ݔࢲ
 ቔ
 Ⴈ၂ᇁb[44]
@@ -2492,6 +2494,8 @@ Markus Reiher. High-throughput ab initio reaction mechanism explo-
 ration in the cloud with automated multi-reference validation. The
 Journal of Chemical Physics , 158(8):084803, 2023. doi: 10.1063/5.
 0136526. URL https://doi.org/10.1063/5.0136526.
+18
+===== PAGE 19 =====
 [5] Yunheng Zou et al. El Agente: An autonomous agent for quantum
 chemistry. Matter, 8:102263, 2025. doi: 10.1016/j.matt.2025.1022
 63.
@@ -2502,8 +2506,6 @@ Chemical Simulations. Journal of Chemical Theory and Computa-
 tion, 22(13):6557–6571, 2026. doi: 10.1021/acs.jctc.6c00591. URL
 https://doi.org/10.1021/acs.jctc.6c00591.
 [7] Jiaru Bai, Abdulrahman Aldossary, Thomas Swanick, Marcel Müller,
-18
-===== PAGE 19 =====
 Y eonghun Kang, Changhyeok Choi, Naruki Y oshikawa, Zijian Zhang,
 Jin Won Lee, Tsz Wai Ko, Aiwei Yin, Mohammad Ghazi Vakili, Chris
 Crebolder, Varinia Bernales, and Alán Aspuru-Guzik. El Agente
@@ -2640,6 +2642,8 @@ of Chemical Physics, 132(15):154104, 2010. doi: 10.1063/1.338234
 damping function in dispersion corrected density functional theory.
 Journal of Computational Chemistry , 32(7):1456–1465, 2011. doi:
 10.1002/jcc.21759.
+19
+===== PAGE 20 =====
 [34] Florian Weigend and Reinhart Ahlrichs. Balanced basis sets of split
 valence, triple zeta valence and quadruple zeta valence quality for
 H to Rn: Design and assessment of accuracy. Physical Chemistry
@@ -2649,8 +2653,6 @@ Chemical Physics, 7:3297–3305, 2005. doi: 10.1039/B508541A.
 doi: 10.1002/wcms.70019.
 [36] M. J. Frisch, G. W. Trucks, H. B. Schlegel, G. E. Scuseria, M. A.
 Robb, J. R. Cheeseman, G. Scalmani, V . Barone, G. A. Petersson,
-19
-===== PAGE 20 =====
 H. Nakatsuji, et al. Gaussian 16. Gaussian, Inc., Wallingford, CT,
 2016. URL https://gaussian.com/citation/.
 [37] Jonathan E. Moussa and James J. P . Stewart. MOPAC: An open-
