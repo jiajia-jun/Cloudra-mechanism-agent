@@ -2,14 +2,14 @@
 
 [中文](RESEARCH_DATA_CN.md) · [Documentation](README_EN.md)
 
-The manuscript **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** is being prepared for arXiv. Start with the [English and Chinese manuscript sources and SI](../paper/overleaf/README.md).
+The manuscript **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** has been submitted to arXiv and is awaiting announcement. Start with the [English and Chinese manuscript sources and SI](../paper/overleaf/README.md).
 
 ## Choose what to reproduce
 
 | Your aim | Starting point | What it involves |
 | --- | --- | --- |
 | Reproduce paper tables and figures | [SI reproduction package](benchmarks/P2_DELIVERY.md#si-配套复现包); read the instructions in the extracted `companion_data/` | Use the bundled data and analysis scripts, without rerunning agents or quantum-chemical calculations. |
-| Inspect formal experiment trajectories and native logs | [Full P2 archive](benchmarks/P2_DELIVERY.md) | 50 tasks across four configurations, with 200 retained runs. Upload status is maintained on the delivery page. |
+| Inspect formal experiment trajectories and native logs | [Full P2 archive](benchmarks/P2_DELIVERY.md) | 50 tasks across four configurations, with 200 retained runs. The 14.9 GB archive is publicly available with read-only access. |
 | Inspect the repeated pilot experiments | [P1b packages](benchmarks/P1B_DELIVERY.md) | 48 runs; original records, historical rescoring and Standard offline reconstruction are kept separately. |
 | Inspect behavioral analysis and activation interventions | [Full Chapter 3 source archives](benchmarks/P2_DELIVERY.md#行为实验与激活原始档案) | Use alongside the compact SI package. |
 | Review or rerun Gold reference calculations | [Gold download and reproduction](../gold_compute/evidence/REPRODUCE.md) and [per-task index](../gold_compute/evidence/README.md) | Reading archived outputs submits no calculations. Reruns require the recorded engines, methods, dependencies and compute resources. |

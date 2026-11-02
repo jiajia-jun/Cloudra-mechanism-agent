@@ -80,9 +80,9 @@ See the [DAG guide](docs/DAG_ORCHESTRATION.md) for graph delivery and the [TS gu
 
 ## Paper, data and reproduction
 
-**Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** is being prepared for arXiv. A public paper link will be added after release.
+**Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** has been submitted to arXiv and is awaiting announcement. A public paper link will be added after release.
 
-The [research data and reproduction guide](docs/RESEARCH_DATA.md) separates reproducing paper figures, inspecting original agent runs, reviewing Gold reference calculations and rerunning the benchmark. The formal bank contains 50 tasks; P2 comprises four configurations and 200 retained runs. Check the [P2 delivery page](docs/benchmarks/P2_DELIVERY.md) for the full archive's upload status.
+The [research data and reproduction guide](docs/RESEARCH_DATA.md) separates reproducing paper figures, inspecting original agent runs, reviewing Gold reference calculations and rerunning the benchmark. The formal bank contains 50 tasks; P2 comprises four configurations and 200 retained runs. The full P2 archive (14.9 GB) is publicly available with read-only access; filenames, checksums and download instructions are on the [P2 delivery page](docs/benchmarks/P2_DELIVERY.md).
 
 ## Contribute and cite
 

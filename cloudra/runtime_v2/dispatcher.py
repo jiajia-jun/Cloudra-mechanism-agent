@@ -132,7 +132,14 @@ class MessageDispatcher:
             ),
         )
         # 2) 先 durable（失败即抛，不入队不唤醒）——这是本入口存在的理由。
-        envelope = await core.event_writer.commit(draft)
+        cancelled = False
+        try:
+            envelope = await core.event_writer.commit(draft)
+        except asyncio.CancelledError:
+            # commit already appended the message. Finish that same delivery
+            # before cancellation retries completion and creates another id.
+            await core.event_writer.flush()
+            cancelled = True
         # Publication can call subscribers that send to this session. Lock only
         # the inbox/state boundary to avoid a reentrant commit deadlock.
         async with self.target_lock(to_session_id):
@@ -151,4 +158,6 @@ class MessageDispatcher:
             target = core.agents.get(to_session_id)
             if target is not None and await asyncio.to_thread(should_wake, core, target, WakePolicy(wake)):
                 await core.agent_host.wake(target, runner=core.runner)
-            return envelope
+        if cancelled:
+            raise asyncio.CancelledError
+        return envelope

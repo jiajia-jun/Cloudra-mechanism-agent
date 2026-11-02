@@ -126,6 +126,7 @@ target-version = "py311"
 extend-exclude = [
     "gold_compute/organized_data/hard_20261001",
     "gold_compute/queue_20261018/results",
+    "paper/overleaf/Cloudra_SI/companion_data/revision_20261102/target_matching/before",
 ]
 
 [tool.ruff.lint]

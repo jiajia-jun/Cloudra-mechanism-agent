@@ -57,5 +57,25 @@
     "paper/overleaf/Cloudra_ZH/sections/03_chemical_example.tex",
     "paper/overleaf/Cloudra_ZH/sections/03_figures.tex",
     "paper/overleaf/Cloudra_ZH/sections/03_results.tex"
-  ]
+  ],
+  "drive_sync_20261102": {
+    "status": "synced_in_place",
+    "authorized_action": "User requested synchronization to the latest version.",
+    "si_file_id": "1lXNR6zhWTP2kJ1B5_-A9elXmblQX5ALf",
+    "si_filename": "Cloudra_SI_Data.zip",
+    "local_sha256": "93f551bba698bbeadad64646789ce269378b57ce4e8db2cbb737f23d90c474a5",
+    "local_md5": "3511eba3da1fafb6e88c4831e8d8742d",
+    "bytes": 18969168,
+    "remote_modified_time": "2026-11-02T10:56:25.117Z",
+    "checksum_manifest_modified_time": "2026-11-02T10:56:59.421Z",
+    "remote_size_verified": true,
+    "remote_checksum_manifest_readback_matches": true,
+    "remote_file_digest_returned_by_connector": false,
+    "file_id_and_parent_preserved": true,
+    "public_reader_permission_verified": true,
+    "p2_full_archive_bytes": 14915315627,
+    "p2_full_archive_public_reader_and_parent_verified": true,
+    "p2_full_archive_modified": false,
+    "previous_blocked_status_resolved_by_this_sync": true
+  }
 }

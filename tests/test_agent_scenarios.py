@@ -1937,7 +1937,10 @@ async def test_supervisor_feedback_resumes_background_waiting_coordinator(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_reused_child_completes_new_task_after_compute_notice_and_wakes_parent(tmp_path):
+@pytest.mark.parametrize("cancel_before_report_persisted", [False, True])
+async def test_reused_child_completes_new_task_after_compute_notice_and_wakes_parent(
+    tmp_path, monkeypatch, cancel_before_report_persisted,
+):
     from cloudra.runtime_v2.hub_bridge import handle_hub_tool
     from cloudra.runtime_v2.policies.base import ToolCall
 
@@ -1947,6 +1950,19 @@ async def test_reused_child_completes_new_task_after_compute_notice_and_wakes_pa
         "explorer": [Step(stop=True), Step(stop=True, wait_for=calculation_done)],
     })
     harness = await ScenarioHarness.start(tmp_path, provider=provider)
+    report_appended = asyncio.Event()
+    flush = harness.core.event_writer.flush
+
+    async def pause_second_report_flush():
+        if (cancel_before_report_persisted and not report_appended.is_set()
+                and len(harness.child_reports(parent)) == 2):
+            # The report exists in the log, but its durable one-shot marker
+            # has not been projected. Shutdown can cancel the child here.
+            assert asyncio.current_task() is harness.runner.task_for(child.id)
+            report_appended.set()
+            await asyncio.Event().wait()
+        await flush()
+
     try:
         parent = await harness.spawn("coordinator", protocol="traditional")
         await harness.wait_terminal(parent)
@@ -1961,12 +1977,25 @@ async def test_reused_child_completes_new_task_after_compute_notice_and_wakes_pa
         assert called.is_success
         await harness.wait_for(lambda: provider.call_count("explorer") >= 2, "task B waiting for calculation")
         assert len(harness.child_reports(parent)) == 1
+        monkeypatch.setattr(harness.core.event_writer, "flush", pause_second_report_flush)
         await harness.core.dispatcher.commit_and_deliver(
             to_session_id=child.id, project_id=harness.project.id, sender="system", content="[Compute job] done",
         )
         calculation_done.set()
         await harness.wait_for(lambda: len(harness.child_reports(parent)) == 2, "task B report")
+        if cancel_before_report_persisted:
+            await harness.wait_for(report_appended.is_set, "task B report awaiting persistence")
+            child_task = harness.runner.task_for(child.id)
+            await harness.runner.cancel(child.id)
+            assert child_task is not None and child_task.cancelled()
+            assert len(harness.child_reports(parent)) == 2
         await harness.wait_for(lambda: len(harness.run_rows(parent)) > parent_runs, "parent resumed for task B")
+        second_report_id = harness.child_reports(parent)[1]["message_id"]
+        await harness.wait_for(
+            lambda: any(message.get("message_id") == second_report_id
+                        for message in harness.core.contexts.current_messages(parent.id)),
+            "parent read task B report",
+        )
         await harness.wait_terminal(parent)
         reports = harness.child_reports(parent)
         assert reports[1]["manifest"]["terminal_event_id"] != first_terminal
