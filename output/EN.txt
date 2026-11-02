@@ -594,9 +594,9 @@ cent species. Canonical molecular graphs and stereochemi-
 cal labels are compared when assigning structures to species;
 atom mapping identifies corresponding atoms in reactant
 and product structures. Species nodes record stationary-
-point geometries, frequencies, and absolute energies; step
 5
 ===== PAGE 6 =====
+point geometries, frequencies, and absolute energies; step
 edges record transition-state geometries, imaginary-mode
 displacement vectors, and reaction paths. Frequency and
 IRC calculations characterize these stationary points and

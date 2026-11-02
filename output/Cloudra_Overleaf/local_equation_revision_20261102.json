@@ -1,24 +1,34 @@
 {
   "date": "2026-11-02",
-  "scope": "Math typography only: align multiline relations, separate definitions, remove unnecessary hard break in Eq. (2.6).",
+  "scope": "Math typography only: centered display blocks, consistent 6pt display spacing, aligned multiline relations, separate definitions, and a clear 2pt gap after the Kabsch objective.",
   "equations_updated": [
     "2.1",
     "2.5",
     "2.6",
     "2.7",
-    "2.9"
+    "2.9",
+    "unnumbered endpoint conditions"
   ],
   "mathematical_symbols_labels_and_prose_unchanged": true,
-  "local_revision_uploaded_to_arxiv": false,
-  "arxiv_existing_submission": "8312079; submitted version retained",
+  "local_revision_uploaded_to_arxiv": true,
+  "arxiv_existing_submission": "8312079; centered equation revision submitted",
   "outputs": {
     "EN": {
       "pages": 22,
-      "sha256": "f16453237ab36903a2712f1f8a7cd1bf03020dd775fb5145b7991ad9c41a4a90"
+      "sha256": "e784623dc561a7ff5ab26a27160c07617448ecaebf27d42e3b79401e8eaa315a"
     },
     "ZH": {
       "pages": 19,
-      "sha256": "30864e455868ccd41614c777b52264330f339d86a3bf60c3fb3a12291ddb5017"
+      "sha256": "456fbfee0c36b05696714f281de8e2ffc9658d7050dac10dbdb10e2171618825"
     }
-  }
+  },
+  "verified_at_utc": "2026-11-02T10:29:04.406515+00:00",
+  "status": "submitted",
+  "uploaded_delta_zip_sha256": "f6e1d144ef60b0a040b7da7e56a4bbfc1f31774499ce40f1f0adf437d268cfb6",
+  "complete_source_zip_sha256": "41344861fc18f6bd277bd7fb7e69c20a692fc1841267981caab763e1287c0cd9",
+  "online_pdf_sha256": "cf3df0b449a3b5c82d4ad5a0284002ebdee6ee25b85219518a1b18379154ca0e",
+  "online_pages": 53,
+  "online_compiler": "XeLaTeX / TeX Live 2025",
+  "online_overfull_warnings": 0,
+  "public_announcement_verified": false
 }

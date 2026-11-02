@@ -91,13 +91,13 @@ S(\mathbf{X})=\max_{(i,j)\in W}\{0,\,l_{ij}-d_{ij}(\mathbf{X}),\,d_{ij}(\mathbf{
 将产物原子排成反应物的原子顺序后，两端构型分别中心化。令 $\mathbf{P}$ 与 $\mathbf{R}$ 为中心化后的产物与反应物坐标矩阵，Kabsch 最小二乘刚体旋转\citep{ref07}\ 求解：
 
 \begin{equation}\label{eq:methods-07}
-\begin{gathered}
-\min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\
+\begin{array}{@{}l@{}}
+\displaystyle\min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\[2pt]
 \begin{aligned}
 \mathbf{P}^{\mathsf{T}}\mathbf{R}&=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
 \mathbf{Q}&=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
 \end{aligned}
-\end{gathered}
+\end{array}
 \end{equation}
 
 矩阵 $\mathbf{Q}$ 给出两端构型之间的刚体旋转。行列式因子 $\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})$ 使 $\det\mathbf{Q}=+1$，排除镜像反射，保留原有手性构型。
@@ -194,12 +194,12 @@ b_p&=\max(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})+\tau.
 \]
 布尔断言 $\operatorname{is\_between}$ 要求以下条件同时成立：
 \[
-\begin{aligned}
+\begin{array}{@{}l@{}}
 \|\mathbf{q}_{\mathrm{E}}-\mathbf{q}_{\mathrm{R}}\|_2
-&<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2,\\
-a_p&\le d_p^{\mathrm{E}}\le b_p
+<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2,\\
+a_p\le d_p^{\mathrm{E}}\le b_p
 \quad(\forall p\in W_{\mathrm{c}}).
-\end{aligned}
+\end{array}
 \]
 解离型产物通道需同时满足上述极小值条件和 $\operatorname{is\_between}$ 判定。
 

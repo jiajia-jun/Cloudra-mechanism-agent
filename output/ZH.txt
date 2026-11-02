@@ -333,13 +333,13 @@ NH < 257ຶൈđླေཌྷಸ
 ູ F֥Fb၍
 ଽ෮Ⴕჰሰ i ∈ F
 ႋႨ Rodriguesൔğ
+3
+===== PAGE 4 =====
 x′
 i = a + R(ˆu, θ)(xi − a),
 R = cos θ I + (1 − cos θ)ˆuˆuT
 + sin θ [ˆu]×.
 (2.2)
-3
-===== PAGE 4 =====
 ൔᇏ ađ ˆuཟཟਈđ
 θđIֆ໊इᆔđ[ˆu]×v = ˆu × vّ
 ק
@@ -477,6 +477,8 @@ b ༢๤๙
 Ⴟཌྷႋ໾ᇕĠ
 ༢b
 ႋ҄
+4
+===== PAGE 5 =====
 b ௔ੱა
 IRCק
 ၬb
@@ -484,8 +486,6 @@ IRCק
 ႋ҄ଏಪေ౰ K = {ts_opt, frequency, short_irc}
 ෘൻԛၛଽ
 ࠺ݔࢲ
-4
-===== PAGE 5 =====
 ູ f = (c, o, r, d)ğcҰཛđo ∈ {+, −, ?} іൕᆦӻa
 đrෘൻԛđd੣ҩਈᆴb
 ႋ҄ tđၛ Ftࢳ֥
@@ -598,6 +598,8 @@ U = {(t, k) : t ∈ T, k ∈ Kt, P t,k = 0}. (2.15)
 ੣
 ྍ๭ᇏሑ෿b ଆ྘ູ༯၂Ց
 b
+5
+===== PAGE 6 =====
 2.5 ൌീଏಪҕඔ
 Ⴟ CloudraϱЧ 70daa5ab
 [20] ඔᆴඔቆაཌྟսඔᄎෘ൐Ⴈ NumPy[21]߄
@@ -605,8 +607,6 @@ b
 ປӮ [22]ĠBenchmark ๭іൕა௄஥൐Ⴈ NetworkX[23]b
 ౯૫Ґဢ౼ 32ཟđ
 ؟8ए 1.0
-5
-===== PAGE 6 =====
 ÅӰሰ1.7đ ᇗჰሰRMSD ऊোᚐᆴ 0.5
 ÅbMMFF94ഈཋ 2000 ҄đ ए
 ৖ཾᆒሰ৯ӈඔഡູ 100.0Ҭᆴᇏѓሙ IDPP ଏ
@@ -718,13 +718,6 @@ b
 ٳ
 Guidedູ 0.8050đStandard ູ 0.5836b50֡
 ௜नᄹၭູ 0.2214đ95% ಩ༀ bootstrap
-ູ [0.1349, 0.3124]bGuided ᄝ 35a8 ี
-a7ᇏ໊ඔູ0.1142č๭ 7Ď b
-नᆴ္Ⴕҵљğ Guided ູ 0.3374đ
-Standard ູ 0.0930b
-೿ԛགྷᄝ Hard࿐಩ༀb Guided
-ູ 0.9577đStandard ູ 0.6888ᄹၭູ 0.2689
-[0.1213, 0.4459]đ ൅ีᇏGuidedb ᆃུ಩ༀေ
 6
 ===== PAGE 7 =====
 a
@@ -859,6 +852,13 @@ a
 b c
 ๭ 7. P2აᇯีҵၳbađCloudra Guided ა๝၂ backbone֥Standardཌᄝಆ҆ 50ĠEasy
 ູ 20۲10 ีbbđЌ਽ಆ҆ 50bcनҵა 100,000 Ցο಩ༀᆜቆ bootstrap֥95%b
+ູ [0.1349, 0.3124]bGuided ᄝ 35a8 ี
+a7ᇏ໊ඔູ0.1142č๭ 7Ď b
+नᆴ္Ⴕҵљğ Guided ູ 0.3374đ
+Standard ູ 0.0930b
+೿ԛགྷᄝ Hard࿐಩ༀb Guided
+ູ 0.9577đStandard ູ 0.6888ᄹၭູ 0.2689
+[0.1213, 0.4459]đ ൅ีᇏGuidedb ᆃུ಩ༀေ
 ᆚ
 b
 Normal ಩ༀᇏđ Guidedູ 0.7370đStandard ູ
@@ -904,12 +904,6 @@ Standard ᆃ 7ູ 0.1537đGuided ᄝཌྷ๝
 ູ 1č60.0%Ď a16Ġ
 Standard Ⴕ 7č 17.5%Ď a29a 4 ี
 ĠRecord ູ 16č40.0%Ď a24Ġ
-Brief-errors Ⴕ 20č 50.0%ࠣ20b
-๭ 9ࢌ
-ඔb
-౦ঃĠ
-࠺
-࡮SIֻS4b
 8
 ===== PAGE 9 =====
 Easy Normal Hard IMP
@@ -1029,6 +1023,12 @@ d
 ๭ 8. ಆ҆ 200ਈba–c֥Grapha ሱటྟაAccuracy नᆴĠ ૄ஥ᇂሹุ50 ีđEasy
 ູ 20Ҫ 10 ีbdקܥ0.1/0.3/0.6ࢳٳGuidedؓBackboneनҵđಆ҆aNormal ა Hardљ൐Ⴈປᆜ
 50a10ބ10ଽ၂ᇁb
+Brief-errors Ⴕ 20č 50.0%ࠣ20b
+๭ 9ࢌ
+ඔb
+౦ঃĠ
+࠺
+࡮SIֻS4b
 3.2.4ऎཌྷ๝ൈđGuidedႿ Record
 Recordಆ 50ູ 0.7038đBrief-errors ູ 0.7781b
 GuidedؓRecordۚ0.1012 [0.0396, 0.1695] đ28۷
@@ -1076,10 +1076,6 @@ b
 ೆ၂
 ֻ2ၬbі 1༂ҵb
 ᇏđ Guided֥MAEބRMSEႿ Stan-
-dardđBrief-errorsb SIֻS4ਙԛᇯ
-ؓ53౦ঃđၛ
-ຓ GoldĠඔ
-b
 9
 ===== PAGE 10 =====
 Guided Backbone Record Brief
@@ -1131,6 +1127,10 @@ Guided 1.17 2.86 0.057
 Standard 1.54 4.64 0.057
 Record 1.58 5.71 0.073
 Brief-errors 1.13 2.31 0.099
+dardđBrief-errorsb SIֻS4ਙԛᇯ
+ؓ53౦ঃđၛ
+ຓ GoldĠඔ
+b
 3.2.7ෘᆣऌ
 ๭ 11ᅚൕಆ҆ 50ਈbNB1
 ބNI1౦ঃb NB1 ᇏđ
@@ -1182,11 +1182,6 @@ IA5 −0.0333đIB9 −0.0500đID2 −0.1500đIE2 −0.1500đ
 IG8 −0.6661b
 IA1ଢѓđBrief-
 errorsनູ 1đGuided ሙಒ
-ູ 0bIA9đਆቆሱటྟन
-ູ 1љູ 1ބ0ऊุଢѓ IG8 ᄵӯཌྷ
-đ GuidedaRecord ა
-Brief-errors ᄝ IA5ଢѓሙ
-đBrief-errors ᄝ IC3֋༖Ď
 10
 ===== PAGE 11 =====
 Guided Backbone Record Brief
@@ -1244,6 +1239,11 @@ d
 ๭ 10.ෘ๧ೆb ađP1b֥12ᆇൌ஻Ցđૄ஥ᇂ 3 ஻đૄ஻ 4ູ 2ཌູनᆴb bđ
 P2๝ 15࠹QM job-hoursनᆴbc౼ཨቔြඔਈb dđStandard ა
 Guidedᄎྛb
+ູ 0bIA9đਆቆሱటྟन
+ູ 1љູ 1ބ0ऊุଢѓ IG8 ᄵӯཌྷ
+đ GuidedaRecord ა
+Brief-errors ᄝ IA5ଢѓሙ
+đBrief-errors ᄝ IC3֋༖Ď
 ĠGuided/IC3؇0๭
 აሱటྟनູ 1bᄝ Brief-errors ა Guided؇
 ఃჅ 6 ีᇏđBrief-errors֮0.0583bၹՎđ
@@ -1286,11 +1286,6 @@ Cloudraჰ
 Ⴈč๭ 15Ď b
 ቔճൈđ XYZϖՑཙႋಆ҆࿊ᄴ Ađః
 đϖՑनᆞಒđѩᄝ࿊ཛ
-đ XYZࡱ
-ᆞಒճσđਸ਼၂Ցᄝ 1,024ളӮ token ൈղ
-đᄝ 1,353ളӮ
-tokenᆞಒճσb
-ϖቆ
 11
 ===== PAGE 12 =====
 Guided BackboneRecord Brief
@@ -1752,6 +1747,11 @@ Chemical identity across notation and option order Same formula, different ident
 ๭ 14.b16љіൕᆞಒაհ༂đଽ҆ሳଛЌ
 ֻ14ܒࢲࢤCC1CC=C1 ა C=C1CCC1ٳ
 ሰൔनູ C5H8b
+đ XYZࡱ
+ᆞಒճσđਸ਼၂Ցᄝ 1,024ളӮ token ൈղ
+đᄝ 1,353ളӮ
+tokenᆞಒճσb
+ϖቆ
 ᇏđXYZളӮ tokenљ
 ູ 807.5ބ86b
 ඔᆴb
@@ -1795,9 +1795,6 @@ b[41]ए
 ҵनູਬb
 ճσᇗ
 ൙ൌ
-౼थ
-ֻ3.3.1္ԛགྷਔ࿊ཛ
-ඨ྽၇ঠb
 14
 ===== PAGE 15 =====
 XYZ
@@ -2256,6 +2253,9 @@ disposition:
 "partial"
 ๭ 25. ჰ൓ IA1ປӮ౨౰ა DAGᆣऌൈđଆ྘౨౰ປӮĠ༢๤ᆷԛಌഒ short_irc ᆣૼѩཟ
 ປӮb
+౼थ
+ֻ3.3.1္ԛགྷਔ࿊ཛ
+ඨ྽၇ঠb
 3.4ࣥ
 3.4.1௔ੱა IRCׄ
 ބIRC߄
@@ -2347,11 +2347,11 @@ MMFF94࿊b CREST ๙
 đЇও೐ූྟඣಷ၁಩ༀ NI5
 ບ಩ༀ NU5ሰିҕᅶbಷ
 ֥∆G‡ಷ
+17
+===== PAGE 18 =====
 ࿐
 b
 ഡ
-17
-===== PAGE 18 =====
 ᇂđѩ൐Ⴈ DeepSeek-v4.1-flashč1017Ď đAPI љ଀ູ
 deepseek-v4-flashb
 Cloudra ၛ GNU Affero General Public LicensečAGPLĎ
@@ -2490,12 +2490,12 @@ tion. In Findings of the Association for Computational Linguistics:
 ACL 2024, pages 2318–2335, 2024. doi: 10.18653/v1/2024.finding
 s-acl.137. URL https://aclanthology.org/2024.findings
 -acl.137/.
+18
+===== PAGE 19 =====
 [25] F. Pedregosa, G. Varoquaux, A. Gramfort, V . Michel, B. Thirion,
 O. Grisel, M. Blondel, P . Prettenhofer, R. Weiss, V . Dubourg, J. Van-
 derplas, A. Passos, D. Cournapeau, M. Brucher, M. Perrot, and
 E. Duchesnay. Scikit-learn: Machine learning in Python. Journal
-18
-===== PAGE 19 =====
 of Machine Learning Research , 12:2825–2830, 2011. URL https:
 //jmlr.org/papers/v12/pedregosa11a.html.
 [26] Philipp Pracht, Fabian Bohle, and Stefan Grimme. Automated explo-

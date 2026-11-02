@@ -91,13 +91,13 @@ Configurations with low $S(\mathbf{X})$ undergo distance-restrained MMFF94 force
 After reordering the product atoms to match the reactant, each endpoint is centered. Let $\mathbf{P}$ and $\mathbf{R}$ be the centered product and reactant coordinate matrices. Kabsch alignment\citep{ref07} solves
 
 \begin{equation}\label{eq:methods-07}
-\begin{gathered}
-\min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\
+\begin{array}{@{}l@{}}
+\displaystyle\min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\[2pt]
 \begin{aligned}
 \mathbf{P}^{\mathsf{T}}\mathbf{R}&=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
 \mathbf{Q}&=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
 \end{aligned}
-\end{gathered}
+\end{array}
 \end{equation}
 
 The resulting matrix $\mathbf{Q}$ is the proper rigid-body rotation matrix. The determinant correction factor $\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})$ enforces $\det\mathbf{Q}=+1$, ruling out improper reflections and preserving chiral configuration.
@@ -194,12 +194,12 @@ b_p&=\max(d_p^{\mathrm{TS}},d_p^{\mathrm{R}})+\tau.
 \]
 The Boolean predicate $\operatorname{is\_between}$ is satisfied when both conditions hold:
 \[
-\begin{aligned}
+\begin{array}{@{}l@{}}
 \|\mathbf{q}_{\mathrm{E}}-\mathbf{q}_{\mathrm{R}}\|_2
-&<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2,\\
-a_p&\le d_p^{\mathrm{E}}\le b_p
+<\|\mathbf{q}_{\mathrm{TS}}-\mathbf{q}_{\mathrm{R}}\|_2,\\
+a_p\le d_p^{\mathrm{E}}\le b_p
 \quad\text{for all }p\in W_{\mathrm{c}}.
-\end{aligned}
+\end{array}
 \]
 Dissociated-product paths must satisfy both the component-minimum checks and $\operatorname{is\_between}$.
 
