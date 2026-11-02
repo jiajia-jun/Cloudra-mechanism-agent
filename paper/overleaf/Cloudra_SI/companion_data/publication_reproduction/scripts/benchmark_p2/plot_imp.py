@@ -240,9 +240,9 @@ def main() -> None:
         "arm_means": means,
         "summary": summary,
         "component_rounding_note": "Mean component contributions sum to +0.0378933; saved composite delta is +0.0378800 because final scores are rounded.",
-        "interpretation": "Scores are not scientific acceptance rates. Accuracy zero does not universally mean an incorrect refusal. All totals and components use the complete offline organization track in the local publication CSV.",
+        "interpretation": "Composite, self-consistency, and accuracy scores for the offline-organized runs in the publication CSV.",
     }
-    caption = """Impossible-tier outcomes after offline organization and scoring. (a–c) Composite score, self-consistency (SC), and accuracy for ten tasks and four arms, using the same complete scoring track and a shared 0–1 color scale. Backbone denotes the standard arm using the same backbone model. Brief averages 0.483 and Guided 0.445. (d) Brief-minus-Guided differences concentrate the Brief advantage in IA1 and IA9, with an opposite outcome in IG8; Guided scores higher on five tasks, Brief on three, and two tie. (e) The +0.03788 mean difference comprises accuracy +0.06000, Graph −0.00661, and SC −0.01550 after weighting; the small sum discrepancy reflects saved-score rounding. The paired task-bootstrap 95% interval is −0.188 to +0.284. Accuracy zero does not universally indicate an incorrect refusal, and component or composite scores are not scientific acceptance rates."""
+    caption = """Impossible-tier outcomes after offline organization and scoring. (a–c) Composite score, self-consistency (SC), and accuracy for ten tasks and four arms, using the same complete scoring track and a shared 0–1 color scale. Backbone denotes the standard arm using the same backbone model. Brief averages 0.483 and Guided 0.445. (d) Brief-minus-Guided differences concentrate the Brief advantage in IA1 and IA9, with an opposite outcome in IG8; Guided scores higher on five tasks, Brief on three, and two tie. (e) The +0.03788 mean difference comprises accuracy +0.06000, Graph −0.00661, and SC −0.01550 after weighting; the small sum discrepancy reflects saved-score rounding. The paired task-bootstrap 95% interval is −0.188 to +0.284."""
     style.save(fig, args.output, "bench_imp", data, caption)
     print(args.output / "bench_imp.png")
 

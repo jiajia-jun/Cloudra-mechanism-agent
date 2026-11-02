@@ -1202,5 +1202,5 @@
     }
   },
   "component_rounding_note": "Mean component contributions sum to +0.0978933; saved composite delta is +0.0978800 because final scores are rounded.",
-  "interpretation": "Scores are not scientific acceptance rates. Accuracy zero does not universally mean an incorrect refusal. All totals and components use the complete offline organization track in the local publication CSV."
+  "interpretation": "Composite, self-consistency, and accuracy scores for the offline-organized runs in the publication CSV."
 }

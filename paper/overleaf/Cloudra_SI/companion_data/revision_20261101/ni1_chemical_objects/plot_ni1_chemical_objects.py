@@ -93,7 +93,7 @@ def render(output_dir):
         ax.axhline(0, color=GRID, lw=0.6, ls=(0, (2, 3)), zorder=0)
     fig.text(0.034, 0.2875, r"$\Delta E$ relative to RC / kcal mol$^{-1}$",
              fontsize=7.8, rotation=90, ha="center", va="center", color=INK)
-    fig.text(0.535, 0.087, "Reaction progress (schematic)", fontsize=7.4,
+    fig.text(0.535, 0.087, "Reaction progress", fontsize=7.4,
              ha="center", color=INK)
     fig.text(0.105, 0.027, "B3LYP-D3(BJ)/def2-SVP · gas phase · neutral singlet · electronic energies", fontsize=7.4, color=MUTED)
     output_dir.mkdir(parents=True, exist_ok=True)

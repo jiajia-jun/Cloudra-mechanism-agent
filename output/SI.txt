@@ -21,16 +21,16 @@ S1.3 P2 model configuration and campaign versions . . . . . . . . . . . . . . . 
 S1.4 Allowed calculations and reference definitions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S4
 S1.5 Physical evidence associated with a mechanism . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S4
 S1.6 Offline organization and publication records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S4
-S1.7 Paired statistical analysis and time measurements . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
+S1.7 Paired statistical analysis and time measurements . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S4
 S2 Score components and scientific completion S5
 S2.1 Composite score and reported outcomes . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
 S2.2 Graph structure and chemical correspondence . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
 S2.3 Graded physical self-consistency . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
-S2.4 Electronic barriers and numerical accuracy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S6
+S2.4 Electronic barriers and numerical accuracy . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S5
 S2.5 Qualitative selectivity and property targets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S6
 S2.6 Impossible tasks and final scientific claims . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S6
 S2.7 Original delivery, organized evaluation, and score reproduction . . . . . . . . . . . . . . . . . . . . . . S6
-S3 CloudraBench task catalogue S7
+S3 CloudraBench task catalogue S6
 S4 Detailed benchmark results and reaction-path analysis S10
 S4.1 NI1: two requested steps and their conformer references . . . . . . . . . . . . . . . . . . . . . . . . . S10
 S4.2 Uncapped electronic-barrier differences and archived physical records . . . . . . . . . . . . . . . . . . S11
@@ -38,32 +38,32 @@ S4.3 Complete workflow and tier comparisons . . . . . . . . . . . . . . . . . . 
 S4.4 Graph delivery and evaluation of the run results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S13
 S4.5 Elapsed research time and accumulated calculation effort . . . . . . . . . . . . . . . . . . . . . . . . . S13
 S4.6 Conformer references and reaction-step assignments . . . . . . . . . . . . . . . . . . . . . . . . . . . S14
-S4.7 Impossible-tier results and the requested negative conclusions . . . . . . . . . . . . . . . . . . . . . . S15
+S4.7 Impossible-tier results and the requested negative conclusions . . . . . . . . . . . . . . . . . . . . . . S14
 S4.8 Easy-tier energy references and delivery trajectories . . . . . . . . . . . . . . . . . . . . . . . . . . . . S15
-S4.9 Oﬀicial target-correspondence Accuracy overlay . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S17
+S4.9 Oﬀicial target-correspondence Accuracy overlay . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S16
 S4.10 Discussion of the supplementary comparisons . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S17
-S4.11 Complete per-task and per-configuration scores . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S18
-S4.12 Expanded task-score matrices . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S22
-S5 Behavioral diagnostics and archived research trajectories S22
-S5.1 Study materials and local inference settings . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S22
+S4.11 Complete per-task and per-configuration scores . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S17
+S4.12 Expanded task-score matrices . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S21
+S5 Behavioral diagnostics and archived research trajectories S21
+S5.1 Study materials and local inference settings . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S21
 S1
 ===== PAGE 2 =====
-S5.2 Chemical identity under equivalent representations and answer reversal . . . . . . . . . . . . . . . . . S23
+S5.2 Chemical identity under equivalent representations and answer reversal . . . . . . . . . . . . . . . . . S21
 S5.3 XYZ coordinates and explicitly measured distances . . . . . . . . . . . . . . . . . . . . . . . . . . . . S23
-S5.4 Target-specific geometric feedback in an E1 operation chain . . . . . . . . . . . . . . . . . . . . . . . S25
-S5.5 Single-token transfer of a reported numerical fact . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S25
-S5.6 Evidence associations under fixed local calculation facts . . . . . . . . . . . . . . . . . . . . . . . . . S25
-S5.7 From a detected gap to the next research action . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S26
-S5.8 Discussion of the diagnostic scope . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S26
-S6 Literature sample and source-linked capability register S26
-S6.1 Selection and coding procedure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S26
-S6.2 Source register and counting variants . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S27
-S7 Data, software, and reproduction materials S29
-S7.1 Public data availability . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S29
-S7.2 Machine-readable task and score records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S29
-S7.3 Software responsibilities and calculation records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S29
-S7.4 Reproduction entry points . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S30
-S7.5 Data-package inventory . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S30
+S5.4 Target-specific geometric feedback in an E1 operation chain . . . . . . . . . . . . . . . . . . . . . . . S24
+S5.5 Single-token transfer of a reported numerical fact . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S24
+S5.6 Evidence associations under fixed local calculation facts . . . . . . . . . . . . . . . . . . . . . . . . . S24
+S5.7 From a detected gap to the next research action . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S25
+S5.8 Discussion of the diagnostic scope . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S25
+S6 Literature sample and source-linked capability register S25
+S6.1 Selection and coding procedure . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S25
+S6.2 Source register and counting variants . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S26
+S7 Data, software, and reproduction materials S28
+S7.1 Public data availability . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S28
+S7.2 Machine-readable task and score records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S28
+S7.3 Software responsibilities and calculation records . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S28
+S7.4 Reproduction entry points . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S29
+S7.5 Data-package inventory . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . S29
 S1 Benchmark design and experimental protocol
 S1.1 Task specification and study units
 CloudraBench tests whether agents can construct the requested species and reaction pathways, run the calculations, and
@@ -201,19 +201,16 @@ S1.6 Offline organization and publication records
 Formal evaluation represents the research completed by all four configurations in the same mechanism-graph format. Hu-
 man organizers read each run’s conversations, tool records, reports, geometries, and native calculation outputs, then encode
 the agent’s stated species, steps, mechanistic intent, and conclusions. They recover graph entries, repair file references,
-and convert quantities already present in the run; each recovered field records its source. The evaluator searches that run’s
-sandbox for native calculation results and applies the same physical criteria and scoring rules to every configuration. Orga-
-nization is confined to that run’s existing calculations and stated conclusions; Gold supplies the evaluation reference. The
-procedure and field sources allow the graph to be reconstructed from the original run materials.
+and convert quantities already present in the run; each recovered field records its source. The evaluator searches that
+run’s sandbox for native calculation results and applies the same physical criteria and scoring rules to every configuration.
+Organizers use each run’s existing calculations and stated conclusions; Gold supplies the evaluation targets.
 The full-benchmark table contains 200 runs, all 600 Graph, Self-consistency, and Accuracy values, and their evaluation
 sources. The weighted components reproduce the final totals to four decimal places; Section S7 specifies the references
 and evaluator revision. The tables also record whether the run wrote a root mechanism graph and whether it was organized
-offline. Readers can therefore inspect graph delivery separately from the score for the run’s research results.
+offline.
 The repeated-task study retains its historical results for all four configurations. The later offline organization updates
 Standard separately; the other configurations in the 48-run study retain their historical scores. Analyses of this archive
 identify which version supplies each result.
-S4
-===== PAGE 5 =====
 S1.7 Paired statistical analysis and time measurements
 For a task i and configuration a, let Sia denote its composite score. Configuration means give each task equal weight
 within the reported set. The primary paired difference is
@@ -222,6 +219,8 @@ n
 nX
 i=1
 (Si,Guided − Si,Standard) . (S2)
+S4
+===== PAGE 5 =====
 The same calculation is used within each tier and for the combined Normal/Hard subset. Weighted component contribu-
 tions are the mean paired component differences multiplied by 0.1, 0.3, and 0.6, respectively. They add to the composite
 difference up to the reporting precision of the final scores.
@@ -264,17 +263,16 @@ For graphs containing reaction edges, SC is the mean of the delivered edge score
 alone requires coverage of both endpoint species. For a species-only graph, SC is the mean species-coverage score. Explicit
 targets judged physically inaccessible under the task’s permitted methods are exempt from the corresponding stationary-
 point or pathway requirements and receive the corresponding self-consistency credit.
-The archived binary self-consistency indicator requires coverage of all physical checks created for the delivered species
-and steps, including minimum characterization and transition-state/IRC associations. Its scope follows the delivered graph.
-Task-wide scientific completion additionally requires checking this scope against every species and step requested by the
-S5
-===== PAGE 6 =====
-task. Counts of SC = 1 in the main text and score tables refer to full graded component scores for the delivered objects.
-Fractional scores indicate which calculation stages have been supported.
+The archived binary self-consistency indicator requires all physical checks for the delivered species and steps, including
+minimum characterization and transition-state/IRC associations. Task-wide scientific completion requires these checks for
+every requested species and step. Counts of SC = 1 in the main text and score tables refer to full graded component scores
+for the delivered objects.
 S2.4 Electronic barriers and numerical accuracy
 For a step with a numerical reference, the evaluator checks the declared barrier against the transition-state and starting-
 species energies in the native outputs. If the barrier field is empty, it can calculate the difference from those energies when
 both are reported and supported by their native records. The conversion factor from hartree to kcal mol −1 is 627.509474.
+S5
+===== PAGE 6 =====
 For a supported numerical value d∆E
 ‡
 e and reference ∆E‡
@@ -330,8 +328,6 @@ as physically inaccessible under the allowed methods earns negative-target credi
 Credit is lost for an incorrect claim that the target is accessible, a barrier or property presented as trustworthy for that
 negative target, or omission of the required negative conclusion. Endpoint species associated with a negative step receive
 the same treatment. A species-only negative target is evaluated directly on the species claim.
-A result must answer the question about the requested electronic state, species, or pathway. The per-task tables and case
-analyses identify that target alongside its score.
 S2.7 Original delivery, organized evaluation, and score reproduction
 Original delivery completeness records whether the run generated its mechanism graph during execution. Evaluation
 uses the graph organized by the common offline procedure in Section S1. The publication table records each run’s final
@@ -339,22 +335,21 @@ component scores and field sources. All configurations use the same final refere
 The reproduction procedure reads the evaluation records to rebuild the per-run table, summaries, and figure data. It
 checks for 200 unique task/configuration records, 600 nonmissing component values, and agreement between the weighted
 components and the 200 final totals. The maximum absolute difference from the published four-decimal composites is
-4.9711 × 10−5. Rebuilding the publication tables uses the retained component records; independently reassessing the
-calculations also requires the run files and evaluator revision.
-S6
-===== PAGE 7 =====
+4.9711 × 10−5. Table reproduction uses the saved component scores; calculation reassessment uses the run files and
+evaluator revision.
 S3 CloudraBench task catalogue
 CloudraBench comprises 20 Easy, 10 Normal, 10 Hard, and 10 Impossible tasks. Tables S5–S8 list each task’s chemistry,
 charge, multiplicity, conditions, and research question. The machine-readable catalogue contains task names and molecular
 inputs; the full task definitions also contain atom mappings, prompts, reference graphs, and scoring settings.
 Method set A permits xTB, PM7, and B3L YP-D3(BJ)/def2-SVP for Easy, Normal, and Hard tasks. Method set B
 permits xTB and PM7 for Impossible tasks. Each answer is evaluated under its task’s permitted methods. Mechanism
+S6
+===== PAGE 7 =====
 tasks request the investigated species and elementary steps as a graph, electronic activation barriers for computed steps,
 and the corresponding stationary-point and pathway calculations. Stereochemical tasks also require assigning identities
 from the computed geometries. The tables list each task’s specific question in addition to these shared requirements.
-For Impossible tasks, the listed quantity or process is the question posed to the agent. A supported conclusion that the
-target is physically inaccessible under the allowed methods is a valid result. Exploratory values can be labelled as such,
-and species-property questions are evaluated directly on the species claims.
+For Impossible tasks, a supported conclusion that the target is physically inaccessible under the allowed methods is a
+valid result.
 Table S5. Easy-tier task catalogue. Method set A applies to every task in this table.
 ID Chemical task Stated conditions and task-specific research target
 D1 butadiene + ethylene Diels-Alder (par-
@@ -435,11 +430,6 @@ rangement
 Charge 0; multiplicity 1.
 Conditions: gas phase.
 Target: Isomerization pathway to acetonitrile and electronic activation barrier.
-Continued on the next page
-S7
-===== PAGE 8 =====
-Table S5 (continued)
-ID Chemical task Stated conditions and task-specific research target
 M3 NH3 umbrella inversion
 Charge 0; multiplicity 1.
 Conditions: gas phase.
@@ -453,6 +443,11 @@ Charge 0; multiplicity 1.
 Conditions: gas phase or solution, fast at room temperature.
 Target: Degenerate hydrogen-shift pathway, stationary points, and electronic ac-
 tivation barrier.
+Continued on the next page
+S7
+===== PAGE 8 =====
+Table S5 (continued)
+ID Chemical task Stated conditions and task-specific research target
 P3 allyl vinyl ether Claisen rearrangement
 Charge 0; multiplicity 1.
 Conditions: gas phase, ∼200 ◦C.
@@ -534,8 +529,6 @@ Conditions: Gas phase; neutral closed-shell system with exactly one water
 molecule; no added solvent, acid, counterion, or catalyst.
 Target: Investigate carbamic-acid intermediates and connecting conformers with-
 out presupposing a fixed number of steps.
-S8
-===== PAGE 9 =====
 Table S7. Hard-tier task catalogue. Method set A applies to every task in this table.
 ID Chemical task Stated conditions and task-specific research target
 HA1 3-methylcyclobutene ring opening: de-
@@ -544,6 +537,11 @@ Charge 0; multiplicity 1.
 Conditions: gas phase or inert solvent, ∼150–200 ◦C, thermal.
 Target: Determine stereochemical products and channel identities; report channel
 barriers and the requested relative preference.
+Continued on the next page
+S8
+===== PAGE 9 =====
+Table S7 (continued)
+ID Chemical task Stated conditions and task-specific research target
 HA6 trans-3,4-dimethylcyclobutene ring
 opening: determine the stereochemi-
 cal outcome
@@ -629,17 +627,17 @@ IA7 Bergman cyclization of (Z)-hex-3-ene-
 Charge 0; multiplicity 1.
 Conditions: gas phase, thermal.
 Target: Bergman cyclization to p-benzyne: mechanism and activation barrier.
-Continued on the next page
-S9
-===== PAGE 10 =====
-Table S8 (continued)
-ID Chemical task Stated conditions and task-specific research target
 IA9 1,2-dioxetane thermolysis to two
 formaldehyde
 Charge 0; multiplicity 1.
 Conditions: gas phase, thermal.
 Target: Thermolysis of 1,2-dioxetane to two formaldehyde molecules: mechanism
 and activation barrier.
+Continued on the next page
+S9
+===== PAGE 10 =====
+Table S8 (continued)
+ID Chemical task Stated conditions and task-specific research target
 IB9 diazomethane and ethylene to cyclo-
 propane via 1-pyrazoline
 Charge 0; multiplicity 1.
@@ -674,10 +672,10 @@ Target: Ground-state Cr2 potential-energy curve and bond-dissociation energy.
 S4 Detailed benchmark results and reaction-path analysis
 S4.1 NI1: two requested steps and their conformer references
 The Guided NI1 study delivered methylamine addition to formaldehyde and dehydration of the resulting carbinolamine.
-The retained run is batch_94084d85d0634ca0, under campaign_data/cloudra-p2c-20261025/guided/r1/
-sandboxes/NI1/ in the full P2 archive. Table S9 lists values extracted from that run’s native Gaussian outputs. All
-calculations use B3L YP-D3(BJ)/def2-SVP in the gas phase, charge 0, multiplicity 1. Energies are electronic energies;
-thermal and zero-point corrections are separate quantities.
+The retained run is batch_94084d85d0634ca0, under campaign_data/cloudra-p2c-20261025/guided/r1/sand
+boxes/NI1/ in the full P2 archive. Table S9 lists values extracted from that run’s native Gaussian outputs. All calculations
+use B3L YP-D3(BJ)/def2-SVP in the gas phase, charge 0, multiplicity 1. Energies are electronic energies without thermal
+or zero-point corrections.
 Table S9. Stationary points in Guided/NI1. Relative electronic energies use the reactant complex as zero; nimag counts imaginary
 frequencies. I ′ and P ′ are the actual optimized endpoints of the second step’s IRC.
 Object E / Ha ∆E / kcal mol −1 nimag Imaginary frequency / cm −1
@@ -689,25 +687,23 @@ Dehydration saddle TS2 −210.145578627 45.48642 1 −1796.8431
 Lowest imine–water P −210.223036629 −3.11921 0 —
 IRC-side imine–water P ′ −210.223036529 −3.11915 0 —
 The addition barrier is 28.11819 kcal/mol. For dehydration, referencing the lowest carbinolamine gives 57.92308
-kcal/mol, while referencing the actual optimized IRC-side conformer gives 57.21423 kcal/mol. Their 0.70885-kcal/mol
-difference is the conformer energy difference. The lowest product and the corresponding IRC endpoint differ by 0.00006
-kcal/mol. The figure distinguishes the two carbinolamine conformers; their interconversion remains an uncomputed path.
+kcal/mol, while referencing the actual optimized IRC-side conformer gives 57.21423 kcal/mol. I ′ lies 0.70885 kcal/mol
+above I. The lowest product and the corresponding IRC endpoint differ by 0.00006 kcal/mol. The interconversion between
+I and I ′ was not calculated.
 For addition, the TS1 frequency geometry is the starting geometry of ts/ts_0001/jobs/declaration_0006/
 IRC calculations. The two actual terminal frames are the inputs of ts/repair/e1_fix/rc1_side_optfreq.log
 and ts/repair/e1_fix/int1_side_optfreq.log . For dehydration, the TS2 frequency and IRC calculations share
 ts/ts_0004/jobs/declaration_0003/ ; its terminal frames are the inputs of s2_fix/src_optfreq.log and
 s2_fix/tgt_optfreq.log . Both IRC calculations followed 24 points per direction and stopped at the point limit. All
-four endpoint optimizations terminated normally at the declared species with zero imaginary frequencies. Comparing the
-actual geometries confirms each TS–IRC–endpoint association.
+four endpoint optimizations terminated normally at the declared species with zero imaginary frequencies.
 The original study also explored an extra explicit-water-assisted dehydration branch, whose reactant and product com-
 positions include an additional water molecule. Its barrier is 36.42945 kcal/mol from its lowest reactant complex and
-32.54199 kcal/mol from its local IRC-side conformer. This branch has its own energy reference. The main-text profile
-displays the two requested steps with the original molecular composition.
+32.54199 kcal/mol from its local IRC-side conformer. The main-text profile displays the two requested steps with the
+original molecular composition.
+The directory companion_data/revision_20261101/ni1_chemical_objects/ supplies the geometries, energy
+table, figure script, and archive-relative native-output locations and hashes.
 S10
 ===== PAGE 11 =====
-The directory companion_data/revision_20261101/ni1_chemical_objects/ supplies the geometries, energy
-table, figure script, and archive-relative native-output locations and hashes. These materials use only the retained Guided
-run; the Gold reference calculations remain separate.
 S4.2 Uncapped electronic-barrier differences and archived physical records
 The positive tiers contain 36 tasks with 53 numerical reference edges per workflow. HA1, HA6, HB1, and HF1 score
 qualitative channel preference; NB1_E2 and NQ5_E2 have no numerical reference. The Impossible tier is kept separate,
@@ -724,8 +720,8 @@ neither zero error nor an imputed numerical penalty. The final F4 replay records
 assembled from the original comparison notes.
 The original comparison notes identify this observed cohort. Final target correspondence then selects the task-specified
 reference from the same run’s existing calculations. This changes Standard/L2 from the local-reference edge e1 to the
-stable-reference edge e2, with a native barrier of 28.27501 kcal mol −1. Cohort membership is retained; the statistics
-below use this final assignment, while the original notes and pre-correction records remain available for tracing.
+stable-reference edge e2, with a native barrier of 28.27501 kcal mol −1. The statistics use this final selection within the
+original cohort; the original notes and earlier results are archived.
 For an observed pair, we calculate the signed difference as (ETS − Eref) 627.509474 − ∆E‡
 Gold, in kcal mol −1, using
 native Hartree energies and the frozen task-file reference. Mean absolute error (MAE), root-mean-square error (RMSE),
@@ -733,11 +729,9 @@ median absolute error, and maximum absolute error have no Gaussian transformatio
 reference edge has equal weight.
 The intersection shared by all four workflows contains 26 reference edges from 23 positive tasks, giving 104 run–edge
 observations (Table S10). Their native TS and reference pairs use B3L YP-D3(BJ)/def2-SVP with no explicit continuum
-keyword in the original input routes. These are numerical comparisons on the same recoverable edges. Edge assignments
-follow the task’s specified reaction and energy-reference definitions, and the subset describes neither unobserved numerical
-targets nor complete reaction-path support. Guided/G2 is excluded because its final structured delivery omits the numerical
-barrier and TS energy/log bindings, although its historical native calculations support an approximately 0.845-kcal mol −1
-value.
+keyword in the original input routes. Edge assignments follow the task’s specified reaction and energy-reference defini-
+tions. Guided/G2 is excluded because its final structured delivery omits the numerical barrier and TS energy/log bindings,
+although its historical native calculations support an approximately 0.845-kcal mol −1 value.
 Table S10. Uncapped electronic-barrier differences on the 26 reference edges shared by all four workflows, covering 23 positive tasks.
 All entries are in kcal mol −1; every workflow uses the same edge set.
 Workflow MAE RMSE Median absolute error Maximum absolute error
@@ -746,9 +740,9 @@ Standard 1.5423 4.6374 0.0574 21.4713
 Record 1.5763 5.7082 0.0731 28.6373
 Brief 1.1310 2.3080 0.0985 9.0486
 For a common subset of 19 edges from 17 tasks, the saved Gold input files confirm that the method and continuum setting
-match those of the run calculations (Table S11). This check covers the selected inputs and does not establish complete
-reference-log or endpoint-chain coverage. Record has the lowest MAE in this subset. The changed ordering shows that the
-numerical ranking depends on which archived reference comparisons are available.
+match those of the run calculations (Table S11). The input-file check covers method and continuum settings; complete
+reference-log and endpoint-chain coverage remains to be checked. Record has the lowest MAE in this subset. The changed
+ordering shows that the numerical ranking depends on which archived reference comparisons are available.
 Table S11. Uncapped differences for the 19 common reference edges with additional corroboration from retained selected Gold input
 files, covering 17 positive tasks. Units and statistics follow Table S10.
 Workflow MAE RMSE Median absolute error Maximum absolute error
@@ -758,20 +752,16 @@ Record 0.3934 0.8609 0.0424 3.0918
 Brief 1.2811 2.6213 0.0744 9.0486
 We checked which physical-validation records were available for the 160 positive runs. Guided, Record, and Brief each
 retain delivery-DAG element states for all 40 tasks; Standard’s configuration has no delivery-DAG objects. Frozen delivery-
-disposition reports exist for Guided 28, Record 39, Brief 5, and Standard 0 runs, totalling 72/160. Reports containing
-native scientific checks with a graph hash matching the archived final root graph exist for Guided 28 and Brief 5 runs,
-S11
-===== PAGE 12 =====
-totalling 33/160. These records concern the delivery scope selected during a run. Historical binary self-consistency checks
-cover delivered graph elements, and a DAG completion report can include documented skipped or not-applicable stages.
-Estimating the fraction of runs that fully support the requested mechanism still requires an offline review of every requested
-species and step in each final graph against the existing physical criteria and calculation evidence. Additional exploratory
-branches must be assessed separately. The present analysis reports the available records and numerical observations; the
-frozen component and composite scores remain unchanged.
+disposition reports exist for Guided 28, Record 39, Brief 5, and Standard 0 runs, totalling 72/160. Reports containing native
+scientific checks with a graph hash matching the archived final root graph exist for Guided 28 and Brief 5 runs, totalling
+33/160. These records cover the species and steps delivered during each run. A uniform audit of all requested species and
+steps remains pending.
 The companion directory companion_data/revision_20261101/metrics/ provides every numerical opportunity,
 original comparison note, recovered native energy and method, source/version relation, exclusion, and cohort membership.
 Its reproduction script applies the final selections in revision_20261102/target_matching/accuracy_replay.js
 on to the stored native energies and recomputes the statistics against the frozen Gold values.
+S11
+===== PAGE 12 =====
 S4.3 Complete workflow and tier comparisons
 The dataset contains 200 task runs: one per task under Guided, Standard, Record, and Brief. Each run has a composite and
 all three component scores. Table S12 reports overall and tier means. Standard uses the same model backbone as Guided;
@@ -798,8 +788,7 @@ Impossible Guided 10 0.5051 0.7006 0.9100 0.2700
 Standard 10 0.2473 0.5083 0.4550 0.1000
 Record 10 0.2925 0.4200 0.5350 0.1500
 Brief 10 0.6029 0.6345 0.8583 0.4700
-SC denotes the graded self-consistency component. Every mean is calculated from the complete publication table. The overall tier weights are 20/50 for
-Easy and 10/50 for each other tier.
+SC denotes the graded self-consistency component. The overall tier weights are 20/50 for Easy and 10/50 for each other tier.
 Table S13 gives all six pairwise comparisons on the same 50 tasks. Guided–Standard has a mean difference of 0.221366,
 a median difference of 0.114200, and 35 task wins, eight losses, and seven ties. The 95% task-bootstrap interval is
 [0.134870, 0.312368]. Within the Normal tier, the means are 0.737020 and 0.573050, with a difference of 0.163970
@@ -817,13 +806,20 @@ Record–Brief -0.0743 [-0.1455, -0.0066] 14/24/12
 Standard–Brief -0.1946 [-0.2990, -0.0914] 11/34/5
 The difference is the first workflow minus the second. W/L/T gives the first workflow’s task wins, losses, and ties. Percentile task-bootstrap intervals use
 100,000 resamples and seed 20261031; the four configurations of each sampled task remain together.
-S12
-===== PAGE 13 =====
 Table S14 decomposes the Guided–Standard difference into weighted score components. Across all tasks, self-
 consistency contributes +0.117875 and accuracy +0.092717. In Normal and Hard together, the composite difference is
 +0.216435, including +0.124688 from self-consistency and +0.083712 from accuracy. In Hard, accuracy contributes
 +0.127391 and self-consistency +0.135250: both the requested answers and the calculations supporting them contribute
 to the gain.
+Guided–Record averages +0.101156 [0.039606, 0.169478] across all tasks. In Normal and Hard together, its +0.146845
+composite difference decomposes into +0.008338 from graph, +0.091938 from self-consistency, and +0.046574 from
+accuracy. Guided–Brief averages +0.026816 [ −0.048638, 0.099584], with mean differences of +0.151350 on Normal
+and +0.129470 on Hard. Individual multistep tasks differ: NB1 has composite scores of 0.9628, 0.9128, and 0.9900 for
+Guided, Standard, and Brief; Guided and Brief both have self-consistency 1. NI1 has Guided and Standard composites
+of 0.9958 and 0.6196, with self-consistency 1 and 0.35. NQ5 favors Record over Guided, while NU3 favors Brief. The
+leading configuration varies among multistep tasks.
+S12
+===== PAGE 13 =====
 Table S14. Weighted decomposition of the Guided–Standard composite difference.
 Scope n Composite 0.1∆G 0.3∆SC 0.6∆A
 All 50 +0.221366 +0.010776 +0.117875 +0.092717
@@ -832,22 +828,12 @@ Normal 10 +0.163970 +0.009823 +0.114125 +0.040033
 Hard 10 +0.268900 +0.006259 +0.135250 +0.127391
 Impossible 10 +0.257730 +0.019226 +0.136500 +0.102000
 Normal + Hard 20 +0.216435 +0.008041 +0.124688 +0.083712
-Component contributions are calculated from the unrounded final components. Composite differences use the four-decimal final scores, so the last
-displayed digits can differ by score rounding.
-Guided–Record averages +0.101156 [0.039606, 0.169478] across all tasks. In Normal and Hard together, its +0.146845
-composite difference decomposes into +0.008338 from graph, +0.091938 from self-consistency, and +0.046574 from
-accuracy. Guided–Brief averages +0.026816 [ −0.048638, 0.099584], with mean differences of +0.151350 on Normal
-and +0.129470 on Hard. Individual multistep tasks differ: NB1 has composite scores of 0.9628, 0.9128, and 0.9900 for
-Guided, Standard, and Brief; Guided and Brief both have self-consistency 1. NI1 has Guided and Standard composites
-of 0.9958 and 0.6196, with self-consistency 1 and 0.35. NQ5 favors Record over Guided, while NU3 favors Brief. The
-leading configuration varies among multistep tasks.
+Component contributions use unrounded values; composite differences use four-decimal scores.
 S4.4 Graph delivery and evaluation of the run results
-During execution, Guided, Record, and Brief each wrote 50 root mechanism graphs; Standard wrote 43. Standard’s re-
-maining seven studies—F1, HA1, HF1, IA9, M17, NR1, and P3—were organized from their own conversations, reports,
-tool results, and calculation files. The common evaluation procedure thus produced 50 graphs per workflow and 200
-complete score profiles, with the source of each recovered field recorded. The recovered graphs give Standard credit for
-the research documented in these runs. This reduces the Guided–Standard difference compared with scoring by final-file
-delivery alone.
+During execution, Guided, Record, and Brief each wrote 50 root mechanism graphs; Standard wrote 43. Standard’s remain-
+ing seven studies—F1, HA1, HF1, IA9, M17, NR1, and P3—were organized from their own conversations, reports, tool
+results, and calculation files. The common evaluation procedure thus produced 50 graphs per workflow and 200 complete
+score profiles, with the source of each recovered field recorded.
 The seven Standard studies have a mean organized composite of 0.153743, compared with 0.828529 for Guided on the
 same tasks. They account for 42.7% of the total Guided–Standard difference. Table S15 separately reports self-consistency
 for the 40 non-Impossible tasks. Guided has 24 full-score records (60.0%) and 16 partial-score records; Standard has seven
@@ -858,39 +844,35 @@ Guided 24 16 0 0.9266
 Standard 7 29 4 0.5492
 Record 16 24 0 0.7633
 Brief 20 20 0 0.8439
-This table describes the graded component for the positive-chemistry tiers. The separate scientific-validation record is evaluated from the complete task
-contract.
 S4.5 Elapsed research time and accumulated calculation effort
 Table S16 preserves every batch observation from the 48-run repeated-task experiment. A batch contains the same four
 tasks at a concurrency of two, and its elapsed time spans the batch’s actual start and finish. Guided’s mean is 4.4514 h,
 Standard’s 3.9577 h, Record’s 3.8942 h, and Brief’s 4.8273 h. Relative to Standard, Guided’s observed mean is 12.5%
 longer; relative to Brief, it is 7.8% shorter. These observations include waiting, calculation execution, and continuation of
 the research after results return.
-The P2 effort comparison uses the common 15-task set D3, M1, M8, NB1, NQ5, NR1, NU3, NU5, NU6, HA1, HA6,
-HB1, HB10, HD2, and HF1. This yields 60 run-level effort records, with all four configurations represented for each task.
-Table S17 gives the total and mean job-hours, job counts, terminal outcomes, and corresponding final scores. Job-hours
-sum the durations recorded for individual quantum-chemical jobs. For Standard/M1, the archived effort reconstruction uses
-native-log CPU time divided by four, as specified in the source record. The measurement unit throughout this comparison
-is accumulated job-hours.
-Guided used a mean of 11.0793 job-hours and obtained a mean composite of 0.812413. Relative to Standard, it used
-S13
-===== PAGE 14 =====
 Table S16. All 12 elapsed-time observations in the repeated-task study, in hours.
 Workflow Batch 1 Batch 2 Batch 3 Mean
 Guided 4.2383 3.8669 5.2489 4.4514
 Standard 5.3381 2.5044 4.0306 3.9577
 Record 5.4189 2.6203 3.6433 3.8942
 Brief 7.2689 3.6475 3.5656 4.8273
-Each observation is a four-task batch (E1, NB1, HA1, IA1) at concurrency two. Three batches per workflow contain 48 task runs in total. Batch
-completion times include the original research lifecycle and outcomes.
+Each observation is a four-task batch (E1, NB1, HA1, IA1) at concurrency two. Three batches per workflow contain 48 task runs in total.
+The P2 effort comparison uses the common 15-task set D3, M1, M8, NB1, NQ5, NR1, NU3, NU5, NU6, HA1, HA6,
+HB1, HB10, HD2, and HF1. This yields 60 run-level effort records, with all four configurations represented for each task.
+Table S17 gives the total and mean job-hours, job counts, terminal outcomes, and corresponding final scores. Job-hours
+sum the durations recorded for individual quantum-chemical jobs. For Standard/M1, the archived effort reconstruction uses
+native-log CPU time divided by four, as specified in the source record. The measurement unit throughout this comparison
+is accumulated job-hours.
 Table S17. Recorded quantum-chemical effort on the 15 tasks shared by all configurations.
 Workflow Job-h total Job-h/task Jobs Failed Cancelled Mean S
 Guided 166.19 11.079 789 114 94 0.8124
 Standard 113.32 7.555 419 45 50 0.6495
 Record 118.16 7.877 431 62 38 0.7360
 Brief 233.85 15.590 883 167 120 0.7273
-Each workflow contributes 15 task runs. Job-hours sum recorded process durations. Failed and cancelled jobs are separate terminal categories. Job
-counts measure execution effort; scientific validation is assessed from the calculation results.
+Each workflow contributes 15 task runs. Job-hours sum recorded process durations. Failed and cancelled jobs are separate terminal categories.
+S13
+===== PAGE 14 =====
+Guided used a mean of 11.0793 job-hours and obtained a mean composite of 0.812413. Relative to Standard, it used
 46.7% more job time and scored 0.162933 higher; relative to Brief, it used 28.9% less job time and scored 0.085080 higher.
 Guided had both a higher score and lower job time than Brief on seven of the 15 paired tasks. Guided recorded 789 jobs,
 including 114 failures and 94 cancellations; Brief recorded 883 jobs, including 167 failures and 120 cancellations. In
@@ -909,12 +891,10 @@ HI1 Guided 0.9999 0.9992 1.0000 1.0000
 Standard 0.7032 0.3325 0.2333 1.0000
 NU6 Guided 0.6719 1.0000 0.9375 0.4844
 Standard 0.6892 0.8167 0.6250 0.7000
-These profiles retain the distinct contributions of pathway coverage, evidence support, and agreement with the requested answer.
 HA8: stable reactant reference and reactive conformer. Guided reports 29.46 kcal/mol and Standard 20.43 kcal/mol,
 against a reference of 29.48 kcal/mol. Their 9.03 kcal/mol difference comes from the reactant energy: Guided uses the
 lowest all-s-trans minimum, whereas Standard uses a reactive cisoid conformer. The IRC identifies the local conformer
-connected to the saddle; the task’s barrier is measured from the specified stable reactant minimum. The two references
-can therefore be different conformers.
+connected to the saddle; the task’s barrier is measured from the specified stable reactant minimum.
 HH1: the same barrier with different IRC support. Both workflows report a binaphthyl racemization barrier of 23.48
 kcal/mol; the reference is 23.01 kcal/mol. Their accuracy components are 0.973067 and 0.973064 and both graph com-
 ponents are 1. Guided has self-consistency 1, whereas Standard has 0.5. Their composites are consequently 0.9838 and
@@ -923,18 +903,13 @@ saddle through the IRC to the endpoint calculations. This difference in path sup
 despite the matching barriers.
 HI1: numerical agreement with different species and path coverage. Guided and Standard both have accuracy ap-
 proximately 1. Their graph components are 0.999176 and 0.332509, and self-consistency components are 1 and 0.233333.
-The corresponding composites are 0.9999 and 0.7032. Matching numerical accuracy thus accompanies different coverage
-of the requested species, steps, and path calculations.
-S14
-===== PAGE 15 =====
+The corresponding composites are 0.9999 and 0.7032.
 NU6: the optimized saddle and the intended second step. The Guided record gives ETS = −247.030042392 Ha for
 its concerted saddle region and Ebetaine = −247.060060699 Ha. Using 627.5094740631 kcal mol −1 Ha−1 gives
 [ETS − Ebetaine] 627 .5094740631 = 18 .836772 kcal mol−1. (S6)
 Standard reports 18.837 kcal/mol as the second-step ring-closure barrier. Guided leaves the betaine-to-product ring-closure
-saddle unresolved and describes the energy difference relative to the concerted saddle region. Its searches from interpo-
-lated betaine geometries and constrained-scan peaks repeatedly return toward the direct reactant-to-product saddle region.
-Assigning the energy difference to an elementary step therefore requires identifying the optimized saddle and its actual
-endpoints.
+saddle unresolved and describes the energy difference relative to the concerted saddle region. Its searches from interpolated
+betaine geometries and constrained-scan peaks repeatedly return toward the direct reactant-to-product saddle region.
 S4.7 Impossible-tier results and the requested negative conclusions
 Table S19 resolves Brief’s mean composite of 0.602940 and Guided’s 0.505060 into all ten task differences. Brief is
 higher on four tasks, Guided on five, and one tie. The Brief-minus-Guided mean is +0.097880, with the task-bootstrap
@@ -942,6 +917,12 @@ interval [−0.160, +0.361]. Its weighted contributions are −0.006607 from gra
 +0.120000 from accuracy. IA1, IA9, and IC3 provide the large positive differences, while IG8 has the opposite accuracy
 ordering. Across the six tasks with equal accuracy components in these two workflows, Brief-minus-Guided averages
 −0.058333.
+Brief reaches accuracy 1 for IA1 (square-geometry cyclobutadiene automerization), IA5 (thermal disrotatory ring open-
+ing), IA9 (dioxetane thermolysis), and IC3 (open-shell singlet phenylnitrene). Guided reaches accuracy 1 for IA5 and
+IG8 (chromium dimer); Record reaches accuracy 1 for IA5. Both Guided and Brief have accuracy 0.7 in IB9, which
+contains positive and negative target components. Across all 40 Impossible runs, eight have accuracy 1 and ten have
+S14
+===== PAGE 15 =====
 Table S19. Task-resolved comparison of Brief and Guided in the Impossible tier.
 Task Guided C Brief C Brief − Guided Guided A Brief A
 IA1 0.1717 1.0000 +0.8283 0.0 1.0
@@ -956,10 +937,6 @@ IF3 0.3667 0.4000 +0.0333 0.0 0.0
 IG8 1.0000 0.3339 -0.6661 1.0 0.0
 C denotes the composite and A the accuracy component for the task-defined numerical or negative target. All values are retained from the publication
 score table.
-Brief reaches accuracy 1 for IA1 (square-geometry cyclobutadiene automerization), IA5 (thermal disrotatory ring open-
-ing), IA9 (dioxetane thermolysis), and IC3 (open-shell singlet phenylnitrene). Guided reaches accuracy 1 for IA5 and
-IG8 (chromium dimer); Record reaches accuracy 1 for IA5. Both Guided and Brief have accuracy 0.7 in IB9, which
-contains positive and negative target components. Across all 40 Impossible runs, eight have accuracy 1 and ten have
 self-consistency 1 with accuracy 0. Offline target correspondence assigns Accuracy before publication scoring; Graph
 and Self-consistency remain those of the organized records. The following cases illustrate remaining local-support versus
 requested-target disagreements.
@@ -968,24 +945,14 @@ a closed-shell branch but does not receive negative-target Accuracy credit under
 that graph. Brief/IC3 receives Accuracy = 1 for the same open-shell target, with composite 1.0.
 Record/IA5, Guided/IA5, and Brief/IA5 distinguish the requested disrotatory ring opening from an allowed conrotatory
 path and receive full negative-target Accuracy credit after correspondence. IF3 remains Accuracy 0 with Self-consistency
-1 in Guided and Brief, showing that complete local support of a negative claim does not by itself establish agreement with
-every requested Impossible target.
+1 in Guided and Brief.
 S4.8 Easy-tier energy references and delivery trajectories
 These five Easy cases examine the reactant energy used for a barrier, the chemical identity assigned to a graph node, and
 whether calculated values remain in the final graph. We read each run’s final graph, native calculation logs, evaluation
 notes, and runtime events. Table S20 reports the final scores. SC all grades every delivered graph element, including
 additions to Gold; SC Gold grades only the reference-matched subgraph. The composite uses SC all.
-F4: adduct identity in the final mechanism graph. Guided reported hydride transfer from the Lewis adduct of borane
-and formaldehyde to methoxyborane. Its linked reactant and saddle calculations gave energies of −141.041124115 and
-−141.015601446 hartree, a barrier of 16.01572 kcal mol −1 supporting the declared 16.02. Independent saddle frequency
-analysis found one imaginary frequency, −398.7218 cm−1. Optimizations starting from both actual IRC outer frames
-converged to the corresponding endpoint minima with zero imaginary frequencies. All four workflows obtained essentially
-the same saddle and adduct energies.
-S15
-===== PAGE 16 =====
-Table S20. Final component scores for the five inspected Easy tasks, rounded to four decimal places. Brief denotes Brief-errors. The
-two SC columns retain their separate assessment scopes. Accuracy is the final component after reference matching and the specified
-numerical penalty cap.
+Table S20. Final component scores for the five inspected Easy tasks, rounded to four decimal places. Brief denotes Brief-errors.
+Accuracy is the final component after reference matching and the specified numerical penalty cap.
 Task Workflow Graph SC all SCGold Accuracy Composite
 F4 Guided 0.9167 1.0000 1.0000 1.0000 0.9917
 Standard 0.5176 0.7500 0.0000 0.0000 0.2768
@@ -1007,6 +974,14 @@ L2 Guided 1.0000 0.7500 0.7500 0.7000 0.7450
 Standard 1.0000 0.5000 0.5000 0.8832 0.7799
 Record 1.0000 0.7500 0.7500 0.8832 0.8549
 Brief 1.0000 0.8333 0.7500 0.8832 0.8799
+F4: adduct identity in the final mechanism graph. Guided reported hydride transfer from the Lewis adduct of borane
+and formaldehyde to methoxyborane. Its linked reactant and saddle calculations gave energies of −141.041124115 and
+−141.015601446 hartree, a barrier of 16.01572 kcal mol −1 supporting the declared 16.02. Independent saddle frequency
+analysis found one imaginary frequency, −398.7218 cm−1. Optimizations starting from both actual IRC outer frames
+S15
+===== PAGE 16 =====
+converged to the corresponding endpoint minima with zero imaginary frequencies. All four workflows obtained essentially
+the same saddle and adduct energies.
 The F4 reference specifies hydride transfer from the bonded Lewis adduct, [BH3-][O+]=C, with a 16.02-kcal mol −1
 barrier. Guided and Brief named this adduct in their final graphs and obtained Accuracy close to 1. Standard and Record
 kept the separated-fragment representation [BH3].C=O for the reactant node. This failed to match the reference adduct
@@ -1020,8 +995,8 @@ remained open. Meanwhile, reports for the selected separated-products target ret
 marked resolved. After an initial deletion, the Supervisor asked the agent to restore all numerical barriers and the saddle’s
 energy/log fields. After the fourth rejection, the agent deleted the companion-edge values. A subsequent artifact check
 rejected the saddle-evidence claim; the next edit removed the selected edge’s remaining barrier and the saddle’s energy/log
-fields. The saved write and program output confirm these deletions. The final graph kept the values in descriptive text, but
-the numerical target received Accuracy 0. Its graded SC contribution remained 0.5.
+fields. The final graph kept the values in descriptive text, but the numerical target received Accuracy 0. Its graded SC
+contribution remained 0.5.
 Brief retained a numerical barrier of 0.844 and obtained Accuracy 0.99999. Standard and Record declared approximately
 3.4 using a lower-energy reactant reference; Record’s native report identifies this as a trans-diimide stack and separately
 records the approximately 0.84 cis-reference result.
@@ -1037,92 +1012,61 @@ barrier difference determines the capped Accuracy score.
 L2: two reference barriers and the selected comparison edge. Guided used the reactive cZc minimum and obtained
 18.98740 kcal mol −1; its graph states that the stable-to-reactive conformer contribution was uncomputed. Record and
 Brief used the lower tZt reference, giving approximately 28.275. The conformer energy difference is 9.28761 kcal mol −1.
-S16
-===== PAGE 17 =====
 Standard delivered both references and both barriers: 18.99 on edge e1 and 28.28 on e2. The earlier evaluation se-
 lected e1: the candidates have identical bond-change lists, the unspecified-stereochemistry reference gives equal endpoint
 substitution costs, and the edge-identifier tie-break selects the local-reference value, with capped Accuracy 0.7. The final
 target-correspondence evaluation instead selects e2, whose verified stable-minimum reference matches the task definition.
-Its native barrier is 28.27501 kcal mol −1, giving Accuracy 0.883233 and composite 0.7799, as reported in Table S20
-and the complete score table. Both values and the conformer gap were already present in Standard’s original report; the
-correction adds no calculation or conclusion.
+Its native barrier is 28.27501 kcal mol −1, giving Accuracy 0.883233 and composite 0.7799, as reported in Table S20 and
+the complete score table.
 S4.9 Oﬀicial target-correspondence Accuracy overlay
 The published evaluation applies chemical target correspondence before Accuracy scoring. Explicit reaction channels
 and electronic states distinguish otherwise identical connectivity, and the task-specified energy reference selects among
 references of the same native saddle. Graph and Self-consistency remain those recorded for the organized runs. T welve
 runs whose task definitions involve these distinctions were replayed against the updated rules; five Accuracy values change.
-The overlay updates those Accuracy components, recomputes the corresponding composites, and leaves the other 195
-runs unchanged. No new quantum-chemical calculation or language-model experiment was performed. The companion
-package revision_20261102/target_matching/ retains the before/after Accuracy reports, matching audit, and
-correction table applied by the publication preparation script.
+The overlay updates those Accuracy components, recomputes the corresponding composites, and leaves the other 195 runs
+unchanged. The companion package revision_20261102/target_matching/ retains the before/after Accuracy
+reports, matching audit, and correction table applied by the publication preparation script.
 The five corrected runs are Standard/L2 (lowest verified stable-minimum barrier reference), Guided/IA5, Record/IA5,
 Brief/IA5 (thermal disrotatory cyclobutene ring opening), and Brief/IC3 (open-shell singlet phenylnitrene). After corre-
 spondence, Guided, Record, and Brief receive full negative-target Accuracy credit on IA5, and Brief receives full credit
-on IC3. Graph and Self-consistency for these runs are unchanged from the prior organized records. Table S21 reports the
-resulting Impossible-tier means; these are the oﬀicial evaluation values used throughout the manuscript and SI.
-Table S21. Impossible-tier mean composite scores after the oﬀicial target-correspondence Accuracy overlay. Only Accuracy (and the
-recomputed composite) changes for the five corrected runs; Graph, Self-consistency, and the other 195 runs remain fixed.
+on IC3. Table S21 reports the resulting Impossible-tier means.
+Relative to the pre-overlay Impossible means (Guided 0.44506, Standard 0.24733, Record 0.23250, Brief 0.48294),
+the overlay raises Guided by 0.06000, Record by 0.06000, and Brief by 0.12000, while Standard is unchanged in this
+tier. Primary Guided–Standard comparisons elsewhere in the manuscript use the same overlay, including the Easy-tier
+Standard/L2 correction outside this Impossible summary.
+S16
+===== PAGE 17 =====
+Table S21. Impossible-tier mean composite scores after the oﬀicial target-correspondence Accuracy overlay.
 Track Guided Standard Record Brief
 Oﬀicial evaluation values 0.50506 0.24733 0.29250 0.60294
-Relative to the pre-overlay Impossible means (Guided 0.44506, Standard 0.24733, Record 0.23250, Brief 0.48294), the
-overlay raises Guided by 0.06000, Record by 0.06000, and Brief by 0.12000, while Standard is unchanged in this tier.
-The Brief > Guided > Record > Standard Impossible ordering is that of the published table. Primary Guided–Standard
-comparisons elsewhere in the manuscript use the same overlay, including the Easy-tier Standard/L2 correction outside this
-Impossible summary.
 S4.10 Discussion of the supplementary comparisons
-Tool and task graphs organize computational execution. Cloudra’s Delivery DAG constrains the agents’ submitted mecha-
-nism representation through species-occurrence nodes and elementary-step edges that carry molecular geometries, bonding
-patterns, and reaction connectivity. Cheminformatics algorithms establish and compare identities and atom correspon-
-dences; frequency and IRC/endpoint calculations determine the supported stationary points and connections. The Normal
-and Hard cases show why these assignments matter: HA8 requires correcting the reactant energy reference, and NU6
-requires recognizing that a search has returned to a different saddle region. Agents use the represented species and steps to
-choose new geometries, continue a path calculation, or revise the mechanism, complementing external planning and tool
-feedback.[20–22]
+Cloudra’s Delivery DAG constrains the agents’ submitted mechanism representation through species-occurrence nodes and
+elementary-step edges that carry molecular geometries, bonding patterns, and reaction connectivity. Cheminformatics al-
+gorithms establish and compare identities and atom correspondences; frequency and IRC/endpoint calculations determine
+the supported stationary points and connections. The Normal and Hard cases show why these assignments matter: HA8
+requires correcting the reactant energy reference, and NU6 requires recognizing that a search has returned to a different
+saddle region. Agents use the represented species and steps to choose new geometries, continue a path calculation, or
+revise the mechanism, complementing external planning and tool feedback.[ 20–22]
 P2 retains one run per task and configuration. Its task-cluster bootstrap intervals measure variation across the sampled
 tasks. P1b supplies three repeats on each of four tasks under each configuration; these 48 runs provide repeat measurements
 on those four tasks within the 50-task P2 study. The P2 table includes all 200 runs and their three components. Some
 Hard tasks score qualitative channel identity, so the gain includes pathway identification and completion of the supporting
 calculations as well as numerical barriers. Repeating the full task set would measure run-to-run variation and how often
 the agents select each route.
-The Impossible rubric concerns targets judged physically inaccessible under the specified methods; self-consistency
-credit records the supported negative conclusion. A positive step requires its own TS–IRC–endpoint chain. IA5 and IC3
-require matching the requested pathway and electronic state before scoring the answer. Brief’s crossed outcomes suggest
-task-dependent effects of diagnostic content; the causal effect of diagnostic length remains unmeasured. In NU6, the
-matching energy difference prompts a check of the assigned step. The native geometries and paths determine whether two
-calculations found the same saddle.
-Timing comparisons use batch elapsed time for P1b and accumulated job-hours for P2. Separate measurements of
-queueing, calculation, agent-active time, and end-to-end P2 latency remain future work.
-Cloudra’s default preorganization samples 32 rigid relative placements, relaxes them with MMFF94, and selects candi-
-dates by energy and clustering. It samples local arrangements; global-minimum coverage requires a separate assessment.
-S17
-===== PAGE 18 =====
-CREST is an optional backend, and its coverage across the 200 runs remains to be established. Flexible systems may need
-broader sampling and more quantum-chemical calculations. Further work should measure which conformers are found
-and how calculations can be allocated among competing candidates.
-The benchmark scores electronic energy differences alone; zero-point, thermal/entropic, standard-state, and solvation
-free-energy contributions remain outside this comparison. NI5 specifies weakly acidic aqueous solution, and NU5 specifies
-dichloromethane at high concentration; both are scored against the prescribed electronic-energy references. Solution-phase
-free-energy barriers and solvent sensitivity, including the magnitude and direction of solvent effects, remain unassessed.
-All workflow comparisons used the same atom-mapping coeﬀicients and ambiguity window, and the same branch-
-crowding decay, depth, and congestion settings. Their individual effects remain unmeasured. The imaginary-mode align-
-ment ratio of 0.5 is advisory; physical validation uses the stationary-point and IRC/endpoint calculations. All P2 configura-
-tions used DeepSeek-v4.1-flash (1017), the API alias deepseek-v4-flash, and the recorded request settings. Additional
-backbones would test whether the workflow improvements extend to other models.
+The benchmark reports electronic energy differences. NI5 specifies weakly acidic aqueous solution, and NU5 specifies
+dichloromethane at high concentration; both use the prescribed electronic-energy references. A solution-phase free-energy
+treatment would add zero-point, thermal/entropic, standard-state, and solvation contributions.
 The Easy cases show two different problems. In F4, the final graphs assign different reactant identities despite calcula-
 tions supporting essentially the same pathway. In G2, validation feedback prompts deletion of structured numerical fields
 while the values remain in prose. Recording validation status separately would let the agent state a quantity’s scientific
-qualification while retaining the quantity and its source. The 2 November 2026 target-correspondence overlay is the of-
-ficial Accuracy postprocess for these Impossible pathway and electronic-state assignments; Graph, Self-consistency, and
-the unchanged runs remain those of the organized publication records.
+qualification while retaining the quantity and its source.
 S4.11 Complete per-task and per-configuration scores
 Tables S22–S25 report all 200 runs and all four reported quantities, comprising 200 composite scores and 600 component
 values. Standard is the primary comparison using the same model backbone; Record and Brief are workflow ablations.
 Every task has one result for each configuration.
 Composite scores are displayed to four decimal places and component scores to six decimal places. The accompanying
-cloudrabench_200_run_scores.csv retains the original full-precision numeric strings. Accordingly, recomputing the
-weighted composite from the displayed component values can differ from the separately rounded composite in the last
-shown digit. The printed scientific self-consistency score is the graded component, distinct from the separate all-or-none
-scientific acceptance decision.
+cloudrabench_200_run_scores.csv retains the original full-precision numeric strings. Weighted composites use the
+full-precision components; displayed values are rounded separately.
 Table S22. Complete Easy-tier results for all four configurations.S: composite score; G: graph structure; SC: scientific self-consistency
 score; A: accuracy.
 Task Configuration S G SC A
@@ -1146,17 +1090,17 @@ F1 Guided 0.9417 0.916667 0.833333 1.000000
 F1 Standard 0.0333 0.333333 0.000000 0.000000
 F1 Record 0.9917 0.916667 1.000000 1.000000
 F1 Brief 0.9117 0.916667 0.750000 0.991654
+Continued on the next page
+S17
+===== PAGE 18 =====
+Table S22 (continued)
+Task Configuration S G SC A
 F4 Guided 0.9917 0.916667 1.000000 0.999999
 F4 Standard 0.2768 0.517569 0.750000 0.000000
 F4 Record 0.2851 0.600902 0.750000 0.000000
 F4 Brief 0.9917 0.916667 1.000000 0.999999
 G2 Guided 0.2389 0.888889 0.500000 0.000000
 G2 Standard 0.7769 1.000000 0.500000 0.878159
-Continued on the next page
-S18
-===== PAGE 19 =====
-Table S22 (continued)
-Task Configuration S G SC A
 G2 Record 0.7769 1.000000 0.500000 0.878161
 G2 Brief 0.8500 1.000000 0.500000 0.999986
 G3 Guided 0.9832 0.833333 1.000000 0.999830
@@ -1207,12 +1151,15 @@ P3 Guided 0.9380 1.000000 1.000000 0.896739
 P3 Standard 0.1000 1.000000 0.000000 0.000000
 P3 Record 0.9380 1.000000 1.000000 0.896735
 P3 Brief 0.8309 1.000000 1.000000 0.718109
+Continued on the next page
+S18
+===== PAGE 19 =====
+Table S22 (continued)
+Task Configuration S G SC A
 X1 Guided 0.9999 1.000000 1.000000 0.999916
 X1 Standard 0.9999 1.000000 1.000000 0.999914
 X1 Record 0.9999 1.000000 1.000000 0.999916
 X1 Brief 0.9999 1.000000 1.000000 0.999914
-S19
-===== PAGE 20 =====
 Table S23. Complete Normal-tier results for all four configurations. S: composite score; G: graph structure; SC: scientific self-
 consistency score; A: accuracy.
 Task Configuration S G SC A
@@ -1260,6 +1207,11 @@ Table S24. Complete Hard-tier results for all four configurations.S: composite s
 score; A: accuracy.
 Task Configuration S G SC A
 HA1 Guided 0.9625 1.000000 0.875000 1.000000
+Continued on the next page
+S19
+===== PAGE 20 =====
+Table S24 (continued)
+Task Configuration S G SC A
 HA1 Standard 0.1000 1.000000 0.000000 0.000000
 HA1 Record 0.9250 1.000000 0.750000 1.000000
 HA1 Brief 0.9250 1.000000 0.750000 1.000000
@@ -1268,11 +1220,6 @@ HA6 Standard 0.9625 1.000000 0.875000 1.000000
 HA6 Record 0.9750 1.000000 0.916667 1.000000
 HA6 Brief 0.9750 1.000000 0.916667 1.000000
 HA8 Guided 0.9625 1.000000 0.875000 0.999961
-Continued on the next page
-S20
-===== PAGE 21 =====
-Table S24 (continued)
-Task Configuration S G SC A
 HA8 Standard 0.6250 1.000000 0.350000 0.700000
 HA8 Record 0.9250 1.000000 0.750000 0.999961
 HA8 Brief 0.7450 1.000000 0.750000 0.700000
@@ -1319,6 +1266,11 @@ IA7 Guided 0.2583 0.333333 0.750000 0.000000
 IA7 Standard 0.1383 0.333333 0.350000 0.000000
 IA7 Record 0.2583 0.333333 0.750000 0.000000
 IA7 Brief 0.2583 0.333333 0.750000 0.000000
+Continued on the next page
+S20
+===== PAGE 21 =====
+Table S25 (continued)
+Task Configuration S G SC A
 IA9 Guided 0.3667 0.666667 1.000000 0.000000
 IA9 Standard 0.2583 0.333333 0.750000 0.000000
 IA9 Record 0.3667 0.666667 1.000000 0.000000
@@ -1327,11 +1279,6 @@ IB9 Guided 0.8200 1.000000 1.000000 0.700000
 IB9 Standard 0.1800 0.750000 0.350000 0.000000
 IB9 Record 0.5450 0.200000 0.750000 0.500000
 IB9 Brief 0.7700 1.000000 0.833333 0.700000
-Continued on the next page
-S21
-===== PAGE 22 =====
-Table S25 (continued)
-Task Configuration S G SC A
 IC3 Guided 0.4000 1.000000 1.000000 0.000000
 IC3 Standard 0.1833 0.333333 0.500000 0.000000
 IC3 Record 0.2167 0.666667 0.500000 0.000000
@@ -1371,22 +1318,12 @@ disabled, and a maximum of eight generated tokens; top-20 token log probabilitie
 separate system and user messages, the model’s native rendering, and a maximum of 1,024 generated tokens. The thinking
 setting is recorded for each request. A final choice is valid only if it exactly matches a permitted uppercase letter. The letter
 and its meaning are recorded separately.
-Table S26. Experimental units and crossed conditions of the local diagnostic studies.
-Study Frozen inputs and experimental factors Calls
-Chemical identity 16 pairs × 2 representations × 2 answer orders 64
-Distance judgment 4 geometries × 2 information conditions × 2 answer orders × 2 thinking
-settings
-32
-Target-angle feedback 2 information conditions; 3 cyclic next-action permutations and 2 suﬀiciency
-permutations per condition
-10
-Evidence associations 4 chains × 2 association conditions × 2 presentations × 2 answer orders 32
-Native diagnostic follow-up 20 identity inputs and 16 association inputs, each under 2 thinking settings 72
-Outstanding requirements 3 state questions × 2 context conditions × 2 answer orders 12
-Each call is counted once. Representation, answer-order, and information variants use the same source molecule, geometry, or calculation chain. The
-single expanded-budget distance follow-up is additional to the 32-call study. The activation replacement experiment is described separately below.
-S22
-===== PAGE 23 =====
+S5.2 Chemical identity under equivalent representations and answer reversal
+Sixteen molecular pairs were derived from four task systems. They include pairs representing the same molecule, different
+connectivities with the same formula, changes in connectivity and formal-charge location, different double-bond stereo-
+chemistry, and protonation changes. Each pair was presented in its original notation and an equivalent rewriting, with both
+S21
+===== PAGE 22 =====
 Guided
 Backbone
 Record
@@ -1560,10 +1497,20 @@ a b c d
 Figure S1. All Easy and Normal task scores. Each task has four configuration rows and four score layers: composite, graph, scientific
 self-consistency, and accuracy. Cells are rounded to two decimals; the preceding tables and companion CSV retain greater precision.
 Backbone denotes Standard.
-S5.2 Chemical identity under equivalent representations and answer reversal
-Sixteen molecular pairs were derived from four task systems. They include pairs representing the same molecule, different
-connectivities with the same formula, changes in connectivity and formal-charge location, different double-bond stereo-
-chemistry, and protonation changes. Each pair was presented in its original notation and an equivalent rewriting, with both
+Table S26. Experimental units and crossed conditions of the local diagnostic studies.
+Study Frozen inputs and experimental factors Calls
+Chemical identity 16 pairs × 2 representations × 2 answer orders 64
+Distance judgment 4 geometries × 2 information conditions × 2 answer orders × 2 thinking
+settings
+32
+Target-angle feedback 2 information conditions; 3 cyclic next-action permutations and 2 suﬀiciency
+permutations per condition
+10
+Evidence associations 4 chains × 2 association conditions × 2 presentations × 2 answer orders 32
+Native diagnostic follow-up 20 identity inputs and 16 association inputs, each under 2 thinking settings 72
+Outstanding requirements 3 state questions × 2 context conditions × 2 answer orders 12
+Representation, answer-order, and information variants use the same source molecule, geometry, or calculation chain. The single expanded-budget
+distance follow-up is additional to the 32-call study.
 answer orders. In the forward order, A means the same chemical identity and B means different identities; in the swapped
 order the meanings exchange. The questions instruct the model to compare connectivity, bond orders, formal charges, and
 specified stereochemistry, allowing differences in traversal order, ring digits, and disconnected-component order.
@@ -1572,15 +1519,8 @@ changed the chemical judgment in four of 32 comparisons. For the same pair and r
 changed the judgment in six of 32 comparisons. All six selected A in both option orders. In the same-formula pair
 CC1CC=C1 and C=C1CCC1, the double bond lies within and outside the ring, respectively. The model answered A under all
 four representation/order conditions, even though A changed from “same” to “different” when the options were reversed.
-Identical strings test whether the model recognizes a representation as matching itself. Equivalent rewritings test recog-
-nition of the same molecule in another notation. Different-identity controls test whether it detects changed connectivity
-or stereochemistry despite a shared molecular formula. All strings and expected judgments are saved with the diagnostic
-data.
-S5.3 XYZ coordinates and explicitly measured distances
-Four NB1 geometries were selected from the archived research trajectories. The local question asks which of two specified
-atom pairs has the shorter Euclidean distance. The original-XYZ condition supplies the complete geometry in its saved
-S23
-===== PAGE 24 =====
+S22
+===== PAGE 23 =====
 Guided
 Backbone
 Record
@@ -1701,8 +1641,14 @@ Brief
 Composite Graph Self-consistency Accuracy
 Hard (10 tasks) and Impossible (10 tasks)
 a b c d
-Figure S2. All Hard and Impossible task scores, with the same layer and configuration ordering as Figure S1. All 80 runs have complete
-composite and component values.
+Figure S2. Scores for all 80 Hard and Impossible runs, with the same component and configuration ordering as Figure S1.
+Identical strings test whether the model recognizes a representation as matching itself. Equivalent rewritings test recog-
+nition of the same molecule in another notation. Different-identity controls test whether it detects changed connectivity
+or stereochemistry despite a shared molecular formula. All strings and expected judgments are saved with the diagnostic
+data.
+S5.3 XYZ coordinates and explicitly measured distances
+Four NB1 geometries were selected from the archived research trajectories. The local question asks which of two specified
+atom pairs has the shorter Euclidean distance. The original-XYZ condition supplies the complete geometry in its saved
 atom order. The measured-distance condition supplies program-calculated values for the same atom pairs. Each condition
 appears in both answer orders and in direct-answer and thinking modes, yielding 32 native chat calls. Table S27 gives the
 measured values used to construct the paired conditions; all atom indices are one-based.
@@ -1721,12 +1667,12 @@ On Measured distances 8 8 0 0
 A budget-truncated generation reached the 1,024-token ceiling while still awaiting a final choice. It remains in the eight-input denominator. A separate
 2,048-token follow-up of that one input produced the correct choice after 1,353 generated tokens.
 All eight direct-answer XYZ responses selected A, giving four correct answers; reversing the options changed the judg-
+S23
+===== PAGE 24 =====
 ment for every source geometry. Measured distances gave eight correct answers in each thinking setting, with the same
 judgment under reversal. With thinking enabled, median generated-token counts over the eight paired inputs were 807.5
 for XYZ and 86 for measured distances, including thinking tokens. Program-calculated distances let the model compare
 the requested quantities directly, as in program-aided language models.[ 23]
-S24
-===== PAGE 25 =====
 S5.4 Target-specific geometric feedback in an E1 operation chain
 In the E1 trajectory, the agent seeks an anti-periplanar H7–C2–C3–Cl4 dihedral near180◦ for the transferring hydrogen H7.
 It rotates the C3-side fragment about C2–C3 by +120◦ and −120◦ to produce candidates A and B, and sets the C3–Cl4
@@ -1744,8 +1690,8 @@ submits candidate B as the transition-state guess, citing the H7 anti-periplanar
 Ten local tests ask what to do next and whether the available measurements suﬀice. The H5-only inputs withhold H7
 values and XYZ coordinates; the H5-plus-H7 inputs add the measured H7 values. In all three cyclic option permutations,
 adding H7 changes the next-action answer from requesting that measurement to selecting candidate B. In two paired
-suﬀiciency tests, it changes the answer from requesting more measurements to judging the information suﬀicient. All
-values come from the saved geometries; only the measurements supplied to the model change.
+suﬀiciency tests, it changes the answer from requesting more measurements to judging the information suﬀicient. The
+paired inputs use the same geometries and differ in the supplied measurements.
 S5.5 Single-token transfer of a reported numerical fact
 The activation experiment uses the archived local quantized model for a reported-distance comparison.[24] We changed the
 first reported distance from 2.029 to 1.029 Å. The second distance remains 1.248 Å. This reverses the correct comparison.
@@ -1764,8 +1710,7 @@ Transfer at layer 7 0.029099 0.955908
 Transfer at layer 15 0.015033 0.717660
 Transfer at layer 31 0.007961 0.072117
 Transfer at layer 47 0.008763 0.069810
-The readout uses the full vocabulary, with bare and leading-space answer tokens combined. It is distinct from an A/B-renormalized probability or a
-proportion of correct task runs.
+The readout uses the full vocabulary, with bare and leading-space answer tokens combined.
 T wo controls are executed in both option orders. Self-replacement transfers the edited prompt’s own state at the changed
 token; the prefix control transfers at unchanged token position 0. Both preserve every vocabulary logit, with a maximum
 absolute difference of 0 from the edited baseline. With reversed options, transfers at layers 7 and 15 substantially increase
@@ -1776,12 +1721,12 @@ S5.6 Evidence associations under fixed local calculation facts
 We used four calculation chains from three tasks to construct records with correct links and records with one changed
 link. The two NB1 chains come from the same run. Each record is presented as a flat list or with explicit links between
 calculations, in both answer orders, yielding 4 × 2 × 2 × 2 = 32 inputs. The changed link concerns the saddle-frequency
+S24
+===== PAGE 25 =====
 geometry, IRC starting geometry, terminal-frame optimization input, or target species. Termination flags, convergence
 flags, energies, and imaginary-frequency values remain fixed.
 The model is asked whether the calculations support the indicated reaction step. Linked inputs specify which geometry
 each frequency or IRC calculation uses, which terminal frame each endpoint optimization starts from, and which species
-S25
-===== PAGE 26 =====
 the final minimum represents. The model answers all 16 linked inputs and 14 of 16 flat inputs correctly. Both flat-input
 errors occur with changed links and reversed options, in E1 and the second NB1 step. Explicit links state the calculation
 dependencies that the model must otherwise reconstruct from the list.[ 25]
@@ -1816,15 +1761,10 @@ waiver exists, and whether the missing calculation remains required. Each questi
 quoted 12-message history, in both answer orders. All 12 answers match the recorded report fields and waiver list; all six
 option-reversed pairs preserve the same judgment.
 S5.8 Discussion of the diagnostic scope
-The tests examine whether a model recognizes a molecule in different notations, compares distances, requests measure-
-ments for the specified atoms, uses a supplied numerical fact, detects changed calculation links, and identifies pending
-IRC verification. They describe the recorded local model and the tested inputs. The native follow-up uses cases selected
-after first-stage errors and retains all their variants; its counts apply to that selected set. The common output limit bounds
-response length; actual computation depends on prompt conditioning and the tokens generated in each thinking mode.
+The native follow-up includes all input variants of cases selected after first-stage errors.
 Activation replacement measures the effect of a changed state on the quantized Qwen model’s distance-comparison
-answer. Establishing the original DeepSeek runs’ internal mechanism or the chemical validity of their results requires
-separate evidence. In the E1 trajectory, Supervisor/workspace input intervenes between the measurements and the agent’s
-use of candidate B. The separate local tests vary the supplied target measurements to examine their effect on the choice.
+answer. In the E1 trajectory, Supervisor/workspace input intervenes between the measurements and the agent’s use of
+candidate B. The separate local tests vary the supplied target measurements to examine their effect on the choice.
 The completed IA1 tests use the report-only and 12-message inputs. A separate request with the full 306-message
 history contained 242,803 counted input tokens in a 262,144-token context. It reached the 3,600-s HTTP waiting limit
 while awaiting an answer, leaving the saved response empty. Of six planned full-history inputs, the first was attempted and
@@ -1836,13 +1776,12 @@ The literature sample contains 85 chemical AI agent systems, architectures, or w
 27 October 2026. Each included an LLM that planned calculations, used tools, modified inputs or code, or acted on
 feedback during an executed molecular, atomistic, or molecular coarse-grained calculation. Each separately described
 system or workflow counts once; journal and preprint versions and aliases are merged. The register lists the original
-S26
-===== PAGE 27 =====
 sources, supporting passages, and coding decisions.
+S25
+===== PAGE 26 =====
 Systems were classified by what their examples studied: materials, crystals, and surfaces (39); finite molecules and
 complexes (23); liquids, soft matter, and biomolecules (12); or multiple classes (11). A periodic box containing a protein,
-liquid, or polymer was classified by its contents. The 85 records cover the sampled literature; Cloudra is shown separately
-in the manuscript figures.
+liquid, or polymer was classified by its contents. Cloudra is shown separately in the manuscript figures.
 Task codes mark activities demonstrated in the sources: T, structure construction/editing; E, separately demon-
 strated static energy, electronic structure, or material-property calculations; O, geometry optimization/relaxation; F,
 vibrations/frequencies and associated thermochemistry; R, explicit reaction paths or transition-state searches, including
@@ -1892,15 +1831,15 @@ Molecules/complexes T E L01, a
 23 ToPolyAgent Soft/biomolecular T D L23, a
 24 GENIUS Materials/surfaces E O L24, a
 25 LAMMPS-Agents Materials/surfaces T E O F D L25, a, b
+26 DynaMate (protein–ligand) Soft/biomolecular T O D L26, a
+27 AGAPI-Agents Materials/surfaces T E O L27
 Continued on the next page
-S27
-===== PAGE 28 =====
+S26
+===== PAGE 27 =====
 Table S32 (continued)
 No. System/workflow Demonstrated object
 class
 Task codes Original sources
-26 DynaMate (protein–ligand) Soft/biomolecular T O D L26, a
-27 AGAPI-Agents Materials/surfaces T E O L27
 28 MASTER Materials/surfaces T E O L28
 29 El Agente Cuántico Molecules/complexes E L29, a
 30 V ASP Agent Materials/surfaces E O R L30
@@ -1947,15 +1886,15 @@ Molecules/complexes T O D L46
 69 LADeQ Molecules/complexes E L69
 70 MutexaGPT Soft/biomolecular T D L70, a
 71 Agent-MD Materials/surfaces D L71
+72 CGMas Soft/biomolecular T O D L72
+73 matmcp Materials/surfaces T E O L73, a, b
 Continued on the next page
-S28
-===== PAGE 29 =====
+S27
+===== PAGE 28 =====
 Table S32 (continued)
 No. System/workflow Demonstrated object
 class
 Task codes Original sources
-72 CGMas Soft/biomolecular T O D L72
-73 matmcp Materials/surfaces T E O L73, a, b
 74 Evolving TS workflows Molecules/complexes O F R L74
 75 ARCHE Molecules/complexes T E O F R L75
 76 Multireference QC agent Molecules/complexes E L76
@@ -1994,8 +1933,7 @@ records the base evaluator revision 0961d9ab, final reference task-file hashes, 
 postprocess. All 200 organized graphs underwent candidate, channel, and electronic-state matching checks; the 12 runs
 for three affected tasks underwent native-evidence Accuracy replay, changing five Accuracy values and their composites.
 Graph and Self-consistency remain those of the organized records. The reproduction script reads these records and applies
-the correction CSV to assemble the final 200-run table; the plotting scripts use the resulting tables. All reproduced results
-derive from the retained run records.
+the correction CSV to assemble the final 200-run table; the plotting scripts use the resulting tables.
 S7.3 Software responsibilities and calculation records
 Cloudra revision 70daa5a identifies the implementation described in the main-text methods.[ 2] The source is publicly
 available at https://github.com/yyywaa/Cloudra-mechanism-agent under the GNU AGPL. Reproducible tables
@@ -2003,12 +1941,12 @@ and scores are in the companion data package. RDKit and ETKDG supply molecular r
 bedding; MMFF94 supplies force-field relaxation.[18, 26–28] NumPy supplies numerical array/linear-algebra operations,
 NetworkX supplies graph representation and matching, and cclib works with engine-specific readers to extract quantum-
 chemical quantities.[19, 29, 30] ASE supplies the NEB/MDMin implementation used in standard IDPP, and Adam is used
-S29
-===== PAGE 30 =====
 in the lightweight interpolation path.[ 31–34] Task-name semantic projections use BGE-M3 embeddings and scikit-learn
 PCA.[35, 36] Publication tables are assembled with pandas, and the quantitative figures are drawn with Matplotlib.[37, 38]
 Each run records the program, model/API name, charge, spin, method, basis, and keywords used for its calculations
 and model requests. These records identify the experimental versions; dependency lower bounds specify installation re-
+S28
+===== PAGE 29 =====
 quirements. Native outputs contain stationary-point energies, frequencies, normal modes, IRC geometries, and the links to
 endpoint optimization and frequency calculations. Numerical barriers use the electronic-energy difference in Equation S1.
 S7.4 Reproduction entry points
@@ -2021,10 +1959,10 @@ python scripts/benchmark_p2/plot_speed_delivery.py
 python scripts/benchmark_p2/plot_imp.py
 That directory in the companion-data archive has the same layout as the repository and includes these scripts. The archive
 also includes the timing extractions and frozen behavioral requests and responses. The activation archive contains the
-original prompts, intervention commands, captured states, and full-vocabulary logits, which directly reproduce the reported
-probabilities and equal-logit controls. Replay and analysis scripts are in companion_data/behavioral_scripts/ ;
-model weights remain outside the archive. The literature directory contains the complete register, screening records, and
-search history. Editable TeX files, vector figures, and the bibliography accompany this SI for subsequent revision.
+prompts, intervention commands, captured states, and full-vocabulary logits used to calculate the reported probabilities
+and control logit differences. Replay and analysis scripts are in companion_data/behavioral_scripts/ ; model
+weights remain outside the archive. The literature directory contains the complete register, screening records, and search
+history. Editable TeX files, vector figures, and the bibliography accompany this SI.
 S7.5 Data-package inventory
 The SI companion-data archive is distributed separately from the compact Overleaf typesetting project. Unpack Cloudr
 a_SI_Data.zip beside the SI source to obtain the referenced companion_data/ directory. Its subdirectories contain
@@ -2043,8 +1981,7 @@ sis, and inventories of the archived completion records.
 publication table, including before/after Accuracy reports, the matching audit, and target_matching_accuracy_c
 orrections.csv.
 • literature/: all 85 source-linked systems and the coding/search records.
-A file-level SHA-256 inventory accompanies the archive. Source data retain their recorded precision; the SI analyzes the
-retained agent runs and quantum-chemical calculations.
+A file-level SHA-256 inventory accompanies the archive.
 References
 [1] DeepSeek-AI. DeepSeek V4 Model Card, 2026. URL https://fe-static.deepseek.com/chat/transparency/deepsee
 k-V4-model-card-EN.pdf .
@@ -2061,13 +1998,13 @@ Chemical Theory and Computation , 15(3):1652–1671, 2019. doi: 10.1021/acs.jctc
 and re-optimization of parameters. Journal of Molecular Modeling , 19(1):1–32, 2013. doi: 10.1007/s00894-012-1667-x.
 [6] Axel D. Becke. Density-functional thermochemistry. III. the role of exact exchange. The Journal of Chemical Physics , 98(7):
 5648–5652, 1993. doi: 10.1063/1.464913.
-S30
-===== PAGE 31 =====
 [7] Chengteh Lee, Weitao Y ang, and Robert G. Parr. Development of the Colle–Salvetti correlation-energy formula into a functional
 of the electron density. Physical Review B, 37(2):785–789, 1988. doi: 10.1103/PhysRevB.37.785.
 [8] P . J. Stephens, F. J. Devlin, C. F. Chabalowski, and M. J. Frisch. Ab initio calculation of vibrational absorption and circular
 dichroism spectra using density functional force fields. The Journal of Physical Chemistry , 98(45):11623–11627, 1994. doi:
 10.1021/j100096a001.
+S29
+===== PAGE 30 =====
 [9] Stefan Grimme, Jens Antony, Stephan Ehrlich, and Helge Krieg. A consistent and accurate ab initio parametrization of density
 functional dispersion correction (DFT-D) for the 94 elements H–Pu. The Journal of Chemical Physics , 132(15):154104, 2010.
 doi: 10.1063/1.3382344.
@@ -2124,12 +2061,12 @@ Julian Taylor, Sebastian Berg, Nathaniel J. Smith, Robert Kern, Matti Picus, Ste
 Brett, Allan Haldane, Jaime Fernández del Río, Mark Wiebe, Pearu Peterson, Pierre Gérard-Marchant, Kevin Sheppard, T yler
 Reddy, Warren Weckesser, Hameer Abbasi, Christoph Gohlke, and Travis E. Oliphant. Array programming with NumPy. Nature,
 585(7825):357–362, 2020. doi: 10.1038/s41586-020-2649-2.
-S31
-===== PAGE 32 =====
 [30] Noel M. O’Boyle, Adam L. Tenderholt, and Karol M. Langner. cclib: A library for package-independent computational chemistry
 algorithms. Journal of Computational Chemistry , 29(5):839–845, 2008. doi: 10.1002/jcc.20823.
 [31] Søren Smidstrup, Andreas Pedersen, Kurt Stokbro, and Hannes Jónsson. Improved initial guess for minimum energy path calcu-
 lations. The Journal of Chemical Physics , 140(21):214106, 2014. doi: 10.1063/1.4878664.
+S30
+===== PAGE 31 =====
 [32] Graeme Henkelman and Hannes Jónsson. Improved tangent estimate in the nudged elastic band method for finding minimum
 energy paths and saddle points. The Journal of Chemical Physics , 113(22):9978–9985, 2000. doi: 10.1063/1.1323224.
 [33] Ask Hjorth Larsen, Jens Jørgen Mortensen, Jakob Blomqvist, Ivano E. Castelli, Rune Christensen, Marcin Dułak, Jesper Friis,
@@ -2148,4 +2085,4 @@ Journal of Machine Learning Research , 12:2825–2830, 2011. URL https://jmlr.or
 doi: 10.25080/Majora-92bf1922-00a.
 [38] John D. Hunter. Matplotlib: A 2d graphics environment. Computing in Science & Engineering , 9(3):90–95, 2007. doi: 10.1109/
 MCSE.2007.55.
-S32
+S31

@@ -138,7 +138,7 @@ def overview():
         f"{outcome_counts['a_wins']} higher / {outcome_counts['b_wins']} lower / {outcome_counts['ties']} tied"
     )
     ax.text(0.0, 1.07, outcome_label, transform=ax.transAxes, va="bottom", fontsize=7.4)
-    panel(fig, "b", "Every task retained", 0.035, 0.51)
+    panel(fig, "b", "Paired task scores", 0.035, 0.51)
     ax = fig.add_axes([0.62, 0.12, 0.34, 0.30])
     rows = []
     for t in groups:

@@ -240,7 +240,6 @@ def main():
         fig.line(px, py, px, py + ph, MUTED, 0.65)
         fig.text(px + pw / 2, 188, text["xlabel"], 8, anchor="middle")
         fig.text(262, py + ph / 2, text["ylabel"], 8, anchor="middle", rotate=True)
-        fig.text(px, 34, "50 / 50", 7.5, fill=MUTED)
         for task in sorted(tasks, key=lambda t: t["task_id"] in highlighted):
             x, y = xy(task["pca"])
             fig.mark(

@@ -28,7 +28,7 @@ Outstanding requirements & 3 state questions $\times$ 2 context conditions $\tim
 \bottomrule
 \end{tabular}
 \par\smallskip\begin{minipage}{\linewidth}\footnotesize
-Each call is counted once. Representation, answer-order, and information variants use the same source molecule, geometry, or calculation chain. The single expanded-budget distance follow-up is additional to the 32-call study. The activation replacement experiment is described separately below.
+Representation, answer-order, and information variants use the same source molecule, geometry, or calculation chain. The single expanded-budget distance follow-up is additional to the 32-call study.
 \end{minipage}
 \end{table}
 
@@ -103,7 +103,7 @@ B & H7--C2--C3--Cl4 & 179.3752 & 0.6248\\
 
 The manuscript's Newman projections use the saved coordinates viewed along C2$\to$C3, with projected bond directions normalized for display. Table~\ref{tab:si-target-dihedrals} gives the signed angles and circular distances from the target. The agent subsequently submits candidate B as the transition-state guess, citing the H7 anti-periplanar arrangement and stretched C3--Cl4 bond.
 
-Ten local tests ask what to do next and whether the available measurements suffice. The H5-only inputs withhold H7 values and XYZ coordinates; the H5-plus-H7 inputs add the measured H7 values. In all three cyclic option permutations, adding H7 changes the next-action answer from requesting that measurement to selecting candidate B. In two paired sufficiency tests, it changes the answer from requesting more measurements to judging the information sufficient. All values come from the saved geometries; only the measurements supplied to the model change.
+Ten local tests ask what to do next and whether the available measurements suffice. The H5-only inputs withhold H7 values and XYZ coordinates; the H5-plus-H7 inputs add the measured H7 values. In all three cyclic option permutations, adding H7 changes the next-action answer from requesting that measurement to selecting candidate B. In two paired sufficiency tests, it changes the answer from requesting more measurements to judging the information sufficient. The paired inputs use the same geometries and differ in the supplied measurements.
 
 \subsection{Single-token transfer of a reported numerical fact}
 
@@ -128,7 +128,7 @@ Transfer at layer 47 & 0.008763 & 0.069810\\
 \bottomrule
 \end{tabular}
 \par\smallskip\begin{minipage}{\linewidth}\footnotesize
-The readout uses the full vocabulary, with bare and leading-space answer tokens combined. It is distinct from an A/B-renormalized probability or a proportion of correct task runs.
+The readout uses the full vocabulary, with bare and leading-space answer tokens combined.
 \end{minipage}
 \end{table}
 
@@ -173,8 +173,8 @@ The local IA1 test asks three questions: whether the latest report declares comp
 
 \subsection{Discussion of the diagnostic scope}
 
-The tests examine whether a model recognizes a molecule in different notations, compares distances, requests measurements for the specified atoms, uses a supplied numerical fact, detects changed calculation links, and identifies pending IRC verification. They describe the recorded local model and the tested inputs. The native follow-up uses cases selected after first-stage errors and retains all their variants; its counts apply to that selected set. The common output limit bounds response length; actual computation depends on prompt conditioning and the tokens generated in each thinking mode.
+The native follow-up includes all input variants of cases selected after first-stage errors.
 
-Activation replacement measures the effect of a changed state on the quantized Qwen model's distance-comparison answer. Establishing the original DeepSeek runs' internal mechanism or the chemical validity of their results requires separate evidence. In the E1 trajectory, Supervisor/workspace input intervenes between the measurements and the agent's use of candidate B. The separate local tests vary the supplied target measurements to examine their effect on the choice.
+Activation replacement measures the effect of a changed state on the quantized Qwen model's distance-comparison answer. In the E1 trajectory, Supervisor/workspace input intervenes between the measurements and the agent's use of candidate B. The separate local tests vary the supplied target measurements to examine their effect on the choice.
 
 The completed IA1 tests use the report-only and 12-message inputs. A separate request with the full 306-message history contained 242,803 counted input tokens in a 262,144-token context. It reached the 3,600-s HTTP waiting limit while awaiting an answer, leaving the saved response empty. Of six planned full-history inputs, the first was attempted and the other five remain unattempted. This incomplete request is recorded separately from the 12 completed short-context judgments.

@@ -290,7 +290,7 @@ def main() -> None:
             f"Mean component contributions sum to {sum(contributions[:3]):+.7f}; "
             f"saved composite delta is {contributions[3]:+.7f} because final scores are rounded."
         ),
-        "interpretation": "Scores are not scientific acceptance rates. Accuracy zero does not universally mean an incorrect refusal. All totals and components use the complete offline organization track in the local publication CSV.",
+        "interpretation": "Composite, self-consistency, and accuracy scores for the offline-organized runs in the publication CSV.",
     }
     interval = summary["paired_bootstrap_ci"]
     caption = (
@@ -305,9 +305,7 @@ def main() -> None:
         f"accuracy {weighted['accuracy']:+.5f}, Graph {weighted['graph']:+.5f}, "
         f"and SC {weighted['selfc']:+.5f} after weighting; the small sum discrepancy reflects "
         "saved-score rounding. The paired task-bootstrap 95% interval is "
-        f"{interval['low']:+.3f} to {interval['high']:+.3f}. "
-        "Accuracy zero does not universally indicate an incorrect refusal, and component "
-        "or composite scores are not scientific acceptance rates."
+        f"{interval['low']:+.3f} to {interval['high']:+.3f}."
     )
     style.save(fig, args.output, "bench_imp", data, caption)
     print(args.output / "bench_imp.png")

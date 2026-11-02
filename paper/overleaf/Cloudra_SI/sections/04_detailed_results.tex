@@ -42,9 +42,8 @@ Impossible & Guided & 10 & 0.5051 & 0.7006 & 0.9100 & 0.2700 \\
  & Brief & 10 & 0.6029 & 0.6345 & 0.8583 & 0.4700 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize SC denotes the graded self-consistency component. Every mean is calculated from the complete publication table. The overall tier weights are 20/50 for Easy and 10/50 for each other tier.\end{minipage}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize SC denotes the graded self-consistency component. The overall tier weights are 20/50 for Easy and 10/50 for each other tier.\end{minipage}
 \end{table}
-
 
 Table~\ref{tab:si-pairwise} gives all six pairwise comparisons on the same 50 tasks. Guided--Standard has a mean difference of 0.221366, a median difference of 0.114200, and 35 task wins, eight losses, and seven ties. The 95\% task-bootstrap interval is [0.134870, 0.312368]. Within the Normal tier, the means are 0.737020 and 0.573050, with a difference of 0.163970 [0.036520, 0.292230] and seven wins in ten tasks. Within Hard, the means are 0.957650 and 0.688750; the difference is 0.268900 [0.121300, 0.445930], with Guided higher in all ten task pairs. Easy has means of 0.912520 and 0.704405, with 11 wins, five losses, and four ties; its paired median difference is 0.020850. Impossible has means of 0.505060 and 0.247330 and is examined at the level of the requested target below.
 
@@ -68,7 +67,6 @@ Standard--Brief & -0.1946 & [-0.2990, -0.0914] & 11/34/5 \\
 \par\smallskip\begin{minipage}{\linewidth}\footnotesize The difference is the first workflow minus the second. W/L/T gives the first workflow's task wins, losses, and ties. Percentile task-bootstrap intervals use 100,000 resamples and seed 20261031; the four configurations of each sampled task remain together.\end{minipage}
 \end{table}
 
-
 Table~\ref{tab:si-weighted-gain} decomposes the Guided--Standard difference into weighted score components. Across all tasks, self-consistency contributes +0.117875 and accuracy +0.092717. In Normal and Hard together, the composite difference is +0.216435, including +0.124688 from self-consistency and +0.083712 from accuracy. In Hard, accuracy contributes +0.127391 and self-consistency +0.135250: both the requested answers and the calculations supporting them contribute to the gain.
 
 \begin{table}[!htbp]
@@ -88,15 +86,14 @@ Impossible & 10 & +0.257730 & +0.019226 & +0.136500 & +0.102000 \\
 Normal + Hard & 20 & +0.216435 & +0.008041 & +0.124688 & +0.083712 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize Component contributions are calculated from the unrounded final components. Composite differences use the four-decimal final scores, so the last displayed digits can differ by score rounding.\end{minipage}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize Component contributions use unrounded values; composite differences use four-decimal scores.\end{minipage}
 \end{table}
-
 
 Guided--Record averages +0.101156 [0.039606, 0.169478] across all tasks. In Normal and Hard together, its +0.146845 composite difference decomposes into +0.008338 from graph, +0.091938 from self-consistency, and +0.046574 from accuracy. Guided--Brief averages +0.026816 [$-0.048638$, 0.099584], with mean differences of +0.151350 on Normal and +0.129470 on Hard. Individual multistep tasks differ: NB1 has composite scores of 0.9628, 0.9128, and 0.9900 for Guided, Standard, and Brief; Guided and Brief both have self-consistency 1. NI1 has Guided and Standard composites of 0.9958 and 0.6196, with self-consistency 1 and 0.35. NQ5 favors Record over Guided, while NU3 favors Brief. The leading configuration varies among multistep tasks.
 
 \subsection{Graph delivery and evaluation of the run results}
 
-During execution, Guided, Record, and Brief each wrote 50 root mechanism graphs; Standard wrote 43. Standard's remaining seven studies---F1, HA1, HF1, IA9, M17, NR1, and P3---were organized from their own conversations, reports, tool results, and calculation files. The common evaluation procedure thus produced 50 graphs per workflow and 200 complete score profiles, with the source of each recovered field recorded. The recovered graphs give Standard credit for the research documented in these runs. This reduces the Guided--Standard difference compared with scoring by final-file delivery alone.
+During execution, Guided, Record, and Brief each wrote 50 root mechanism graphs; Standard wrote 43. Standard's remaining seven studies---F1, HA1, HF1, IA9, M17, NR1, and P3---were organized from their own conversations, reports, tool results, and calculation files. The common evaluation procedure thus produced 50 graphs per workflow and 200 complete score profiles, with the source of each recovered field recorded.
 
 The seven Standard studies have a mean organized composite of 0.153743, compared with 0.828529 for Guided on the same tasks. They account for 42.7\% of the total Guided--Standard difference. Table~\ref{tab:si-sc-distribution} separately reports self-consistency for the 40 non-Impossible tasks. Guided has 24 full-score records (60.0\%) and 16 partial-score records; Standard has seven full-score records (17.5\%), 29 partial-score records, and four zero-score records.
 
@@ -115,9 +112,7 @@ Record & 16 & 24 & 0 & 0.7633 \\
 Brief & 20 & 20 & 0 & 0.8439 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize This table describes the graded component for the positive-chemistry tiers. The separate scientific-validation record is evaluated from the complete task contract.\end{minipage}
 \end{table}
-
 
 \subsection{Elapsed research time and accumulated calculation effort}
 
@@ -138,9 +133,8 @@ Record & 5.4189 & 2.6203 & 3.6433 & 3.8942 \\
 Brief & 7.2689 & 3.6475 & 3.5656 & 4.8273 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize Each observation is a four-task batch (E1, NB1, HA1, IA1) at concurrency two. Three batches per workflow contain 48 task runs in total. Batch completion times include the original research lifecycle and outcomes.\end{minipage}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize Each observation is a four-task batch (E1, NB1, HA1, IA1) at concurrency two. Three batches per workflow contain 48 task runs in total.\end{minipage}
 \end{table}
-
 
 The P2 effort comparison uses the common 15-task set D3, M1, M8, NB1, NQ5, NR1, NU3, NU5, NU6, HA1, HA6, HB1, HB10, HD2, and HF1. This yields 60 run-level effort records, with all four configurations represented for each task. Table~\ref{tab:si-common-effort} gives the total and mean job-hours, job counts, terminal outcomes, and corresponding final scores. Job-hours sum the durations recorded for individual quantum-chemical jobs. For Standard/M1, the archived effort reconstruction uses native-log CPU time divided by four, as specified in the source record. The measurement unit throughout this comparison is accumulated job-hours.
 
@@ -159,9 +153,8 @@ Record & 118.16 & 7.877 & 431 & 62 & 38 & 0.7360 \\
 Brief & 233.85 & 15.590 & 883 & 167 & 120 & 0.7273 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize Each workflow contributes 15 task runs. Job-hours sum recorded process durations. Failed and cancelled jobs are separate terminal categories. Job counts measure execution effort; scientific validation is assessed from the calculation results.\end{minipage}
+\par\smallskip\begin{minipage}{\linewidth}\footnotesize Each workflow contributes 15 task runs. Job-hours sum recorded process durations. Failed and cancelled jobs are separate terminal categories.\end{minipage}
 \end{table}
-
 
 Guided used a mean of 11.0793 job-hours and obtained a mean composite of 0.812413. Relative to Standard, it used 46.7\% more job time and scored 0.162933 higher; relative to Brief, it used 28.9\% less job time and scored 0.085080 higher. Guided had both a higher score and lower job time than Brief on seven of the 15 paired tasks. Guided recorded 789 jobs, including 114 failures and 94 cancellations; Brief recorded 883 jobs, including 167 failures and 120 cancellations. In the wider 63-run archive, NU3, NU5, NU6, and NR1 account for 163.5 of 673.82 job-hours across their 16 runs. These trajectories record repeated searches for the required intermediates and connecting pathways.
 
@@ -188,18 +181,16 @@ NU6 & Guided & 0.6719 & 1.0000 & 0.9375 & 0.4844 \\
  & Standard & 0.6892 & 0.8167 & 0.6250 & 0.7000 \\
 \bottomrule
 \end{tabular}
-\par\smallskip\begin{minipage}{\linewidth}\footnotesize These profiles retain the distinct contributions of pathway coverage, evidence support, and agreement with the requested answer.\end{minipage}
 \end{table}
 
-
 \paragraph{HA8: stable reactant reference and reactive conformer.}
-Guided reports 29.46 kcal/mol and Standard 20.43 kcal/mol, against a reference of 29.48 kcal/mol. Their 9.03 kcal/mol difference comes from the reactant energy: Guided uses the lowest all-s-trans minimum, whereas Standard uses a reactive cisoid conformer. The IRC identifies the local conformer connected to the saddle; the task's barrier is measured from the specified stable reactant minimum. The two references can therefore be different conformers.
+Guided reports 29.46 kcal/mol and Standard 20.43 kcal/mol, against a reference of 29.48 kcal/mol. Their 9.03 kcal/mol difference comes from the reactant energy: Guided uses the lowest all-s-trans minimum, whereas Standard uses a reactive cisoid conformer. The IRC identifies the local conformer connected to the saddle; the task's barrier is measured from the specified stable reactant minimum.
 
 \paragraph{HH1: the same barrier with different IRC support.}
 Both workflows report a binaphthyl racemization barrier of 23.48 kcal/mol; the reference is 23.01 kcal/mol. Their accuracy components are 0.973067 and 0.973064 and both graph components are 1. Guided has self-consistency 1, whereas Standard has 0.5. Their composites are consequently 0.9838 and 0.8338. Standard's archive contains candidate channels and IRC inputs; Guided completes the required chain from the saddle through the IRC to the endpoint calculations. This difference in path support contributes 0.1500 to the composite despite the matching barriers.
 
 \paragraph{HI1: numerical agreement with different species and path coverage.}
-Guided and Standard both have accuracy approximately 1. Their graph components are 0.999176 and 0.332509, and self-consistency components are 1 and 0.233333. The corresponding composites are 0.9999 and 0.7032. Matching numerical accuracy thus accompanies different coverage of the requested species, steps, and path calculations.
+Guided and Standard both have accuracy approximately 1. Their graph components are 0.999176 and 0.332509, and self-consistency components are 1 and 0.233333. The corresponding composites are 0.9999 and 0.7032.
 
 \paragraph{NU6: the optimized saddle and the intended second step.}
 The Guided record gives $E_{\mathrm{TS}}=-247.030042392$ Ha for its concerted saddle region and $E_{\mathrm{betaine}}=-247.060060699$ Ha. Using 627.5094740631 kcal mol$^{-1}$ Ha$^{-1}$ gives
@@ -207,7 +198,7 @@ The Guided record gives $E_{\mathrm{TS}}=-247.030042392$ Ha for its concerted sa
 \left[E_{\mathrm{TS}}-E_{\mathrm{betaine}}\right]\,627.5094740631
 =18.836772\ \mathrm{kcal\,mol^{-1}}.
 \end{equation}
-Standard reports 18.837 kcal/mol as the second-step ring-closure barrier. Guided leaves the betaine-to-product ring-closure saddle unresolved and describes the energy difference relative to the concerted saddle region. Its searches from interpolated betaine geometries and constrained-scan peaks repeatedly return toward the direct reactant-to-product saddle region. Assigning the energy difference to an elementary step therefore requires identifying the optimized saddle and its actual endpoints.
+Standard reports 18.837 kcal/mol as the second-step ring-closure barrier. Guided leaves the betaine-to-product ring-closure saddle unresolved and describes the energy difference relative to the concerted saddle region. Its searches from interpolated betaine geometries and constrained-scan peaks repeatedly return toward the direct reactant-to-product saddle region.
 
 \subsection{Impossible-tier results and the requested negative conclusions}
 
@@ -237,32 +228,21 @@ IG8 & 1.0000 & 0.3339 & -0.6661 & 1.0 & 0.0 \\
 \par\smallskip\begin{minipage}{\linewidth}\footnotesize C denotes the composite and A the accuracy component for the task-defined numerical or negative target. All values are retained from the publication score table.\end{minipage}
 \end{table}
 
-
 Brief reaches accuracy 1 for IA1 (square-geometry cyclobutadiene automerization), IA5 (thermal disrotatory ring opening), IA9 (dioxetane thermolysis), and IC3 (open-shell singlet phenylnitrene). Guided reaches accuracy 1 for IA5 and IG8 (chromium dimer); Record reaches accuracy 1 for IA5. Both Guided and Brief have accuracy 0.7 in IB9, which contains positive and negative target components. Across all 40 Impossible runs, eight have accuracy 1 and ten have self-consistency 1 with accuracy 0. Offline target correspondence assigns Accuracy before publication scoring; Graph and Self-consistency remain those of the organized records. The following cases illustrate remaining local-support versus requested-target disagreements.
 
 Guided/IC3 retains Graph $=1$, Self-consistency $=1$, and Accuracy $=0$: the run distinguishes the open-shell target from a closed-shell branch but does not receive negative-target Accuracy credit under the final correspondence rules applied to that graph. Brief/IC3 receives Accuracy $=1$ for the same open-shell target, with composite 1.0.
 
-Record/IA5, Guided/IA5, and Brief/IA5 distinguish the requested disrotatory ring opening from an allowed conrotatory path and receive full negative-target Accuracy credit after correspondence. IF3 remains Accuracy 0 with Self-consistency 1 in Guided and Brief, showing that complete local support of a negative claim does not by itself establish agreement with every requested Impossible target.
+Record/IA5, Guided/IA5, and Brief/IA5 distinguish the requested disrotatory ring opening from an allowed conrotatory path and receive full negative-target Accuracy credit after correspondence. IF3 remains Accuracy 0 with Self-consistency 1 in Guided and Brief.
 
 \input{sections/easy_case_analysis}
 \input{sections/matcher_sensitivity}
 
 \subsection{Discussion of the supplementary comparisons}
 
-Tool and task graphs organize computational execution. Cloudra's Delivery DAG constrains the agents' submitted mechanism representation through species-occurrence nodes and elementary-step edges that carry molecular geometries, bonding patterns, and reaction connectivity. Cheminformatics algorithms establish and compare identities and atom correspondences; frequency and IRC/endpoint calculations determine the supported stationary points and connections. The Normal and Hard cases show why these assignments matter: HA8 requires correcting the reactant energy reference, and NU6 requires recognizing that a search has returned to a different saddle region. Agents use the represented species and steps to choose new geometries, continue a path calculation, or revise the mechanism, complementing external planning and tool feedback.\citep{valmeekam2023planning,ref18,huang2024selfcorrect}
+Cloudra's Delivery DAG constrains the agents' submitted mechanism representation through species-occurrence nodes and elementary-step edges that carry molecular geometries, bonding patterns, and reaction connectivity. Cheminformatics algorithms establish and compare identities and atom correspondences; frequency and IRC/endpoint calculations determine the supported stationary points and connections. The Normal and Hard cases show why these assignments matter: HA8 requires correcting the reactant energy reference, and NU6 requires recognizing that a search has returned to a different saddle region. Agents use the represented species and steps to choose new geometries, continue a path calculation, or revise the mechanism, complementing external planning and tool feedback.\citep{valmeekam2023planning,ref18,huang2024selfcorrect}
 
 P2 retains one run per task and configuration. Its task-cluster bootstrap intervals measure variation across the sampled tasks. P1b supplies three repeats on each of four tasks under each configuration; these 48 runs provide repeat measurements on those four tasks within the 50-task P2 study. The P2 table includes all 200 runs and their three components. Some Hard tasks score qualitative channel identity, so the gain includes pathway identification and completion of the supporting calculations as well as numerical barriers. Repeating the full task set would measure run-to-run variation and how often the agents select each route.
 
-The Impossible rubric concerns targets judged physically inaccessible under the specified methods; self-consistency credit records the supported negative conclusion. A positive step requires its own TS--IRC--endpoint chain. IA5 and IC3 require matching the requested pathway and electronic state before scoring the answer. Brief's crossed outcomes suggest task-dependent effects of diagnostic content; the causal effect of diagnostic length remains unmeasured. In NU6, the matching energy difference prompts a check of the assigned step. The native geometries and paths determine whether two calculations found the same saddle.
+The benchmark reports electronic energy differences. NI5 specifies weakly acidic aqueous solution, and NU5 specifies dichloromethane at high concentration; both use the prescribed electronic-energy references. A solution-phase free-energy treatment would add zero-point, thermal/entropic, standard-state, and solvation contributions.
 
-Timing comparisons use batch elapsed time for P1b and accumulated job-hours for P2. Separate measurements of queueing, calculation, agent-active time, and end-to-end P2 latency remain future work.
-
-
-Cloudra's default preorganization samples 32 rigid relative placements, relaxes them with MMFF94, and selects candidates by energy and clustering. It samples local arrangements; global-minimum coverage requires a separate assessment. CREST is an optional backend, and its coverage across the 200 runs remains to be established. Flexible systems may need broader sampling and more quantum-chemical calculations. Further work should measure which conformers are found and how calculations can be allocated among competing candidates.
-
-The benchmark scores electronic energy differences alone; zero-point, thermal/entropic, standard-state, and solvation free-energy contributions remain outside this comparison. NI5 specifies weakly acidic aqueous solution, and NU5 specifies dichloromethane at high concentration; both are scored against the prescribed electronic-energy references. Solution-phase free-energy barriers and solvent sensitivity, including the magnitude and direction of solvent effects, remain unassessed.
-
-All workflow comparisons used the same atom-mapping coefficients and ambiguity window, and the same branch-crowding decay, depth, and congestion settings. Their individual effects remain unmeasured. The imaginary-mode alignment ratio of 0.5 is advisory; physical validation uses the stationary-point and IRC/endpoint calculations. All P2 configurations used DeepSeek-v4.1-flash (1017), the API alias \texttt{deepseek-v4-flash}, and the recorded request settings. Additional backbones would test whether the workflow improvements extend to other models.
-
-
-The Easy cases show two different problems. In F4, the final graphs assign different reactant identities despite calculations supporting essentially the same pathway. In G2, validation feedback prompts deletion of structured numerical fields while the values remain in prose. Recording validation status separately would let the agent state a quantity's scientific qualification while retaining the quantity and its source. The 2~November~2026 target-correspondence overlay is the official Accuracy postprocess for these Impossible pathway and electronic-state assignments; Graph, Self-consistency, and the unchanged runs remain those of the organized publication records.
+The Easy cases show two different problems. In F4, the final graphs assign different reactant identities despite calculations supporting essentially the same pathway. In G2, validation feedback prompts deletion of structured numerical fields while the values remain in prose. Recording validation status separately would let the agent state a quantity's scientific qualification while retaining the quantity and its source.

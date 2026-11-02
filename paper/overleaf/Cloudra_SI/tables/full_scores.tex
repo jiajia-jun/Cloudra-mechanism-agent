@@ -3,7 +3,7 @@
 
 Tables~\ref{tab:full-scores-easy}--\ref{tab:full-scores-impossible} report all 200 runs and all four reported quantities, comprising 200 composite scores and 600 component values. Standard is the primary comparison using the same model backbone; Record and Brief are workflow ablations. Every task has one result for each configuration.
 
-Composite scores are displayed to four decimal places and component scores to six decimal places. The accompanying \texttt{cloudrabench\_200\_run\_scores.csv} retains the original full-precision numeric strings. Accordingly, recomputing the weighted composite from the displayed component values can differ from the separately rounded composite in the last shown digit. The printed scientific self-consistency score is the graded component, distinct from the separate all-or-none scientific acceptance decision.
+Composite scores are displayed to four decimal places and component scores to six decimal places. The accompanying \texttt{cloudrabench\_200\_run\_scores.csv} retains the original full-precision numeric strings. Weighted composites use the full-precision components; displayed values are rounded separately.
 
 \input{tables/full_scores_easy}
 \input{tables/full_scores_normal}
@@ -21,6 +21,6 @@ The two vector panels below expand the complete per-task score view for reading 
 \begin{figure}[!t]
 \centering
 \includegraphics[width=\textwidth]{figures/bench_tasks_hi.pdf}
-\caption{All Hard and Impossible task scores, with the same layer and configuration ordering as Figure~\ref{fig:si-task-matrix-en}. All 80 runs have complete composite and component values.}
+\caption{Scores for all 80 Hard and Impossible runs, with the same component and configuration ordering as Figure~\ref{fig:si-task-matrix-en}.}
 \label{fig:si-task-matrix-hi}
 \end{figure}
