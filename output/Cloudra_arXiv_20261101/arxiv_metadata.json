@@ -15,10 +15,10 @@
   "license_status": "author confirmed: arXiv perpetual, non-exclusive license; all-author public consent confirmed and submission agreement accepted online",
   "journal_reference": null,
   "publication_doi": null,
-  "account_endorsement_status": "cs.MA endorsement required; retained draft 8312079; empty draft 8312432 deleted with author authorization. No source upload or final submission.",
+  "account_endorsement_status": "cs.MA source upload and final submission accepted by arXiv; dashboard status submitted on 2026-11-02.",
   "public_data_location_status": "Local plotting package updated after editorial revision; Drive still serves the previous package. Replacement is blocked pending user approval.",
   "code_repository_visibility_checked": "private, GitHub connector, 2026-11-01",
-  "compiler_requirement": "XeLaTeX; arXiv currently supports TeX Live 2025 (default) and 2023; existing Overleaf projects use 2026",
+  "compiler_requirement": "Submitted and successfully compiled with XeLaTeX / TeX Live 2025.",
   "public_data_directory": "https://drive.google.com/drive/folders/1yZo3eJuCUuAgedQztgCtLyJcc8MZipf7",
   "p2_full_archive_url": "https://drive.google.com/file/d/1DXtlUEmhshADrG48fyZLkEuqNxFWOTFM/view?usp=drivesdk",
   "public_data_release_record": "../Cloudra_Public_Data_20261101/drive_publication.json",
@@ -126,5 +126,44 @@
     "overfull_warnings": 0,
     "uploaded_to_arxiv": false,
     "online_overleaf_updated": false
+  },
+  "submission_status": "submitted",
+  "submission_id": "8312079",
+  "arxiv_identifier": null,
+  "submission_20261102": {
+    "verified_at_utc": "2026-11-02T10:03:26Z",
+    "status": "submitted",
+    "submission_id": "8312079",
+    "account_confirmation": "Article submitted; dashboard row submit/8312079 has status submitted",
+    "paper_source_commit": "a12556d96b40c75cbb5cfc662b078958c1ab4e37",
+    "uploaded_source_zip_sha256": "4173d66cf99da9fc59f8e06ecbef3c98a8198621d64c142e3cad60785b691d12",
+    "primary_category": "cs.MA",
+    "cross_lists": [],
+    "license": "http://arxiv.org/licenses/nonexclusive-distrib/1.0/",
+    "compiler": "XeLaTeX / TeX Live 2025",
+    "online_compilation": {
+      "main.tex": "SUCCEEDED",
+      "supplement.tex": "SUCCEEDED"
+    },
+    "main_pages": 22,
+    "supplement_pages": 31,
+    "merged_pages": 53,
+    "online_pdf_sha256": "f07686b36112fcc997f00988750adddea036cb18e38bd128900545efe15401b3",
+    "online_pdf_file": "Cloudra_arXiv_submitted_8312079.pdf",
+    "confirmation_screenshot": "submission_status_8312079.jpg",
+    "online_pdf_check": "53 pages; content complete. First page has arXiv submission watermark; one SI table and paragraph move across S16/S17. Authors and revised PCA, NI1, investment figures inspected.",
+    "retained_bibliographies": [
+      "main.bbl",
+      "supplement.bbl"
+    ],
+    "removed_unused_files": [
+      "manuscript/figures/Cloudra_Architecture_Stacked.svg",
+      "manuscript/figures/bench_tasks.pdf",
+      "manuscript/figures/bench_tasks_hi.pdf",
+      "manuscript/figures/fig04.pdf"
+    ],
+    "arxiv_identifier": null,
+    "public_announcement_verified": false,
+    "drive_replacement_performed": false
   }
 }
