@@ -25,8 +25,8 @@ Atom attributes retain element, isotope, formal charge, hydrogen count, radical-
 
 \begin{equation}\label{eq:methods-01}
 \begin{aligned}
-J(\pi)={}&2(N_{\mathrm{f}}+N_{\mathrm{b}})+N_{\mathrm{o}}\\
-&+4\Delta_H+8\Delta_q+8\Delta_r+2N_{\mathrm{s}}.
+J(\pi)&=2(N_{\mathrm{f}}+N_{\mathrm{b}})+N_{\mathrm{o}}\\
+&\quad{}+4\Delta_H+8\Delta_q+8\Delta_r+2N_{\mathrm{s}}.
 \end{aligned}
 \end{equation}
 
@@ -73,7 +73,8 @@ During multicomponent preorganization, the primary fragment is fixed at the orig
 \begin{equation}\label{eq:methods-05}
 \begin{aligned}
 \hat{\mathbf{u}}_s&=(a_s\cos s\gamma,\,y_s,\,a_s\sin s\gamma),\\
-a_s&=\sqrt{1-y_s^2},\qquad y_s=1-\frac{2s}{K-1},\\
+a_s&=\sqrt{1-y_s^2},\\
+y_s&=1-\frac{2s}{K-1},\\
 \gamma&=\pi(3-\sqrt{5}).
 \end{aligned}
 \end{equation}
@@ -81,10 +82,7 @@ a_s&=\sqrt{1-y_s^2},\qquad y_s=1-\frac{2s}{K-1},\\
 Here $\gamma=\pi(3-\sqrt{5})\approx 2.3999\text{ rad}$ ($137.5^\circ$) represents the Golden Angle, generating a Fibonacci spherical spiral grid for uniform distribution of directions. The axial twist about $\hat{\mathbf{u}}_s$ is $2\pi s/K$ (default $K=32$). Translation along the interfragment vector resolves steric overlap. For a set $W$ of guided atom pairs with target distance windows $[l_{ij},u_{ij}]$, placement $\mathbf{X}$ is scored by
 
 \begin{equation}\label{eq:methods-06}
-\begin{aligned}
-S(\mathbf{X})=\max_{(i,j)\in W}\{&0,\,l_{ij}-d_{ij}(\mathbf{X}),\\
-&d_{ij}(\mathbf{X})-u_{ij}\}.
-\end{aligned}
+S(\mathbf{X})=\max_{(i,j)\in W}\{0,\,l_{ij}-d_{ij}(\mathbf{X}),\,d_{ij}(\mathbf{X})-u_{ij}\}.
 \end{equation}
 
 Configurations with low $S(\mathbf{X})$ undergo distance-restrained MMFF94 force-field optimization\citep{mmff941996} to bring the specified atom pairs into their target distance windows while relaxing nonbonded contacts. Candidates are retained only if the force-field optimization converges, the distances fall within their windows, stereochemistry is preserved, and fragment contacts satisfy $d_{i^*j^*}\le 1.7(r_{i^*}+r_{j^*})$. The retained configurations are ranked by unconstrained single-point energy and clustered with a heavy-atom Kabsch RMSD threshold of 0.5 Å to provide starting structures.
@@ -95,8 +93,10 @@ After reordering the product atoms to match the reactant, each endpoint is cente
 \begin{equation}\label{eq:methods-07}
 \begin{gathered}
 \min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\
-\mathbf{P}^{\mathsf{T}}\mathbf{R}=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
-\mathbf{Q}=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
+\begin{aligned}
+\mathbf{P}^{\mathsf{T}}\mathbf{R}&=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
+\mathbf{Q}&=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
+\end{aligned}
 \end{gathered}
 \end{equation}
 
@@ -135,9 +135,9 @@ For a species or step $t$, let $F_t$ contain its parsed results, $R$ its require
 
 \begin{equation}\label{eq:methods-09}
 \begin{aligned}
-S_t={}&\mathbf{1}[R\ne\emptyset]\\
-&\wedge\bigwedge_{c\in R}\mathbf{1}[\exists f\in F_t:f.c=c,\,f.o=+]\\
-&\wedge\mathbf{1}[\nexists f\in F_t:f.c\in R\cup O,\,f.o=-].
+S_t&=\mathbf{1}[R\ne\emptyset]\\
+&\quad{}\wedge\bigwedge_{c\in R}\mathbf{1}[\exists f\in F_t:f.c=c,\,f.o=+]\\
+&\quad{}\wedge\mathbf{1}[\nexists f\in F_t:f.c\in R\cup O,\,f.o=-].
 \end{aligned}
 \end{equation}
 

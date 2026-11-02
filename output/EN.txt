@@ -482,7 +482,8 @@ ples, direction s is
 ˆus = (as cos sγ, y s, a s sin sγ),
 as =
 √
-1 − y2s , y s = 1 − 2s
+1 − y2s ,
+ys = 1 − 2s
 K − 1 ,
 γ = π(3 −
 √
@@ -499,9 +500,7 @@ of guided atom pairs with target distance windows [lij, uij],
 placement X is scored by
 S(X) = max
 (i,j)∈W
-{0, l ij − dij(X),
-dij(X) − uij}.
-(2.6)
+{0, l ij − dij(X), d ij(X) − uij}. (2.6)
 Configurations with low S(X) undergo distance-
 restrained MMFF94 force-field optimization[ 14] to bring
 the specified atom pairs into their target distance windows

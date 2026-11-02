@@ -25,8 +25,8 @@ Cloudra 根据规定的反应条件与计算要求，通过构造候选分子构
 
 \begin{equation}\label{eq:methods-01}
 \begin{aligned}
-J(\pi)={}&2(N_{\mathrm{f}}+N_{\mathrm{b}})+N_{\mathrm{o}}\\
-&+4\Delta_H+8\Delta_q+8\Delta_r+2N_{\mathrm{s}}.
+J(\pi)&=2(N_{\mathrm{f}}+N_{\mathrm{b}})+N_{\mathrm{o}}\\
+&\quad{}+4\Delta_H+8\Delta_q+8\Delta_r+2N_{\mathrm{s}}.
 \end{aligned}
 \end{equation}
 
@@ -73,7 +73,8 @@ B_s=\sum_{k\in T_s} c_k r_k \rho^{\ell_k},\qquad\rho=0.5,\quad 0\le \ell_k\le 5.
 \begin{equation}\label{eq:methods-05}
 \begin{aligned}
 \hat{\mathbf{u}}_s&=(a_s\cos s\gamma,\,y_s,\,a_s\sin s\gamma),\\
-a_s&=\sqrt{1-y_s^2},\qquad y_s=1-\frac{2s}{K-1},\\
+a_s&=\sqrt{1-y_s^2},\\
+y_s&=1-\frac{2s}{K-1},\\
 \gamma&=\pi(3-\sqrt{5}).
 \end{aligned}
 \end{equation}
@@ -81,10 +82,7 @@ a_s&=\sqrt{1-y_s^2},\qquad y_s=1-\frac{2s}{K-1},\\
 其中参数 $\gamma=\pi(3-\sqrt{5})\approx 2.3999\text{ rad}$（约为 $137.5^\circ$）为黄金角，对应斐波那契球面螺旋分布；绕 $\hat{\mathbf{u}}_s$ 轴的自旋角取 $2\pi s/K$（默认采样 $K=32$）。沿组分质心向量平移以消除原子重叠冲突。对于显式指定的引导原子对集合 $W$ 及其目标距离窗口 $[l_{ij},u_{ij}]$，构型 $\mathbf{X}$ 的违背惩罚评分为：
 
 \begin{equation}\label{eq:methods-06}
-\begin{aligned}
-S(\mathbf{X})=\max_{(i,j)\in W}\{&0,\,l_{ij}-d_{ij}(\mathbf{X}),\\
-&d_{ij}(\mathbf{X})-u_{ij}\}.
-\end{aligned}
+S(\mathbf{X})=\max_{(i,j)\in W}\{0,\,l_{ij}-d_{ij}(\mathbf{X}),\,d_{ij}(\mathbf{X})-u_{ij}\}.
 \end{equation}
 
 低惩罚构型进行带谐性距离约束的 MMFF94 力场优化\citep{mmff941996}，使指定原子对的距离进入目标窗口，同时松弛非键接触。只保留力场优化收敛、距离落入窗口、立体构型得到保留且片段接触满足 $d_{i^*j^*}\le 1.7(r_{i^*}+r_{j^*})$ 的构型。随后按无约束力场单点能排序，并采用 0.5 Å 的重原子 Kabsch RMSD 阈值聚类去重，得到后续计算的初始构型。
@@ -95,8 +93,10 @@ S(\mathbf{X})=\max_{(i,j)\in W}\{&0,\,l_{ij}-d_{ij}(\mathbf{X}),\\
 \begin{equation}\label{eq:methods-07}
 \begin{gathered}
 \min_{\mathbf{Q}^{\mathsf{T}}\mathbf{Q}=\mathbf{I},\det\mathbf{Q}=1}\|\mathbf{P}\mathbf{Q}-\mathbf{R}\|_{\mathrm{F}}^2,\\
-\mathbf{P}^{\mathsf{T}}\mathbf{R}=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
-\mathbf{Q}=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
+\begin{aligned}
+\mathbf{P}^{\mathsf{T}}\mathbf{R}&=\mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^{\mathsf{T}},\\
+\mathbf{Q}&=\mathbf{U}\operatorname{diag}\!\bigl(1,1,\det(\mathbf{U}\mathbf{V}^{\mathsf{T}})\bigr)\mathbf{V}^{\mathsf{T}}.
+\end{aligned}
 \end{gathered}
 \end{equation}
 
@@ -135,9 +135,9 @@ m&=(d_{p^*}^{\mathrm{R}}+d_{p^*}^{\mathrm{P}})/2.
 
 \begin{equation}\label{eq:methods-09}
 \begin{aligned}
-S_t={}&\mathbf{1}[R\ne\emptyset]\\
-&\wedge\bigwedge_{c\in R}\mathbf{1}[\exists f\in F_t:f.c=c,\,f.o=+]\\
-&\wedge\mathbf{1}[\nexists f\in F_t:f.c\in R\cup O,\,f.o=-].
+S_t&=\mathbf{1}[R\ne\emptyset]\\
+&\quad{}\wedge\bigwedge_{c\in R}\mathbf{1}[\exists f\in F_t:f.c=c,\,f.o=+]\\
+&\quad{}\wedge\mathbf{1}[\nexists f\in F_t:f.c\in R\cup O,\,f.o=-].
 \end{aligned}
 \end{equation}
 

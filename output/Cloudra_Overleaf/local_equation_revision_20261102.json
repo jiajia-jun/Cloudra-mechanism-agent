@@ -1,0 +1,24 @@
+{
+  "date": "2026-11-02",
+  "scope": "Math typography only: align multiline relations, separate definitions, remove unnecessary hard break in Eq. (2.6).",
+  "equations_updated": [
+    "2.1",
+    "2.5",
+    "2.6",
+    "2.7",
+    "2.9"
+  ],
+  "mathematical_symbols_labels_and_prose_unchanged": true,
+  "local_revision_uploaded_to_arxiv": false,
+  "arxiv_existing_submission": "8312079; submitted version retained",
+  "outputs": {
+    "EN": {
+      "pages": 22,
+      "sha256": "f16453237ab36903a2712f1f8a7cd1bf03020dd775fb5145b7991ad9c41a4a90"
+    },
+    "ZH": {
+      "pages": 19,
+      "sha256": "30864e455868ccd41614c777b52264330f339d86a3bf60c3fb3a12291ddb5017"
+    }
+  }
+}
