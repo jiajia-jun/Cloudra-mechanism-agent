@@ -1,6 +1,8 @@
 """Real MCP tools traverse API startup and both Agent invocation protocols."""
 import asyncio
+import gc
 import sys
+import weakref
 from pathlib import Path
 
 import pytest
@@ -11,7 +13,7 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import Command, Project, RuntimeSettings
 from cloudra.runtime_v2.turn_pipeline import LLMResponse
 from cloudra.services.api_v2.app import create_v2_app
-from cloudra.tools import get_tools_lst, use_tool_entries
+from cloudra.tools import ToolEntry, external_tool_entries, get_tools_lst, use_tool_entries
 from cloudra.tools.mcp import MCPToolManager
 from tests.agent_scenarios import ScenarioHarness, ScriptedProvider, Step
 
@@ -21,6 +23,64 @@ FIXTURE = Path(__file__).parent / "fixtures" / "mcp_server.py"
 def config():
     return MCPStdioServerConfig(command=sys.executable, args=[str(FIXTURE)],
         env={"MCP_FIXTURE_TOKEN": "fixture-token"})
+
+
+@pytest.mark.asyncio
+async def test_runner_catalog_is_inherited_without_cross_context_finalizer_errors(tmp_path, monkeypatch):
+    """Collect an abandoned live runner from a different task's Context."""
+    cleanup_errors = []
+    original_unraisablehook = sys.unraisablehook
+    target_coroutine_id = None
+
+    def record_cleanup_error(error):
+        if id(error.object) == target_coroutine_id:
+            cleanup_errors.append(error.exc_value)
+        else:
+            original_unraisablehook(error)
+
+    monkeypatch.setattr(sys, "unraisablehook", record_cleanup_error)
+    observed_catalogs = []
+    destroyed_tasks = []
+    target_task_name = None
+    loop = asyncio.get_running_loop()
+    original_handler = loop.get_exception_handler()
+
+    def record_destroyed_task(loop, context):
+        if (context.get("message") == "Task was destroyed but it is pending!"
+                and context["task"].get_name() == target_task_name):
+            destroyed_tasks.append(context["task"].get_name())
+        elif original_handler is not None:
+            original_handler(loop, context)
+        else:
+            loop.default_exception_handler(context)
+
+    class WaitingProvider(ScriptedProvider):
+        async def complete(self, agent, messages, tools, **kwargs):
+            observed_catalogs.append(tuple(entry.tool_name for entry in external_tool_entries()))
+            await asyncio.Event().wait()
+
+    async def start_abandoned_runner():
+        harness = await ScenarioHarness.start(tmp_path, provider=WaitingProvider(), attach_store=False)
+        harness.core.external_tools.append(ToolEntry(None, "mcp__owner__echo", "mcp__owner__echo", {}))
+        agent = await harness.spawn("coordinator", protocol="traditional")
+        await harness.wait_for(lambda: bool(observed_catalogs), "runner waiting in provider")
+        task = harness.runner.task_for(agent.id)
+        return weakref.ref(task), task.get_name(), id(task.get_coro())
+
+    loop.set_exception_handler(record_destroyed_task)
+    try:
+        caller_entries = [ToolEntry(None, "mcp__caller__echo", "mcp__caller__echo", {})]
+        with use_tool_entries(caller_entries):
+            task_ref, target_task_name, target_coroutine_id = await start_abandoned_runner()
+            assert external_tool_entries() is caller_entries
+            gc.collect()
+            assert external_tool_entries() is caller_entries
+        assert task_ref() is None
+        assert observed_catalogs == [("mcp__owner__echo",)]
+        assert len(destroyed_tasks) == 1
+        assert cleanup_errors == []
+    finally:
+        loop.set_exception_handler(original_handler)
 
 
 @pytest.mark.asyncio
