@@ -2,7 +2,7 @@
 
 [English](RESEARCH_DATA.md) · [返回文档中心](README.md)
 
-本仓库提供 **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** 的代码、实验数据与分析脚本。公开论文链接将在 arXiv 正式公告后补充。
+本仓库提供 **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** 的代码、实验数据与分析脚本。预印本已公开：[arXiv:2611.02909](https://arxiv.org/abs/2611.02909) [cs.MA]，DOI：[10.48550/arXiv.2611.02909](https://doi.org/10.48550/arXiv.2611.02909)。
 
 [SI 复现源材料](../paper/overleaf/Cloudra_SI/companion_data/)、[绘图脚本](../paper/figures/)和 [SI 数据包](../output/Cloudra_SI/Cloudra_SI_Data.zip)保留当前路径。稿件源码、PDF、排版、审稿与提交产物仅在本机保留，已跟踪的旧版本可从 Git 历史追溯。
 
@@ -29,4 +29,4 @@ Gold 的原件缺失、真实 IRC 来源限制及人工验收例外见[当前参
 
 检查已发布结果时使用对应数据包记录的代码快照。重新运行时记录所用提交、模型与计算设置；当前分支可能已经包含后续开发改动。
 
-论文引用见根目录 [CITATION.bib](../CITATION.bib)，GitHub 引用信息见 [CITATION.cff](../CITATION.cff)。公开论文链接及 arXiv 编号将在正式公告后补充。
+预印本引用见根目录 [CITATION.bib](../CITATION.bib)，GitHub 引用信息见 [CITATION.cff](../CITATION.cff)，均已包含 [arXiv:2611.02909](https://arxiv.org/abs/2611.02909) 与 DOI [10.48550/arXiv.2611.02909](https://doi.org/10.48550/arXiv.2611.02909)。

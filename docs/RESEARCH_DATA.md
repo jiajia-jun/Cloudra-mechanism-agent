@@ -2,7 +2,7 @@
 
 [中文](RESEARCH_DATA_CN.md) · [Documentation](README_EN.md)
 
-This repository provides code, experimental data and analysis scripts for **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration**. A public paper link will be added after the official arXiv announcement.
+This repository provides code, experimental data and analysis scripts for **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration**, available as [arXiv:2611.02909](https://arxiv.org/abs/2611.02909) [cs.MA], with DOI [10.48550/arXiv.2611.02909](https://doi.org/10.48550/arXiv.2611.02909).
 
 The [SI reproduction sources](../paper/overleaf/Cloudra_SI/companion_data/), [figure scripts](../paper/figures/) and [SI data package](../output/Cloudra_SI/Cloudra_SI_Data.zip) remain at their current paths. Manuscript sources, PDFs and editorial or submission materials are kept locally; earlier tracked versions remain in Git history.
 
@@ -29,4 +29,4 @@ Missing Gold originals, limitations in IRC provenance and manual acceptance exce
 
 Use the code snapshot recorded in the relevant package when inspecting published results. For a new run, record the commit, model and calculation settings; the current branch may include subsequent development changes.
 
-Use [CITATION.bib](../CITATION.bib) for the manuscript citation and [CITATION.cff](../CITATION.cff) for GitHub citation metadata. The public paper link and arXiv identifier will be added after the official announcement.
+Use [CITATION.bib](../CITATION.bib) for the preprint citation and [CITATION.cff](../CITATION.cff) for GitHub citation metadata. Both identify [arXiv:2611.02909](https://arxiv.org/abs/2611.02909) and DOI [10.48550/arXiv.2611.02909](https://doi.org/10.48550/arXiv.2611.02909).

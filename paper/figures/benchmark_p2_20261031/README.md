@@ -66,4 +66,4 @@ uv run python scripts/benchmark_p2/plot_imp.py
 
 ## 论文与数据入口
 
-稿件源码在本机留存；公开论文链接将在 arXiv 正式公告后补充。[研究数据说明](../../../docs/RESEARCH_DATA_CN.md)列出配套实验数据和下载方式。
+稿件源码在本机留存；预印本见 [arXiv:2611.02909](https://arxiv.org/abs/2611.02909)。[研究数据说明](../../../docs/RESEARCH_DATA_CN.md)列出配套实验数据和下载方式。

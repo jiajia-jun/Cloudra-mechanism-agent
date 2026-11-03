@@ -7,4 +7,4 @@ This directory contains research inputs, analysis scripts, and figure sources su
 - [Literature sources](literature/README.md)
 - [Research data and downloads](../docs/RESEARCH_DATA.md)
 
-Manuscript files and editorial artifacts are kept locally rather than in the current branch. Earlier tracked versions remain in Git history. The public paper link will be added after the arXiv announcement.
+Manuscript files and editorial artifacts are kept locally rather than in the current branch. Earlier tracked versions remain in Git history. The preprint is available as [arXiv:2611.02909](https://arxiv.org/abs/2611.02909).

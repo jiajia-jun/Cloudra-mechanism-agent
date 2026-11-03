@@ -16,7 +16,7 @@ The previous version focused on **computational exploration of organic small-mol
 
 We will continue maintaining Cloudra, improving agent performance and exploring support for periodic systems, molecular dynamics and other widely needed applications. Our goal is a general-purpose chemistry agent, and we are working toward it.
 
-The project is currently at the manuscript submission stage.
+The Cloudra preprint is available on [arXiv](https://arxiv.org/abs/2611.02909).
 
 ## What you can do
 
@@ -80,7 +80,7 @@ See the [DAG guide](docs/DAG_ORCHESTRATION.md) for graph delivery and the [TS gu
 
 ## Paper, data and reproduction
 
-**Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** has been submitted to arXiv and is awaiting announcement. A public paper link will be added after release.
+**Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** is available as [arXiv:2611.02909](https://arxiv.org/abs/2611.02909) [cs.MA], with DOI [10.48550/arXiv.2611.02909](https://doi.org/10.48550/arXiv.2611.02909).
 
 The [research data and reproduction guide](docs/RESEARCH_DATA.md) separates reproducing paper figures, inspecting original agent runs, reviewing Gold reference calculations and rerunning the benchmark. The formal bank contains 50 tasks; P2 comprises four configurations and 200 retained runs. The full P2 archive (14.9 GB) is publicly available with read-only access; filenames, checksums and download instructions are on the [P2 delivery page](docs/benchmarks/P2_DELIVERY.md).
 
@@ -90,9 +90,9 @@ Issues, experience reports and improvements are welcome. For calculation problem
 
 If you use Cloudra in research, please cite the manuscript and record the software commit used:
 
-> Chengyi Yang, Qianxin Zhou, and Yang Li. *Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration*. Working draft, 31 October 2026.
+> Chengyi Yang, Qianxin Zhou, and Yang Li. *Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration*. arXiv:2611.02909 [cs.MA], 2026. [doi:10.48550/arXiv.2611.02909](https://doi.org/10.48550/arXiv.2611.02909).
 
-[BibTeX](CITATION.bib) · [GitHub citation metadata](CITATION.cff). The arXiv identifier will be added after publication.
+[BibTeX](CITATION.bib) · [GitHub citation metadata](CITATION.cff) · [arXiv preprint](https://arxiv.org/abs/2611.02909).
 
 ## License
 
