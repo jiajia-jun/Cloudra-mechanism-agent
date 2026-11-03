@@ -2,12 +2,13 @@
 
 [English](README_EN.md) · [项目首页](../README_CN.md)
 
-第一次使用，从[安装与第一个任务](../README_CN.md#安装与启动)开始。核查论文实验结果或复现图表，从[论文、数据与复现](RESEARCH_DATA_CN.md)开始；预印本见 [arXiv:2611.02909](https://arxiv.org/abs/2611.02909)。
+第一次使用，从[安装与桌面启动](INSTALL_CN.md)开始；原生 Windows 用户使用 [`windows` 分支教程](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS_CN.md)。核查论文实验结果或复现图表，从[论文、数据与复现](RESEARCH_DATA_CN.md)开始；预印本见 [arXiv:2611.02909](https://arxiv.org/abs/2611.02909)。
 
 ## 使用与理解结果
 
 | 文档 | 你可以在这里找到 |
 | --- | --- |
+| [安装与桌面启动](INSTALL_CN.md) | 下载 macOS / Linux 安装包、桌面启动、首次配置；另附源码安装。 |
 | [配置指南](CONFIGURATION_CN.md) | 模型登录、联网搜索、对话命令与服务访问。 |
 | [TS 流程与科学验收](TS_PROCESS_SOP.md) | 过渡态搜索、修订、停止以及频率和 IRC 证据要求。 |
 | [DAG 编排](DAG_ORCHESTRATION.md) | 三种模式、机理图、证据绑定与 Supervisor 审查。 |

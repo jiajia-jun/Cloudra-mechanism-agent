@@ -1,0 +1,57 @@
+name: macOS installer
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    paths:
+      - scripts/build_desktop_payload.py
+      - scripts/build-macos-package.sh
+      - packaging/macos/**
+      - .github/workflows/package-macos.yml
+      - pyproject.toml
+      - frontend/**
+      - cloudra/**
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: Cloudra package test
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Prepare build tools
+        run: python -m pip install uv
+      - name: Build the native installer
+        working-directory: Cloudra package test
+        run: bash scripts/build-macos-package.sh
+      - name: Install and check the bundled application
+        working-directory: Cloudra package test
+        run: |
+          sudo installer -pkg dist/*.pkg -target /
+          /Applications/Cloudra.app/Contents/MacOS/Cloudra --version
+          test -f /Applications/Cloudra.app/Contents/Resources/frontend/dist/index.html
+          /Applications/Cloudra.app/Contents/Resources/node/bin/node --version
+          /Applications/Cloudra.app/Contents/Resources/python/bin/python3 -I -c "from cloudra.services.api_v2 import create_default_v2_app; print('Bundled UI imports successfully')"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Cloudra-macos-${{ matrix.arch }}
+          path: |
+            Cloudra package test/dist/*.pkg
+            Cloudra package test/dist/Unblock-Cloudra.command
+          if-no-files-found: error

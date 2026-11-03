@@ -1,270 +1,55 @@
 #!/usr/bin/env bash
+# Install the UI and default tool runtime into this checkout, without sudo.
 set -euo pipefail
 
-# Cloudra 一键安装脚本
-# 用途：
-#   1. 校验 Python 版本（>=3.10）
-#   2. 可选创建虚拟环境
-#   3. 安装 cloudra 及可选依赖
-#   4. 将旧 .env 迁移到 YAML 配置
-#   5. 交互式初始化 cloudra config
-#   6. 把 cloudra 命令加入 PATH（可选）
-#
-# 注意：Python 端安装完成后，如需 Web 前端，再运行 cloudra 或 ./web.sh
-#（该脚本会自行安装 npm 依赖并构建前端）。
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_NAME="cloudra"
-MIN_PYTHON="3.11"
+cd "$SCRIPT_DIR"
+trap 'printf "\n安装未完成，请查看上面的错误。安装指南：docs/INSTALL_CN.md\n" >&2' ERR
 
-# 颜色输出
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+case "$(uname -s)" in
+    Darwin|Linux) ;;
+    *) printf '原生 Windows 请下载 windows 分支并运行 install.cmd。\n' >&2; exit 1 ;;
+esac
 
-info() { echo -e "${BLUE}[INFO]${NC} $*"; }
-ok()   { echo -e "${GREEN}[OK]${NC} $*"; }
-warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
-err()  { echo -e "${RED}[ERROR]${NC} $*" >&2; }
-
-# 比较版本号：>= 返回 0，< 返回 1
-version_ge() {
-    printf '%s\n%s\n' "$2" "$1" | sort -V -C
-}
-
-# 查找可用的 python 命令（优先系统 PATH；也检查脚本目录下的独立 Python）
-find_python() {
-    for cmd in python3 python; do
-        if command -v "$cmd" >/dev/null 2>&1; then
-            echo "$cmd"
-            return 0
+# Prefer a supported interpreter; an older system python3 must not hide a newer one.
+PYTHON_CMD=""
+if [[ -n "${CLOUDRA_PYTHON:-}" ]]; then
+    PYTHON_CMD="$(command -v "$CLOUDRA_PYTHON")"
+else
+    for candidate in "$SCRIPT_DIR/.venv/bin/python" python3.13 python3.12 python3.11 python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && \
+           "$candidate" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
+            PYTHON_CMD="$(command -v "$candidate")"
+            break
         fi
     done
-    # 检查之前下载过的 standalone Python
-    local standalone="${SCRIPT_DIR}/.python/python/bin/python3"
-    if [[ -x "$standalone" ]]; then
-        echo "$standalone"
-        return 0
-    fi
-    return 1
-}
-
-# 检测 CPU 架构
-detect_arch() {
-    local arch
-    arch=$(uname -m)
-    case "$arch" in
-        x86_64|amd64) echo "x86_64" ;;
-        aarch64|arm64) echo "aarch64" ;;
-        armv7l) echo "armv7l" ;;
-        *) echo "$arch" ;;
-    esac
-}
-
-# 下载 python-build-standalone 到项目目录，无需系统安装
-install_standalone_python() {
-    local os=$1
-    local arch=$2
-    local target_dir="${SCRIPT_DIR}/.python"
-    local triple=""
-
-    case "${os}-${arch}" in
-        Linux-x86_64)  triple="x86_64-unknown-linux-gnu" ;;
-        Linux-aarch64) triple="aarch64-unknown-linux-gnu" ;;
-        Linux-armv7l)  triple="armv7-unknown-linux-gnueabihf" ;;
-        Darwin-x86_64) triple="x86_64-apple-darwin" ;;
-        Darwin-aarch64) triple="aarch64-apple-darwin" ;;
-        *)
-            err "暂不支持自动下载 Python 的平台: ${os}-${arch}"
-            err "请手动安装 Python ${MIN_PYTHON}+ 后重试：https://www.python.org/downloads/"
-            return 1
-            ;;
-    esac
-
-    info "未检测到系统 Python，正在从 python-build-standalone 下载独立运行时 (${triple})..."
-    info "下载目录: ${target_dir}（无需 sudo）"
-
-    local api_url="https://api.github.com/repos/astral-sh/python-build-standalone/releases/latest"
-    local asset_url
-    asset_url=$(curl -sL "$api_url" | grep -o "\"browser_download_url\": \"[^\"]*cpython-3.13[^\"]*${triple}-install_only\.tar\.gz[^\"]*\"" | head -n1 | cut -d'"' -f4)
-
-    if [[ -z "$asset_url" ]]; then
-        err "无法获取 ${triple} 的独立 Python 下载链接"
-        err "请手动安装 Python ${MIN_PYTHON}+ 后重试：https://www.python.org/downloads/"
-        return 1
-    fi
-
-    mkdir -p "$target_dir"
-    local tmp_tar
-    tmp_tar=$(mktemp)
-    if ! curl -sL -o "$tmp_tar" "$asset_url"; then
-        err "下载独立 Python 失败"
-        rm -f "$tmp_tar"
-        return 1
-    fi
-
-    info "解压独立 Python..."
-    if ! tar -xzf "$tmp_tar" -C "$target_dir"; then
-        err "解压独立 Python 失败"
-        rm -f "$tmp_tar"
-        return 1
-    fi
-    rm -f "$tmp_tar"
-
-    local py_cmd="${target_dir}/python/bin/python3"
-    if [[ ! -x "$py_cmd" ]]; then
-        err "独立 Python 解压后未找到可执行文件: ${py_cmd}"
-        return 1
-    fi
-    echo "$py_cmd"
-}
-
-# 检测操作系统
-OS=$(uname -s)
-info "操作系统: ${OS}"
-
-PYTHON_CMD=$(find_python) || {
-    ARCH=$(detect_arch)
-    info "未找到 Python 解释器。"
-    AUTO=""
-    while [[ "$AUTO" != "y" && "$AUTO" != "n" ]]; do
-        read -rp "是否自动下载独立 Python ${MIN_PYTHON}+ 到项目目录（无需 sudo）？[Y/n] " AUTO
-        AUTO=${AUTO:-y}
-        AUTO=$(echo "$AUTO" | tr '[:upper:]' '[:lower:]')
-    done
-    if [[ "$AUTO" == "y" ]]; then
-        PYTHON_CMD=$(install_standalone_python "$OS" "$ARCH") || exit 1
-    else
-        err "未找到 Python 解释器，请先安装 Python ${MIN_PYTHON}+"
-        err "下载地址：https://www.python.org/downloads/"
-        exit 1
-    fi
-}
-
-PYTHON_VERSION=$("$PYTHON_CMD" -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
-info "检测到 Python: $PYTHON_CMD (v${PYTHON_VERSION})"
-
-if ! version_ge "$PYTHON_VERSION" "$MIN_PYTHON"; then
-    err "需要 Python >= ${MIN_PYTHON}，当前为 ${PYTHON_VERSION}"
+fi
+if [[ -z "$PYTHON_CMD" ]] || ! "$PYTHON_CMD" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)'; then
+    printf '需要 Python 3.11 或更高版本（推荐 3.13）。请按 docs/INSTALL_CN.md 安装。\n' >&2
     exit 1
 fi
-ok "Python 版本符合要求"
-
-# 询问是否使用虚拟环境
-USE_VENV=""
-while [[ "$USE_VENV" != "y" && "$USE_VENV" != "n" ]]; do
-    read -rp "是否在项目目录下创建虚拟环境（.venv）？[Y/n] " USE_VENV
-    USE_VENV=${USE_VENV:-y}
-    USE_VENV=$(echo "$USE_VENV" | tr '[:upper:]' '[:lower:]')
-done
-
-if [[ "$USE_VENV" == "y" ]]; then
-    VENV_DIR="${SCRIPT_DIR}/.venv"
-    if [[ ! -d "$VENV_DIR" ]]; then
-        info "创建虚拟环境: $VENV_DIR"
-        "$PYTHON_CMD" -m venv "$VENV_DIR"
-    else
-        warn "虚拟环境已存在: $VENV_DIR"
-    fi
-    # shellcheck source=/dev/null
-    source "${VENV_DIR}/bin/activate"
-    PYTHON_CMD="${VENV_DIR}/bin/python"
-    ok "已激活虚拟环境"
-else
-    warn "不使用虚拟环境，将直接安装到当前 Python 环境"
+if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1 || \
+   ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 12) ? 0 : 1)'; then
+    printf '需要 Node.js 22.12 或更高版本及 npm。请安装 Node.js LTS 后重开终端。\n' >&2
+    exit 1
 fi
 
-# 确保 pip 可用
-info "升级 pip..."
+printf '\n[1/5] 准备项目独立环境 .venv…\n'
+if [[ ! -x "$SCRIPT_DIR/.venv/bin/python" ]]; then
+    "$PYTHON_CMD" -m venv "$SCRIPT_DIR/.venv"
+fi
+PYTHON_CMD="$SCRIPT_DIR/.venv/bin/python"
+printf '\n[2/5] 安装 Cloudra…\n'
 "$PYTHON_CMD" -m pip install --upgrade pip
-
-info "安装 ${PROJECT_NAME}（all + dev）..."
-if ! "$PYTHON_CMD" -m pip install -e "${SCRIPT_DIR}[all,dev]"; then
-    warn "部分 optional 依赖（如 pymol-open-source）在当前平台不可用，回落到 dev 核心依赖..."
-    "$PYTHON_CMD" -m pip install -e "${SCRIPT_DIR}[dev]"
-    warn "如需 PyMOL 渲染：macOS/Linux 推荐 conda install -c conda-forge pymol-open-source libxml2"
-fi
-
-# 如果存在 .env，询问是否迁移到 cloudra config
-ENV_FILE="${SCRIPT_DIR}/.env"
-if [[ -f "$ENV_FILE" ]]; then
-    warn "检测到旧的 .env 配置文件: ${ENV_FILE}"
-    warn "注意：cloudra 现在优先使用 YAML 配置文件（~/.config/cloudra/config.yaml）"
-    warn ".env 中的配置将不会被 cloudra config 覆盖"
-
-    MIGRATE=""
-    while [[ "$MIGRATE" != "y" && "$MIGRATE" != "n" ]]; do
-        read -rp "是否将 .env 中的 LLM 配置迁移到 cloudra config？[Y/n] " MIGRATE
-        MIGRATE=${MIGRATE:-y}
-        MIGRATE=$(echo "$MIGRATE" | tr '[:upper:]' '[:lower:]')
-    done
-
-    if [[ "$MIGRATE" == "y" ]]; then
-        info "读取 .env 并准备迁移..."
-        COORDINATOR_MODEL=$(grep -E '^COORDINATOR_MODEL=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-        COORDINATOR_URL=$(grep -E '^COORDINATOR_URL=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-        COORDINATOR_KEY=$(grep -E '^COORDINATOR_KEY=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-        FOLLOWER_MODEL=$(grep -E '^FOLLOWER_MODEL=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-        FOLLOWER_URL=$(grep -E '^FOLLOWER_URL=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-        FOLLOWER_KEY=$(grep -E '^FOLLOWER_KEY=' "$ENV_FILE" | cut -d'=' -f2- | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' || true)
-
-        set +e
-        [[ -n "$COORDINATOR_MODEL" ]] && cloudra config set coordinator.model "$COORDINATOR_MODEL"
-        [[ -n "$COORDINATOR_URL" ]] && cloudra config set coordinator.url "$COORDINATOR_URL"
-        [[ -n "$COORDINATOR_KEY" ]] && cloudra config set coordinator.key "$COORDINATOR_KEY"
-        [[ -n "$FOLLOWER_MODEL" ]] && cloudra config set follower.model "$FOLLOWER_MODEL"
-        [[ -n "$FOLLOWER_URL" ]] && cloudra config set follower.url "$FOLLOWER_URL"
-        [[ -n "$FOLLOWER_KEY" ]] && cloudra config set follower.key "$FOLLOWER_KEY"
-        set -e
-
-        ok "迁移完成"
-        warn "建议备份后删除 ${ENV_FILE}，以免旧配置造成困惑"
-    fi
-fi
-
-# 交互式初始化配置
-info "初始化 cloudra 配置..."
-cloudra config init
-
-# 验证安装
-info "验证安装..."
-if cloudra --version; then
-    ok "cloudra 安装成功"
-else
-    err "cloudra 命令无法执行，请检查安装日志"
-    exit 1
-fi
-
-# 可选：把 cloudra 命令加入 PATH（当使用虚拟环境时，创建一个 wrapper）
-if [[ "$USE_VENV" == "y" ]]; then
-    LOCAL_BIN="${HOME}/.local/bin"
-    WRAPPER="${LOCAL_BIN}/cloudra"
-    mkdir -p "$LOCAL_BIN"
-
-    cat > "$WRAPPER" <<EOF
-#!/bin/bash
-# Cloudra wrapper generated by install.sh
-source "${VENV_DIR}/bin/activate"
-exec cloudra "\$@"
-EOF
-    chmod +x "$WRAPPER"
-    ok "已创建命令包装器: ${WRAPPER}"
-
-    if [[ ":$PATH:" != *":${LOCAL_BIN}:"* ]]; then
-        warn "${LOCAL_BIN} 不在 PATH 中"
-        for rc in "${HOME}/.bashrc" "${HOME}/.zshrc"; do
-            if [[ -f "$rc" ]]; then
-                echo "export PATH=\"${LOCAL_BIN}:\$PATH\"" >> "$rc"
-                info "已把 ${LOCAL_BIN} 加入 ${rc}，请重新打开终端或 source ${rc}"
-            fi
-        done
-    fi
-fi
-
-ok "安装完成！"
-info "推荐使用 Web 前端（需要 Node.js >= 18）："
-echo "  cloudra                    # 构建并启动 Web 服务（默认打开浏览器）"
-echo "  cloudra web --skip-build   # 复用已构建的前端"
-echo "  CLOUDRA_NO_BROWSER=1 cloudra   # 仅启动服务，不自动打开浏览器"
+"$PYTHON_CMD" -m pip install -e "$SCRIPT_DIR"
+printf '\n[3/5] 安装智能体工具运行环境…\n'
+npm ci --prefix "$SCRIPT_DIR/cloudra/runtime_v2/js_host" --ignore-scripts --no-audit --no-fund
+printf '\n[4/5] 安装并构建网页界面…\n'
+npm ci --prefix "$SCRIPT_DIR/frontend" --no-audit --no-fund
+npm run build --prefix "$SCRIPT_DIR/frontend"
+printf '\n[5/5] 检查安装并创建桌面入口…\n'
+"$PYTHON_CMD" -m cloudra --version
+"$PYTHON_CMD" "$SCRIPT_DIR/scripts/create_desktop_shortcut.py"
+printf '\n安装完成！双击桌面的 Cloudra，或在此目录运行 bash web.sh。\n'
+printf '打开界面后，在全局设置中配置模型。启动窗口需保持打开。\n'
+printf '本次安装包含 UI 和基础运行环境；化学扩展及量化软件按任务另装，见 docs/INSTALL_CN.md。\n'

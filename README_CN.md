@@ -34,27 +34,15 @@ Cloudra 预印本已在 [arXiv](https://arxiv.org/abs/2611.02909) 公开。
 
 ## 安装与启动
 
-需要 **Linux 或 macOS（windows系统请下载另外的windows分支）、Python ≥ 3.11、Node.js ≥ 22**，以及可用的语言模型服务（推荐deepseek-v4-flash，或GPT-6.1-sol，它们在系统中经过测试）。量子化学软件按研究任务另行安装和配置，例如 ORCA、Gaussian、xTB 或 CREST。
+下载适合自己系统的安装包，双击安装，再从桌面或应用程序打开 Cloudra。安装包已包含 Python、Node.js、基础依赖和网页界面，无需先安装开发工具。详细步骤见[新手安装教程](docs/INSTALL_CN.md)。
 
-```bash
-git clone https://github.com/yyywaa/Cloudra-mechanism-agent.git
-cd Cloudra-mechanism-agent
-./install.sh
+| 系统 | 安装方式 |
+| --- | --- |
+| macOS | 双击 `.pkg` 安装，再打开“应用程序”中的 Cloudra；见[macOS 教程](docs/INSTALL_CN.md#macos-安装)。 |
+| Linux | 安装 `.deb`，或解压便携 `.tar.gz`，然后打开 Cloudra；见[Linux 教程](docs/INSTALL_CN.md#linux-安装)。 |
+| Windows，原生运行 | 双击 `Setup.exe` 安装，从开始菜单或桌面打开；见 [`windows` 分支教程](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS_CN.md)。 |
 
-# 安装时选择默认的 .venv 后，在当前终端激活它
-# 如果没有选择，请忽略这一步
-source .venv/bin/activate
-
-# 安装默认 JavaScript 工具运行环境的依赖
-npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
-
-# 构建前端并启动 Web 界面
-cloudra
-```
-
-默认协议是 `javascript`；`traditional` 是 per-agent 可选设置。
-
-安装脚本会引导初始化配置。启动后打开终端显示的地址，默认是 `127.0.0.1:8000`。
+当前安装包通过成功打包后的 [GitHub Actions 构建产物](docs/INSTALL_CN.md#下载安装包)提供，尚未发布为正式 Releases；macOS 测试包尚未完成开发者签名和公证。开发者及自行部署的用户可按[源码安装步骤](docs/INSTALL_CN.md#从源码安装)使用现有安装脚本。
 
 1. 在全局设置（Global Setting）中配置主 Agent 与协作 Agent 的模型。可使用 OpenAI 兼容接口，也可选择 ChatGPT / Codex 账号登录。同时，也可以选择您偏好的前端UI风格。
 2. 配置研究所需的计算软件和节点；远端计算（如基于SLURM的集群计算）见[部署指南](docs/README.md#部署与配置)。
@@ -63,6 +51,32 @@ cloudra
 当然，您也可以将它作为一个普通的研究助手进行实验，如查文献，调研，写代码等。
 
 模型登录、联网搜索、常用命令及远程访问设置见[配置指南](docs/CONFIGURATION_CN.md)。
+
+### 保留源码安装
+
+准备 Python ≥ 3.11、Node.js ≥ 22.12 和 npm 后，仍可使用原来的安装与启动方式：
+
+```bash
+git clone --branch master https://github.com/yyywaa/Cloudra-mechanism-agent.git
+cd Cloudra-mechanism-agent
+bash install.sh
+source .venv/bin/activate
+cloudra
+```
+
+也可以直接运行 `bash web.sh`。完整步骤见[源码安装](docs/INSTALL_CN.md#从源码安装)。
+
+### macOS 首次打开被拦截
+
+macOS 安装包旁附带 [Unblock-Cloudra.command](packaging/macos/Unblock-Cloudra.command)，仅对确认来自本仓库的 Cloudra 下载使用。
+
+打开“终端”，输入 `bash `（末尾留一个空格），把脚本拖入终端并按回车。脚本会处理同文件夹中的 Cloudra `.pkg` 和已安装的 `Cloudra.app`；如提示密码，输入 Mac 登录密码。完成后重新打开安装包或应用。
+
+也可指定路径：
+
+```bash
+bash /路径/Unblock-Cloudra.command /Applications/Cloudra.app
+```
 
 ## 三种工作模式
 
@@ -85,6 +99,8 @@ cloudra
 [研究数据与复现入口](docs/RESEARCH_DATA_CN.md)按用途区分：复现论文图表、检查 Agent 原始运行、审查 Gold 参考计算，以及重新运行 Benchmark。正式题库含 50 题；P2 对应四种配置、200 次保留运行。P2 完整归档（14.9 GB）已公开只读，文件名、校验值和下载说明见[交付页](docs/benchmarks/P2_DELIVERY.md)。
 
 ## 参与与引用
+
+默认协议是 `javascript`；`traditional` 是 per-agent 可选设置。
 
 欢迎提交问题、使用反馈和改进建议。报告计算问题时，附上软件版本、环境、任务描述、输入文件及相关日志，会更容易定位原因。开发约定见 [CONTRIBUTING.md](CONTRIBUTING.md)，系统结构见[架构说明](docs/ARCHITECTURE.md)。
 
