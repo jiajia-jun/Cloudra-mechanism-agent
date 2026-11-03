@@ -44,7 +44,7 @@ jobs:
           /opt/cloudra/Cloudra --version
           test -f /usr/share/applications/cloudra.desktop
           test -f /opt/cloudra/frontend/dist/index.html
-          /opt/cloudra/python/bin/python3 -c "import importlib.util, pathlib; package=importlib.util.find_spec('cloudra'); assert (pathlib.Path(package.origin).parent / 'runtime_v2/js_host/node_modules/quickjs-emscripten/package.json').is_file()"
+          /opt/cloudra/python/bin/python3 -I -c "import importlib.util, pathlib; package=importlib.util.find_spec('cloudra'); assert (pathlib.Path(package.origin).parent / 'runtime_v2/js_host/node_modules/quickjs-emscripten/package.json').is_file(), package.origin"
           /opt/cloudra/node/bin/node --version
       - name: Check the extracted portable package
         working-directory: Cloudra package test

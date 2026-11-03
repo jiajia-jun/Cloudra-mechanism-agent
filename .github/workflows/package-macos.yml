@@ -47,7 +47,7 @@ jobs:
           /Applications/Cloudra.app/Contents/MacOS/Cloudra --version
           test -f /Applications/Cloudra.app/Contents/Resources/frontend/dist/index.html
           /Applications/Cloudra.app/Contents/Resources/node/bin/node --version
-          /Applications/Cloudra.app/Contents/Resources/python/bin/python3 -c "from cloudra.services.api_v2 import create_default_v2_app; print('Bundled UI imports successfully')"
+          /Applications/Cloudra.app/Contents/Resources/python/bin/python3 -I -c "from cloudra.services.api_v2 import create_default_v2_app; print('Bundled UI imports successfully')"
       - uses: actions/upload-artifact@v6
         with:
           name: Cloudra-macos-${{ matrix.arch }}
