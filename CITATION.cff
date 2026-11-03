@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use Cloudra in research, please cite the manuscript below and record the software commit used."
+message: "If you use Cloudra in research, please cite the preprint below and record the software commit used."
 title: "Cloudra: An Autonomous Agent for Organic Small-Molecule Mechanism Computation"
 abstract: >-
   An autonomous agent system for organic small-molecule reaction mechanism computation:
@@ -20,7 +20,7 @@ keywords:
   - LLM agent
   - reproducibility
 preferred-citation:
-  type: unpublished
+  type: article
   title: "Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration"
   authors:
     - family-names: Yang
@@ -30,5 +30,8 @@ preferred-citation:
     - family-names: Li
       given-names: Yang
   year: 2026
-  notes: "Working draft, 31 October 2026. Qianxin Zhou and Yang Li contributed equally as co-second authors."
-  url: "https://github.com/yyywaa/Cloudra-mechanism-agent"
+  month: 11
+  journal: arXiv
+  doi: "10.48550/arXiv.2611.02909"
+  notes: "Qianxin Zhou and Yang Li contributed equally as co-second authors."
+  url: "https://arxiv.org/abs/2611.02909"

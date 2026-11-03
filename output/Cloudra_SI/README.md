@@ -10,4 +10,4 @@
 - [公开数据下载说明](../../docs/RESEARCH_DATA_CN.md)
 - [P2 完整实验包与校验说明](../../docs/benchmarks/P2_DELIVERY.md)
 
-稿件 PDF、排版源码和编辑记录保留在本机；已入库的旧版仍可从 Git 历史追溯。论文链接将在 arXiv 正式公告后补充。
+稿件 PDF、排版源码和编辑记录保留在本机；已入库的旧版仍可从 Git 历史追溯。预印本见 [arXiv:2611.02909](https://arxiv.org/abs/2611.02909)。

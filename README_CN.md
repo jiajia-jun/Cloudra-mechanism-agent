@@ -16,7 +16,7 @@
 
 Cloudra会继续维护，我们会增强Agent的性能，尝试引入周期性体系计算，MD等需求广泛的领域。Cloudra的目标是成为通用的化学智能体，我们正在为此努力。
 
-目前该项目正处于论文投稿阶段。
+Cloudra 预印本已在 [arXiv](https://arxiv.org/abs/2611.02909) 公开。
 
 ## 可以怎样使用
 
@@ -80,7 +80,7 @@ cloudra
 
 ## 论文、数据与复现
 
-论文 **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** 已提交 arXiv，等待公告。正式链接将在发布后补充。
+论文 **Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration** 已作为预印本公开：[arXiv:2611.02909](https://arxiv.org/abs/2611.02909) [cs.MA]，DOI：[10.48550/arXiv.2611.02909](https://doi.org/10.48550/arXiv.2611.02909)。
 
 [研究数据与复现入口](docs/RESEARCH_DATA_CN.md)按用途区分：复现论文图表、检查 Agent 原始运行、审查 Gold 参考计算，以及重新运行 Benchmark。正式题库含 50 题；P2 对应四种配置、200 次保留运行。P2 完整归档（14.9 GB）已公开只读，文件名、校验值和下载说明见[交付页](docs/benchmarks/P2_DELIVERY.md)。
 
@@ -90,9 +90,9 @@ cloudra
 
 使用本项目开展研究时，请引用论文，并记录所用软件提交版本：
 
-> Chengyi Yang, Qianxin Zhou, and Yang Li. *Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration*. Working draft, 31 October 2026.
+> Chengyi Yang, Qianxin Zhou, and Yang Li. *Cloudra: Geometric Reasoning and Scientific Validation for Autonomous Reaction Mechanism Exploration*. arXiv:2611.02909 [cs.MA], 2026. [doi:10.48550/arXiv.2611.02909](https://doi.org/10.48550/arXiv.2611.02909).
 
-[BibTeX](CITATION.bib) · [GitHub 引用信息](CITATION.cff)。arXiv 编号将在正式发布后补充。
+[BibTeX](CITATION.bib) · [GitHub 引用信息](CITATION.cff) · [arXiv 预印本](https://arxiv.org/abs/2611.02909)。
 
 ## 许可证
 

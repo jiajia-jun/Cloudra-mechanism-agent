@@ -2,7 +2,7 @@
 
 [English](README_EN.md) · [项目首页](../README_CN.md)
 
-第一次使用，从[安装与第一个任务](../README_CN.md#安装与启动)开始。核查论文实验结果或复现图表，从[论文、数据与复现](RESEARCH_DATA_CN.md)开始；公开论文链接将在 arXiv 正式公告后补充。
+第一次使用，从[安装与第一个任务](../README_CN.md#安装与启动)开始。核查论文实验结果或复现图表，从[论文、数据与复现](RESEARCH_DATA_CN.md)开始；预印本见 [arXiv:2611.02909](https://arxiv.org/abs/2611.02909)。
 
 ## 使用与理解结果
 
