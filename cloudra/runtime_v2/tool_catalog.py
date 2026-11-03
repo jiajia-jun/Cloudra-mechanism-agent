@@ -10,7 +10,7 @@ Single source for the invocation-protocol-aware tool surface:
   read-only role may select the JS protocol without gaining bash.
 - ``tool_declarations(tool_names, *, visual_mode)`` — deterministic
   TypeScript-like declarations of the guest-callable tools, generated from
-  the loaded ToolEntry input/output classes.  Declarations are model
+  the loaded ToolEntry JSON Schemas.  Declarations are model
   instructions (documentation); the guest receives only names, never a
   typechecker.  Unknown JSON-schema constructs render as ``unknown`` — never
   silently widened to ``any`` and never invented.
@@ -30,6 +30,7 @@ from cloudra.runtime_v2.schemas import (
     OrchestrationMode,
     effective_invocation_protocol,
 )
+from cloudra.tools import _json_schema
 from cloudra.tools.capabilities import (
     config_disabled_tools,
     dag_review_decision_tools,
@@ -146,14 +147,21 @@ def guest_tool_names(
     """Names callable inside a JS program: no direct tools, visual-gated,
     gated by the run's orchestration mode (dag_* tools are hidden in standard
     mode; Supervisor verdict tools outside dag_guided), and filtered by the
-    agent's role allowlist projection when role_id is given."""
+    agent's role allowlist projection when role_id is given. Saved MCP names
+    are visible only while their external service supplies the tool."""
+    names = _resolve_names(tool_names)
     gated = frozenset() if visual_mode else visual_tools()
     hidden = _mode_hidden_tools(orchestration_mode) | config_disabled_tools()
     if role_id is not None:
         hidden = hidden | role_hidden_tools(role_id)
+    mcp_names = {name for name in names if name.startswith("mcp__")}
+    if mcp_names:
+        from cloudra.tools import get_tools_lst
+
+        hidden = hidden | (mcp_names - {entry.tool_name for entry in get_tools_lst()})
     return [
         name
-        for name in _resolve_names(tool_names)
+        for name in names
         if not is_direct_only(name) and name not in gated and name not in hidden
     ]
 
@@ -280,7 +288,7 @@ def tool_capability_manifest(tool_names, *, visual_mode=True,
 def _function_declaration(name, entry, args_type, data_type):
     description = str(getattr(entry, "tool_description", "") or "").strip()
     if not description:
-        description = _schema_description(_input_schema_of(entry))
+        description = _schema_description(_schema_of(entry, "input"))
     description = description.replace("*/", "* /")
     comment = f"  /** {description} */\n" if description else ""
     return f"{comment}  {_js_ident(name)}(args: {args_type}): Promise<ToolResponse<{data_type}>>;"
@@ -327,8 +335,11 @@ def tool_declarations(
     return "\n\n".join(sections)
 
 
-def _input_schema_of(entry) -> Any:
-    return getattr(entry, "input_schema", None) if entry is not None else None
+def _schema_of(entry, direction: str) -> dict:
+    accessor = getattr(entry, f"{direction}_json_schema", None)
+    if accessor is not None:
+        return accessor()
+    return _json_schema(getattr(entry, f"{direction}_schema", None))
 
 
 def _render_tool_types(name: str, entry) -> tuple[list[str], str, str]:
@@ -340,17 +351,9 @@ def _render_tool_types(name: str, entry) -> tuple[list[str], str, str]:
     decls: list[str] = []
     args_type = f"{alias}Args"
     data_type = f"{alias}Data"
-    input_schema = _input_schema_of(entry)
-    output_schema = getattr(entry, "output_schema", None)
-    decls.extend(_render_alias(args_type, _json_schema(input_schema)))
-    decls.extend(_render_alias(data_type, _json_schema(output_schema)))
+    decls.extend(_render_alias(args_type, _schema_of(entry, "input")))
+    decls.extend(_render_alias(data_type, _schema_of(entry, "output")))
     return decls, args_type, data_type
-
-
-def _json_schema(schema_cls) -> dict:
-    if schema_cls is None or not hasattr(schema_cls, "model_json_schema"):
-        return {}
-    return schema_cls.model_json_schema()
 
 
 def _render_alias(alias: str, schema: dict) -> list[str]:
@@ -358,16 +361,22 @@ def _render_alias(alias: str, schema: dict) -> list[str]:
     defs = schema.get("$defs") or {}
     decls = []
     for def_name in sorted(defs):
-        rendered = _ts(defs[def_name], defs, alias)
+        rendered = _ts(defs[def_name], defs, alias, decls)
         decls.append(f"type {_def_name(alias, def_name)} = {rendered};")
-    body = {k: v for k, v in schema.items() if k != "$defs"}
-    decls.append(f"type {alias} = {_ts(body, defs, alias)};")
+    body = {k: v for k, v in schema.items() if k not in {"$defs", "$id"}}
+    decls.append(f"type {alias} = {_ts(body, defs, alias, decls)};")
     return decls
 
 
-def _ts(schema: Any, defs: dict, prefix: str) -> str:
+def _ts(schema: Any, defs: dict, prefix: str, decls: list[str]) -> str:
     if not isinstance(schema, dict):
         return "unknown"
+    if "$id" in schema:
+        # An embedded schema resource owns its fragment references. Give its
+        # definitions separate aliases, including recursive references.
+        nested = f"{prefix}Nested{len(decls) + 1}"
+        decls.extend(_render_alias(nested, schema))
+        return nested
     if "$ref" in schema:
         ref = str(schema["$ref"])
         if ref.startswith("#/$defs/") and ref[len("#/$defs/"):] in defs:
@@ -380,21 +389,21 @@ def _ts(schema: Any, defs: dict, prefix: str) -> str:
         return " | ".join(values) if values else "unknown"
     for key in ("anyOf", "oneOf"):
         if key in schema:
-            parts = [_ts(part, defs, prefix) for part in schema[key]]
+            parts = [_ts(part, defs, prefix, decls) for part in schema[key]]
             union = " | ".join(parts) if parts else "unknown"
             if schema.get("properties"):
                 # Conditions refine the shared object, rather than replacing
                 # its sibling properties (for example a tool's common fields).
-                return f"({_object_ts(schema, defs, prefix)}) & ({union})"
+                return f"({_object_ts(schema, defs, prefix, decls)}) & ({union})"
             return union
     if "allOf" in schema:
-        parts = [_ts(part, defs, prefix) for part in schema["allOf"]]
+        parts = [_ts(part, defs, prefix, decls) for part in schema["allOf"]]
         if schema.get("properties"):
-            parts.insert(0, _object_ts(schema, defs, prefix))
+            parts.insert(0, _object_ts(schema, defs, prefix, decls))
         return " & ".join(f"({part})" for part in parts) if parts else "unknown"
     type_ = schema.get("type")
     if isinstance(type_, list):
-        parts = [_ts({**schema, "type": item}, defs, prefix) for item in type_]
+        parts = [_ts({**schema, "type": item}, defs, prefix, decls) for item in type_]
         return " | ".join(parts) if parts else "unknown"
     if type_ == "string":
         return "string"
@@ -413,17 +422,17 @@ def _ts(schema: Any, defs: dict, prefix: str) -> str:
         ):
             # Pydantic fixed tuples use prefixItems rather than items. Preserve
             # each member and the tuple length instead of exposing unknown[].
-            members = [_ts(item, defs, prefix) for item in prefix_items]
+            members = [_ts(item, defs, prefix, decls) for item in prefix_items]
             return "[" + ", ".join(members) + "]"
         items = schema.get("items")
-        inner = _ts(items, defs, prefix) if items is not None else "unknown"
+        inner = _ts(items, defs, prefix, decls) if items is not None else "unknown"
         return f"Array<{inner}>"
     if type_ == "object" or "properties" in schema:
-        return _object_ts(schema, defs, prefix)
+        return _object_ts(schema, defs, prefix, decls)
     return "unknown"
 
 
-def _object_ts(schema: dict, defs: dict, prefix: str) -> str:
+def _object_ts(schema: dict, defs: dict, prefix: str, decls: list[str]) -> str:
     props = schema.get("properties") or {}
     required = set(schema.get("required") or [])
     lines: list[str] = []
@@ -435,10 +444,10 @@ def _object_ts(schema: dict, defs: dict, prefix: str) -> str:
         if description:
             lines.append(f"  /** {description} */")
         optional = "" if key in required else "?"
-        lines.append(f"  {json.dumps(key, ensure_ascii=False)}{optional}: {_ts(subschema, defs, prefix)};")
+        lines.append(f"  {json.dumps(key, ensure_ascii=False)}{optional}: {_ts(subschema, defs, prefix, decls)};")
     additional = schema.get("additionalProperties")
     if additional:
-        value = _ts(additional, defs, prefix) if isinstance(additional, dict) else "unknown"
+        value = _ts(additional, defs, prefix, decls) if isinstance(additional, dict) else "unknown"
         lines.append(f"  [key: string]: {value};")
     if not lines:
         return "Record<string, unknown>"

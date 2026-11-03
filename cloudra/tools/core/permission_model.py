@@ -6,6 +6,18 @@ Replaces the fragile list[bool] permission system with a robust IntFlag-based mo
 
 from enum import IntFlag
 
+from pydantic import BaseModel, ConfigDict
+
+
+class PermissionSet(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    read: bool = True
+    write: bool = False
+    manage: bool = False
+    script: bool = False
+    destructive: bool = False
+
 
 class Permission(IntFlag):
     """Bit-flag permissions for tools and agents."""

@@ -289,7 +289,7 @@ def create_v2_app(
     benchmark_service = BenchmarkService(core, bus)
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI):
+    async def runtime_lifespan(_app: FastAPI):
         # 应用启动即显式启动：清除 `cloudra stop` 留下的关停标志/marker，
         # 守护自愈与拉起从新一轮生命周期重新开始。
         from cloudra.services.daemon_supervisor import clear_daemons_shutdown
@@ -375,6 +375,18 @@ def create_v2_app(
                     await close()
                 except Exception:
                     logger.exception("%s failed during shutdown", close.__qualname__)
+
+    @asynccontextmanager
+    async def lifespan(application):
+        from cloudra.infra.config import get_config
+        from cloudra.tools import use_tool_entries
+        from cloudra.tools.mcp import MCPToolManager
+
+        manager = MCPToolManager(get_config().mcp_servers)
+        async with manager.lifespan(core.external_tools):
+            with use_tool_entries(core.external_tools):
+                async with runtime_lifespan(application) as state:
+                    yield state
 
     app = FastAPI(title="Cloudra API v2", version=__version__, lifespan=lifespan)
     app.state.runtime_core = core

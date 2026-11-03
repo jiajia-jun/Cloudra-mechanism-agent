@@ -268,6 +268,9 @@ class RuntimeCore:
         # 消息提交/投递唯一入口（评审 5.2）：持久化成功才入队、再按策略唤醒。
         self.dispatcher = MessageDispatcher(self)
         self.agent_host = AgentHost(self)
+        # Runtime-owned connections populate this list before accepting runs.
+        # Never persisted: restart rediscovers tools from configured MCP servers.
+        self.external_tools = []
         self.roles = RoleRegistry(roles if roles is not None else BUILTIN_ROLES)
         self.runtime_defaults = RuntimeSettings()
         self.projects: dict[str, Project] = {}

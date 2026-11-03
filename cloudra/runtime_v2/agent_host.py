@@ -374,12 +374,13 @@ class AgentHost:
 
             tools = supervisor_tool_names()
         else:
-            from cloudra.tools import get_tools_lst
+            from cloudra.tools import get_tools_lst, use_tool_entries
 
             tools = set(role.tool_policy.allow)
             if '*' in tools:
                 tools.remove('*')
-                tools.update(entry.tool_name for entry in get_tools_lst() if entry.tool_name)
+                with use_tool_entries(self.core.external_tools):
+                    tools.update(entry.tool_name for entry in get_tools_lst() if entry.tool_name)
             tools.difference_update(role.tool_policy.deny)
             tools = sorted(tools)
         if role.permissions.read:

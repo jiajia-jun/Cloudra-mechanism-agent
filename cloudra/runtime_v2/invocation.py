@@ -176,9 +176,13 @@ class InvocationService:
     async def invoke(
         self, ctx: PipelineContext, call: ToolCall, *, execution_id: str | None = None
     ) -> InvocationOutcome:
+        from cloudra.tools import external_tool_entries, use_tool_entries
+
         lock = self._agent_locks.setdefault(ctx.agent.id, asyncio.Lock())
-        async with lock:
-            return await self._invoke_admitted(ctx, call, execution_id=execution_id)
+        entries = getattr(getattr(self.tools, "core", None), "external_tools", external_tool_entries())
+        with use_tool_entries(entries):
+            async with lock:
+                return await self._invoke_admitted(ctx, call, execution_id=execution_id)
 
     # ----------------------------------------------------------------- private
 

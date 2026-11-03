@@ -24,6 +24,8 @@ _SENSITIVE_CONFIG_KEY_PARTS = {"key", "password", "secret", "token", "credential
 
 def _is_sensitive_config_key(key: str) -> bool:
     """Return whether a dotted/underscored config path contains a secret field."""
+    if key == "mcp_servers" or key.startswith("mcp_servers."):
+        return True
     parts = key.lower().replace(".", "_").split("_")
     return any(part in _SENSITIVE_CONFIG_KEY_PARTS for part in parts)
 
@@ -412,7 +414,7 @@ def config_get(key):
     value = getattr(target, final_key)
 
     # Mask sensitive values
-    if _is_sensitive_config_key(key) and isinstance(value, str) and value:
+    if _is_sensitive_config_key(key) and value:
         value = "***"
 
     console.print(value)

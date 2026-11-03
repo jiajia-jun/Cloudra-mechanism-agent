@@ -170,7 +170,12 @@ class AgentRunner:
                 async with run_semaphore:
                     await self._run(agent)
 
-        task = asyncio.create_task(run_with_permit(), name=f"agent:{session_id}")
+        from cloudra.tools import use_tool_entries
+
+        # Tasks copy their creator's context. Reset this token synchronously:
+        # a pending coroutine can later be finalized from another context.
+        with use_tool_entries(self.core.external_tools):
+            task = asyncio.create_task(run_with_permit(), name=f"agent:{session_id}")
         self._tasks[session_id] = task
         task.add_done_callback(lambda done: self._task_finished(session_id, done))
         return task

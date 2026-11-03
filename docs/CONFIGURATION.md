@@ -81,3 +81,28 @@ The provider accepts the aliases `codex` and `openai_codex`. Model access depend
 ## Tool runtime
 
 The default JavaScript protocol requires Node.js ≥ 22 and the host dependencies installed in the README. The optional `traditional` protocol does not use the JS host. Protocol behavior and documentation loading are described in [Tool protocols](TOOL_PROTOCOLS.md).
+
+## External MCP tools
+
+Install `pip install 'cloudra[mcp]'` (`cloudra[all]` includes it). Add connections to the YAML shown by `cloudra config get config_file`, then restart the service:
+
+```yaml
+mcp_servers:
+  local_lab:
+    command: python
+    args: ["/absolute/path/lab_server.py"]
+    env:
+      LAB_API_KEY: "your-key"
+  remote_lab:
+    url: https://lab.example.org/mcp
+    headers:
+      Authorization: "Bearer your-token"
+```
+
+Local stdio connections require `command`; optional fields are `args: list[str]`, `env: dict[str, str]`, and `cwd: str`. Remote Streamable HTTP connections require `url` and accept optional `headers: dict[str, str]`. Each configuration key identifies a server; tool names and argument schemas come from that server.
+
+Discovered tools join the existing catalog as `mcp__server__tool`; the program generates stable names when characters or length require it. New agents receive tools through their existing policies and load contracts on demand. Both JavaScript and traditional invocation work. Existing sessions keep their saved tool lists; restart after configuration changes and create a new session or sub-agent.
+
+Optional per-server `permissions` reuse the existing boolean `read/write/manage/script/destructive` fields. Defaults require `read` and `script`; `destructive: true` uses the existing approval flow. Remote annotations do not grant local permissions. Configuration displays and CLI get/set hide connection credentials.
+
+Text, images and structured results are preserved; images enter the workspace artifact flow. Successful external calls still require the existing scientific evidence checks for scientific acceptance. This version supports preconfigured authentication headers; configuration changes require restart and interactive OAuth is not included.

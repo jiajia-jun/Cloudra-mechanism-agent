@@ -44,6 +44,32 @@ from cloudra.tools.name_hints import hint_unknown_tool, is_retired_tool_name
 logger = logging.getLogger(__name__)
 
 
+def _external_image_paths(data: dict, workspace_dir: str) -> list[str]:
+    """Materialize MCP images for the existing workspace artifact pipeline."""
+    import base64
+    from uuid import uuid4
+
+    paths = []
+    extensions = {"image/png": ".png", "image/jpeg": ".jpg", "image/gif": ".gif", "image/webp": ".webp"}
+    for index, block in enumerate(data.get("content", [])):
+        if not isinstance(block, dict) or block.get("type") != "image":
+            continue
+        extension = extensions.get(block.get("mimeType"))
+        if extension is None:
+            continue
+        try:
+            content = base64.b64decode(block["data"], validate=True)
+            directory = Path(workspace_dir) / "mcp_images"
+            directory.mkdir(parents=True, exist_ok=True)
+            identity = uuid4().hex
+            path = directory / f"{identity}-{index}{extension}"
+            path.write_bytes(content)
+            paths.append(str(path))
+        except (OSError, ValueError, KeyError):
+            logger.warning("Could not materialize MCP image block %d; original result retained", index)
+    return paths
+
+
 def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, Any]]:
     """Schemas for explicit capabilities; only ``*`` expands the registry."""
     from cloudra.tools import get_tools_lst
@@ -55,7 +81,7 @@ def legacy_tool_schemas(tool_names: list[str] | None = None) -> list[dict[str, A
     for entry in get_tools_lst():
         if wanted is not None and entry.tool_name not in wanted:
             continue
-        schemas.append(entry.instantiate().tool_schema_json())
+        schemas.append(entry.wire_schema())
     return schemas
 
 
@@ -1080,6 +1106,12 @@ class LegacyToolExecutor:
         )
 
     async def execute(self, agent: AgentSession, call: ToolCall) -> ToolResult:
+        from cloudra.tools import use_tool_entries
+
+        with use_tool_entries(getattr(self.core, "external_tools", ())):
+            return await self._execute(agent, call)
+
+    async def _execute(self, agent: AgentSession, call: ToolCall) -> ToolResult:
         from cloudra.runtime_v2.subagent_bridge import NATIVE_TOOL_NAMES, handle_native_tool
         from cloudra.tools import get_tools_lst
 
@@ -1121,6 +1153,8 @@ class LegacyToolExecutor:
                 summary=hint_unknown_tool(call.name),
             )
         project = self.core.require_project(agent.project_id)
+        if entry.external_call is not None:
+            return await self._execute_external(entry, agent, call, project.workspace_dir)
         # 工具字段的类型是 ToolActorContext（Protocol），声明了该字段的工具直接
         # 经构造器拿到调用者身份（不再需要 object.__setattr__ 绕过 pydantic 校验）；
         # 不声明它的工具（log_parser 等无状态工具）按原样构造。
@@ -1193,3 +1227,39 @@ class LegacyToolExecutor:
         finally:
             reset_session_yolo(token)
         return ToolResult(is_success=is_success, summary=summary, data=data)
+
+    async def _execute_external(self, entry, agent, call, workspace_dir):
+        from cloudra.base.tools_class import Tool, use_approval_handler
+        from cloudra.tools.core.permission_model import Permission, check_permission
+
+        actor = _LegacyAgentBridge(agent, workspace_dir, self.core.event_log)
+        if not check_permission(actor.permission_all(), entry.required_permissions):
+            return ToolResult(False, "Tool requires permissions absent from this task")
+
+        async def approval(**fields):
+            return await self.core.pending.request_approval(agent, **fields)
+
+        token = set_session_yolo(agent.settings.yolo)
+        try:
+            with use_approval_handler(approval):
+                if entry.required_permissions & Permission.DESTRUCTIVE:
+                    guard = Tool(tool_name=entry.tool_name, subagent=actor)
+                    allowed, reason = await guard.ensure_safety(
+                        Session(id=agent.id, path=""), f"Action: Call external tool {entry.tool_name}", call.arguments)
+                    if not allowed:
+                        return ToolResult(False, reason)
+                try:
+                    result = await entry.external_call(call.arguments)
+                except Exception as exc:
+                    from cloudra.runtime_v2.invocation_types import InvocationError
+
+                    logger.warning("External tool %s failed (%s)", call.name, type(exc).__name__)
+                    message = f"External tool {call.name!r} failed ({type(exc).__name__}); check its server connection."
+                    return ToolResult(False, message,
+                        error=InvocationError("tool_exception", message, "unknown"))
+                paths = await asyncio.to_thread(_external_image_paths, result.data, actor.working_directory)
+                if paths:
+                    return ToolResult(result.is_success, result.summary, {**result.data, "image_paths": paths})
+                return result
+        finally:
+            reset_session_yolo(token)

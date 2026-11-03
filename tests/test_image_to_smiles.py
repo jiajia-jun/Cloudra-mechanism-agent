@@ -56,36 +56,32 @@ async def test_whitespace_result_rejected(fake_image, monkeypatch):
 async def test_blocking_model_load_does_not_freeze_event_loop(fake_image, monkeypatch):
     """DECIMER 的 import 即在进程内加载 TF SavedModel（分钟级同步 CPU 工作），
     tool_call 必须把它卸载出事件循环——曾把整个 API 冻结到所有请求超时。
-    用阻塞 loader + 并发 ticker 探测：ticker 停滞即事件循环被冻结。"""
+    loader 等事件循环显式释放，验证加载未完成时事件循环仍能继续运行。"""
     import asyncio
-    import time
+    import threading
+
+    loop = asyncio.get_running_loop()
+    loader_started = asyncio.Event()
+    release_loader = threading.Event()
 
     def blocking_loader():
-        time.sleep(0.4)
+        loop.call_soon_threadsafe(loader_started.set)
+        # 超时仅作死锁保护；成功依赖事件循环的握手，而非固定窗口内的调度次数。
+        assert release_loader.wait(timeout=5), "event loop was frozen during model loading"
         return (lambda p: "CCO"), ""
 
     monkeypatch.setattr(img_mod, "_load_predict_func", blocking_loader)
 
-    ticks = 0
-    stop = False
-
-    async def ticker():
-        nonlocal ticks
-        while not stop:
-            ticks += 1
-            await asyncio.sleep(0.02)
-
-    ticker_task = asyncio.create_task(ticker())
+    tool_task = asyncio.create_task(ImageToSmiles().tool_call(
+        ImageToSmiles_input_schema(image_path=fake_image), session=None,
+    ))
     try:
-        result = await ImageToSmiles().tool_call(
-            ImageToSmiles_input_schema(image_path=fake_image), session=None,
-        )
+        await asyncio.wait_for(loader_started.wait(), timeout=5)
     finally:
-        stop = True
-        await ticker_task
+        release_loader.set()
+        result = await tool_task
     assert result.is_success is True
-    # 若阻塞发生在事件循环线程上，0.4s 的冻结期里 ticker 只会前进寥寥几步
-    assert ticks > 5, f"event loop was frozen during tool_call (ticks={ticks})"
+    assert result.smiles == "CCO"
 
 
 @pytest.mark.asyncio
