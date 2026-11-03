@@ -34,27 +34,24 @@ Cloudra 预印本已在 [arXiv](https://arxiv.org/abs/2611.02909) 公开。
 
 ## 安装与启动
 
-需要 **Linux 或 macOS（windows系统请下载另外的windows分支）、Python ≥ 3.11、Node.js ≥ 22**，以及可用的语言模型服务（推荐deepseek-v4-flash，或GPT-6.1-sol，它们在系统中经过测试）。量子化学软件按研究任务另行安装和配置，例如 ORCA、Gaussian、xTB 或 CREST。
+第一次使用，按[新手安装教程](docs/INSTALL_CN.md)完成准备。安装后双击桌面入口即可打开 Cloudra。
+
+| 系统 | 安装方式 |
+| --- | --- |
+| macOS | 安装 Python 3.13 和 Node.js LTS，下载并解压项目，在文件夹中双击 `Install.command`；详见[macOS 教程](docs/INSTALL_CN.md#macos-安装)。 |
+| Linux | 准备 Python ≥ 3.11 和 Node.js ≥ 22.12，运行 `bash install.sh`；详见[Linux 教程](docs/INSTALL_CN.md#linux-安装)。 |
+| Windows，原生运行 | 使用独立的 [`windows` 分支安装教程](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS_CN.md)。 |
+
+熟悉终端的 macOS / Linux 用户可以直接执行：
 
 ```bash
-git clone https://github.com/yyywaa/Cloudra-mechanism-agent.git
+git clone --branch master https://github.com/yyywaa/Cloudra-mechanism-agent.git
 cd Cloudra-mechanism-agent
-./install.sh
-
-# 安装时选择默认的 .venv 后，在当前终端激活它
-# 如果没有选择，请忽略这一步
-source .venv/bin/activate
-
-# 安装默认 JavaScript 工具运行环境的依赖
-npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
-
-# 构建前端并启动 Web 界面
-cloudra
+bash install.sh
+bash web.sh
 ```
 
-默认协议是 `javascript`；`traditional` 是 per-agent 可选设置。
-
-安装脚本会引导初始化配置。启动后打开终端显示的地址，默认是 `127.0.0.1:8000`。
+安装程序自动创建 `.venv`、安装运行依赖、构建网页，并创建桌面入口：macOS 为 `Cloudra.command`，Linux 为应用菜单中的 Cloudra；有桌面目录时也会创建 `Cloudra.desktop`。无需手动激活环境或安装 npm 依赖。启动后浏览器自动打开，使用期间保留启动窗口。未自动打开时，复制终端显示的完整链接到浏览器。
 
 1. 在全局设置（Global Setting）中配置主 Agent 与协作 Agent 的模型。可使用 OpenAI 兼容接口，也可选择 ChatGPT / Codex 账号登录。同时，也可以选择您偏好的前端UI风格。
 2. 配置研究所需的计算软件和节点；远端计算（如基于SLURM的集群计算）见[部署指南](docs/README.md#部署与配置)。

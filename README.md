@@ -34,27 +34,24 @@ In the console, you can follow agent discussions in the agent forum, inspect too
 
 ## Install and start
 
-You need **Linux or macOS (Windows users should use the separate `windows` branch), Python ≥ 3.11 and Node.js ≥ 22**, plus access to a language-model service. We recommend deepseek-v4-flash or GPT-6.1-sol, both of which have been tested with the system. Install and configure the quantum-chemistry software needed for your study separately, such as ORCA, Gaussian, xTB or CREST.
+Start with the [beginner installation guide](docs/INSTALL.md). Once installed, double-click the desktop launcher to open Cloudra.
+
+| System | Installation |
+| --- | --- |
+| macOS | Install Python 3.13 and Node.js LTS, download and unzip the project, then double-click `Install.command` inside its folder. See the [macOS steps](docs/INSTALL.md#macos-installation). |
+| Linux | Install Python ≥ 3.11 and Node.js ≥ 22.12, then run `bash install.sh`. See the [Linux guide](docs/INSTALL.md#linux-installation). |
+| Windows, running natively | Use the [installation guide on the separate `windows` branch](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS.md). |
+
+If you are comfortable with a terminal, on macOS or Linux run:
 
 ```bash
-git clone https://github.com/yyywaa/Cloudra-mechanism-agent.git
+git clone --branch master https://github.com/yyywaa/Cloudra-mechanism-agent.git
 cd Cloudra-mechanism-agent
-./install.sh
-
-# If you selected the default .venv during installation, activate it here
-# Otherwise, skip this step
-source .venv/bin/activate
-
-# Install dependencies for the default JavaScript tool runtime
-npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
-
-# Build the frontend and start the web interface
-cloudra
+bash install.sh
+bash web.sh
 ```
 
-The default protocol is `javascript`; `traditional` is a per-agent opt-in.
-
-The installer guides you through configuration initialization. Open the address printed at startup; the default is `127.0.0.1:8000`.
+The installer creates `.venv`, installs runtime dependencies, builds the interface and adds a launcher: `Cloudra.command` on the macOS desktop, or Cloudra in the Linux application menu and `Cloudra.desktop` when a desktop directory exists. You do not need to activate the environment or install npm dependencies manually. The browser opens at startup; keep the launch window open while using Cloudra. If the browser does not open, copy the complete URL printed in the terminal.
 
 1. Configure the coordinator and follower models in Global Settings. You can use an OpenAI-compatible endpoint or select ChatGPT / Codex account login. You can also choose your preferred UI style.
 2. Configure the software and compute nodes needed for your study. See the [deployment guides](docs/README_EN.md#deployment-and-configuration) for remote computation, including Slurm-based clusters.

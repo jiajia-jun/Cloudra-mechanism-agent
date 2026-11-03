@@ -1,0 +1,49 @@
+name: Desktop installation
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - install.sh
+      - Install.command
+      - web.sh
+      - scripts/create_desktop_shortcut.py
+      - pyproject.toml
+      - frontend/package*.json
+      - cloudra/runtime_v2/js_host/package*.json
+      - .github/workflows/install-desktop.yml
+  workflow_dispatch:
+
+jobs:
+  install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: Cloudra install test
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Run the user installer
+        working-directory: Cloudra install test
+        run: bash install.sh
+      - name: Check installed runtime and desktop entry
+        working-directory: Cloudra install test
+        run: |
+          .venv/bin/python -m cloudra --version
+          test -f frontend/dist/index.html
+          test -x .venv/bin/cloudra-ui
+          if [ "$(uname -s)" = Darwin ]; then
+            test -x "$HOME/Desktop/Cloudra.command"
+          else
+            test -f "$HOME/.local/share/applications/cloudra.desktop"
+          fi
+          npm test --prefix cloudra/runtime_v2/js_host

@@ -64,7 +64,7 @@ def _check_node(frontend: Path) -> None:
     node = shutil.which("node")
     if npm is None or node is None:
         raise RuntimeError(
-            "Node.js >= 18 and npm are required for the Cloudra web frontend. "
+            "Node.js >= 22.12 and npm are required for the Cloudra web frontend. "
             f"Frontend found at {frontend}. Install from https://nodejs.org/"
         )
 
@@ -74,7 +74,7 @@ def _npm_argv() -> list[str]:
     npm = shutil.which("npm")
     if npm is None:
         raise RuntimeError(
-            "npm not found on PATH; install Node.js >= 18 or run with --skip-build"
+            "npm not found on PATH; install Node.js >= 22.12 or run with --skip-build"
         )
     return [npm]
 
