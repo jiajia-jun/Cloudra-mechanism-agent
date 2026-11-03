@@ -52,6 +52,32 @@ You can also use Cloudra as a general research assistant for literature searches
 
 See [Configuration](docs/CONFIGURATION.md) for model login, web search, common commands and remote access.
 
+### Source installation remains available
+
+With Python ≥ 3.11, Node.js ≥ 22.12 and npm installed, you can continue using the existing source workflow:
+
+```bash
+git clone --branch master https://github.com/yyywaa/Cloudra-mechanism-agent.git
+cd Cloudra-mechanism-agent
+bash install.sh
+source .venv/bin/activate
+cloudra
+```
+
+You can also run `bash web.sh`. See the [source installation guide](docs/INSTALL.md#install-from-source).
+
+### If macOS blocks the first launch
+
+The macOS download includes [Unblock-Cloudra.command](packaging/macos/Unblock-Cloudra.command) next to the installer. Use it only for Cloudra downloads you trust from this repository.
+
+Open Terminal, type `bash ` with a trailing space, drag the script into the terminal, and press Return. It handles Cloudra `.pkg` files beside the script and the installed `Cloudra.app`. If prompted, enter your Mac login password. Then reopen the installer or application.
+
+You can also provide an explicit path:
+
+```bash
+bash /path/to/Unblock-Cloudra.command /Applications/Cloudra.app
+```
+
 ## Three working modes
 
 Choose a mode in project settings:

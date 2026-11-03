@@ -40,6 +40,8 @@ GitHub requires you to be signed in to download workflow artifacts; see [GitHub'
 
 Current test packages have not been signed with an Apple developer certificate or notarized. If macOS blocks one, first confirm it came from the intended project build, then open **System Settings → Privacy & Security**, find its message, and choose **Open Anyway**. Follow the confirmation prompt. The installer and app may each trigger this on first launch; see [Apple's instructions](https://support.apple.com/en-gb/102445).
 
+The download also includes `Unblock-Cloudra.command`; see the [unblock instructions](../README.md#if-macos-blocks-the-first-launch).
+
 ## Install on Linux
 
 Desktop packages target Ubuntu 22.04 or newer and Debian 12 or newer. On another distribution, try the portable archive.

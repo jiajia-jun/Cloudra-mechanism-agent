@@ -52,6 +52,32 @@ Cloudra 预印本已在 [arXiv](https://arxiv.org/abs/2611.02909) 公开。
 
 模型登录、联网搜索、常用命令及远程访问设置见[配置指南](docs/CONFIGURATION_CN.md)。
 
+### 保留源码安装
+
+准备 Python ≥ 3.11、Node.js ≥ 22.12 和 npm 后，仍可使用原来的安装与启动方式：
+
+```bash
+git clone --branch master https://github.com/yyywaa/Cloudra-mechanism-agent.git
+cd Cloudra-mechanism-agent
+bash install.sh
+source .venv/bin/activate
+cloudra
+```
+
+也可以直接运行 `bash web.sh`。完整步骤见[源码安装](docs/INSTALL_CN.md#从源码安装)。
+
+### macOS 首次打开被拦截
+
+macOS 安装包旁附带 [Unblock-Cloudra.command](packaging/macos/Unblock-Cloudra.command)，仅对确认来自本仓库的 Cloudra 下载使用。
+
+打开“终端”，输入 `bash `（末尾留一个空格），把脚本拖入终端并按回车。脚本会处理同文件夹中的 Cloudra `.pkg` 和已安装的 `Cloudra.app`；如提示密码，输入 Mac 登录密码。完成后重新打开安装包或应用。
+
+也可指定路径：
+
+```bash
+bash /路径/Unblock-Cloudra.command /Applications/Cloudra.app
+```
+
 ## 三种工作模式
 
 在项目设置中选择：

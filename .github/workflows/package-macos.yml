@@ -51,5 +51,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         with:
           name: Cloudra-macos-${{ matrix.arch }}
-          path: Cloudra package test/dist/*.pkg
+          path: |
+            Cloudra package test/dist/*.pkg
+            Cloudra package test/dist/Unblock-Cloudra.command
           if-no-files-found: error

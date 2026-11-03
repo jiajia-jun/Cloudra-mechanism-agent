@@ -38,7 +38,7 @@ Windows 的详细步骤见 [`windows` 分支教程](https://github.com/yyywaa/Cl
 3. 打开 Finder → “应用程序”，双击 **Cloudra**。浏览器会自动打开界面；已有桌面目录时，也会添加桌面的 Cloudra 入口。
 4. 以后从“应用程序”、桌面或 Dock 打开。退出时，在 Dock 的 Cloudra 图标上右键选择“退出”，或使用应用菜单的“退出 Cloudra”。
 
-当前测试安装包尚未完成 Apple 开发者签名和公证。若系统阻止打开，在确认文件来自本项目对应构建后，进入“系统设置 → 隐私与安全性”，找到该文件的提示，点击“仍要打开（Open Anyway）”，再按提示确认。安装包或应用首次打开都可能触发提示，见 [Apple 官方说明](https://support.apple.com/en-gb/102445)。
+当前测试安装包尚未完成 Apple 开发者签名和公证。下载包内附带 `Unblock-Cloudra.command`，使用方法见[首页的解除隔离说明](../README_CN.md#macos-首次打开被拦截)。若系统阻止打开，在确认文件来自本项目对应构建后，进入“系统设置 → 隐私与安全性”，找到该文件的提示，点击“仍要打开（Open Anyway）”，再按提示确认。安装包或应用首次打开都可能触发提示，见 [Apple 官方说明](https://support.apple.com/en-gb/102445)。
 
 ## Linux 安装
 
