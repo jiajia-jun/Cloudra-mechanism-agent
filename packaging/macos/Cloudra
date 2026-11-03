@@ -1,0 +1,25 @@
+#!/bin/bash
+# Invoked by the native application. All application lifecycle logic stays in Cloudra's CLI.
+set -u
+umask 077
+RESOURCES="$(cd "$(dirname "$0")/../Resources" && pwd)"
+APP="$(cd "$RESOURCES/../.." && pwd)"
+export PATH="$RESOURCES/python/bin:$RESOURCES/node/bin:$PATH:/usr/sbin:/sbin"
+export CLOUDRA_FRONTEND_DIR="$RESOURCES/frontend"
+export PYTHONNOUSERSITE=1
+unset PYTHONHOME PYTHONPATH
+cd "$RESOURCES" || exit 1
+if [[ $# -gt 0 ]]; then
+    exec "$RESOURCES/python/bin/python3" -m cloudra "$@"
+fi
+if [[ -d "$HOME/Desktop" && ! -e "$HOME/Desktop/Cloudra.app" ]]; then
+    ln -s "$APP" "$HOME/Desktop/Cloudra.app"
+fi
+LOG_DIR="$HOME/Library/Logs/Cloudra"
+mkdir -p "$LOG_DIR"
+"$RESOURCES/python/bin/python3" -m cloudra web --skip-build >>"$LOG_DIR/desktop.log" 2>&1
+status=$?
+if [[ "$status" -ne 0 && "$status" -ne 143 && "$status" -ne 241 ]]; then
+    /usr/bin/osascript -e 'display alert "Cloudra 未能启动" message "请查看 ~/Library/Logs/Cloudra/desktop.log 中的错误。" as critical'
+fi
+exit "$status"

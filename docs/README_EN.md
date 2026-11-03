@@ -10,7 +10,7 @@ The landing pages, configuration guide and research-data overview are available 
 
 | Guide | What you will find |
 | --- | --- |
-| [Installation and desktop startup](INSTALL.md) | macOS / Linux setup, desktop launchers, first use, stopping and updates. |
+| [Installation and desktop startup](INSTALL.md) | macOS / Linux packages, desktop launchers and first use, plus source installation. |
 | [Configuration](CONFIGURATION.md) | Model login, web search, chat commands and server access. |
 | [TS workflow and scientific validation](TS_PROCESS_SOP.md) | Transition-state searches, revisions, stopping, frequency and IRC evidence. |
 | [DAG orchestration](DAG_ORCHESTRATION.md) | Modes, mechanism graphs, evidence binding and Supervisor review. |

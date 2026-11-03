@@ -1,0 +1,59 @@
+name: Linux desktop packages
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [master]
+    paths:
+      - scripts/build_desktop_payload.py
+      - scripts/build-linux-package.sh
+      - packaging/linux/**
+      - .github/workflows/package-linux.yml
+      - pyproject.toml
+      - frontend/**
+      - cloudra/**
+
+jobs:
+  package:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: Cloudra package test
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Prepare build tools
+        run: |
+          python -m pip install uv
+          python -m pip install --no-deps --editable './Cloudra package test'
+      - name: Check the launcher
+        working-directory: Cloudra package test
+        run: python packaging/linux/test_launcher.py
+      - name: Build native and portable packages
+        working-directory: Cloudra package test
+        run: bash scripts/build-linux-package.sh
+      - name: Install and check the native package
+        working-directory: Cloudra package test
+        run: |
+          sudo apt-get install --yes --no-install-recommends ./dist/installers/*.deb
+          /opt/cloudra/Cloudra --version
+          test -f /usr/share/applications/cloudra.desktop
+          test -f /opt/cloudra/frontend/dist/index.html
+          /opt/cloudra/python/bin/python3 -c "import importlib.util, pathlib; package=importlib.util.find_spec('cloudra'); assert (pathlib.Path(package.origin).parent / 'runtime_v2/js_host/node_modules/quickjs-emscripten/package.json').is_file()"
+          /opt/cloudra/node/bin/node --version
+      - name: Check the extracted portable package
+        working-directory: Cloudra package test
+        run: |
+          mkdir -p 'build/portable smoke'
+          tar -xzf dist/installers/*.tar.gz -C 'build/portable smoke'
+          'build/portable smoke/Cloudra/Cloudra' --version
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Cloudra-linux-x64
+          path: Cloudra package test/dist/installers/*
+          if-no-files-found: error

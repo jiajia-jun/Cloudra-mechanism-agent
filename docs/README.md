@@ -8,7 +8,7 @@
 
 | 文档 | 你可以在这里找到 |
 | --- | --- |
-| [安装与桌面启动](INSTALL_CN.md) | macOS / Linux 安装、桌面入口、首次使用、停止与更新。 |
+| [安装与桌面启动](INSTALL_CN.md) | 下载 macOS / Linux 安装包、桌面启动、首次配置；另附源码安装。 |
 | [配置指南](CONFIGURATION_CN.md) | 模型登录、联网搜索、对话命令与服务访问。 |
 | [TS 流程与科学验收](TS_PROCESS_SOP.md) | 过渡态搜索、修订、停止以及频率和 IRC 证据要求。 |
 | [DAG 编排](DAG_ORCHESTRATION.md) | 三种模式、机理图、证据绑定与 Supervisor 审查。 |

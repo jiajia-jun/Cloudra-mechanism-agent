@@ -10,16 +10,11 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from cloudra.infra.desktop_entries import quote_exec_argument
+
 
 def _desktop_value(value: Path) -> str:
     return str(value).replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-
-
-def _desktop_exec(path: Path) -> str:
-    value = str(path).replace("%", "%%")
-    for char in ("\\", '"', "`", "$"):
-        value = value.replace(char, "\\" + char)
-    return '"' + value.replace("\\", "\\\\") + '"'
 
 
 def create_shortcut(project: Path) -> None:
@@ -65,7 +60,7 @@ def create_shortcut(project: Path) -> None:
     entry.write_text(
         "[Desktop Entry]\nType=Application\nName=Cloudra\n"
         "Comment=Open the Cloudra research interface\n"
-        f"Exec={_desktop_exec(launcher)}\n"
+        f"Exec={quote_exec_argument(launcher)}\n"
         f"Path={_desktop_value(project)}\n"
         f"Icon={_desktop_value(project / 'docs/assets/Cloudra-logo.svg')}\n"
         "Terminal=true\nCategories=Education;Science;Chemistry;\n",

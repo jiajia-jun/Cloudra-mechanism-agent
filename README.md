@@ -34,24 +34,15 @@ In the console, you can follow agent discussions in the agent forum, inspect too
 
 ## Install and start
 
-Start with the [beginner installation guide](docs/INSTALL.md). Once installed, double-click the desktop launcher to open Cloudra.
+Download the installer for your system, double-click it, then open Cloudra from your applications or desktop. Packages include Python, Node.js, core dependencies and the built interface, so you do not need to install developer tools first. See the [beginner installation guide](docs/INSTALL.md).
 
 | System | Installation |
 | --- | --- |
-| macOS | Install Python 3.13 and Node.js LTS, download and unzip the project, then double-click `Install.command` inside its folder. See the [macOS steps](docs/INSTALL.md#macos-installation). |
-| Linux | Install Python ≥ 3.11 and Node.js ≥ 22.12, then run `bash install.sh`. See the [Linux guide](docs/INSTALL.md#linux-installation). |
-| Windows, running natively | Use the [installation guide on the separate `windows` branch](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS.md). |
+| macOS | Double-click the `.pkg`, then open Cloudra in Applications. See the [macOS guide](docs/INSTALL.md#install-on-macos). |
+| Linux | Install the `.deb` or extract the portable `.tar.gz`, then open Cloudra. See the [Linux guide](docs/INSTALL.md#install-on-linux). |
+| Windows, running natively | Install `Setup.exe`, then open Cloudra from the Start menu or desktop. See the [guide on the `windows` branch](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS.md). |
 
-If you are comfortable with a terminal, on macOS or Linux run:
-
-```bash
-git clone --branch master https://github.com/yyywaa/Cloudra-mechanism-agent.git
-cd Cloudra-mechanism-agent
-bash install.sh
-bash web.sh
-```
-
-The installer creates `.venv`, installs runtime dependencies, builds the interface and adds a launcher: `Cloudra.command` on the macOS desktop, or Cloudra in the Linux application menu and `Cloudra.desktop` when a desktop directory exists. You do not need to activate the environment or install npm dependencies manually. The browser opens at startup; keep the launch window open while using Cloudra. If the browser does not open, copy the complete URL printed in the terminal.
+Packages are currently available as [GitHub Actions artifacts](docs/INSTALL.md#download-a-package) after successful packaging runs and have not been published as formal Releases. macOS test packages are not developer-signed or notarized yet. Developers and people managing their own deployments can use the existing scripts via [source installation](docs/INSTALL.md#install-from-source).
 
 1. Configure the coordinator and follower models in Global Settings. You can use an OpenAI-compatible endpoint or select ChatGPT / Codex account login. You can also choose your preferred UI style.
 2. Configure the software and compute nodes needed for your study. See the [deployment guides](docs/README_EN.md#deployment-and-configuration) for remote computation, including Slurm-based clusters.
@@ -82,6 +73,8 @@ See the [DAG guide](docs/DAG_ORCHESTRATION.md) for graph delivery and the [TS gu
 The [research data and reproduction guide](docs/RESEARCH_DATA.md) separates reproducing paper figures, inspecting original agent runs, reviewing Gold reference calculations and rerunning the benchmark. The formal bank contains 50 tasks; P2 comprises four configurations and 200 retained runs. The full P2 archive (14.9 GB) is publicly available with read-only access; filenames, checksums and download instructions are on the [P2 delivery page](docs/benchmarks/P2_DELIVERY.md).
 
 ## Contribute and cite
+
+The default protocol is `javascript`; `traditional` is a per-agent opt-in.
 
 Issues, experience reports and improvements are welcome. For calculation problems, include software versions, the environment, the task description, input files and relevant logs so we can investigate the cause. See [CONTRIBUTING.md](CONTRIBUTING.md) for development conventions and [Architecture](docs/ARCHITECTURE.md) for the system structure.
 

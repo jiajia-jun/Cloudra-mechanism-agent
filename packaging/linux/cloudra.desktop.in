@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Cloudra
+Comment=Explore chemical reaction mechanisms
+Exec=@EXEC@
+Icon=@ICON@
+Terminal=false
+Categories=Education;Science;Chemistry;
+Actions=Stop;
+
+[Desktop Action Stop]
+Name=Stop Cloudra
+Exec=@EXEC@ --stop

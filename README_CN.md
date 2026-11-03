@@ -34,24 +34,15 @@ Cloudra 预印本已在 [arXiv](https://arxiv.org/abs/2611.02909) 公开。
 
 ## 安装与启动
 
-第一次使用，按[新手安装教程](docs/INSTALL_CN.md)完成准备。安装后双击桌面入口即可打开 Cloudra。
+下载适合自己系统的安装包，双击安装，再从桌面或应用程序打开 Cloudra。安装包已包含 Python、Node.js、基础依赖和网页界面，无需先安装开发工具。详细步骤见[新手安装教程](docs/INSTALL_CN.md)。
 
 | 系统 | 安装方式 |
 | --- | --- |
-| macOS | 安装 Python 3.13 和 Node.js LTS，下载并解压项目，在文件夹中双击 `Install.command`；详见[macOS 教程](docs/INSTALL_CN.md#macos-安装)。 |
-| Linux | 准备 Python ≥ 3.11 和 Node.js ≥ 22.12，运行 `bash install.sh`；详见[Linux 教程](docs/INSTALL_CN.md#linux-安装)。 |
-| Windows，原生运行 | 使用独立的 [`windows` 分支安装教程](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS_CN.md)。 |
+| macOS | 双击 `.pkg` 安装，再打开“应用程序”中的 Cloudra；见[macOS 教程](docs/INSTALL_CN.md#macos-安装)。 |
+| Linux | 安装 `.deb`，或解压便携 `.tar.gz`，然后打开 Cloudra；见[Linux 教程](docs/INSTALL_CN.md#linux-安装)。 |
+| Windows，原生运行 | 双击 `Setup.exe` 安装，从开始菜单或桌面打开；见 [`windows` 分支教程](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS_CN.md)。 |
 
-熟悉终端的 macOS / Linux 用户可以直接执行：
-
-```bash
-git clone --branch master https://github.com/yyywaa/Cloudra-mechanism-agent.git
-cd Cloudra-mechanism-agent
-bash install.sh
-bash web.sh
-```
-
-安装程序自动创建 `.venv`、安装运行依赖、构建网页，并创建桌面入口：macOS 为 `Cloudra.command`，Linux 为应用菜单中的 Cloudra；有桌面目录时也会创建 `Cloudra.desktop`。无需手动激活环境或安装 npm 依赖。启动后浏览器自动打开，使用期间保留启动窗口。未自动打开时，复制终端显示的完整链接到浏览器。
+当前安装包通过成功打包后的 [GitHub Actions 构建产物](docs/INSTALL_CN.md#下载安装包)提供，尚未发布为正式 Releases；macOS 测试包尚未完成开发者签名和公证。开发者及自行部署的用户可按[源码安装步骤](docs/INSTALL_CN.md#从源码安装)使用现有安装脚本。
 
 1. 在全局设置（Global Setting）中配置主 Agent 与协作 Agent 的模型。可使用 OpenAI 兼容接口，也可选择 ChatGPT / Codex 账号登录。同时，也可以选择您偏好的前端UI风格。
 2. 配置研究所需的计算软件和节点；远端计算（如基于SLURM的集群计算）见[部署指南](docs/README.md#部署与配置)。
@@ -82,6 +73,8 @@ bash web.sh
 [研究数据与复现入口](docs/RESEARCH_DATA_CN.md)按用途区分：复现论文图表、检查 Agent 原始运行、审查 Gold 参考计算，以及重新运行 Benchmark。正式题库含 50 题；P2 对应四种配置、200 次保留运行。P2 完整归档（14.9 GB）已公开只读，文件名、校验值和下载说明见[交付页](docs/benchmarks/P2_DELIVERY.md)。
 
 ## 参与与引用
+
+默认协议是 `javascript`；`traditional` 是 per-agent 可选设置。
 
 欢迎提交问题、使用反馈和改进建议。报告计算问题时，附上软件版本、环境、任务描述、输入文件及相关日志，会更容易定位原因。开发约定见 [CONTRIBUTING.md](CONTRIBUTING.md)，系统结构见[架构说明](docs/ARCHITECTURE.md)。
 
