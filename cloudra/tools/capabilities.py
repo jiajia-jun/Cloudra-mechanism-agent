@@ -18,7 +18,10 @@ EvidenceDeriver = Callable[..., dict[str, Any]]
 
 def _named() -> dict[str, ToolRegistration]:
     """Entries that explicitly declare their wire tool_name."""
-    return {reg.tool_name: reg for reg in TOOL_REGISTRY if reg.tool_name}
+    from cloudra.tools import external_tool_entries
+
+    registrations = [*TOOL_REGISTRY, *(entry.registration for entry in external_tool_entries() if entry.registration)]
+    return {reg.tool_name: reg for reg in registrations if reg.tool_name}
 
 
 def _load(path: str) -> Callable:
@@ -64,7 +67,7 @@ def config_disabled_tools() -> frozenset[str]:
     the second line of defense.  Gate resolution is the registry entry's
     ``"<section>.<field>"`` dot-path evaluated against ``get_config()``.
     """
-    if not any(reg.config_gate for reg in TOOL_REGISTRY):
+    if not any(reg.config_gate for reg in _named().values()):
         return frozenset()
     from cloudra.infra.config import get_config, resolve_config_attr
     cfg = get_config()
@@ -94,7 +97,7 @@ def role_hidden_tools(role_id: str | None) -> frozenset[str]:
     allowlist means every role may use the tool; a None/unknown role_id is
     treated literally (absent from every non-empty allowlist).
     """
-    if not any(reg.role_allowlist for reg in TOOL_REGISTRY):
+    if not any(reg.role_allowlist for reg in _named().values()):
         return frozenset()
     return frozenset(
         name

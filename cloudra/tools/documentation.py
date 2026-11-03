@@ -64,7 +64,7 @@ def _digest(value: Any) -> str:
 
 
 def build_tool_documents(names: Sequence[str], *, allowed_names: Collection[str], entries: Sequence[ToolEntry]) -> tuple[ToolDocument, ...]:
-    from cloudra.runtime_v2.tool_catalog import render_tool_declaration
+    from cloudra.runtime_v2.tool_catalog import _js_ident, render_tool_declaration
 
     selected = validate_tool_names(list(names), allowed_names=allowed_names)
     by_name = {entry.tool_name: entry for entry in entries}
@@ -75,13 +75,15 @@ def build_tool_documents(names: Sequence[str], *, allowed_names: Collection[str]
         refs = tuple(ToolDocReference(skill_name=skill, reference=reference)
                      for skill, reference in entry.skill_references)
         revision = _digest({'name': name, 'summary': entry.summary, 'description': entry.tool_description,
-            'input': entry.input_schema.model_json_schema(), 'output': entry.output_schema.model_json_schema(),
+            'input': entry.input_json_schema(), 'output': entry.output_json_schema(),
             'references': [ref.model_dump() for ref in refs]})
+        identifier = _js_ident(name)
+        tool_expression = f'tools.{identifier}' if identifier == name else f'tools[{identifier}]'
         content = (f'# {name}\n\n{entry.tool_description}\n\n'
             f'## Input and result contract\n\n```typescript\n{render_tool_declaration(entry)}\n```\n\n'
             '## Calling pattern\n\nConstruct args from the contract and the actual task declarations. '
             'This pattern does not supply scientific methods or other task inputs.\n\n'
-            f'```javascript\nconst r = await tools.{name}(args);\n'
+            f'```javascript\nconst r = await {tool_expression}(args);\n'
             'if (r.is_success) text(r.data); else text(r.summary);\n```')
         documents.append(ToolDocument(name=name, revision=revision, content=content, references=refs))
     return tuple(documents)

@@ -49,6 +49,20 @@ def test_config_get_masks_deepseek_search_key():
 
     assert result.exit_code == 0
     assert "deepseek-search-secret" not in result.output
+
+
+def test_mcp_connection_credentials_are_hidden_on_get_and_set():
+    import json
+
+    connection = json.dumps({"lab": {"url": "https://example.org/mcp?token=private-url",
+        "headers": {"Authorization": "Bearer private-header"}}})
+    runner = CliRunner()
+    for command in (["config", "set", "mcp_servers", connection], ["config", "get", "mcp_servers"]):
+        result = runner.invoke(cli, command)
+        assert result.exit_code == 0, result.output
+        assert "private-url" not in result.output
+        assert "private-header" not in result.output
+        assert "***" in result.output
     assert "***" in result.output
 
 

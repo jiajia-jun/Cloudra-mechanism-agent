@@ -164,11 +164,14 @@ class AgentRunner:
         run_semaphore = self.core.launch_groups.run_semaphore(session_id)
 
         async def run_with_permit() -> None:
-            if run_semaphore is None:
-                await self._run(agent)
-            else:
-                async with run_semaphore:
+            from cloudra.tools import use_tool_entries
+
+            with use_tool_entries(self.core.external_tools):
+                if run_semaphore is None:
                     await self._run(agent)
+                else:
+                    async with run_semaphore:
+                        await self._run(agent)
 
         task = asyncio.create_task(run_with_permit(), name=f"agent:{session_id}")
         self._tasks[session_id] = task

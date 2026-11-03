@@ -62,3 +62,28 @@ cloudra auth codex logout
 ## 工具运行环境
 
 默认 JavaScript 协议需要 Node.js ≥ 22 及首页安装步骤中的宿主依赖。可选的 `traditional` 协议不使用 JS 宿主。调用协议和工具文档加载机制见[开发者说明](TOOL_PROTOCOLS.md)。
+
+## 外部 MCP 工具
+
+安装官方 SDK 依赖：`pip install 'cloudra[mcp]'`（`cloudra[all]` 已包含）。在 `cloudra config get config_file` 指向的 YAML 中加入连接配置，然后重启服务：
+
+```yaml
+mcp_servers:
+  local_lab:
+    command: python
+    args: ["/absolute/path/lab_server.py"]
+    env:
+      LAB_API_KEY: "your-key"
+  remote_lab:
+    url: https://lab.example.org/mcp
+    headers:
+      Authorization: "Bearer your-token"
+```
+
+本地连接必填 `command`，可选 `args: list[str]`、`env: dict[str, str]`、`cwd: str`；远程连接必填 `url`，可选 `headers: dict[str, str]`。两种连接分别使用 stdio 和 Streamable HTTP。服务名由配置键指定，工具名称和参数定义从服务自动获取。
+
+工具以 `mcp__服务__工具` 名称进入现有目录；名称含特殊字符或过长时，程序自动生成稳定名称。新建 Agent 按已有工具策略取得这些工具，按需读取完整契约，使用 JavaScript 或传统协议调用。用户按原方式交代任务即可。已有会话保留原工具列表；修改配置后重启并创建新会话或子 Agent。
+
+每个连接可选 `permissions`，复用现有 `read/write/manage/script/destructive` 布尔字段；默认要求 `read` 和 `script`。需要审批的服务可设 `destructive: true`，沿用现有审批流程。远端工具注解不授予本地权限。配置显示和 CLI get/set 会隐藏连接凭据。
+
+文本、图片及结构化结果保留；图片进入现有工作区产物流程。外部工具返回成功代表工具执行成功，科学结论仍按现有证据标准验收。首版使用预配置鉴权头，不提供交互式 OAuth 或运行中配置热更新。

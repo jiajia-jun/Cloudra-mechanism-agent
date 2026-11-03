@@ -13,6 +13,8 @@ from typing import Annotated, Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from cloudra.tools.core.permission_model import PermissionSet
+
 
 def new_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:16]}"
@@ -156,16 +158,6 @@ class RuntimeSettings(RuntimeSettingsPatch):
             patch_data["api_key"] = patch.api_key
         data.update(patch_data)
         return RuntimeSettings.model_validate(data)
-
-
-class PermissionSet(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    read: bool = True
-    write: bool = False
-    manage: bool = False
-    script: bool = False
-    destructive: bool = False
 
 
 class ToolPolicy(BaseModel):

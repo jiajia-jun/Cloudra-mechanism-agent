@@ -7,19 +7,27 @@ Pydantic v2 model_fields（类属性访问被 pydantic 拦截导致 AttributeErr
 
 import importlib
 import sys
+from collections.abc import Awaitable, Callable, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic_core import PydanticUndefined
 
-from cloudra.tools.registry import TOOL_REGISTRY
+from cloudra.tools.core.permission_model import Permission
+from cloudra.tools.registry import TOOL_REGISTRY, ToolRegistration
+
+if TYPE_CHECKING:
+    from cloudra.runtime_v2.policies.base import ToolResult
 
 _TOOL_ENTRIES_CACHE: list | None = None
 
 
 @dataclass
 class ToolEntry:
-    cls: type
+    cls: type | None
     tool_name: str
     tool_id: str
     input_schema: Any = None
@@ -30,9 +38,49 @@ class ToolEntry:
     tool_description: str = ""
     summary: str = ""
     skill_references: tuple[tuple[str, str], ...] = ()
+    external_call: Callable[[dict[str, Any]], Awaitable["ToolResult"]] | None = None
+    required_permissions: Permission = Permission.READ | Permission.SCRIPT
+    registration: ToolRegistration | None = None
+
+    def input_json_schema(self) -> dict:
+        return _json_schema(self.input_schema)
+
+    def output_json_schema(self) -> dict:
+        return _json_schema(self.output_schema)
+
+    def wire_schema(self) -> dict:
+        parameters = (self.input_json_schema() if isinstance(self.input_schema, dict)
+                      else self.input_schema.to_parameters_schema())
+        return {"type": "function", "function": {
+            "name": self.tool_name, "description": self.tool_description, "parameters": parameters}}
 
     def instantiate(self, **kwargs):
+        if self.cls is None:
+            raise TypeError(f"External tool {self.tool_name!r} has no local class")
         return self.cls(**kwargs)
+
+
+def _json_schema(schema) -> dict:
+    if schema is None:
+        return {}
+    return deepcopy(schema) if isinstance(schema, dict) else schema.model_json_schema()
+
+
+_EXTERNAL_ENTRIES: ContextVar[Sequence[ToolEntry]] = ContextVar("cloudra_external_tools", default=())
+
+
+@contextmanager
+def use_tool_entries(entries: Sequence[ToolEntry]):
+    """Bind the owning application's external tools to one task and its workers."""
+    token = _EXTERNAL_ENTRIES.set(entries)
+    try:
+        yield
+    finally:
+        _EXTERNAL_ENTRIES.reset(token)
+
+
+def external_tool_entries() -> Sequence[ToolEntry]:
+    return _EXTERNAL_ENTRIES.get()
 
 
 def _make_entry(tool_cls: type) -> ToolEntry:
@@ -72,7 +120,7 @@ def _assert_unique_tool_identities(entries: list[ToolEntry]) -> None:
     """tool_id 和 wire tool_name 都必须唯一，防止声明与执行指向不同工具。"""
     seen: dict[str, dict[str, str]] = {"tool_id": {}, "tool_name": {}}
     for entry in entries:
-        owner = f"{entry.cls.__module__}:{entry.cls.__name__}"
+        owner = f"{entry.cls.__module__}:{entry.cls.__name__}" if entry.cls is not None else entry.tool_id
         for field, owners in seen.items():
             value = getattr(entry, field)
             if value in owners:
@@ -83,6 +131,15 @@ def _assert_unique_tool_identities(entries: list[ToolEntry]) -> None:
 
 
 def get_tools_lst() -> list[ToolEntry]:
+    entries = _builtin_tools()
+    external = external_tool_entries()
+    if external:
+        entries = [*entries, *external]
+        _assert_unique_tool_identities(entries)
+    return entries
+
+
+def _builtin_tools() -> list[ToolEntry]:
     """返回显式注册且在当前依赖环境中可导入的工具，进程内缓存。"""
     global _TOOL_ENTRIES_CACHE
     if _TOOL_ENTRIES_CACHE is not None:
@@ -114,6 +171,7 @@ def get_tools_lst() -> list[ToolEntry]:
                 f"显式工具注册类不存在: {registration.module}:{registration.class_name}"
             ) from e
         entry = _make_entry(tool_cls)
+        entry.registration = registration
         entry.summary = registration.summary
         entry.skill_references = registration.skill_references
         if registration.tool_name and registration.tool_name != entry.tool_name:

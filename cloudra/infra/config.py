@@ -41,6 +41,7 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from cloudra.persistence.fs_utils import atomic_write_text
+from cloudra.tools.core.permission_model import PermissionSet
 
 logger = logging.getLogger(__name__)
 
@@ -213,6 +214,50 @@ class ToolDocumentLoadingConfig(BaseModel):
         return type(self).model_validate(data)
 
 
+class MCPStdioServerConfig(BaseModel):
+    """Operator-owned connection to a local MCP server process."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    command: str = Field(min_length=1)
+    args: list[str] = Field(default_factory=list)
+    env: dict[str, str] = Field(default_factory=dict, repr=False)
+    cwd: str | None = None
+    permissions: PermissionSet = Field(default_factory=lambda: PermissionSet(read=True, script=True))
+
+
+class MCPHTTPServerConfig(BaseModel):
+    """Operator-owned connection to a Streamable HTTP MCP endpoint."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(min_length=1)
+    headers: dict[str, str] = Field(default_factory=dict, repr=False)
+    permissions: PermissionSet = Field(default_factory=lambda: PermissionSet(read=True, script=True))
+
+    @field_validator("url")
+    @classmethod
+    def _http_url(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        parsed = urlsplit(value)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            raise ValueError("MCP URL must be a complete HTTP(S) URL")
+        return value
+
+
+MCPServerConfig = MCPStdioServerConfig | MCPHTTPServerConfig
+
+
+def _validate_mcp_servers(value: Any) -> dict[str, MCPServerConfig]:
+    """Report invalid connection fields without echoing their credential values."""
+    try:
+        return TypeAdapter(dict[str, MCPServerConfig]).validate_python(value)
+    except ValidationError as exc:
+        fields = ", ".join(".".join(str(part) for part in error["loc"]) for error in exc.errors())
+        raise ValueError(f"Invalid mcp_servers configuration: {fields}") from None
+
+
 class CloudraConfig(BaseSettings):
     """Global Cloudra configuration."""
 
@@ -258,6 +303,7 @@ class CloudraConfig(BaseSettings):
     # "pkg.module:attr"，attr 为插件实例或无参工厂（带 name；hooks 可选：
     # search / on_event / setup）。应用启动时加载一次；失败只记日志不阻塞。
     plugins: list[str] = Field(default_factory=list)
+    mcp_servers: dict[str, MCPServerConfig] = Field(default_factory=dict, repr=False)
 
     @field_validator("data_dir", "config_file", mode="before")
     @classmethod
@@ -315,6 +361,7 @@ class CloudraConfig(BaseSettings):
         cfg_path = self.config_file
         selection_data = None
         search_provider_data = None
+        mcp_data = None
         if not cfg_path.exists():
             return
         try:
@@ -322,6 +369,7 @@ class CloudraConfig(BaseSettings):
                 data = yaml.safe_load(f) or {}
             selection_data = data.get('tool_document_loading')
             search_provider_data = data.get("search_provider")
+            mcp_data = data.get("mcp_servers")
             if "llm" in data:
                 for role in ("coordinator", "follower"):
                     if role in data["llm"]:
@@ -383,6 +431,8 @@ class CloudraConfig(BaseSettings):
                 self.tool_document_loading = ToolDocumentLoadingConfig.model_validate(selection_data)
             except ValidationError:
                 raise ValueError('Invalid tool_document_loading configuration; check strategy and backend fields') from None
+        if mcp_data is not None:
+            self.mcp_servers = _validate_mcp_servers(mcp_data)
 
     def _ensure_dirs(self):
         """Create data directories if they don't exist."""
@@ -424,6 +474,14 @@ class CloudraConfig(BaseSettings):
             "search_provider": self.search_provider,
             "deepseek_api_key": "***" if self.deepseek_api_key else "(not set)",
             "tool_document_loading": self.tool_document_loading.to_display_dict(),
+            # Connection strings, arguments and credentials stay out of display APIs.
+            "mcp_servers": {
+                name: {
+                    "transport": "stdio" if isinstance(server, MCPStdioServerConfig) else "streamable_http",
+                    "permissions": server.permissions.model_dump(),
+                }
+                for name, server in self.mcp_servers.items()
+            },
         }
 
 
@@ -501,6 +559,9 @@ def set_config_value(key: str, value: str) -> None:
             raise ValueError(f"配置项不存在: {key}")
         if final_key == "search_provider" and isinstance(target, CloudraConfig):
             target.search_provider = TypeAdapter(CloudraConfig.model_fields["search_provider"].annotation).validate_python(value)
+            return
+        if final_key == "mcp_servers" and isinstance(target, CloudraConfig):
+            target.mcp_servers = _validate_mcp_servers(_coerce_value({}, value))
             return
         if final_key == "provider" and isinstance(target, LLMConfig):
             from cloudra.infra.providers import apply_provider_preset, get_provider_preset
