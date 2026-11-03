@@ -58,7 +58,7 @@ Files: `cloudra/runtime_v2/tool_catalog.py`, `cloudra/tools/documentation.py`, `
 - [x] Adapt MCP image blocks to existing workspace image artifacts without discarding the original result.
 - [x] Run compileall, ruff, and the directly affected test modules; do not run the full suite.
 - [x] Independent whole-change review; fix material findings and rerun affected checks.
-- [ ] Update design status and usage docs; commit all workspace changes, push this branch and create a PR to master.
+- [x] Update design status and usage docs; commit all workspace changes, push this branch and create a PR to master.
 
 ## Execution ledger
 
@@ -68,3 +68,4 @@ Files: `cloudra/runtime_v2/tool_catalog.py`, `cloudra/tools/documentation.py`, `
 - AGENTS.md was delivered separately in PR #252, containing only the delivery-rule change.
 - Review fixes: isolated each SDK connection in its own owner task; sanitized configuration and transport failures; preserved readable structured-only results; hid missing MCP tools in current projections without changing saved Agent capabilities.
 - Final validation: 21 changed Python files compile and pass Ruff; 283 relevant tests passed, 6 existing dependency deprecation warnings. No full suite or real QM jobs ran.
+- Delivery: MCP implementation is open for review in [PR #253](https://github.com/yyywaa/Cloudra-mechanism-agent/pull/253). No MCP merge or master push was performed.
