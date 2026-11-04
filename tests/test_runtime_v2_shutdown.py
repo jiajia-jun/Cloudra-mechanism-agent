@@ -220,7 +220,7 @@ async def test_api_lifespan_shutdown_reclaims_all_activity_classes():
 
 
 @pytest.mark.asyncio
-async def test_normal_api_exit_stops_scheduler_without_stopping_compute():
+async def test_normal_api_exit_stops_scheduler_without_stopping_compute(tmp_path, monkeypatch):
     from cloudra.services.api_v2.app import create_v2_app
 
     compute = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=True)
@@ -230,6 +230,10 @@ async def test_normal_api_exit_stops_scheduler_without_stopping_compute():
             assert not daemon_supervisor.daemons_shutdown_requested()
         assert Path(daemon_supervisor.daemons_stop_marker_path()).is_file()
         assert compute.poll() is None
+        from cloudra.infra.config import get_config
+
+        monkeypatch.setattr(get_config(), "data_dir", tmp_path / "another-data-dir")
+        assert not daemon_supervisor.daemons_shutdown_requested()
     finally:
         compute.terminate()
         compute.wait(timeout=5)

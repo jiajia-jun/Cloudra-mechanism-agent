@@ -41,24 +41,24 @@ def daemons_stop_marker_path() -> str:
     return str(paths.data_dir() / "daemons.stop")
 
 
-def request_daemons_shutdown(*, persist: bool = False) -> None:
-    """置全局关停标志：ensure_* 自此拒绝拉起（watchdog 自愈同步失效）。
+def persist_daemons_shutdown() -> None:
+    """Notify detached daemons in this data directory without changing process state."""
+    from cloudra.persistence.fs_utils import atomic_write_text
 
-    persist=True 时落持久 marker 文件（显式"停止全部 Cloudra"入口用，
-    跨进程生效）；API lifespan 的正常关停用 persist=False——守护进程
-    刻意长存，不随 API 退出。
-    """
+    try:
+        marker = Path(daemons_stop_marker_path())
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(str(marker), str(time.time()))
+    except OSError:
+        logger.warning("could not write daemons stop marker", exc_info=True)
+
+
+def request_daemons_shutdown(*, persist: bool = False) -> None:
+    """Block in-process daemon restarts; optionally notify detached daemons."""
     global _SHUTDOWN_REQUESTED
     _SHUTDOWN_REQUESTED = True
     if persist:
-        from cloudra.persistence.fs_utils import atomic_write_text
-
-        try:
-            marker = Path(daemons_stop_marker_path())
-            marker.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_text(str(marker), str(time.time()))
-        except OSError:
-            logger.warning("could not write daemons stop marker", exc_info=True)
+        persist_daemons_shutdown()
 
 
 def daemons_shutdown_requested() -> bool:

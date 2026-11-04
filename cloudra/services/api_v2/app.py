@@ -344,9 +344,9 @@ def create_v2_app(
             if watchdog_task is not None:
                 watchdog_task.cancel()
                 await asyncio.gather(watchdog_task, return_exceptions=True)
-            from cloudra.services.daemon_supervisor import request_daemons_shutdown
+            from cloudra.services.daemon_supervisor import persist_daemons_shutdown
 
-            await asyncio.to_thread(request_daemons_shutdown, persist=True)
+            await asyncio.to_thread(persist_daemons_shutdown)
             # 2) 取消并 await 所有注册推理/收尾任务（runner/finalize，含
             #    停止准入 `_accepting=False`），回收本服务拥有的 JS host——
             #    有界时间，超时记录后继续关停。benchmark 批次先优雅终止
