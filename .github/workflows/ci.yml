@@ -125,7 +125,9 @@ jobs:
     # 不含 visual(pymol-open-source)：需要系统级构建依赖，留给专门的验收环境。
     # 前端 Playwright Chromium 在 frontend job 里装（mocked API E2E），不在本格。
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # The full dependency suite plus checkout/install exceeds 25 minutes on hosted runners.
+    # Keep a bounded budget without skipping tests or weakening their failure checks.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
