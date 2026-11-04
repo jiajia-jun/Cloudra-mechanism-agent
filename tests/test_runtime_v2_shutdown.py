@@ -13,9 +13,11 @@ Local fake HTTP/SSE server only — never touches a real provider.
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import sys
 import threading
+import time
 
 import pytest
 
@@ -44,7 +46,31 @@ async def test_scheduler_daemon_exits_on_stop_marker():
     marker = paths.daemons_stop_marker_path()
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.touch()
+    # File timestamps can lag a process's clock on real filesystems.
+    old_ns = time.time_ns() - 1_000_000_000
+    os.utime(marker, ns=(old_ns, old_ns))
     await asyncio.wait_for(daemon.serve(), timeout=10)
+
+
+@pytest.mark.asyncio
+async def test_scheduler_ignores_previous_stop_but_honors_new_stop(tmp_path):
+    from cloudra.scheduler.daemon import SchedulerDaemon
+
+    marker = paths.daemons_stop_marker_path()
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("old request")
+    daemon = SchedulerDaemon(poll_interval=0.01)
+    task = asyncio.create_task(daemon.serve())
+    try:
+        await asyncio.sleep(0.1)
+        assert not task.done()
+        marker.write_text("new request")
+        old_ns = time.time_ns() - 1_000_000_000
+        os.utime(marker, ns=(old_ns, old_ns))
+        await asyncio.wait_for(task, timeout=1)
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 # ------------------------------------------------------- web launcher kill
@@ -200,6 +226,16 @@ def test_stop_all_without_api_writes_marker_and_reports(monkeypatch, tmp_path):
     assert report["daemons"] == {"scheduler": "stopped", "kg_vec": "stopped"}
     assert report["compute_jobs_running"] is None
     assert paths.daemons_stop_marker_path().is_file()
+
+
+def test_each_stop_request_changes_the_marker(monkeypatch):
+    from cloudra.services.shutdown import stop_all
+
+    monkeypatch.setattr("cloudra.services.shutdown.find_api_port", lambda: None)
+    stop_all(timeout=0)
+    first = paths.daemons_stop_marker_path().read_bytes()
+    stop_all(timeout=0)
+    assert paths.daemons_stop_marker_path().read_bytes() != first
 
 
 def test_cli_stop_invokes_stop_all(monkeypatch):

@@ -106,7 +106,10 @@ class SchedulerDaemon:
         reconcile_interval: float = _RECONCILE_INTERVAL,
         worker_id: str | None = None,
     ) -> None:
-        self._started_at_ns = time.time_ns()
+        try:
+            self._initial_stop_marker = paths.daemons_stop_marker_path().read_bytes()
+        except FileNotFoundError:
+            self._initial_stop_marker = None
         self.poll_interval = poll_interval
         self.reconcile_interval = reconcile_interval
         self.worker_id = worker_id or f"scheduler:{os.getpid()}"
@@ -145,7 +148,7 @@ class SchedulerDaemon:
     async def serve(self) -> None:
         """建库（幂等）→ 启动即对账一次 → 进入认领主循环。
 
-        每 tick 检查本次启动后写入的显式全停 marker（`cloudra stop`）。
+        每 tick 检查本次启动后更新的显式全停 marker（`cloudra stop`）。
         收到请求即干净退出并释放 flock。只停调度本身，在跑的
         guard/calculator 计算进程按铁律跑到终态，绝不连带 kill。
         """
@@ -155,7 +158,7 @@ class SchedulerDaemon:
         stop_marker = paths.daemons_stop_marker_path()
         while not self._stop.is_set():
             with suppress(FileNotFoundError):
-                if stop_marker.stat().st_mtime_ns >= self._started_at_ns:
+                if stop_marker.read_bytes() != self._initial_stop_marker:
                     logger.info("daemons shutdown requested (stop marker); scheduler exiting")
                     return
             now = time.time()
@@ -350,6 +353,9 @@ def main() -> int:
     from cloudra.infra.logging_setup import setup_logging
 
     setup_logging("cloudra", stream=sys.stderr)
+    # Record the prior stop request before announcing scheduler ownership.
+    # A stop sent after the lock is acquired must never be mistaken for an old one.
+    daemon = SchedulerDaemon()
     lock = scheduler_lock_path()
     fd = try_acquire_lock(lock)
     if fd is None:
@@ -357,8 +363,6 @@ def main() -> int:
             f"Another cloudra scheduler is already running (lock: {lock}); exiting."
         )
         return 1
-    daemon = SchedulerDaemon()
-
     async def serve() -> None:
         asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, daemon.stop)
         logger.info("compute scheduler started (worker_id=%s)", daemon.worker_id)

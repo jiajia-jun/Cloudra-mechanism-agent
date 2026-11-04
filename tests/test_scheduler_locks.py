@@ -75,6 +75,33 @@ def test_scheduler_restarts_after_stop_and_releases_lock_on_sigterm(tmp_path, mo
             proc.wait(timeout=5)
 
 
+def test_stop_request_terminates_restarted_scheduler(tmp_path, monkeypatch):
+    from cloudra.infra.config import get_config
+    from cloudra.services import shutdown
+
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    (data_dir / "daemons.stop").write_text("old-stop-request")
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    monkeypatch.setattr(get_config(), "data_dir", data_dir)
+    monkeypatch.setattr(shutdown, "find_api_port", lambda: None)
+    proc = subprocess.Popen([sys.executable, "-m", "cloudra.scheduler"])
+    try:
+        lock = str(data_dir / "scheduler.lock")
+        deadline = time.monotonic() + 10
+        while not is_lock_held(lock):
+            assert proc.poll() is None
+            assert time.monotonic() < deadline
+            time.sleep(0.02)
+        report = shutdown.stop_all(timeout=5)
+        assert report["daemons"]["scheduler"] == "stopped"
+        assert proc.wait(timeout=5) == 0
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
+
+
 def test_calc_lock_held_across_exec_and_released_on_exit(tmp_path):
     """wrapper exec 的子进程存续期间锁被持有；退出后内核放锁。"""
     lock = str(tmp_path / "calc-1.lock")

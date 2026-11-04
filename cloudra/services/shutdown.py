@@ -26,6 +26,7 @@ import signal
 import subprocess
 import time
 import urllib.request
+import uuid
 
 from cloudra.infra.flocks import is_lock_held
 from cloudra.persistence import paths
@@ -167,7 +168,9 @@ def stop_all(*, timeout: float = 20.0) -> dict:
     try:
         marker = paths.daemons_stop_marker_path()
         marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.touch()
+        from cloudra.persistence.fs_utils import atomic_write_text
+
+        atomic_write_text(str(marker), uuid.uuid4().hex)
         report["stop_marker"] = True
     except OSError:
         logger.warning("could not write daemons stop marker", exc_info=True)
