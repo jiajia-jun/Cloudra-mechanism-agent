@@ -21,6 +21,7 @@ from cloudra.services import daemon_supervisor
 @pytest.fixture(autouse=True)
 def _data_dir_exists():
     """锁文件/节流时间戳的 O_CREAT 不建父目录，这里补齐。"""
+    daemon_supervisor._reset_shutdown_for_tests()
     Path(get_config().data_dir).mkdir(parents=True, exist_ok=True)
 
 

@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+import os
+import shutil
+import signal
+import socket
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -201,6 +207,7 @@ def test_launch_refuses_when_store_owned_by_non_reusable_api(tmp_path, monkeypat
     monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
     monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda bind_host, port: port != 8000)
     monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: True)
+    monkeypatch.setattr("cloudra.services.shutdown.stop_owned_api", lambda *args: False)
     monkeypatch.setattr(
         web_launcher,
         "find_store_owner",
@@ -336,6 +343,66 @@ def test_launcher_reuses_requested_store_owner_on_its_actual_port(tmp_path, monk
     assert web_launcher.launch_browser(frontend, rebuild=False, skip_build=True) == 0
     assert "cmd" not in captured
     assert captured["health_url"] == "http://127.0.0.1:8005/api/v2/runtime/health"
+
+
+def test_launcher_replaces_owned_api_when_old_frontend_is_missing(tmp_path, monkeypatch):
+    """A healthy API holding the store without its SPA must not block a fresh launch."""
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    store = tmp_path / "runtime.db"
+    runtime_api_lock_path(store).write_text("")
+    monkeypatch.setenv("CLOUDRA_RUNTIME_STORE", str(store))
+    monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
+    captured = {}
+    _patch_launch(monkeypatch, captured)
+    held = [True]
+    monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: held[0])
+    monkeypatch.setattr(web_launcher, "find_store_owner", lambda *a, **kw: runtime_ownership.StoreOwner(42, 8005, False))
+    def stop_owner(owner, lock_path):
+        captured["stopped_owner"] = owner
+        held[0] = False
+        return True
+    monkeypatch.setattr("cloudra.services.shutdown.stop_owned_api", stop_owner, raising=False)
+    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: True)
+
+    assert web_launcher.launch_browser(frontend, rebuild=False, skip_build=True) == 0
+    assert captured["stopped_owner"].pid == 42
+    assert "cmd" in captured
+
+
+@pytest.mark.skipif(shutil.which("lsof") is None, reason="requires lsof to verify ownership")
+@pytest.mark.parametrize("unresponsive", [False, True])
+def test_restart_reclaims_real_api_with_missing_frontend(tmp_path, monkeypatch, unresponsive):
+    store = tmp_path / "runtime.db"
+    env = os.environ.copy()
+    env.update({
+        "CLOUDRA_RUNTIME_STORE": str(store),
+        "CLOUDRA_API_TOKEN": "off",
+        "CLOUDRA_DAEMON_WATCHDOG": "off",
+        "CLOUDRA_SCHEDULER": "off",
+        "CLOUDRA_FRONTEND_SERVE_DIR": str(tmp_path / "missing-frontend"),
+    })
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "cloudra.services.api_v2:create_default_v2_app",
+         "--factory", "--host", "127.0.0.1", "--port", str(port)],
+        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    )
+    try:
+        web_launcher._wait_healthy(f"http://127.0.0.1:{port}/api/v2/runtime/health")
+        if unresponsive:
+            os.kill(proc.pid, signal.SIGSTOP)
+        assert web_launcher._owned_runtime_port(
+            str(store), bind_host="127.0.0.1", probe_host="127.0.0.1", requested_port=None,
+        ) is None
+        assert proc.wait(timeout=5) is not None
+        assert not web_launcher.is_lock_held(str(runtime_api_lock_path(store)))
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
 
 
 @pytest.mark.parametrize("bind_host, port", [("0.0.0.0", None), ("127.0.0.1", 8000)])

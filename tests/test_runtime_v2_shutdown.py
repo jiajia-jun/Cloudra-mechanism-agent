@@ -219,6 +219,86 @@ async def test_api_lifespan_shutdown_reclaims_all_activity_classes():
 # ------------------------------------------------------------ cloudra stop
 
 
+@pytest.mark.asyncio
+async def test_normal_api_exit_stops_scheduler_without_stopping_compute():
+    from cloudra.services.api_v2.app import create_v2_app
+
+    compute = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"], start_new_session=True)
+    try:
+        app = create_v2_app(RuntimeCore(strict_events=True))
+        async with app.router.lifespan_context(app):
+            assert not daemon_supervisor.daemons_shutdown_requested()
+        assert Path(daemon_supervisor.daemons_stop_marker_path()).is_file()
+        assert compute.poll() is None
+    finally:
+        compute.terminate()
+        compute.wait(timeout=5)
+
+
+def test_owned_api_stop_refuses_listener_mismatch(monkeypatch, tmp_path):
+    from cloudra.services import shutdown
+    from cloudra.services.runtime_ownership import StoreOwner
+
+    monkeypatch.setattr(shutdown, "_port_listener_pid", lambda port: 99)
+    monkeypatch.setattr(shutdown, "request_api_shutdown", lambda port: pytest.fail("wrong process"))
+    assert not shutdown.stop_owned_api(StoreOwner(42, 8005, False), tmp_path / "lock")
+
+
+def test_owned_api_stop_waits_for_store_lock_release(monkeypatch, tmp_path):
+    from cloudra.services import shutdown
+    from cloudra.services.runtime_ownership import StoreOwner
+
+    monkeypatch.setattr(shutdown, "_port_listener_pid", lambda port: 42)
+    monkeypatch.setattr(shutdown, "api_is_healthy", lambda port: True)
+    monkeypatch.setattr(shutdown, "request_api_shutdown", lambda port: True)
+    monkeypatch.setattr(shutdown, "_wait_for", lambda predicate, timeout: False)
+    monkeypatch.setattr(shutdown, "_force_stop_pid", lambda pid: "sigkill")
+    monkeypatch.setattr(shutdown, "is_lock_held", lambda path: True)
+    assert not shutdown.stop_owned_api(StoreOwner(42, 8005, False), tmp_path / "lock")
+
+
+def test_owned_api_stop_recovers_unresponsive_verified_process(monkeypatch, tmp_path):
+    from cloudra.services import shutdown
+    from cloudra.services.runtime_ownership import StoreOwner
+
+    signals = []
+    monkeypatch.setattr(shutdown, "_is_owned_runtime_process", lambda pid, path: True, raising=False)
+    monkeypatch.setattr(shutdown, "_force_stop_pid", lambda pid: signals.append(pid) or "sigterm")
+    monkeypatch.setattr(shutdown, "_wait_for", lambda predicate, timeout: bool(signals))
+    assert shutdown.stop_owned_api(StoreOwner(42, None, False), tmp_path / "lock")
+    assert signals == [42]
+
+
+def test_owned_api_stop_refuses_unverified_unresponsive_process(monkeypatch, tmp_path):
+    from cloudra.services import shutdown
+    from cloudra.services.runtime_ownership import StoreOwner
+
+    monkeypatch.setattr(shutdown, "_is_owned_runtime_process", lambda pid, path: False, raising=False)
+    monkeypatch.setattr(shutdown, "_force_stop_pid", lambda pid: pytest.fail("unverified process"))
+    assert not shutdown.stop_owned_api(StoreOwner(42, None, False), tmp_path / "lock")
+
+
+@pytest.mark.parametrize("lock_field,uid,command", [
+    ("l ", "same", "python -m uvicorn cloudra.services.api_v2:create_default_v2_app"),
+    ("lW", "other", "python -m uvicorn cloudra.services.api_v2:create_default_v2_app"),
+    ("lW", "same", "python -m other_program cloudra.services.api_v2:create_default_v2_app"),
+])
+def test_unresponsive_runtime_identity_rejects_unrelated_process(
+    monkeypatch, tmp_path, lock_field, uid, command,
+):
+    import os
+    from types import SimpleNamespace
+
+    from cloudra.services import runtime_ownership, shutdown
+
+    lock = tmp_path / "runtime.lock"
+    monkeypatch.setattr(shutdown, "is_lock_held", lambda path: True)
+    monkeypatch.setattr(runtime_ownership, "_lsof", lambda args: f"p42\n{lock_field}\nn{lock}\n")
+    actual_uid = os.getuid() if uid == "same" else os.getuid() + 1
+    monkeypatch.setattr(shutdown.subprocess, "run", lambda *a, **kw: SimpleNamespace(stdout=f"{actual_uid} {command}"))
+    assert not shutdown._is_owned_runtime_process(42, lock)
+
+
 def test_stop_all_without_api_writes_marker_and_reports(monkeypatch, tmp_path):
     """无 API 在跑时：stop_all 落持久关停 marker、按 flock 探测报告守护状态，
     绝不碰计算进程（不存在计算库时报告 None）。"""
@@ -263,6 +343,31 @@ def test_cli_stop_invokes_stop_all(monkeypatch):
     result = CliRunner().invoke(cli_mod.cli, ["stop"])
     assert result.exit_code == 0, result.output
     assert calls == [20.0]
+
+
+def test_stop_reports_unresponsive_store_owner(monkeypatch):
+    from cloudra.persistence import paths
+    from cloudra.services import shutdown
+
+    lock = str(paths.runtime_api_lock_path(paths.runtime_db_path()))
+    monkeypatch.setattr(shutdown, "find_api_port", lambda: None)
+    monkeypatch.setattr(shutdown, "is_lock_held", lambda path: str(path) == lock)
+    report = shutdown.stop_all(timeout=0.01)
+    assert report["api_stopped"] is False
+
+
+def test_cli_stop_fails_when_services_remain(monkeypatch):
+    from click.testing import CliRunner
+
+    import cloudra.cli as cli_mod
+
+    monkeypatch.setattr("cloudra.services.shutdown.stop_all", lambda **kwargs: {
+        "stop_marker": True, "api_port": None, "api_stopped": False,
+        "daemons": {"scheduler": "running"}, "compute_jobs_running": None,
+    })
+    result = CliRunner().invoke(cli_mod.cli, ["stop"])
+    assert result.exit_code != 0
+    assert "未确认" in result.output
 
 
 # ------------------------------------------------------- stop 升级路径（GH #38 兜底）

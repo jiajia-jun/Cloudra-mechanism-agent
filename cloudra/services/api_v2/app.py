@@ -339,13 +339,14 @@ def create_v2_app(
             yield
         finally:
             # 停止语义契约 3 的固定顺序：
-            # 1) 停止新任务准入与守护自愈拉起：取消 watchdog 任务（本进程
-            #    不再有 ensure 调用方）。正常关停不置全局关停标志——守护
-            #    进程刻意长存，不随 API 退出；显式全停（POST
-            #    /api/v2/runtime/shutdown / cloudra stop）才置标志落 marker。
+            # 1) 停止守护自愈，通知独立调度器自行退出。已启动的计算进程
+            #    由各自 guard 管理，不随控制面退出而终止。
             if watchdog_task is not None:
                 watchdog_task.cancel()
                 await asyncio.gather(watchdog_task, return_exceptions=True)
+            from cloudra.services.daemon_supervisor import request_daemons_shutdown
+
+            await asyncio.to_thread(request_daemons_shutdown, persist=True)
             # 2) 取消并 await 所有注册推理/收尾任务（runner/finalize，含
             #    停止准入 `_accepting=False`），回收本服务拥有的 JS host——
             #    有界时间，超时记录后继续关停。benchmark 批次先优雅终止

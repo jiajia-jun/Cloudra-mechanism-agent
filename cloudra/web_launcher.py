@@ -181,6 +181,11 @@ def _owned_runtime_port(
                 + describe_store_conflict(store_path, owner)
             )
         return owner.port
+    if owner is not None and not owner.serves_spa:
+        from cloudra.services.shutdown import stop_owned_api
+
+        if stop_owned_api(owner, lock_path):
+            return None
     raise RuntimeError(
         describe_store_conflict(
             store_path, owner, reuse_allowed=_may_reuse_runtime(bind_host)
