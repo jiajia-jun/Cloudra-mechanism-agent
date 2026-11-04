@@ -83,7 +83,9 @@
   归属节点各自的额度**（槽位 + CPU/内存记账）以 `priority DESC, id ASC` 认领
   `ready` 作业。队列是全库统一的，额度是分节点的：某个节点放不下的作业跳过，
   不阻塞别的节点能放下的作业。
-  `web` 启动时无活实例会自动 detach 拉起（`CLOUDRA_SCHEDULER=off` 关闭）。
+  `cloudra web` 启动新 API 时，启动器会在没有运行中调度器的情况下启动一个子进程，并在
+  API 退出时回收自己启动的调度器。可用 `CLOUDRA_SCHEDULER=off` 跳过启动，也可手动运行
+  `cloudra scheduler`。调度器退出后，已启动的计算继续执行。
 - `compute_jobs.node_id` 由 `ComputeDB.init()` 的幂等 `ALTER` 补列（旧库升级不重建
   表）；NULL 视为默认节点归属。控制面/工具展示该列（`GET /api/v2/compute/nodes`、
   `query_compute_queue`、项目作业队列、Ops 面板）。

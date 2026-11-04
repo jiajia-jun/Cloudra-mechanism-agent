@@ -1,8 +1,7 @@
 """显式全停入口（``cloudra stop``）的实现。
 
 顺序（停止语义契约 3/5）：
-1. 落持久关停 marker 并置进程内标志——此后任何 ensure_* 拒绝拉起，
-   活着的 scheduler/kg_vec 守护自检 marker 后干净退出（flock 随进程释放）；
+1. 写入关停标记，通知 scheduler/kg_vec 自行退出；
 2. 通知 API 控制面关停（POST /api/v2/runtime/shutdown → 优雅 lifespan：
    停准入 → 取消并 await 推理/收尾任务 → 关流/客户端 → 回收 JS host）；
 3. 有界等待 API 停止响应；**协作关停失败则升级**：对该端口的 LISTEN
@@ -21,6 +20,7 @@ python/node/用户名匹配杀进程。
 
 from __future__ import annotations
 
+import logging
 import os
 import signal
 import subprocess
@@ -29,10 +29,12 @@ import urllib.request
 
 from cloudra.infra.flocks import is_lock_held
 from cloudra.persistence import paths
-from cloudra.services.daemon_supervisor import (
-    kg_vec_lock_path,
-    request_daemons_shutdown,
-)
+
+logger = logging.getLogger(__name__)
+
+
+def kg_vec_lock_path() -> str:
+    return str(paths.data_dir() / "kg_vec.lock")
 
 
 def _health_url(port: int) -> str:
@@ -161,8 +163,14 @@ def _api_gone(port: int, pid: int | None) -> bool:
 
 def stop_all(*, timeout: float = 20.0) -> dict:
     """执行显式全停，返回复查报告（各部件最终状态）。"""
-    request_daemons_shutdown(persist=True)
-    report: dict = {"stop_marker": True}
+    report: dict = {"stop_marker": False}
+    try:
+        marker = paths.daemons_stop_marker_path()
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+        report["stop_marker"] = True
+    except OSError:
+        logger.warning("could not write daemons stop marker", exc_info=True)
 
     port = find_api_port()
     report["api_port"] = port

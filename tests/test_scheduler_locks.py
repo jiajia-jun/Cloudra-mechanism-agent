@@ -50,6 +50,31 @@ def _state(db: ComputeDB, job_id: int) -> str:
         return con.execute("SELECT state FROM compute_jobs WHERE id=?", (job_id,)).fetchone()[0]
 
 
+def test_scheduler_restarts_after_stop_and_releases_lock_on_sigterm(tmp_path, monkeypatch):
+    data_dir = tmp_path / "data"
+    monkeypatch.setenv("CLOUDRA_DATA_DIR", str(data_dir))
+    data_dir.mkdir()
+    (data_dir / "daemons.stop").touch()
+    proc = subprocess.Popen([sys.executable, "-m", "cloudra.scheduler"])
+    try:
+        deadline = time.monotonic() + 10
+        while not (data_dir / "compute.db").is_file():
+            assert proc.poll() is None
+            assert time.monotonic() < deadline
+            time.sleep(0.02)
+        with pytest.raises(subprocess.TimeoutExpired):
+            proc.wait(timeout=0.3)
+        lock = str(data_dir / "scheduler.lock")
+        assert is_lock_held(lock)
+        proc.terminate()
+        assert proc.wait(timeout=5) == 0
+        assert not is_lock_held(lock)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
+
+
 def test_calc_lock_held_across_exec_and_released_on_exit(tmp_path):
     """wrapper exec 的子进程存续期间锁被持有；退出后内核放锁。"""
     lock = str(tmp_path / "calc-1.lock")

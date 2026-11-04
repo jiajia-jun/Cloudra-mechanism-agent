@@ -47,6 +47,11 @@ def compute_db_path(data_dir: Optional[PathLike] = None) -> Path:
     return _root(data_dir) / "compute.db"
 
 
+def daemons_stop_marker_path() -> Path:
+    """Explicit shutdown request for standalone daemons in this data directory."""
+    return data_dir() / "daemons.stop"
+
+
 def runtime_db_path(data_dir: Optional[PathLike] = None) -> Path:
     """runtime_v2 事件溯源库路径（events/objects/meta 表的唯一宿主）。"""
     return _root(data_dir) / "runtime-v2.db"
