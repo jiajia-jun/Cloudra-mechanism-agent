@@ -1,4 +1,4 @@
-"""Scoped progress and bounded public history for Cloudra Subagent."""
+"""Project progress and bounded public Agent history."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from cloudra.runtime_v2.js_runtime import filter_history
 from cloudra.runtime_v2.observability import scoped_tool_receipts
 from cloudra.runtime_v2.schemas import AgentState, CommandRejected, utc_now
 from cloudra.services.compute_store import ACTIVE_STATES, _db_ready, list_compute_jobs
-from cloudra.services.subagent_schema import AgentContext, HistoryLimit, ProjectProgress, TranscriptFilter
+from cloudra.services.delegation_schema import AgentContext, HistoryLimit, ProjectProgress, TranscriptFilter
 
 from ..context import ApiContext
 
@@ -219,12 +219,12 @@ def _history(core, session_id: str, body: AgentProgressRequest, boundary: int) -
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
 
-    @router.get("/api/v2/projects/{project_id}/subagent/progress", dependencies=ctx.protected)
+    @router.get("/api/v2/projects/{project_id}/progress", dependencies=ctx.protected)
     async def get_progress(project_id: str, include_process: bool = True) -> ProjectProgress:
         return await project_progress(ctx, project_id, include_process)
 
     @router.post(
-        "/api/v2/projects/{project_id}/subagent/agents/{session_id}/progress", dependencies=ctx.protected,
+        "/api/v2/projects/{project_id}/agents/{session_id}/progress", dependencies=ctx.protected,
     )
     async def get_agent_progress(project_id: str, session_id: str, body: AgentProgressRequest) -> AgentContext:
         agents, pending, _, boundary = await _read_progress(ctx, project_id, session_id)

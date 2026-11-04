@@ -16,6 +16,8 @@ import asyncio
 import subprocess
 import sys
 import threading
+import time
+from types import SimpleNamespace
 
 import pytest
 
@@ -34,17 +36,59 @@ from tests.test_runtime_v2_cancellation import _wait_until
 
 
 @pytest.mark.asyncio
-async def test_scheduler_daemon_exits_on_stop_marker():
-    """The scheduler daemon checks the marker every tick and exits cleanly
-    (its flock is released by process exit); compute processes are never
-    touched."""
-    from cloudra.scheduler.daemon import SchedulerDaemon
+async def test_scheduler_daemon_exits_on_stop_marker(monkeypatch):
+    """Ignore the previous stop request and observe a new one despite clock granularity."""
+    from cloudra.scheduler import daemon as scheduler
+    from cloudra.services import shutdown
 
-    daemon = SchedulerDaemon(poll_interval=0.05)
-    marker = paths.daemons_stop_marker_path()
-    marker.parent.mkdir(parents=True, exist_ok=True)
-    marker.touch()
-    await asyncio.wait_for(daemon.serve(), timeout=10)
+    monkeypatch.setattr(shutdown, "find_api_port", lambda: None)
+    monkeypatch.setattr(shutdown, "is_lock_held", lambda _path: False)
+    assert (await asyncio.to_thread(shutdown.stop_all))["stop_marker"]
+
+    # Emulate the old comparison on a filesystem whose timestamps lag the
+    # scheduler's clock. Both requests look older by mtime.
+    monkeypatch.setattr(scheduler, "time", SimpleNamespace(
+        time=time.time, time_ns=lambda: time.time_ns() + 60_000_000_000,
+    ))
+    daemon = scheduler.SchedulerDaemon(poll_interval=0.01)
+    polling = asyncio.Event()
+    loop = asyncio.get_running_loop()
+
+    def note_poll():
+        loop.call_soon_threadsafe(polling.set)
+
+    monkeypatch.setattr(daemon, "_claim_one", note_poll)
+    serving = asyncio.create_task(daemon.serve())
+    try:
+        await asyncio.wait_for(polling.wait(), timeout=2)
+        assert (await asyncio.to_thread(shutdown.stop_all))["stop_marker"]
+        await asyncio.wait_for(serving, timeout=2)
+    finally:
+        serving.cancel()
+        await asyncio.gather(serving, return_exceptions=True)
+
+
+def test_scheduler_observes_stop_after_acquiring_startup_lock(monkeypatch):
+    from cloudra.scheduler import daemon as scheduler
+    from cloudra.services import shutdown
+
+    monkeypatch.setattr(shutdown, "find_api_port", lambda: None)
+    monkeypatch.setattr(shutdown, "is_lock_held", lambda _path: False)
+    assert shutdown.stop_all()["stop_marker"]
+    acquire_lock = scheduler.try_acquire_lock
+
+    def acquire_then_stop(path):
+        fd = acquire_lock(path)
+        assert fd is not None
+        assert shutdown.stop_all()["stop_marker"]
+        return fd
+
+    def unexpected_claim(_self):
+        pytest.fail("scheduler tried to claim work after a stop during startup")
+
+    monkeypatch.setattr(scheduler, "try_acquire_lock", acquire_then_stop)
+    monkeypatch.setattr(scheduler.SchedulerDaemon, "_claim_one", unexpected_claim)
+    assert scheduler.main() == 0
 
 
 # ------------------------------------------------------- web launcher kill

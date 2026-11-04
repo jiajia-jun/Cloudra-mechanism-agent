@@ -20,7 +20,6 @@ import os
 import signal
 import sys
 import time
-from contextlib import suppress
 from pathlib import Path
 
 from cloudra.infra.compute_utils import (
@@ -96,6 +95,13 @@ def _node_capacities() -> tuple[dict[str, dict], str]:
     return node_capacities()
 
 
+def _read_stop_request(marker: Path) -> str:
+    try:
+        return marker.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
+
+
 class SchedulerDaemon:
     """调度主循环：容量感知认领 + 定期对账。"""
 
@@ -106,7 +112,6 @@ class SchedulerDaemon:
         reconcile_interval: float = _RECONCILE_INTERVAL,
         worker_id: str | None = None,
     ) -> None:
-        self._started_at_ns = time.time_ns()
         self.poll_interval = poll_interval
         self.reconcile_interval = reconcile_interval
         self.worker_id = worker_id or f"scheduler:{os.getpid()}"
@@ -142,22 +147,24 @@ class SchedulerDaemon:
             await asyncio.gather(*jobs, return_exceptions=True)
         self._jobs.clear()
 
-    async def serve(self) -> None:
+    async def serve(self, *, initial_request: str | None = None) -> None:
         """建库（幂等）→ 启动即对账一次 → 进入认领主循环。
 
         每 tick 检查本次启动后写入的显式全停 marker（`cloudra stop`）。
         收到请求即干净退出并释放 flock。只停调度本身，在跑的
         guard/calculator 计算进程按铁律跑到终态，绝不连带 kill。
         """
+        stop_marker = paths.daemons_stop_marker_path()
+        if initial_request is None:
+            initial_request = await asyncio.to_thread(_read_stop_request, stop_marker)
         await asyncio.to_thread(self.db.init)
         await self._reconcile_all()
         last_reconcile = time.time()
-        stop_marker = paths.daemons_stop_marker_path()
         while not self._stop.is_set():
-            with suppress(FileNotFoundError):
-                if stop_marker.stat().st_mtime_ns >= self._started_at_ns:
-                    logger.info("daemons shutdown requested (stop marker); scheduler exiting")
-                    return
+            request = await asyncio.to_thread(_read_stop_request, stop_marker)
+            if request and request != initial_request:
+                logger.info("daemons shutdown requested (stop marker); scheduler exiting")
+                return
             now = time.time()
             if now - last_reconcile >= self.reconcile_interval:
                 last_reconcile = now
@@ -351,6 +358,7 @@ def main() -> int:
 
     setup_logging("cloudra", stream=sys.stderr)
     lock = scheduler_lock_path()
+    initial_request = _read_stop_request(paths.daemons_stop_marker_path())
     fd = try_acquire_lock(lock)
     if fd is None:
         print(
@@ -363,7 +371,7 @@ def main() -> int:
         asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, daemon.stop)
         logger.info("compute scheduler started (worker_id=%s)", daemon.worker_id)
         try:
-            await daemon.serve()
+            await daemon.serve(initial_request=initial_request)
         finally:
             await daemon.close()
 

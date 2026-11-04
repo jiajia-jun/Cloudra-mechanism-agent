@@ -5,7 +5,7 @@ import pytest
 
 pytest.importorskip("mcp.server")
 
-from cloudra.services.subagent_mcp import build_server, resolve_connection
+from cloudra.services.mcp_server import build_server, resolve_connection
 
 
 @pytest.mark.asyncio
@@ -118,12 +118,12 @@ async def test_read_and_message_tools_route_to_existing_service():
     base = "http://127.0.0.1:8000/api/v2/projects"
     assert requests == [
         ("GET", base, None),
-        ("GET", f"{base}/P/subagent/progress?include_process=false", None),
-        ("POST", f"{base}/P/subagent/agents/S/progress", {
+        ("GET", f"{base}/P/progress?include_process=false", None),
+        ("POST", f"{base}/P/agents/S/progress", {
             "limit": 1, "filter": "entry.kind === 'tool'", "include_reasoning": False,
         }),
-        ("GET", f"{base}/P/subagent/agents/S/result?wait_seconds=20", None),
-        ("POST", f"{base}/P/subagent/messages", {"recipients": ["S", "U"], "content": "check the output"}),
+        ("GET", f"{base}/P/agents/S/result?wait_seconds=20", None),
+        ("POST", f"{base}/P/messages", {"recipients": ["S", "U"], "content": "check the output"}),
         ("POST", f"{base}/P/interactions/Q/response", {"response": "user confirmed"}),
     ]
 
@@ -189,21 +189,21 @@ def test_remote_connection_never_uses_installation_token(monkeypatch):
 
 
 def test_missing_local_owner_does_not_fall_back_to_a_guessed_address(monkeypatch):
-    from cloudra.services import subagent_mcp
+    from cloudra.services import mcp_server
 
-    monkeypatch.setattr(subagent_mcp, "find_store_owner", lambda _: None)
+    monkeypatch.setattr(mcp_server, "find_store_owner", lambda _: None)
     with pytest.raises(RuntimeError, match="running Cloudra"):
         resolve_connection(None)
 
 
 def test_adapter_reads_existing_installation_token_without_creating_a_token(monkeypatch, tmp_path):
-    from cloudra.services import subagent_mcp
+    from cloudra.services import mcp_server
     from cloudra.services.runtime_ownership import StoreOwner
 
     token_path = tmp_path / ".api_token"
     monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
-    monkeypatch.setattr(subagent_mcp.paths, "api_token_path", lambda: token_path)
-    monkeypatch.setattr(subagent_mcp, "find_store_owner", lambda _: StoreOwner(123, 8765, False))
+    monkeypatch.setattr(mcp_server.paths, "api_token_path", lambda: token_path)
+    monkeypatch.setattr(mcp_server, "find_store_owner", lambda _: StoreOwner(123, 8765, False))
 
     assert resolve_connection(None) == ("http://127.0.0.1:8765", None)
     assert not token_path.exists()

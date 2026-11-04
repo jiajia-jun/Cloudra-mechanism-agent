@@ -159,48 +159,34 @@ export class Sandbox {
     }
   }
 
-  /** Evaluate a boolean predicate with one JSON-cloned record per call. */
+  /** Run the predicate over projected entries in one bounded guest evaluation. */
   filterEntries(expression, entries) {
     const ctx = this.context;
-    const evaluate = (fn) => {
-      const result = this._segment(fn);
-      if (result.error || this.budgetExceeded()) {
-        (result.error ?? result.value).dispose();
-        throw new Error(this.budgetExceeded()
-          ? 'History filter exceeded its execution budget.'
-          : 'History filter contains invalid JavaScript or threw an error.');
-      }
-      return result.value;
-    };
-    const parse = evaluate(() => ctx.evalCode('JSON.parse', 'history-parse.js'));
+    const body = JSON.stringify(`"use strict"; return (\n${expression}\n);`);
+    const data = JSON.stringify(JSON.stringify(entries));
+    // Compile from a string so the predicate has no access to the batch's scope.
+    // Return a primitive mask that guest code cannot change via prototypes.
+    const result = this._segment(() => ctx.evalCode(`
+      (() => {
+        const predicate = new Function('entry', ${body});
+        const entries = JSON.parse(${data});
+        let matches = '';
+        for (let index = 0; index < entries.length; index++) {
+          const match = predicate(entries[index]);
+          if (typeof match !== 'boolean') return null;
+          matches += match ? '1' : '0';
+        }
+        return matches;
+      })()
+    `, 'history-filter.js'));
+    const handle = result.error ?? result.value;
     try {
-      const predicate = evaluate(() => ctx.evalCode(`"use strict"; (entry) => (\n${expression}\n)`, 'history-filter.js'));
-      try {
-        if (ctx.typeof(predicate) !== 'function') throw new Error('History filter must be an expression.');
-        return entries.map((entry) => {
-          const json = ctx.newString(JSON.stringify(entry));
-          try {
-            const value = evaluate(() => ctx.callFunction(parse, ctx.undefined, json));
-            try {
-              const match = evaluate(() => ctx.callFunction(predicate, ctx.undefined, value));
-              try {
-                if (ctx.typeof(match) !== 'boolean') throw new Error('History filter must return a boolean.');
-                return ctx.eq(match, ctx.true);
-              } finally {
-                match.dispose();
-              }
-            } finally {
-              value.dispose();
-            }
-          } finally {
-            json.dispose();
-          }
-        });
-      } finally {
-        predicate.dispose();
-      }
+      if (this.budgetExceeded()) throw new Error('History filter exceeded its execution budget.');
+      if (result.error) throw new Error('History filter contains invalid JavaScript or threw an error.');
+      if (ctx.typeof(handle) !== 'string') throw new Error('History filter must return a boolean.');
+      return Array.from(ctx.getString(handle), (match) => match === '1');
     } finally {
-      parse.dispose();
+      handle.dispose();
     }
   }
 

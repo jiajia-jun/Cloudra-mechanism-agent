@@ -23,7 +23,7 @@ from tests.agent_scenarios import ScenarioHarness, ScriptedProvider, Step
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_subagent_cli_command_is_registered():
+def test_mcp_cli_command_is_registered():
     result = CliRunner().invoke(cli, ["mcp", "--help"])
     assert result.exit_code == 0, result.output
     assert "--api-url" in result.output
@@ -45,7 +45,7 @@ async def test_batch_messages_return_scoped_durable_receipts(tmp_path):
     async with app.router.lifespan_context(app), httpx.AsyncClient(
         transport=transport, base_url="http://localhost",
     ) as http:
-        response = await http.post(f"/api/v2/projects/{local.project_id}/subagent/messages", json={
+        response = await http.post(f"/api/v2/projects/{local.project_id}/messages", json={
             "recipients": [local.id, foreign.id, local.id],
             "content": "Consider the supplied structure.",
         })
@@ -60,7 +60,7 @@ async def test_batch_messages_return_scoped_durable_receipts(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_subagent_plugin_stdio_delegates_to_live_cloudra(tmp_path, monkeypatch):
+async def test_mcp_plugin_stdio_delegates_to_live_cloudra(tmp_path, monkeypatch):
     pytest.importorskip("mcp")
     from mcp import Client, StdioServerParameters
 

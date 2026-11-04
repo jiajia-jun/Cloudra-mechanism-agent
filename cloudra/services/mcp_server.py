@@ -26,8 +26,7 @@ from pydantic import (
 
 from cloudra.persistence import paths
 from cloudra.services.api_token import resolve_api_token
-from cloudra.services.runtime_ownership import find_store_owner
-from cloudra.services.subagent_schema import (
+from cloudra.services.delegation_schema import (
     MAX_RESULT_WAIT,
     AgentContext,
     AnswerAccepted,
@@ -43,6 +42,7 @@ from cloudra.services.subagent_schema import (
     TaskRef,
     TranscriptFilter,
 )
+from cloudra.services.runtime_ownership import find_store_owner
 
 _ERROR_CODES = frozenset(get_args(ErrorCode))
 _LOOPBACK = {"127.0.0.1", "localhost", "::1"}
@@ -264,7 +264,7 @@ def _project_path(args: _Project) -> str:
 
 
 def _agent_path(args: _Agent) -> str:
-    return f"{_project_path(args)}/subagent/agents/{args.session_id}"
+    return f"{_project_path(args)}/agents/{args.session_id}"
 
 
 def build_server(client: httpx.AsyncClient) -> MCPServer:
@@ -285,14 +285,14 @@ def build_server(client: httpx.AsyncClient) -> MCPServer:
         if isinstance(args.root, _StartNew) and args.root.workspace_dir and client.base_url.host not in _LOOPBACK:
             raise _ApiError("forbidden", "A remote Cloudra connection uses the service-assigned workspace.")
         return await server.json_request(
-            "POST", "/api/v2/subagent/tasks", json=args.root.model_dump(exclude_none=True),
+            "POST", "/api/v2/tasks", json=args.root.model_dump(exclude_none=True),
         )
 
     @server.operation(_Progress, ProjectProgress, read_only=True)
     async def get_progress(args: _Progress) -> ProjectProgress:
         """Inspect a project's Agent instances, pending interactions and process notes."""
         return await server.json_request(
-            "GET", f"{_project_path(args)}/subagent/progress", params={"include_process": args.include_process},
+            "GET", f"{_project_path(args)}/progress", params={"include_process": args.include_process},
         )
 
     @server.operation(_AgentProgress, AgentContext, read_only=True)
@@ -314,7 +314,7 @@ def build_server(client: httpx.AsyncClient) -> MCPServer:
     async def send_message(args: _Message) -> MessageDeliveries:
         """Send a message to specific Agent instances and report delivery for each recipient."""
         return await server.json_request(
-            "POST", f"{_project_path(args)}/subagent/messages",
+            "POST", f"{_project_path(args)}/messages",
             json={"recipients": args.recipients, "content": args.content},
         )
 

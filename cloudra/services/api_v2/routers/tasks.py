@@ -16,7 +16,7 @@ from cloudra.runtime_v2.child_manifest import build_child_manifest
 from cloudra.runtime_v2.completion import completion_summary
 from cloudra.runtime_v2.event_writer import EventPersistenceError
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, Command, CommandRejected, CommandResult, Project
-from cloudra.services.subagent_schema import (
+from cloudra.services.delegation_schema import (
     MAX_RESULT_WAIT,
     CurrentResult,
     FinishedResult,
@@ -203,7 +203,7 @@ async def _get_outcome(ctx: ApiContext, project_id: str, session_id: str) -> Fin
 
 
 async def _pending_result(ctx: ApiContext, project_id: str, session_id: str) -> PendingResult:
-    from .subagent_progress import project_progress
+    from .progress import project_progress
 
     progress = await project_progress(ctx, project_id, include_process=False)
     agents = {item["session_id"]: item for item in progress["agents"]}
@@ -229,7 +229,7 @@ async def _pending_result(ctx: ApiContext, project_id: str, session_id: str) -> 
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
 
-    @router.post("/api/v2/subagent/tasks", dependencies=ctx.protected, status_code=201)
+    @router.post("/api/v2/tasks", dependencies=ctx.protected, status_code=201)
     async def start_task(body: StartTask, request: Request) -> TaskRef:
         if body.workspace_dir is not None and (request.client is None or request.client.host not in LOOPBACK_CLIENTS):
             raise HTTPException(403, detail={
@@ -238,7 +238,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         return await _start_task(ctx, body)
 
     @router.get(
-        "/api/v2/projects/{project_id}/subagent/agents/{session_id}/result",
+        "/api/v2/projects/{project_id}/agents/{session_id}/result",
         dependencies=ctx.protected,
     )
     async def get_result(

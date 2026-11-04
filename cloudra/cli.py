@@ -123,7 +123,7 @@ def mcp_bridge(api_url):
     import asyncio
 
     try:
-        from cloudra.services.subagent_mcp import run
+        from cloudra.services.mcp_server import run
     except ModuleNotFoundError as exc:
         if (exc.name or "").split(".")[0] != "mcp":
             raise

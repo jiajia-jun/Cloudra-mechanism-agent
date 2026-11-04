@@ -1,4 +1,4 @@
-"""Cloudra subagent task lifecycle through the HTTP surface."""
+"""Delegated task lifecycle through the Cloudra HTTP API."""
 
 import asyncio
 
@@ -11,8 +11,8 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import AgentSession, Project
 from cloudra.services.api_v2 import create_v2_app
 
-START = "/api/v2/subagent/tasks"
-RESULT = "/api/v2/projects/p/subagent/agents/a/result"
+START = "/api/v2/tasks"
+RESULT = "/api/v2/projects/p/agents/a/result"
 
 
 @pytest_asyncio.fixture

@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from cloudra.runtime_v2.schemas import Command
-from cloudra.services.subagent_schema import MessageBatch, MessageDeliveries
+from cloudra.services.delegation_schema import MessageBatch, MessageDeliveries
 
 from ..context import ApiContext
 
@@ -13,7 +13,7 @@ from ..context import ApiContext
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
 
-    @router.post("/api/v2/projects/{project_id}/subagent/messages", dependencies=ctx.protected)
+    @router.post("/api/v2/projects/{project_id}/messages", dependencies=ctx.protected)
     async def send_message(project_id: str, body: MessageBatch) -> MessageDeliveries:
         ctx.core.require_project(project_id)
         deliveries = []

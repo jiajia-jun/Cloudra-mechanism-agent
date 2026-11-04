@@ -10,8 +10,8 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import AgentSession, AgentState, CurrentRun, Project, utc_now
 from cloudra.services.api_v2 import create_v2_app
 
-PROJECT_PROGRESS = "/api/v2/projects/p/subagent/progress"
-AGENT_PROGRESS = "/api/v2/projects/p/subagent/agents/a/progress"
+PROJECT_PROGRESS = "/api/v2/projects/p/progress"
+AGENT_PROGRESS = "/api/v2/projects/p/agents/a/progress"
 HOST = Path(__file__).resolve().parents[1] / "cloudra/runtime_v2/js_host"
 requires_js = pytest.mark.skipif(
     shutil.which("node") is None
