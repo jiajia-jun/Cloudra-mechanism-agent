@@ -20,8 +20,6 @@ def _isolated_data_dir(tmp_path, monkeypatch):
     monkeypatch.delenv("CLOUDRA_TUI_RUNTIME_URL", raising=False)
     # API 认证显式关闭：现有测试不经 token；认证行为由 test_api_auth.py 专项覆盖
     monkeypatch.setenv("CLOUDRA_API_TOKEN", "off")
-    # 守护进程自愈巡检默认关闭：测试进程绝不承担拉起 scheduler/kg_vec 的职责
-    monkeypatch.setenv("CLOUDRA_DAEMON_WATCHDOG", "off")
     monkeypatch.setattr(get_config(), "data_dir", tmp_path / "data")
     yield
     _reset_for_tests()

@@ -31,14 +31,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
     @router.post("/api/v2/runtime/shutdown", dependencies=ctx.protected)
     async def runtime_shutdown() -> dict[str, str]:
-        """显式全停入口（`cloudra stop` 调用）：进程内停准入（守护自愈
-        失效），延迟一拍后 SIGTERM 本进程——uvicorn 走优雅 lifespan 关停
-        （取消并 await 推理/收尾任务、关流/客户端、回收 JS host）。
-        计算进程（scheduler/guard/QM）不受此入口影响（执行面铁律）。
-        """
-        from cloudra.services.daemon_supervisor import request_daemons_shutdown
-
-        request_daemons_shutdown()
+        """Request graceful API shutdown after sending the response."""
         # 先让响应发出去再关停本进程。
         asyncio.get_running_loop().call_later(
             0.5, os.kill, os.getpid(), signal.SIGTERM

@@ -10,17 +10,18 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
 import time
 import urllib.request
 import webbrowser
+from contextlib import ExitStack
 from pathlib import Path
 
 from cloudra.infra.flocks import is_lock_held
 from cloudra.persistence.paths import runtime_api_lock_path
-from cloudra.services.daemon_supervisor import ensure_daemons
 from cloudra.services.runtime_ownership import (
     describe_store_conflict,
     find_store_owner,
@@ -181,11 +182,6 @@ def _owned_runtime_port(
                 + describe_store_conflict(store_path, owner)
             )
         return owner.port
-    if owner is not None and not owner.serves_spa:
-        from cloudra.services.shutdown import stop_owned_api
-
-        if stop_owned_api(owner, lock_path):
-            return None
     raise RuntimeError(
         describe_store_conflict(
             store_path, owner, reuse_allowed=_may_reuse_runtime(bind_host)
@@ -206,7 +202,7 @@ def _wait_healthy(url: str, timeout: float = 30.0) -> None:
     raise RuntimeError(f"runtime did not become healthy at {url}")
 
 
-def _terminate_runtime(runtime: subprocess.Popen, *, grace: float = 20.0) -> None:
+def _terminate_runtime(runtime: subprocess.Popen, *, grace: float = 20.0, name: str = "web runtime") -> None:
     """SIGTERM → 有界等待 → SIGKILL 升级 → reap。
 
     SIGTERM 让 uvicorn 走优雅关停（lifespan 收尾：停准入 → 取消推理/收尾
@@ -220,12 +216,16 @@ def _terminate_runtime(runtime: subprocess.Popen, *, grace: float = 20.0) -> Non
         runtime.wait(timeout=grace)
         return
     except subprocess.TimeoutExpired:
-        logger.warning("web runtime did not exit within %.0fs of SIGTERM; killing", grace)
+        logger.warning("%s did not exit within %.0fs of SIGTERM; killing", name, grace)
     runtime.kill()
     try:
         runtime.wait(timeout=5)
     except subprocess.TimeoutExpired:
-        logger.error("web runtime still alive after SIGKILL")
+        logger.error("%s still alive after SIGKILL", name)
+
+
+def _interrupt_launcher(_signum, _frame):
+    raise KeyboardInterrupt
 
 
 def _primary_address() -> str | None:
@@ -325,11 +325,6 @@ def launch_browser(
             flush=True,
         )
     _ensure_frontend(frontend, rebuild=rebuild, skip_build=skip_build)
-    # 显式启动清除 `cloudra stop` 的持久关停 marker，否则 ensure 拒绝拉起。
-    from cloudra.services.daemon_supervisor import clear_daemons_shutdown
-
-    clear_daemons_shutdown()
-    ensure_daemons()
     env = os.environ.copy()
     existing_pythonpath = env.get("PYTHONPATH", "")
     repo_root = str(Path(__file__).resolve().parents[1])
@@ -338,45 +333,57 @@ def launch_browser(
     env["CLOUDRA_FRONTEND_SERVE_DIR"] = str(frontend / "dist")
     # 绑定地址传给 app（Host 校验白名单据此放开；绑回环时保持原白名单）。
     env["CLOUDRA_API_BIND_HOST"] = bind_host
+    stop_marker = paths.daemons_stop_marker_path()
     runtime = None
-    if reused_runtime:
-        print(f"[cloudra] reusing existing Cloudra runtime on port {api_port}", flush=True)
-    else:
-        print(f"[cloudra] starting web server on {bind_host}:{api_port}...", flush=True)
-        runtime = subprocess.Popen(
-            _uvicorn_argv(api_port, bind_host),
-            env=env,
-            # 固定子进程 cwd：`python -m` 会把 cwd 放到 sys.path 最前面，
-            # cwd 下一个无 __init__.py 的 `cloudra` 目录会把已安装包遮蔽成
-            # namespace 包（__version__ 缺失、子模块却能被 editable finder
-            # 加载，报 "unknown location"）。frontend 目录已校验存在且不
-            # 含 cloudra 子目录，是确定无遮蔽的工作目录。
-            cwd=frontend,
-        )
-    try:
-        _wait_healthy(f"http://{probe_host}:{api_port}/api/v2/runtime/health")
-        from cloudra.services.api_token import resolve_api_token
+    with ExitStack() as cleanup:
+        previous_sigterm = signal.signal(signal.SIGTERM, _interrupt_launcher)
+        cleanup.callback(signal.signal, signal.SIGTERM, previous_sigterm)
+        try:
+            if reused_runtime:
+                print(f"[cloudra] reusing existing Cloudra runtime on port {api_port}", flush=True)
+            else:
+                stop_marker.unlink(missing_ok=True)
+                print(f"[cloudra] starting web server on {bind_host}:{api_port}...", flush=True)
+                # 固定子进程 cwd，避免调用方目录中的同名模块遮蔽安装包。
+                runtime = subprocess.Popen(_uvicorn_argv(api_port, bind_host), env=env, cwd=frontend)
+                cleanup.callback(_terminate_runtime, runtime)
 
-        token = resolve_api_token()
-        shown_url = _ui_url(probe_host, api_port, token)
-        print(f"[cloudra] web UI: {shown_url}", flush=True)
-        if bind_host in _WILDCARD_BIND_HOSTS:
-            # 通配绑定常常是「服务在远端、浏览器在别处」（SSH/局域网）：
-            # 控制台里的回环 URL 在那台机器上打不开，把对外地址一并给出。
-            reachable = _primary_address()
-            if reachable:
-                print(
-                    f"[cloudra] reachable from other machines: "
-                    f"{_ui_url(reachable, api_port, token)}",
-                    flush=True,
-                )
-        if os.environ.get("CLOUDRA_NO_BROWSER", "").strip().lower() not in {"1", "true", "yes"}:
-            webbrowser.open(shown_url)
-        if runtime is None:
+            _wait_healthy(f"http://{probe_host}:{api_port}/api/v2/runtime/health")
+            if runtime is not None:
+                if stop_marker.is_file():
+                    return 0
+                if os.environ.get("CLOUDRA_SCHEDULER", "").strip().lower() not in {"off", "0", "false"}:
+                    from cloudra.scheduler.daemon import scheduler_lock_path
+
+                    if not is_lock_held(scheduler_lock_path()):
+                        log_dir = paths.logs_dir()
+                        log_dir.mkdir(parents=True, exist_ok=True)
+                        with (log_dir / "scheduler.log").open("ab") as log:
+                            scheduler = subprocess.Popen(
+                                [sys.executable, "-m", "cloudra.scheduler"],
+                                env=env, stdin=subprocess.DEVNULL, stdout=log,
+                                stderr=subprocess.STDOUT, start_new_session=True,
+                            )
+                            cleanup.callback(_terminate_runtime, scheduler, name="compute scheduler")
+            from cloudra.services.api_token import resolve_api_token
+
+            token = resolve_api_token()
+            shown_url = _ui_url(probe_host, api_port, token)
+            print(f"[cloudra] web UI: {shown_url}", flush=True)
+            if bind_host in _WILDCARD_BIND_HOSTS:
+                # 通配绑定常常是「服务在远端、浏览器在别处」（SSH/局域网）：
+                # 控制台里的回环 URL 在那台机器上打不开，把对外地址一并给出。
+                reachable = _primary_address()
+                if reachable:
+                    print(
+                        f"[cloudra] reachable from other machines: "
+                        f"{_ui_url(reachable, api_port, token)}",
+                        flush=True,
+                    )
+            if os.environ.get("CLOUDRA_NO_BROWSER", "").strip().lower() not in {"1", "true", "yes"}:
+                webbrowser.open(shown_url)
+            if runtime is None:
+                return 0
+            return runtime.wait()
+        except KeyboardInterrupt:
             return 0
-        return runtime.wait()
-    except KeyboardInterrupt:
-        return 0
-    finally:
-        if runtime is not None:
-            _terminate_runtime(runtime)

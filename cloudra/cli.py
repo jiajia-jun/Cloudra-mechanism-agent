@@ -1004,18 +1004,14 @@ def stop_cmd(timeout):
     回收 JS host），守护进程看到 daemons.stop marker 后自行退出。在跑的
     计算作业（guard/calculator/QM）不会被杀——它们跑到终态自行收尾；
     Slurm 作业的取消走现有的 cancel_requested → scancel 路径。
-    再次运行 `cloudra`/`cloudra web` 会清除 marker 并重新拉起守护。
+    再次运行 `cloudra`/`cloudra web` 会启动一轮新的 API 和调度器。
     """
     from cloudra.services.shutdown import stop_all
 
     console.print("[cyan]正在停止 Cloudra（写入关停标志并通知各部件）...[/cyan]")
     report = stop_all(timeout=timeout)
     port = report["api_port"]
-    if port is None and report["api_stopped"] is False:
-        console.print("[yellow]  API: 未确认退出（主库仍被占用，请检查旧进程）[/yellow]")
-    elif port is None and report["api_stopped"] is True:
-        console.print("  API: 已停止未响应的旧实例")
-    elif port is None:
+    if port is None:
         console.print("  API: 未发现运行中的实例")
     elif report["api_stopped"]:
         escalated = report.get("api_escalated")
@@ -1032,7 +1028,6 @@ def stop_cmd(timeout):
             f"[yellow]  注意：仍有 {running} 个计算作业在跑；按可靠性铁律它们不被 kill，"
             "会运行到终态自行收尾。[/yellow]"
         )
-    console.print("[green]关停标志已生效：守护进程不会被自动重新拉起；下次 `cloudra` 启动时清除。[/green]")
     if report["api_stopped"] is False or "running" in report["daemons"].values():
         raise click.exceptions.Exit(1)
 

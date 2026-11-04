@@ -17,8 +17,10 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import signal
 import sys
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from cloudra.infra.compute_utils import (
@@ -104,6 +106,7 @@ class SchedulerDaemon:
         reconcile_interval: float = _RECONCILE_INTERVAL,
         worker_id: str | None = None,
     ) -> None:
+        self._started_at_ns = time.time_ns()
         self.poll_interval = poll_interval
         self.reconcile_interval = reconcile_interval
         self.worker_id = worker_id or f"scheduler:{os.getpid()}"
@@ -142,19 +145,19 @@ class SchedulerDaemon:
     async def serve(self) -> None:
         """建库（幂等）→ 启动即对账一次 → 进入认领主循环。
 
-        每 tick 自检显式全停 marker（`cloudra stop` 写入 daemons.stop）：
-        置位即干净退出（flock 随进程释放）。只停调度本身——在跑的
+        每 tick 检查本次启动后写入的显式全停 marker（`cloudra stop`）。
+        收到请求即干净退出并释放 flock。只停调度本身，在跑的
         guard/calculator 计算进程按铁律跑到终态，绝不连带 kill。
         """
-        from cloudra.services.daemon_supervisor import daemons_shutdown_requested
-
         await asyncio.to_thread(self.db.init)
         await self._reconcile_all()
         last_reconcile = time.time()
+        stop_marker = paths.daemons_stop_marker_path()
         while not self._stop.is_set():
-            if daemons_shutdown_requested():
-                logger.info("daemons shutdown requested (stop marker); scheduler exiting")
-                return
+            with suppress(FileNotFoundError):
+                if stop_marker.stat().st_mtime_ns >= self._started_at_ns:
+                    logger.info("daemons shutdown requested (stop marker); scheduler exiting")
+                    return
             now = time.time()
             if now - last_reconcile >= self.reconcile_interval:
                 last_reconcile = now
@@ -343,11 +346,9 @@ class SchedulerDaemon:
 
 
 def main() -> int:
-    """CLI 入口：抢单实例锁后跑主循环（前台，SIGINT 退出）。"""
+    """抢单实例锁后运行，收到 SIGINT 或 SIGTERM 时退出。"""
     from cloudra.infra.logging_setup import setup_logging
 
-    # detach 场景 stderr 已被 spawn_detached 重定向进 scheduler.log；
-    # 用 stream 而非 log_file，避免与重定向双写同一文件。
     setup_logging("cloudra", stream=sys.stderr)
     lock = scheduler_lock_path()
     fd = try_acquire_lock(lock)
@@ -357,9 +358,17 @@ def main() -> int:
         )
         return 1
     daemon = SchedulerDaemon()
-    logger.info("compute scheduler started (worker_id=%s)", daemon.worker_id)
+
+    async def serve() -> None:
+        asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, daemon.stop)
+        logger.info("compute scheduler started (worker_id=%s)", daemon.worker_id)
+        try:
+            await daemon.serve()
+        finally:
+            await daemon.close()
+
     try:
-        asyncio.run(daemon.serve())
+        asyncio.run(serve())
     except KeyboardInterrupt:
         logger.info("compute scheduler stopped by SIGINT")
     finally:

@@ -1,8 +1,7 @@
 """显式全停入口（``cloudra stop``）的实现。
 
 顺序（停止语义契约 3/5）：
-1. 落持久关停 marker 并置进程内标志——此后任何 ensure_* 拒绝拉起，
-   活着的 scheduler/kg_vec 守护自检 marker 后干净退出（flock 随进程释放）；
+1. 写入关停标记，通知 scheduler/kg_vec 自行退出；
 2. 通知 API 控制面关停（POST /api/v2/runtime/shutdown → 优雅 lifespan：
    停准入 → 取消并 await 推理/收尾任务 → 关流/客户端 → 回收 JS host）；
 3. 有界等待 API 停止响应；**协作关停失败则升级**：对该端口的 LISTEN
@@ -21,8 +20,8 @@ python/node/用户名匹配杀进程。
 
 from __future__ import annotations
 
+import logging
 import os
-import shlex
 import signal
 import subprocess
 import time
@@ -30,10 +29,12 @@ import urllib.request
 
 from cloudra.infra.flocks import is_lock_held
 from cloudra.persistence import paths
-from cloudra.services.daemon_supervisor import (
-    kg_vec_lock_path,
-    request_daemons_shutdown,
-)
+
+logger = logging.getLogger(__name__)
+
+
+def kg_vec_lock_path() -> str:
+    return str(paths.data_dir() / "kg_vec.lock")
 
 
 def _health_url(port: int) -> str:
@@ -160,58 +161,16 @@ def _api_gone(port: int, pid: int | None) -> bool:
     return pid is None or not _pid_alive(pid)
 
 
-def _is_owned_runtime_process(pid: int, lock_path) -> bool:
-    """Recognize our exact uvicorn entry point, user, and held runtime lock."""
-    from cloudra.services.runtime_ownership import _lsof
-
-    if not is_lock_held(str(lock_path)):
-        return False
-    fields = _lsof(["-nP", "-a", "-p", str(pid), "-Fln", str(lock_path)]).splitlines()
-    locked = any(
-        fields[index] in {"lW", "lw"} and fields[index + 1] == f"n{lock_path}"
-        for index in range(len(fields) - 1)
-    )
-    if not locked:
-        return False
-    try:
-        result = subprocess.run(
-            ["ps", "-p", str(pid), "-o", "uid=", "-o", "args="],
-            capture_output=True, text=True, timeout=5, check=True,
-        )
-        uid, command = result.stdout.strip().split(maxsplit=1)
-        args = shlex.split(command)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return False
-    return (
-        uid == str(os.getuid())
-        and len(args) >= 4
-        and args[1:4] == ["-m", "uvicorn", "cloudra.services.api_v2:create_default_v2_app"]
-    )
-
-
-def stop_owned_api(owner, lock_path, *, timeout: float = 20.0) -> bool:
-    """Stop a verified store owner and wait for its lock to be released.
-
-    Healthy APIs require matching listener and lock owner. Unresponsive ones
-    require the same user, exact launcher command, and the runtime lock.
-    """
-    if owner.port is None:
-        if not _is_owned_runtime_process(owner.pid, lock_path):
-            return False
-    else:
-        if _port_listener_pid(owner.port) != owner.pid or not api_is_healthy(owner.port):
-            return False
-        request_api_shutdown(owner.port)
-        if _wait_for(lambda: not is_lock_held(str(lock_path)), timeout):
-            return True
-    _force_stop_pid(owner.pid)
-    return _wait_for(lambda: not is_lock_held(str(lock_path)), timeout)
-
-
 def stop_all(*, timeout: float = 20.0) -> dict:
     """执行显式全停，返回复查报告（各部件最终状态）。"""
-    request_daemons_shutdown(persist=True)
-    report: dict = {"stop_marker": True}
+    report: dict = {"stop_marker": False}
+    try:
+        marker = paths.daemons_stop_marker_path()
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch()
+        report["stop_marker"] = True
+    except OSError:
+        logger.warning("could not write daemons stop marker", exc_info=True)
 
     port = find_api_port()
     report["api_port"] = port
@@ -232,16 +191,7 @@ def stop_all(*, timeout: float = 20.0) -> dict:
                 report["api_escalated"] = _force_stop_pid(pid)
         report["api_stopped"] = _api_gone(port, pid)
     else:
-        store = os.environ.get("CLOUDRA_RUNTIME_STORE") or paths.runtime_db_path()
-        lock_path = paths.runtime_api_lock_path(store)
-        # 没有健康 API 不代表旧进程已经退出：它可能仍持有 runtime 锁。
-        if is_lock_held(str(lock_path)):
-            from cloudra.services.runtime_ownership import find_store_owner
-
-            owner = find_store_owner(store)
-            report["api_stopped"] = bool(owner and stop_owned_api(owner, lock_path, timeout=timeout))
-        else:
-            report["api_stopped"] = None
+        report["api_stopped"] = None  # 没有在跑的 API
 
     from cloudra.scheduler.daemon import scheduler_lock_path
 

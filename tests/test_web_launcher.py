@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import os
-import shutil
 import signal
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -15,8 +15,11 @@ from click.testing import CliRunner
 
 import cloudra.web_launcher as web_launcher
 from cloudra.cli import cli
+from cloudra.infra.flocks import is_lock_held
+from cloudra.persistence import paths
 from cloudra.persistence.paths import runtime_api_lock_path
 from cloudra.services import runtime_ownership
+from cloudra.services.shutdown import request_api_shutdown
 
 
 class _FakeProc:
@@ -47,7 +50,7 @@ def test_uvicorn_subprocess_pins_cwd_to_frontend(tmp_path, monkeypatch):
 
     monkeypatch.setattr(web_launcher.subprocess, "Popen", _fake_popen)
     monkeypatch.setattr(web_launcher, "_ensure_frontend", lambda *a, **k: None)
-    monkeypatch.setattr(web_launcher, "ensure_daemons", lambda: None)
+    monkeypatch.setenv("CLOUDRA_SCHEDULER", "off")
     monkeypatch.setattr(web_launcher, "_wait_healthy", lambda url: None)
     monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: True)
     monkeypatch.setenv("CLOUDRA_API_PORT", "18999")
@@ -79,8 +82,11 @@ def test_uvicorn_argv_binds_requested_host():
 
 def _patch_launch(monkeypatch, captured):
     def _fake_popen(cmd, **kwargs):
-        captured["cmd"] = cmd
-        captured.update(kwargs)
+        if cmd[2] == "uvicorn":
+            captured["cmd"] = cmd
+            captured.update(kwargs)
+        else:
+            captured.setdefault("other_children", []).append(cmd)
         return _FakeProc()
 
     def _fake_wait_healthy(url):
@@ -88,8 +94,8 @@ def _patch_launch(monkeypatch, captured):
 
     monkeypatch.setattr(web_launcher.subprocess, "Popen", _fake_popen)
     monkeypatch.setattr(web_launcher, "_ensure_frontend", lambda *a, **k: None)
-    monkeypatch.setattr(web_launcher, "ensure_daemons", lambda: None)
     monkeypatch.setattr(web_launcher, "_wait_healthy", _fake_wait_healthy)
+    monkeypatch.setenv("CLOUDRA_SCHEDULER", "off")
     monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: True)
     monkeypatch.setenv("CLOUDRA_NO_BROWSER", "1")
 
@@ -207,7 +213,6 @@ def test_launch_refuses_when_store_owned_by_non_reusable_api(tmp_path, monkeypat
     monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
     monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda bind_host, port: port != 8000)
     monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: True)
-    monkeypatch.setattr("cloudra.services.shutdown.stop_owned_api", lambda *args: False)
     monkeypatch.setattr(
         web_launcher,
         "find_store_owner",
@@ -336,73 +341,15 @@ def test_launcher_reuses_requested_store_owner_on_its_actual_port(tmp_path, monk
     runtime_api_lock_path(requested).write_text("")
     captured = {}
     _patch_launch(monkeypatch, captured)
-    monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: True)
+    monkeypatch.delenv("CLOUDRA_SCHEDULER", raising=False)
+    monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: path == str(runtime_api_lock_path(requested)))
     monkeypatch.setattr(web_launcher, "find_store_owner", lambda *a, **kw: runtime_ownership.StoreOwner(42, 8005, True))
     monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: True)
 
     assert web_launcher.launch_browser(frontend, rebuild=False, skip_build=True) == 0
     assert "cmd" not in captured
+    assert "other_children" not in captured
     assert captured["health_url"] == "http://127.0.0.1:8005/api/v2/runtime/health"
-
-
-def test_launcher_replaces_owned_api_when_old_frontend_is_missing(tmp_path, monkeypatch):
-    """A healthy API holding the store without its SPA must not block a fresh launch."""
-    frontend = tmp_path / "frontend"
-    frontend.mkdir()
-    store = tmp_path / "runtime.db"
-    runtime_api_lock_path(store).write_text("")
-    monkeypatch.setenv("CLOUDRA_RUNTIME_STORE", str(store))
-    monkeypatch.delenv("CLOUDRA_API_PORT", raising=False)
-    captured = {}
-    _patch_launch(monkeypatch, captured)
-    held = [True]
-    monkeypatch.setattr(web_launcher, "is_lock_held", lambda path: held[0])
-    monkeypatch.setattr(web_launcher, "find_store_owner", lambda *a, **kw: runtime_ownership.StoreOwner(42, 8005, False))
-    def stop_owner(owner, lock_path):
-        captured["stopped_owner"] = owner
-        held[0] = False
-        return True
-    monkeypatch.setattr("cloudra.services.shutdown.stop_owned_api", stop_owner, raising=False)
-    monkeypatch.setattr(web_launcher, "_port_is_bindable", lambda host, port: True)
-
-    assert web_launcher.launch_browser(frontend, rebuild=False, skip_build=True) == 0
-    assert captured["stopped_owner"].pid == 42
-    assert "cmd" in captured
-
-
-@pytest.mark.skipif(shutil.which("lsof") is None, reason="requires lsof to verify ownership")
-@pytest.mark.parametrize("unresponsive", [False, True])
-def test_restart_reclaims_real_api_with_missing_frontend(tmp_path, monkeypatch, unresponsive):
-    store = tmp_path / "runtime.db"
-    env = os.environ.copy()
-    env.update({
-        "CLOUDRA_RUNTIME_STORE": str(store),
-        "CLOUDRA_API_TOKEN": "off",
-        "CLOUDRA_DAEMON_WATCHDOG": "off",
-        "CLOUDRA_SCHEDULER": "off",
-        "CLOUDRA_FRONTEND_SERVE_DIR": str(tmp_path / "missing-frontend"),
-    })
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "cloudra.services.api_v2:create_default_v2_app",
-         "--factory", "--host", "127.0.0.1", "--port", str(port)],
-        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    try:
-        web_launcher._wait_healthy(f"http://127.0.0.1:{port}/api/v2/runtime/health")
-        if unresponsive:
-            os.kill(proc.pid, signal.SIGSTOP)
-        assert web_launcher._owned_runtime_port(
-            str(store), bind_host="127.0.0.1", probe_host="127.0.0.1", requested_port=None,
-        ) is None
-        assert proc.wait(timeout=5) is not None
-        assert not web_launcher.is_lock_held(str(runtime_api_lock_path(store)))
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait(timeout=5)
 
 
 @pytest.mark.parametrize("bind_host, port", [("0.0.0.0", None), ("127.0.0.1", 8000)])
@@ -435,3 +382,145 @@ def test_foreign_runtime_on_explicit_port_is_not_opened(tmp_path, monkeypatch):
         web_launcher.launch_browser(frontend, rebuild=False, skip_build=True, port=8000)
     assert "cmd" not in captured
     assert "health_url" not in captured
+
+
+def _wait_for(predicate, *, timeout=10):
+    deadline = time.monotonic() + timeout
+    while not predicate():
+        assert time.monotonic() < deadline, "child process did not reach its expected state"
+        time.sleep(0.02)
+
+
+@pytest.mark.parametrize("exit_trigger", ["api", "launcher", "scheduler"])
+def test_owned_children_follow_launcher_lifecycle(tmp_path, monkeypatch, exit_trigger):
+    """The launcher reaps its direct children while a submitted calculation survives."""
+    frontend = tmp_path / "frontend"
+    (frontend / "dist").mkdir(parents=True)
+    (frontend / "package.json").write_text("{}")
+    (frontend / "dist" / "index.html").write_text('<div id="root"></div>')
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    config = tmp_path / "config.yaml"
+    config.write_text(f"data_dir: {data_dir}\n")
+    monkeypatch.setenv("CLOUDRA_CONFIG_FILE", str(config))
+    monkeypatch.setenv("CLOUDRA_FRONTEND_DIR", str(frontend))
+    monkeypatch.setenv("CLOUDRA_NO_BROWSER", "1")
+    monkeypatch.setenv("PYTHONPATH", str(Path(__file__).resolve().parents[1]))
+    monkeypatch.delenv("CLOUDRA_SCHEDULER", raising=False)
+    monkeypatch.delenv("CLOUDRA_RUNTIME_STORE", raising=False)
+    if exit_trigger == "scheduler":
+        monkeypatch.setenv("CLOUDRA_DAEMON_WATCHDOG", "on")
+        monkeypatch.setenv("CLOUDRA_DAEMON_WATCHDOG_SECONDS", "0.05")
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+
+    # The scheduler runs normally after launching a stand-in for a submitted
+    # calculation in a separate session, as it does for real local jobs.
+    compute = (
+        "import sys, time; from cloudra.infra.flocks import try_acquire_lock; "
+        "assert try_acquire_lock(sys.argv[1]) is not None; time.sleep(60)"
+    )
+    scheduler = f"""
+import runpy, subprocess, sys
+from pathlib import Path
+child = subprocess.Popen([sys.executable, '-c', {compute!r}, 'compute.lock'], start_new_session=True)
+Path('compute.pid').write_text(str(child.pid))
+runpy.run_module('cloudra.scheduler', run_name='__main__')
+"""
+    launcher = f"""
+import subprocess, sys
+from pathlib import Path
+from cloudra.cli import main
+spawn = subprocess.Popen
+def record_child(cmd, **kwargs):
+    role = cmd[2]
+    if role == 'cloudra.scheduler':
+        cmd = [sys.executable, '-c', {scheduler!r}]
+        kwargs['cwd'] = {str(tmp_path)!r}
+    child = spawn(cmd, **kwargs)
+    with Path({str(tmp_path / 'children')!r}).open('a') as file:
+        print(role, child.pid, file=file)
+    return child
+subprocess.Popen = record_child
+main()
+"""
+    proc = subprocess.Popen(
+        [sys.executable, "-c", launcher, "web", "--skip-build", "--port", str(port)],
+        stdout=subprocess.DEVNULL,
+        start_new_session=True,
+    )
+    children = tmp_path / "children"
+    api_lock = runtime_api_lock_path(data_dir / "runtime-v2.db")
+    scheduler_lock = data_dir / "scheduler.lock"
+    compute_lock = tmp_path / "compute.lock"
+
+    def locked(path):
+        return path.exists() and is_lock_held(str(path))
+
+    try:
+        web_launcher._wait_healthy(f"http://127.0.0.1:{port}/api/v2/runtime/health", timeout=10)
+        _wait_for(lambda: locked(scheduler_lock) and locked(compute_lock))
+        started = children.read_text().splitlines()
+        assert sorted(line.split()[0] for line in started) == ["cloudra.scheduler", "uvicorn"]
+
+        if exit_trigger == "scheduler":
+            scheduler_pid = int(dict(line.split() for line in started)["cloudra.scheduler"])
+            os.kill(scheduler_pid, signal.SIGTERM)
+            _wait_for(lambda: not locked(scheduler_lock))
+            deadline = time.monotonic() + 0.25
+            while time.monotonic() < deadline:
+                assert not locked(scheduler_lock), "scheduler was restarted after exit"
+                time.sleep(0.02)
+            assert proc.poll() is None
+            assert locked(api_lock)
+        if exit_trigger == "launcher":
+            proc.terminate()
+        else:
+            assert request_api_shutdown(port)
+        proc.wait(timeout=10)
+
+        assert not locked(api_lock)
+        assert not locked(scheduler_lock)
+        assert children.read_text().splitlines() == started
+        assert locked(compute_lock)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
+        compute_pid = tmp_path / "compute.pid"
+        if locked(compute_lock) and compute_pid.exists():
+            os.kill(int(compute_pid.read_text()), signal.SIGKILL)
+        if children.exists():
+            for line in children.read_text().splitlines():
+                role, pid = line.split()
+                lock = api_lock if role == "uvicorn" else scheduler_lock
+                if locked(lock):
+                    try:
+                        os.kill(int(pid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+
+def test_stop_during_api_startup_does_not_start_scheduler(tmp_path, monkeypatch):
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    captured = {}
+    _patch_launch(monkeypatch, captured)
+    monkeypatch.delenv("CLOUDRA_SCHEDULER", raising=False)
+    marker = paths.daemons_stop_marker_path()
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
+    stopped = []
+
+    def request_stop_before_health(_url):
+        assert not marker.exists(), "clear the previous session's stop request before starting"
+        marker.touch()
+
+    monkeypatch.setattr(web_launcher, "_wait_healthy", request_stop_before_health)
+    monkeypatch.setattr(web_launcher, "_terminate_runtime", lambda proc, **kwargs: stopped.append(proc))
+
+    assert web_launcher.launch_browser(frontend, rebuild=False, skip_build=True, port=18999) == 0
+    assert len(stopped) == 1
+    assert captured["cmd"][2] == "uvicorn"
+    assert marker.is_file()

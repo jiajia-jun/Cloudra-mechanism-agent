@@ -370,9 +370,8 @@ class RuntimeCore:
         """服务关闭唯一入口（停止语义契约 3）：取消并 await 全部 runner 与
         已登记收尾后台任务（含 finalize），再回收本 core 拥有的 JS host。
 
-        准入停止（拒绝新任务/守护拉起）由调用方先行（api_v2 lifespan 停
-        watchdog + ``request_daemons_shutdown``）。已发出的远端 LLM 请求
-        不可撤回（契约 4）；本地读取/重试/新请求随 runner 取消链停止。
+        runner 关停时停止准入。已发出的远端 LLM 请求不可撤回（契约 4）；
+        本地读取/重试/新请求随 runner 取消链停止。
         不触碰 scheduler/guard/QM 计算进程（契约 5 与执行面铁律）。
         """
         runner = self.runner
