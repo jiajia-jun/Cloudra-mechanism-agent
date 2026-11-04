@@ -200,12 +200,15 @@ def plan_resume(agent: AgentSession) -> tuple[str, list[EventDraft]]:
     ]
 
 
-def is_background_parked(core: Any, agent: AgentSession) -> bool:
+def is_background_parked(
+    core: Any, agent: AgentSession, *, before_session_seq: int | None = None,
+) -> bool:
     """A successful run waiting for background work is still cancellable."""
     if agent.state is not AgentState.SUCCEEDED or agent.current_run is not None:
         return False
     recent = core.event_log.query_session(
         agent.id, types={"agent.completion_gate", "agent.state_changed"}, limit=2,
+        before_session_seq=before_session_seq,
     )
     return (
         len(recent) == 2
@@ -282,6 +285,7 @@ def plan_finish_run(
     outcome: str,
     error: str | None = None,
     failure_kind: RunFailureKind | None = None,
+    delivery: dict[str, Any] | None = None,
 ) -> tuple[str | None, list[EventDraft]]:
     """Guard + drafts for closing the agent's current run.
 
@@ -292,6 +296,8 @@ def plan_finish_run(
     if run_id is None:
         return None, []
     data = _run_finished_data(outcome, error=error, failure_kind=failure_kind)
+    if delivery is not None:
+        data["delivery"] = delivery
     target = AgentState.SUCCEEDED if outcome == "succeeded" else AgentState.FAILED
     # The state transition may already be durable when a previous finish
     # stopped before writing run.finished. Close the remaining run directly.
@@ -444,10 +450,11 @@ class AgentHost:
         outcome: str,
         error: str | None = None,
         failure_kind: RunFailureKind | None = None,
+        delivery: dict[str, Any] | None = None,
     ) -> None:
         # 先校验载荷再动状态：漏传分类的失败 run 在任何事件落地前就炸掉。
         _, drafts = plan_finish_run(
-            agent, outcome=outcome, error=error, failure_kind=failure_kind
+            agent, outcome=outcome, error=error, failure_kind=failure_kind, delivery=delivery,
         )
         if drafts:
             await self._persist_then_apply(drafts)

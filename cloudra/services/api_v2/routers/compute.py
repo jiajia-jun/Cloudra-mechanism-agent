@@ -17,6 +17,7 @@ from fastapi import APIRouter, HTTPException
 
 from cloudra.persistence.database import ComputeDB
 from cloudra.services.compute_store import (
+    ACTIVE_STATES,
     _db_ready,
     acancel_all_compute_jobs,
     aget_compute_job,
@@ -26,8 +27,6 @@ from cloudra.services.compute_store import (
 
 from ..context import ApiContext
 from ..models import ComputeCancelPost
-
-_ACTIVE_STATES = ("ready", "running", "cancel_requested")
 
 
 def build_router(ctx: ApiContext) -> APIRouter:
@@ -50,7 +49,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         ctx.core.require_project(project_id)
         return await alist_compute_jobs(
             ComputeDB(),
-            states=_ACTIVE_STATES if active_only else None,
+            states=ACTIVE_STATES if active_only else None,
             conversation_id=project_id,
             order="recent",
             limit=None if active_only else 100,

@@ -60,6 +60,48 @@ _ERROR_KEYS = ("code", "message", "call_id", "tool_name", "line", "column", "eff
 _STDERR_CAP_BYTES = 64 * 1024
 
 
+async def filter_history(expression: str, entries: list[dict]) -> list[bool]:
+    """Run a predicate in a one-shot QuickJS process with no tool or output bridge."""
+    node = shutil.which("node")
+    if node is None:
+        raise RuntimeError("The history filter requires the Node/QuickJS runtime.")
+    host = Path(__file__).resolve().parent / "js_host" / "predicate.mjs"
+    limits = ProgramLimits(eval_ms=500)
+    if len(expression.encode("utf-8", "replace")) > limits.source_bytes:
+        raise ValueError("History filter exceeds its source size limit.")
+    payload = json.dumps({
+        "expression": expression, "entries": entries, "limits": limits.to_wire(),
+    }).encode()
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            node, "--max-old-space-size=128", str(host),
+            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL, env={},
+        )
+    except OSError as exc:
+        raise RuntimeError("The history filter could not start the Node/QuickJS runtime.") from exc
+    try:
+        output, _ = await asyncio.wait_for(
+            proc.communicate(payload), (limits.startup_timeout_ms + limits.eval_ms) / 1000,
+        )
+    except (TimeoutError, asyncio.CancelledError) as exc:
+        if proc.returncode is None:
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+        await proc.wait()
+        if isinstance(exc, TimeoutError):
+            raise ValueError("History filter exceeded its execution budget.") from exc
+        raise
+    if proc.returncode:
+        raise RuntimeError("The history filter requires the Node/QuickJS runtime.")
+    result = json.loads(output)
+    if "error" in result:
+        raise ValueError(result["error"])
+    return result["matches"]
+
+
 def _sanitize_host_error(raw: Any) -> dict[str, Any] | None:
     """Keep only the documented error keys with coerced types (no tracebacks)."""
     if not isinstance(raw, dict):

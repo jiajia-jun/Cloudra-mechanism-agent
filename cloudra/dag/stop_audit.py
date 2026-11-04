@@ -14,7 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cloudra.dag.models import CoverageGateResult, OrchestrationMode, StageKind
+from cloudra.dag.models import CoverageGateResult, DeliveryReport, OrchestrationMode, StageKind
 from cloudra.dag.review_requests import ReviewRequest
 
 StopAction = Literal[
@@ -495,7 +495,7 @@ class StopAuditMixin:
             current_targets = {snapshot.delivery.graph_id}
         return set(request.target_ids) == current_targets
 
-    async def commit_stop(self) -> None:
+    async def commit_stop(self) -> DeliveryReport | None:
         """Commit delivery only after the runner's combined gate allows final."""
         pending = getattr(self, '_pending_stop', None)
         if pending is None:
@@ -539,3 +539,4 @@ class StopAuditMixin:
             await asyncio.to_thread(write_step_endpoint_evidence, self.working_directory,
                 artifact.sha256, artifact.step_endpoint_evidence)
         self._pending_stop = None
+        return report

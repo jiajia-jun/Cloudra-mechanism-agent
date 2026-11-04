@@ -27,8 +27,8 @@ def _ensure_private_mode(path) -> None:
         os.chmod(path, 0o600)
 
 
-def resolve_api_token() -> str | None:
-    """返回生效的 bearer token；认证显式关闭时返回 ``None``。"""
+def resolve_api_token(*, create: bool = True) -> str | None:
+    """读取 bearer token；服务端可创建，客户端用 create=False 只读。"""
     env = os.environ.get("CLOUDRA_API_TOKEN", "").strip()
     if env == "off":
         return None
@@ -40,8 +40,11 @@ def resolve_api_token() -> str | None:
     except OSError:
         existing = ""
     if existing:
-        _ensure_private_mode(token_file)
+        if create:
+            _ensure_private_mode(token_file)
         return existing
+    if not create:
+        return None
     token = secrets.token_urlsafe(32)
     token_file.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(str(token_file), token + "\n", mode=0o600)

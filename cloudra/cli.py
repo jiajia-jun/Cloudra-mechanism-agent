@@ -58,6 +58,9 @@ def cli(ctx, version, host, port, coordinator_model, coordinator_url, coordinato
         sys.exit(_launch_or_exit(_frontend_or_exit(), rebuild=False, skip_build=False,
                                  host=host, port=port))
 
+    if ctx.invoked_subcommand == "mcp":
+        return
+
     _apply_config_overrides(
         coordinator_model, coordinator_url, coordinator_key,
         follower_model, follower_url, follower_key,
@@ -111,6 +114,24 @@ def web(host, port, rebuild, skip_build):
     """启动 Web 前端（API + SPA 单端口服务）。"""
     sys.exit(_launch_or_exit(_frontend_or_exit(), rebuild=rebuild, skip_build=skip_build,
                              host=host, port=port))
+
+
+@cli.command(name="mcp")
+@click.option("--api-url", envvar="CLOUDRA_MCP_API_URL", help="已运行的 Cloudra API 地址。")
+def mcp_bridge(api_url):
+    """通过 stdio 将通用 Agent 接到已运行的 Cloudra。"""
+    import asyncio
+
+    try:
+        from cloudra.services.subagent_mcp import run
+    except ModuleNotFoundError as exc:
+        if (exc.name or "").split(".")[0] != "mcp":
+            raise
+        raise click.ClickException('请安装 MCP 依赖：pip install "cloudra[mcp]"') from None
+    try:
+        asyncio.run(run(api_url))
+    except RuntimeError as exc:
+        raise click.ClickException(str(exc)) from exc
 
 
 def _login_codex_account() -> None:

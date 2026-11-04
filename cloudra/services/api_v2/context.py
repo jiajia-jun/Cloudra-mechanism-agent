@@ -21,6 +21,8 @@ from cloudra.runtime_v2.schemas import AgentSession, Command, CommandRejected
 from .models import CommandResponse
 from .views import agent_dict
 
+LOOPBACK_CLIENTS = frozenset({"127.0.0.1", "::1", "localhost", "testclient"})
+
 
 @dataclass
 class ApiContext:

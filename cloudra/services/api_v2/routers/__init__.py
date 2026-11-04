@@ -26,6 +26,9 @@ from . import (
     reminders,
     roles,
     runtime,
+    subagent_messages,
+    subagent_progress,
+    subagent_tasks,
     telemetry,
 )
 
@@ -39,6 +42,9 @@ def build_routers(ctx: ApiContext) -> list[APIRouter]:
         knowledge.build_router(ctx),
         roles.build_router(ctx),
         pending.build_router(ctx),
+        subagent_messages.build_router(ctx),
+        subagent_progress.build_router(ctx),
+        subagent_tasks.build_router(ctx),
         artifacts.build_router(ctx),
         dag.build_router(ctx),
         chem.build_router(ctx),

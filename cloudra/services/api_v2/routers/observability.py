@@ -12,11 +12,12 @@ from cloudra.runtime_v2.observability import (
     CALL_EVENT_TYPES,
     agent_activity,
     call_summary,
+    scoped_tool_receipts,
     tool_receipts,
 )
 from cloudra.runtime_v2.policies.goal_stage import read_goal
 from cloudra.runtime_v2.schemas import utc_now
-from cloudra.services.compute_store import _db_ready, get_compute_job, list_compute_jobs
+from cloudra.services.compute_store import ACTIVE_STATES, _db_ready, get_compute_job, list_compute_jobs
 
 from ..context import ApiContext
 
@@ -44,49 +45,6 @@ def build_router(ctx: ApiContext) -> APIRouter:
             "projects": log.high_watermarks, "sessions": log.high_session_watermarks,
         }
 
-    def calls_for(session_id, requests, boundary, *, details=False):
-        """Only selected attempts, scoped to their session/run and durable tail."""
-        log = ctx.core.event_log
-        grouped = {}
-        for request in requests:
-            grouped.setdefault(request.run_id, []).append(request)
-        receipts = []
-        for run_id, group in grouped.items():
-            first = min(request.session_seq for request in group)
-            # Cancellation is session-wide and may intentionally have no run ID.
-            cancelled = log.query_session(
-                session_id, after_session_seq=first - 1, before_session_seq=boundary,
-                types={"agent.cancelled"}, limit=1, tail=False,
-            )
-
-            def events():
-                cursor = first - 1
-                terminal = cancelled[0] if cancelled else None
-                while True:
-                    page = log.query_session(
-                        session_id, run_id=run_id, after_session_seq=cursor,
-                        before_session_seq=boundary, types=CALL_EVENT_TYPES,
-                        limit=500, tail=False,
-                    )
-                    if not page:
-                        if terminal is not None:
-                            yield terminal
-                        return
-                    for event in page:
-                        if terminal is not None and terminal.session_seq <= event.session_seq:
-                            yield terminal
-                            duplicate = event.event_id == terminal.event_id
-                            terminal = None
-                            if duplicate:
-                                continue
-                        yield event
-                    cursor = page[-1].session_seq
-
-            receipts.extend(tool_receipts(
-                events(), details=details, request_event_ids={request.event_id for request in group},
-            ))
-        return sorted(receipts, key=lambda row: row["request_seq"], reverse=True)
-
     @router.get("/api/v2/agents/{session_id}/tool-calls", dependencies=ctx.protected)
     async def tool_calls(
         session_id: str, before: int | None = Query(default=None, ge=1), limit: int = Query(default=50, ge=1, le=200)
@@ -100,7 +58,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 before_session_seq=min(boundary, before - 1) if before is not None else boundary,
             )
             page = requests[-limit:]
-            rows = calls_for(session_id, page, boundary)
+            rows = scoped_tool_receipts(ctx.core.event_log, session_id, page, boundary)
             return {
                 "items": [call_summary(row) for row in rows],
                 "next_before": page[0].session_seq if len(requests) > limit else None,
@@ -119,7 +77,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
                     or request.session_id != session_id or request.project_id != agent.project_id
                     or (request.session_seq or 0) > boundary):
                 raise HTTPException(404, "tool call not found")
-            rows = calls_for(session_id, [request], boundary, details=True)
+            rows = scoped_tool_receipts(ctx.core.event_log, session_id, [request], boundary, details=True)
             if not rows:
                 raise HTTPException(404, "tool call not found")
             return _jobs_for_receipt(rows[0])
@@ -139,7 +97,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         def collect():
             db = ComputeDB()
             jobs = (
-                list_compute_jobs(db, conversation_id=project_id, states=("ready", "running", "cancel_requested"))
+                list_compute_jobs(db, conversation_id=project_id, states=ACTIVE_STATES)
                 if _db_ready(db)
                 else []
             )

@@ -87,7 +87,7 @@ export class Sandbox {
     runtime.setMemoryLimit(limits.heap_bytes);
     runtime.setMaxStackSize(limits.stack_bytes);
     const sandbox = new Sandbox(runtime, limits, isTerminal);
-    sandbox._install(onToolCall, onText, tools);
+    if (onToolCall && onText) sandbox._install(onToolCall, onText, tools);
     return sandbox;
   }
 
@@ -156,6 +156,51 @@ export class Sandbox {
       return fn();
     } finally {
       this.evalMsUsed += Date.now() - this._segmentStart;
+    }
+  }
+
+  /** Evaluate a boolean predicate with one JSON-cloned record per call. */
+  filterEntries(expression, entries) {
+    const ctx = this.context;
+    const evaluate = (fn) => {
+      const result = this._segment(fn);
+      if (result.error || this.budgetExceeded()) {
+        (result.error ?? result.value).dispose();
+        throw new Error(this.budgetExceeded()
+          ? 'History filter exceeded its execution budget.'
+          : 'History filter contains invalid JavaScript or threw an error.');
+      }
+      return result.value;
+    };
+    const parse = evaluate(() => ctx.evalCode('JSON.parse', 'history-parse.js'));
+    try {
+      const predicate = evaluate(() => ctx.evalCode(`"use strict"; (entry) => (\n${expression}\n)`, 'history-filter.js'));
+      try {
+        if (ctx.typeof(predicate) !== 'function') throw new Error('History filter must be an expression.');
+        return entries.map((entry) => {
+          const json = ctx.newString(JSON.stringify(entry));
+          try {
+            const value = evaluate(() => ctx.callFunction(parse, ctx.undefined, json));
+            try {
+              const match = evaluate(() => ctx.callFunction(predicate, ctx.undefined, value));
+              try {
+                if (ctx.typeof(match) !== 'boolean') throw new Error('History filter must return a boolean.');
+                return ctx.eq(match, ctx.true);
+              } finally {
+                match.dispose();
+              }
+            } finally {
+              value.dispose();
+            }
+          } finally {
+            json.dispose();
+          }
+        });
+      } finally {
+        predicate.dispose();
+      }
+    } finally {
+      parse.dispose();
     }
   }
 

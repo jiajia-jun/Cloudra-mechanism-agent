@@ -48,6 +48,7 @@ _LIST_ORDERS = {
 
 # 终态词表：完成通知轮询与队列视图的统一口径。
 TERMINAL_STATES = ("done", "failed", "cancelled")
+ACTIVE_STATES = ("ready", "running", "cancel_requested")
 
 
 def _db_ready(db: ComputeDB) -> bool:
