@@ -13,11 +13,11 @@ Local fake HTTP/SSE server only — never touches a real provider.
 from __future__ import annotations
 
 import asyncio
+import os
 import subprocess
 import sys
 import threading
 import time
-from types import SimpleNamespace
 
 import pytest
 
@@ -36,59 +36,41 @@ from tests.test_runtime_v2_cancellation import _wait_until
 
 
 @pytest.mark.asyncio
-async def test_scheduler_daemon_exits_on_stop_marker(monkeypatch):
-    """Ignore the previous stop request and observe a new one despite clock granularity."""
-    from cloudra.scheduler import daemon as scheduler
-    from cloudra.services import shutdown
+async def test_scheduler_daemon_exits_on_stop_marker():
+    """The scheduler daemon checks the marker every tick and exits cleanly
+    (its flock is released by process exit); compute processes are never
+    touched."""
+    from cloudra.scheduler.daemon import SchedulerDaemon
 
-    monkeypatch.setattr(shutdown, "find_api_port", lambda: None)
-    monkeypatch.setattr(shutdown, "is_lock_held", lambda _path: False)
-    assert (await asyncio.to_thread(shutdown.stop_all))["stop_marker"]
+    daemon = SchedulerDaemon(poll_interval=0.05)
+    marker = paths.daemons_stop_marker_path()
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
+    # File timestamps can lag a process's clock on real filesystems.
+    old_ns = time.time_ns() - 1_000_000_000
+    os.utime(marker, ns=(old_ns, old_ns))
+    await asyncio.wait_for(daemon.serve(), timeout=10)
 
-    # Emulate the old comparison on a filesystem whose timestamps lag the
-    # scheduler's clock. Both requests look older by mtime.
-    monkeypatch.setattr(scheduler, "time", SimpleNamespace(
-        time=time.time, time_ns=lambda: time.time_ns() + 60_000_000_000,
-    ))
-    daemon = scheduler.SchedulerDaemon(poll_interval=0.01)
-    polling = asyncio.Event()
-    loop = asyncio.get_running_loop()
 
-    def note_poll():
-        loop.call_soon_threadsafe(polling.set)
+@pytest.mark.asyncio
+async def test_scheduler_ignores_previous_stop_but_honors_new_stop(tmp_path):
+    from cloudra.scheduler.daemon import SchedulerDaemon
 
-    monkeypatch.setattr(daemon, "_claim_one", note_poll)
-    serving = asyncio.create_task(daemon.serve())
+    marker = paths.daemons_stop_marker_path()
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text("old request")
+    daemon = SchedulerDaemon(poll_interval=0.01)
+    task = asyncio.create_task(daemon.serve())
     try:
-        await asyncio.wait_for(polling.wait(), timeout=2)
-        assert (await asyncio.to_thread(shutdown.stop_all))["stop_marker"]
-        await asyncio.wait_for(serving, timeout=2)
+        await asyncio.sleep(0.1)
+        assert not task.done()
+        marker.write_text("new request")
+        old_ns = time.time_ns() - 1_000_000_000
+        os.utime(marker, ns=(old_ns, old_ns))
+        await asyncio.wait_for(task, timeout=1)
     finally:
-        serving.cancel()
-        await asyncio.gather(serving, return_exceptions=True)
-
-
-def test_scheduler_observes_stop_after_acquiring_startup_lock(monkeypatch):
-    from cloudra.scheduler import daemon as scheduler
-    from cloudra.services import shutdown
-
-    monkeypatch.setattr(shutdown, "find_api_port", lambda: None)
-    monkeypatch.setattr(shutdown, "is_lock_held", lambda _path: False)
-    assert shutdown.stop_all()["stop_marker"]
-    acquire_lock = scheduler.try_acquire_lock
-
-    def acquire_then_stop(path):
-        fd = acquire_lock(path)
-        assert fd is not None
-        assert shutdown.stop_all()["stop_marker"]
-        return fd
-
-    def unexpected_claim(_self):
-        pytest.fail("scheduler tried to claim work after a stop during startup")
-
-    monkeypatch.setattr(scheduler, "try_acquire_lock", acquire_then_stop)
-    monkeypatch.setattr(scheduler.SchedulerDaemon, "_claim_one", unexpected_claim)
-    assert scheduler.main() == 0
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 # ------------------------------------------------------- web launcher kill
@@ -244,6 +226,16 @@ def test_stop_all_without_api_writes_marker_and_reports(monkeypatch, tmp_path):
     assert report["daemons"] == {"scheduler": "stopped", "kg_vec": "stopped"}
     assert report["compute_jobs_running"] is None
     assert paths.daemons_stop_marker_path().is_file()
+
+
+def test_each_stop_request_changes_the_marker(monkeypatch):
+    from cloudra.services.shutdown import stop_all
+
+    monkeypatch.setattr("cloudra.services.shutdown.find_api_port", lambda: None)
+    stop_all(timeout=0)
+    first = paths.daemons_stop_marker_path().read_bytes()
+    stop_all(timeout=0)
+    assert paths.daemons_stop_marker_path().read_bytes() != first
 
 
 def test_cli_stop_invokes_stop_all(monkeypatch):
