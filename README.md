@@ -42,7 +42,7 @@ Download the installer for your system, double-click it, then open Cloudra from 
 | Linux | Install the `.deb` or extract the portable `.tar.gz`, then open Cloudra. See the [Linux guide](docs/INSTALL.md#install-on-linux). |
 | Windows, running natively | Install `Setup.exe`, then open Cloudra from the Start menu or desktop. See the [guide on the `windows` branch](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS.md). |
 
-Packages are currently available as [GitHub Actions artifacts](docs/INSTALL.md#download-a-package) after successful packaging runs and have not been published as formal Releases. macOS test packages are not developer-signed or notarized yet. Developers and people managing their own deployments can use the existing scripts via [source installation](docs/INSTALL.md#install-from-source).
+macOS and Linux packages are available from the [v0.1.1rc release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1rc). macOS packages are not developer-signed or notarized yet. Developers and people managing their own deployments can use the existing scripts via [source installation](docs/INSTALL.md#install-from-source).
 
 1. Configure the coordinator and follower models in Global Settings. You can use an OpenAI-compatible endpoint or select ChatGPT / Codex account login. You can also choose your preferred UI style.
 2. Configure the software and compute nodes needed for your study. See the [deployment guides](docs/README_EN.md#deployment-and-configuration) for remote computation, including Slurm-based clusters.
