@@ -87,7 +87,7 @@ export class Sandbox {
     runtime.setMemoryLimit(limits.heap_bytes);
     runtime.setMaxStackSize(limits.stack_bytes);
     const sandbox = new Sandbox(runtime, limits, isTerminal);
-    sandbox._install(onToolCall, onText, tools);
+    if (onToolCall && onText) sandbox._install(onToolCall, onText, tools);
     return sandbox;
   }
 
@@ -156,6 +156,37 @@ export class Sandbox {
       return fn();
     } finally {
       this.evalMsUsed += Date.now() - this._segmentStart;
+    }
+  }
+
+  /** Run the predicate over projected entries in one bounded guest evaluation. */
+  filterEntries(expression, entries) {
+    const ctx = this.context;
+    const body = JSON.stringify(`"use strict"; return (\n${expression}\n);`);
+    const data = JSON.stringify(JSON.stringify(entries));
+    // Compile from a string so the predicate has no access to the batch's scope.
+    // Return a primitive mask that guest code cannot change via prototypes.
+    const result = this._segment(() => ctx.evalCode(`
+      (() => {
+        const predicate = new Function('entry', ${body});
+        const entries = JSON.parse(${data});
+        let matches = '';
+        for (let index = 0; index < entries.length; index++) {
+          const match = predicate(entries[index]);
+          if (typeof match !== 'boolean') return null;
+          matches += match ? '1' : '0';
+        }
+        return matches;
+      })()
+    `, 'history-filter.js'));
+    const handle = result.error ?? result.value;
+    try {
+      if (this.budgetExceeded()) throw new Error('History filter exceeded its execution budget.');
+      if (result.error) throw new Error('History filter contains invalid JavaScript or threw an error.');
+      if (ctx.typeof(handle) !== 'string') throw new Error('History filter must return a boolean.');
+      return Array.from(ctx.getString(handle), (match) => match === '1');
+    } finally {
+      handle.dispose();
     }
   }
 

@@ -41,7 +41,8 @@ ACTIVITY_EVENT_TYPES = CALL_EVENT_TYPES | {
 
 
 def tool_receipts(
-    events: Iterable[EventEnvelope], *, details: bool = True, request_event_ids: set[str] | None = None
+    events: Iterable[EventEnvelope], *, details: bool = True, request_event_ids: set[str] | None = None,
+    summary_limit: int = 500,
 ) -> list[dict[str, Any]]:
     """Each request is an attempt, even if the wire call ID is reused.
 
@@ -206,16 +207,62 @@ def tool_receipts(
                 row["result_availability"] = "unavailable"
             if data.get("artifact_id"):
                 row["artifact_ids"].append(data["artifact_id"])
-        if not details:
-            text = row.get("result_summary")
-            if isinstance(text, str) and len(text) > 500:
-                row["result_summary"] = text[:500]
+        if not details and kind in {"tool.blocked", "tool.approval_requested", "tool.finished"}:
+            text = row["result_summary"]
+            if isinstance(text, str) and len(text) > summary_limit:
+                row["result_summary"] = text[:summary_limit]
                 row["summary_truncated"] = True
+            else:
+                row.pop("summary_truncated", None)
         if selected_finished():
             break
     for row in receipts:
         row["compute_job_ids"] = list(dict.fromkeys(row["compute_job_ids"]))
     return receipts
+
+
+def scoped_tool_receipts(log, session_id, requests, boundary, *, details=False, summary_limit=500):
+    """Only selected attempts, scoped to their session/run and durable tail."""
+    grouped = {}
+    for request in requests:
+        grouped.setdefault(request.run_id, []).append(request)
+    receipts = []
+    for run_id, group in grouped.items():
+        first = min(request.session_seq for request in group)
+        # Cancellation is session-wide and may intentionally have no run ID.
+        cancelled = log.query_session(
+            session_id, after_session_seq=first - 1, before_session_seq=boundary,
+            types={"agent.cancelled"}, limit=1, tail=False,
+        )
+
+        def events():
+            cursor = first - 1
+            terminal = cancelled[0] if cancelled else None
+            while True:
+                page = log.query_session(
+                    session_id, run_id=run_id, after_session_seq=cursor,
+                    before_session_seq=boundary, types=CALL_EVENT_TYPES,
+                    limit=500, tail=False,
+                )
+                if not page:
+                    if terminal is not None:
+                        yield terminal
+                    return
+                for event in page:
+                    if terminal is not None and terminal.session_seq <= event.session_seq:
+                        yield terminal
+                        duplicate = event.event_id == terminal.event_id
+                        terminal = None
+                        if duplicate:
+                            continue
+                    yield event
+                cursor = page[-1].session_seq
+
+        receipts.extend(tool_receipts(
+            events(), details=details, request_event_ids={request.event_id for request in group},
+            summary_limit=summary_limit,
+        ))
+    return sorted(receipts, key=lambda row: row["request_seq"], reverse=True)
 
 
 def call_summary(row: dict) -> dict:

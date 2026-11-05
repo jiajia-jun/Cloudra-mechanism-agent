@@ -33,6 +33,7 @@ from typing import Any
 
 from cloudra.base.role_identity import legacy_agent_id_for_role
 from cloudra.dag.controller import DagController
+from cloudra.dag.models import DeliveryReport
 from cloudra.persistence.database import ConversationDB
 from cloudra.runtime_v2.policies.base import PipelineContext, PolicyResult, ToolCall, ToolResult
 
@@ -135,14 +136,14 @@ class DagPolicyStage:
         disposition = "complete" if report.complete else "partial"
         return await controller.audit_stop(disposition, candidate_answer=candidate_answer)
 
-    async def on_run_end(self, agent, *, explicit_stop: bool) -> None:
+    async def on_run_end(self, agent, *, explicit_stop: bool) -> DeliveryReport | None:
         controller = self._controllers.get(agent.id)
         if controller is None or self._core is None:
             return
         events = await asyncio.to_thread(self._core.event_log.query_session, agent.id,
             types={'agent.completion_gate'}, limit=1)
         if events and events[-1].data.get('action') == 'allow_final':
-            await controller.commit_stop()
+            return await controller.commit_stop()
 
     @staticmethod
     def _apply_delivery_delta(ctx: PipelineContext, result: ToolResult, finished) -> None:

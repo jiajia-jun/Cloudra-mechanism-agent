@@ -27,7 +27,7 @@ from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.schemas import CommandRejected
 from cloudra.services.api_token import resolve_api_token
 
-from .context import ApiContext
+from .context import LOOPBACK_CLIENTS, ApiContext
 from .routers import build_routers
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,6 @@ _SHUTDOWN_GRACE_SECONDS = 15.0
 # Host 校验白名单：本地 API 只接受回环地址与 TestClient 的 testserver；
 # 其它 Host（DNS rebinding 的域名）一律 400，挡掉浏览器跨域页面重绑定访问。
 _ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1", "testserver"}
-_LOOPBACK_CLIENTS = {"127.0.0.1", "::1", "localhost", "testclient"}
 
 # web_launcher 显式绑定的地址（uvicorn 子进程 env 传入 `cloudra web --host`）。
 _BIND_HOST_ENV = "CLOUDRA_API_BIND_HOST"
@@ -375,7 +374,7 @@ def create_v2_app(
             # token=off 只给回环客户端。工厂路径不设 BIND_HOST 时，
             # Host: 127.0.0.1 能骗过白名单，但 ASGI client 仍是对端地址。
             client_host = request.client.host if request.client else ""
-            if client_host not in _LOOPBACK_CLIENTS:
+            if client_host not in LOOPBACK_CLIENTS:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token"
                 )

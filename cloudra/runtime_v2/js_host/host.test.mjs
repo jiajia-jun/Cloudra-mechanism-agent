@@ -14,6 +14,8 @@ import readline from 'node:readline';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { Sandbox } from './sandbox.mjs';
+
 const HOST = path.join(path.dirname(fileURLToPath(import.meta.url)), 'host.mjs');
 const FRAME_TIMEOUT_MS = 8000;
 
@@ -386,4 +388,32 @@ test('stdin closing during sandbox startup reports a host failure', async () => 
   assert.equal(finished.status, 'failed');
   assert.equal(finished.error.code, 'host_error');
   assert.equal(finished.error.message, 'stdin closed while tool calls are outstanding');
+});
+
+async function filter(expression, entries) {
+  const sandbox = await Sandbox.create({
+    limits: { heap_bytes: 64 * 1024 * 1024, stack_bytes: 512 * 1024, eval_ms: 500 },
+    isTerminal: () => false,
+  });
+  try {
+    return sandbox.filterEntries(expression, entries);
+  } finally {
+    sandbox.dispose();
+  }
+}
+
+test('predicate source cannot replace the filter function', async () => {
+  const entries = [{ text: 'first' }, { text: 'second' }];
+  assert.deepEqual(await filter('false); (entry) => (true', entries), [false, false]);
+});
+
+test('each invocation sees only its own JSON-cloned entry', async () => {
+  const text = '")); globalThis.leaked = true; // `${literal}` \u2028\u2029';
+  const expression = [
+    'typeof entries === "undefined"',
+    'typeof tools === "undefined"',
+    'typeof leaked === "undefined"',
+    `entry.text === ${JSON.stringify(text)}`,
+  ].join(' && ');
+  assert.deepEqual(await filter(expression, [{ text }, { text: 'different' }]), [true, false]);
 });

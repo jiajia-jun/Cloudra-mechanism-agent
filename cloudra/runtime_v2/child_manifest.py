@@ -139,7 +139,7 @@ def build_child_manifest(
     already reopened this session before its completion report is delivered.
     """
     state = AgentState(terminal_event.data["to"]) if terminal_event is not None else child.state
-    events = None
+    events = session_events
     if terminal_event is not None:
         source = session_events if session_events is not None else list(core.event_log.iter_events(
             session_id=child.id, types={"run.started", "run.finished", "agent.message_emitted", "agent.completion_gate"},

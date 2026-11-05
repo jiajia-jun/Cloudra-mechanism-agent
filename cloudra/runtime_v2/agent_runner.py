@@ -33,8 +33,10 @@ import math
 import os
 from contextlib import nullcontext
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from cloudra.dag.models import DeliveryReport
 from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.failures import RunFailureKind, classify_failure, is_retryable
 from cloudra.runtime_v2.schemas import AgentSession, AgentState
@@ -747,6 +749,45 @@ class AgentRunner:
             confirmation_messages=messages,
         )
 
+    def _record_delivery(self, agent: AgentSession, report: DeliveryReport) -> dict:
+        """Bind the committed DAG report to this run using immutable file references."""
+        delivery = {
+            "unresolved": [gap.detail for gap in (*report.unresolved, *report.inconclusive)],
+            "artifact_ids": [],
+        }
+        output = report.output_artifact
+        if not output or not output.get("snapshot_path"):
+            return delivery
+
+        from cloudra.dag.delivery_artifact import current_artifact_digest
+        from cloudra.persistence.artifacts import ArtifactService
+        from cloudra.persistence.database import ConversationDB
+        from cloudra.persistence.paths import project_workspace_dir
+        from cloudra.services.session_store import ensure_session_record
+
+        try:
+            project = self.core.require_project(agent.project_id)
+            root = Path(project.workspace_dir) if project.workspace_dir else project_workspace_dir(agent.project_id)
+            snapshot = Path(output["snapshot_path"])
+            if current_artifact_digest(output["snapshot_path"]) != output["sha256"]:
+                raise ValueError("Committed delivery snapshot no longer matches the audited digest.")
+            ensure_session_record(ConversationDB(agent.project_id), agent.id, agent.role_id)
+            artifact, _created = ArtifactService().snapshot_file(
+                conversation_id=agent.project_id,
+                session_id=agent.id,
+                source=snapshot,
+                allowed_root=root,
+                name=Path(output["path"]).name,
+            )
+            if artifact.sha256 != output["sha256"]:
+                raise ValueError("Registered artifact does not match the audited digest.")
+        except Exception:
+            logger.exception("Could not register the committed delivery artifact for agent %s", agent.id)
+            delivery["unresolved"].append("The audited delivery file could not be registered for download.")
+        else:
+            delivery["artifact_ids"].append(artifact.artifact_id)
+        return delivery
+
     async def _finish_gated_run(
         self, agent: AgentSession, run_id: str, gate, *, explicit_stop: bool,
         candidate_answer: str = "", confirmation_messages: list[dict] | None = None,
@@ -766,10 +807,13 @@ class AgentRunner:
                     if any(event.session_id == agent.id and event.data.get("message_id") not in consumed
                            for event in core.mailbox.unread()):
                         return False
+                delivery = None
                 for stage in getattr(self.pipeline, "stages", ()):
                     hook = getattr(stage, "on_run_end", None)
                     if hook is not None:
-                        await hook(agent, explicit_stop=explicit_stop)
+                        report = await hook(agent, explicit_stop=explicit_stop)
+                        if isinstance(report, DeliveryReport):
+                            delivery = await asyncio.to_thread(self._record_delivery, agent, report)
                 if confirmation_messages is not None:
                     # Consume the durable receipt without fabricating an LLM
                     # response or another stop tool call. Recovery uses these ids.
@@ -782,7 +826,7 @@ class AgentRunner:
                     self._emit_run_message(agent, run_id, final_answer)
                 elif gate.action == "wait_background":
                     self._emit_run_message(agent, run_id, gate.reason or "Run paused awaiting background work.")
-                await core.agent_host.finish_run(agent, outcome="succeeded")
+                await core.agent_host.finish_run(agent, outcome="succeeded", delivery=delivery)
                 if self._inbox_has_pending(agent):
                     await core.agent_host.wake(agent, runner=core.runner)
         await self._deliver_completion(agent)
