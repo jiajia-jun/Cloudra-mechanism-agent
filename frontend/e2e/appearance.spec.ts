@@ -21,27 +21,6 @@ async function mockAppearanceSettings(page: Page) {
 }
 
 
-async function sampleMolecule(page: Page) {
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-  return page.locator('.viewer-3d-canvas').evaluate((element) => {
-    const canvas = element as HTMLCanvasElement;
-    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
-    const green = { count: 0, x: 0, y: 0 };
-    const purple = { count: 0, x: 0, y: 0 };
-    for (let index = 0; index < pixels.length; index += 4) {
-      const red = pixels[index], grn = pixels[index + 1], blue = pixels[index + 2];
-      const point = grn > 80 && grn > red * 1.35 && grn > blue * 1.35 ? green
-        : blue > 90 && red > 45 && blue > grn * 1.5 && red > grn * 1.15 ? purple : null;
-      if (point) { point.count++; point.x += (index / 4) % canvas.width; point.y += Math.floor(index / 4 / canvas.width); }
-    }
-    return {
-      green: green.count > 0, purple: purple.count > 0,
-      angle: Math.atan2(green.y / green.count - purple.y / purple.count, green.x / green.count - purple.x / purple.count),
-      background: Array.from(pixels.slice((canvas.width * 2 + 2) * 4, (canvas.width * 2 + 2) * 4 + 3)),
-    };
-  });
-}
-
 test('appearance controls apply immediately and preserve the saved choice after reload', async ({ page }) => {
   await installApiMocks(page, { jobs: [] });
   const patches = await mockAppearanceSettings(page);
@@ -121,7 +100,7 @@ async function openResearchWorkbench(page: Page) {
   await page.getByTitle(`选择项目: ${project.name}`, { exact: true }).click();
   await expect(page.locator('.breadcrumb-agent-name')).toHaveText(AGENT.display_name);
   await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
-  await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
+  await page.getByRole('button', { name: '结构、计算与机理', exact: true }).click();
   await expect(page.locator('.dag-node-rect')).toHaveCount(4);
   await page.locator('g').filter({ has: page.locator('.dag-node-label').filter({ hasText: '分离产物' }) }).last().locator('.dag-node-rect').click();
   return { project, patches };
@@ -129,16 +108,7 @@ async function openResearchWorkbench(page: Page) {
 
 test('all appearances preserve the selected project, agent, DAG and compute workbench', async ({ page }) => {
   const { project, patches } = await openResearchWorkbench(page);
-  await page.getByRole('button', { name: '填充', exact: true }).click();
-  const originalCamera = await sampleMolecule(page);
-  const canvasBox = (await page.locator('.viewer-3d-canvas').boundingBox())!;
-  await page.mouse.move(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(canvasBox.x + canvasBox.width / 2 + 60, canvasBox.y + canvasBox.height / 2 + 35, { steps: 4 });
-  await page.mouse.up();
-  const cameraAngle = (await sampleMolecule(page)).angle;
-  expect(Math.abs(cameraAngle - originalCamera.angle)).toBeGreaterThan(0.1);
-  const canvasBackgrounds: string[] = [];
+  await expect(page.locator('.molecule-3d-container')).toHaveCount(0);
   const backgrounds: string[] = [];
   const renderedColors: Array<Record<string, unknown>> = [];
 
@@ -177,20 +147,11 @@ test('all appearances preserve the selected project, agent, DAG and compute work
     } else {
       await expect(page.getByPlaceholder('新建项目名…')).toBeVisible();
     }
-    for (const name of ['机理 DAG', '计算调度', '交付产物', '审计日志']) {
+    for (const name of ['结构、计算与机理', '计算调度', '审计日志']) {
       await expect(page.locator('.console-subnav-bar').getByRole('button', { name, exact: false })).toBeVisible();
     }
-    await expect(page.locator('.molecule-3d-container canvas')).toBeVisible();
-    const rendered = await sampleMolecule(page);
-    expect(rendered.green).toBe(true);
-    expect(rendered.purple).toBe(true);
-    if (appearance !== 'punk') expect(Math.min(...rendered.background)).toBeGreaterThan(180);
-    else expect(Math.max(...rendered.background)).toBeLessThan(100);
-    expect(Math.abs(rendered.angle - cameraAngle)).toBeLessThan(0.08);
-    await expect(page.getByRole('group', { name: '分子显示方式', exact: true }).getByRole('button', { name: '填充', exact: true })).toHaveAttribute('aria-pressed', 'true');
     const imageThemes = await page.locator('.dag-canvas-compact image').evaluateAll((images) => images.map((image) => new URL(image.getAttribute('href')!, location.origin).searchParams.get('theme')));
     expect([...new Set(imageThemes)]).toEqual([svgTheme]);
-    canvasBackgrounds.push(rendered.background.join(','));
     await page.screenshot({ path: `/tmp/cloudra-appearance-${appearance}.png`, fullPage: true, animations: 'disabled' });
     if (appearance === 'modernism') {
       for (const [width, height] of [[1280, 800], [1440, 900]]) {
@@ -202,7 +163,7 @@ test('all appearances preserve the selected project, agent, DAG and compute work
     const colors = await page.evaluate(() => {
       const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);
       return {
-        viewerBackground: style('.molecule-3d-container').backgroundColor,
+        structureBackground: style('.dag-open-structure').backgroundColor,
         graphBackground: style('.dag-canvas-compact').backgroundColor,
         graphText: style('.dag-node-label').fill,
         nodeFills: [...document.querySelectorAll('.dag-node-rect')].map((node) => getComputedStyle(node).fill),
@@ -220,7 +181,6 @@ test('all appearances preserve the selected project, agent, DAG and compute work
   }
   await test.info().attach('appearance-rendered-colors', { body: JSON.stringify(renderedColors, null, 2), contentType: 'application/json' });
   expect(new Set(backgrounds).size).toBe(3);
-  expect(new Set(canvasBackgrounds).size).toBe(3);
   await page.getByRole('button', { name: '计算调度', exact: false }).click();
   await expect(page.locator('.ops-dashboard-root')).toBeVisible();
   await expect(page.locator('.ops-table tbody tr').filter({ hasText: '#7' })).toContainText('running');
@@ -229,7 +189,7 @@ test('all appearances preserve the selected project, agent, DAG and compute work
   await page.locator('.modal').getByRole('button', { name: 'close', exact: true }).click();
   await expect(page.locator('.ops-dashboard-root')).toBeVisible();
   await expect(page.getByPlaceholder('新建项目名…')).toHaveValue('未提交的研究项目');
-  await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
+  await page.getByRole('button', { name: '结构、计算与机理', exact: true }).click();
   await expect(page.locator('.dag-node-rect')).toHaveCount(4);
   expect(patches).toEqual([]);
 });
@@ -344,22 +304,21 @@ test('Acid gives the reaction network the main stage and keeps inspection contro
   for (const [width, height] of [[1280, 800], [1440, 900], [1100, 800]]) {
     await page.setViewportSize({ width, height });
     const graph = (await page.locator('.dag-topology-card').boundingBox())!;
-    const molecule = (await page.locator('.dag-3d-visualizer-card').boundingBox())!;
+    const structure = (await page.locator('.dag-open-structure').boundingBox())!;
     const evidence = (await page.locator('.dag-evidence-shelf-card').boundingBox())!;
     const overview = (await page.locator('.dag-stats-card').boundingBox())!;
     if (width >= 1240) {
-      expect(graph.x + graph.width).toBeLessThanOrEqual(molecule.x);
-      expect(graph.width).toBeGreaterThan(molecule.width * 1.2);
+      expect(graph.x + graph.width).toBeLessThanOrEqual(structure.x);
+      expect(graph.width).toBeGreaterThan(structure.width * 1.2);
       expect(evidence.y).toBeGreaterThanOrEqual(graph.y + graph.height);
-      expect(overview.y).toBeGreaterThanOrEqual(molecule.y + molecule.height);
-      expect(Math.min(molecule.x - graph.x - graph.width, evidence.y - graph.y - graph.height)).toBeGreaterThanOrEqual(20);
+      expect(overview.y).toBeGreaterThanOrEqual(structure.y + structure.height);
+      expect(Math.min(structure.x - graph.x - graph.width, evidence.y - graph.y - graph.height)).toBeGreaterThanOrEqual(20);
     } else {
-      expect(molecule.y - graph.y - graph.height).toBeGreaterThanOrEqual(20);
-      expect(molecule.height).toBeGreaterThanOrEqual(360);
-      expect(overview.y).toBeGreaterThanOrEqual(molecule.y + molecule.height);
+      expect(structure.y - graph.y - graph.height).toBeGreaterThanOrEqual(20);
+      expect(overview.y).toBeGreaterThanOrEqual(structure.y + structure.height);
       expect(evidence.y).toBeGreaterThanOrEqual(overview.y + overview.height);
     }
-    const panels = [graph, molecule, evidence, overview];
+    const panels = [graph, structure, evidence, overview];
     for (let first = 0; first < panels.length; first++) {
       for (let second = first + 1; second < panels.length; second++) {
         const a = panels[first], b = panels[second];
@@ -369,15 +328,8 @@ test('Acid gives the reaction network the main stage and keeps inspection contro
     await expect(page.getByRole('button', { name: '图操作与审计', exact: true })).toBeInViewport();
     await expect(page.locator('.dag-sel .dag-node-label')).toHaveText('分离产物');
     await page.screenshot({ path: `/tmp/cloudra-acid-dag-${width}x${height}.png`, fullPage: true, animations: 'disabled' });
-    const displayModes = page.getByRole('group', { name: '分子显示方式', exact: true });
-    if (width < 1240) {
-      await page.locator('.dag-3d-visualizer-card').scrollIntoViewIfNeeded();
-      expect((await page.locator('.viewer-3d-canvas').boundingBox())!.height).toBeGreaterThanOrEqual(180);
-      await expect(page.locator('.viewer-3d-canvas')).toBeInViewport({ ratio: 0.99 });
-    } else {
-      await displayModes.scrollIntoViewIfNeeded();
-    }
-    await expect(displayModes).toBeInViewport({ ratio: 0.99 });
+    await page.getByRole('button', { name: '打开记录中的结构' }).scrollIntoViewIfNeeded();
+    await expect(page.getByRole('button', { name: '打开记录中的结构' })).toBeInViewport();
     if (width < 1240) await page.screenshot({ path: `/tmp/cloudra-acid-inspection-${width}x${height}.png`, fullPage: true, animations: 'disabled' });
   }
 });

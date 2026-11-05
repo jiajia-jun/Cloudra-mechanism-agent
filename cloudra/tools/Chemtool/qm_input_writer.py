@@ -678,6 +678,15 @@ class QmInputWriter(Tool):
         return "\n".join(sections) + "\n"
 
     @staticmethod
+    def normalize_task_request(user_input: QmInputWriter_input_schema):
+        """Only a blank native declaration may receive the schema's default Opt."""
+        if ('task_type' not in user_input.model_fields_set
+                and any(str(value or '').strip() for value in (
+                    user_input.keywords, user_input.orca_blocks, user_input.end_setting))):
+            return user_input.model_copy(update={'task_type': []})
+        return user_input
+
+    @staticmethod
     def render_input(user_input: QmInputWriter_input_schema, mol) -> str:
         """Render native input from the owned molecule and declared input settings."""
         if (user_input.charge is None and mol.HasProp('cloudra_graph_status')
@@ -775,10 +784,7 @@ class QmInputWriter(Tool):
                     input_path="",
                     message=f"qm_input_writer refused: {ext_error}",
                 )
-        if ('task_type' not in user_input.model_fields_set
-                and any(str(value or '').strip() for value in (
-                    user_input.keywords, user_input.orca_blocks, user_input.end_setting))):
-            user_input = user_input.model_copy(update={'task_type': []})
+        user_input = self.normalize_task_request(user_input)
         # Validate request semantics before SMILES embedding or coordinate
         # optimization, both of which can take minutes for an invalid job.
         advice = validate_writer_request(user_input.model_dump())

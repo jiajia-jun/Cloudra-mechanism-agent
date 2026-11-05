@@ -2,8 +2,8 @@
 
 让 agent 不必手写正则啃 Gaussian 日志：
 
-- opt / freq / scan 走 cclib（scfenergies / atomcoords / vibfreqs / optdone /
-  scanenergies / scanparm / scancoords），支持良好；
+- opt 使用原生几何/SCF/力表的文本位置配对；freq / scan 复用原生频率块与
+  cclib 的 scanenergies / scanparm / scancoords（只在明确逐点对应时关联）；
 - IRC 为自写解析器：cclib 1.8.x 只对 IRC 做收敛记账（optstatus），不提取反应
   坐标与路径点，且其 scfenergies/atomcoords 会混入 predictor-corrector 微迭代
   的中间点，因此 IRC 分支完全不使用 cclib 的逐点序列。
@@ -89,6 +89,11 @@ class FrameRecord:
     """
 
     frame: int
+    step: int | None = None
+    rms_force: float | None = None
+    max_force: float | None = None
+    force_unit: str | None = None
+    scan_coordinates: list[float] = field(default_factory=list)
     path_number: int | None = None          # IRC 路径号（1=正向 2=反向），其余任务为 None
     reaction_coordinate: float | None = None  # IRC 反应坐标 / 扫描参数值
     electronic_energy_hartree: float | None = None
@@ -226,13 +231,15 @@ def scf_energy_hartree(text: str) -> float | None:
     return float(matches[-1].group(1).replace('D', 'E').replace('d', 'e')) if matches else None
 
 
+def _last_electronic_energy_match(text: str):
+    matches = [*_SCF_ENERGY_RE.finditer(text), *_CORRELATED_ENERGY_RE.finditer(text)]
+    return max(matches, key=lambda item: item.start()) if matches else None
+
+
 def electronic_energy_hartree(text: str) -> float | None:
     """Last native SCF or explicitly reported correlated total energy."""
-    matches = [* _SCF_ENERGY_RE.finditer(text), * _CORRELATED_ENERGY_RE.finditer(text)]
-    if not matches:
-        return None
-    match = max(matches, key=lambda item: item.start())
-    return float(match.group(1).replace('D', 'E').replace('d', 'e'))
+    match = _last_electronic_energy_match(text)
+    return float(match.group(1).replace('D', 'E').replace('d', 'e')) if match else None
 
 
 def vibfreqs_from_text(text: str) -> list[float]:
@@ -260,6 +267,7 @@ def vibdisps_from_text(text: str, n_freqs: int):
     """
     import numpy as np
 
+    text = text.rsplit("Harmonic frequencies", 1)[-1]
     freq_matches = list(_FREQ_LINE_RE.finditer(text))
     if not freq_matches or n_freqs <= 0:
         return None
@@ -671,7 +679,7 @@ def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
     if energies is None or parm is None or len(parm) == 0:
         return []
     energies_ev = _as_float_list(energies)
-    parm_values = _as_float_list(parm[0])  # 多参数扫描 v1 只取第一个参数
+    parameters = [_as_float_list(values) for values in parm]
     coords = getattr(data, "scancoords", None)
     atomnos = getattr(data, "atomnos", None)
     n = len(energies_ev)
@@ -679,13 +687,15 @@ def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
 
     frames = []
     for i in range(n):
-        rx = parm_values[i] if i < len(parm_values) else None
+        point = [values[i] for values in parameters if i < len(values)]
+        rx = point[0] if len(parameters) == 1 and point else None
         xyz = ""
         if has_coords:
             xyz = _coords_to_xyz(atomnos, coords[i], comment=f"scan point={i} parm={rx}")
         frames.append(FrameRecord(
             frame=i,
             reaction_coordinate=rx,
+            scan_coordinates=point,
             electronic_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
             xyz=xyz,
         ))
@@ -700,79 +710,99 @@ def _get_vibfreqs(data) -> list[float]:
 
 
 def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
-    try:
-        data = _ccread_from_text(log_text)
-    except Exception:
-        return _native_frames(log_text)
-    energies = getattr(data, "scfenergies", None)
-    atomcoords = getattr(data, "atomcoords", None)
-    atomnos = getattr(data, "atomnos", None)
-    if energies is None or atomcoords is None or atomnos is None:
-        return _native_frames(log_text)
-    energies_ev = _as_float_list(energies)
-    n = min(len(energies_ev), len(atomcoords))
-    converged = opt_converged(log_text)
-    freqs = vibfreqs_from_text(log_text) or _get_vibfreqs(data)
-
-    frames = []
-    for i in range(n):
-        is_last = i == n - 1
-        frames.append(FrameRecord(
-            frame=i,
-            electronic_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
-            frequencies_cm=freqs if (is_last and freqs) else [],
-            xyz=_coords_to_xyz(atomnos, atomcoords[i], comment=f"opt step={i}"),
-            converged=converged if is_last else None,
-        ))
-    return frames
+    # Native text binds each energy and force table to its printed geometry.
+    # cclib arrays may include extra SCF calculations: their lengths do not
+    # establish point identity, so never zip them by position.
+    return _native_frames(log_text)
 
 
 def _extract_sp_frames(log_text: str) -> list[FrameRecord]:
+    native = _native_sp_frames(log_text)
+    if native:
+        return native
     try:
         data = _ccread_from_text(log_text)
     except Exception:
-        return _native_sp_frames(log_text)
-    energies = getattr(data, "scfenergies", None)
-    atomcoords = getattr(data, "atomcoords", None)
-    atomnos = getattr(data, "atomnos", None)
+        return []
+    atomcoords = getattr(data, 'atomcoords', None)
+    atomnos = getattr(data, 'atomnos', None)
     if atomcoords is None or atomnos is None or len(atomcoords) == 0:
-        return _native_sp_frames(log_text)
-    energy_hartree = electronic_energy_hartree(log_text)
-    if energy_hartree is None and energies is not None and len(energies) > 0:
-        energy_hartree = energy_ev_to_hartree(_as_float_list(energies)[-1])
-    return [FrameRecord(
-        frame=0,
-        electronic_energy_hartree=energy_hartree,
-        frequencies_cm=vibfreqs_from_text(log_text) or _get_vibfreqs(data),
-        xyz=final_xyz_from_text(log_text) or _coords_to_xyz(atomnos, atomcoords[-1], comment="single point"),
-    )]
+        return []
+    # Geometry arrays alone cannot bind an independent SCF energy array.
+    return [FrameRecord(frame=0, frequencies_cm=_get_vibfreqs(data),
+                        xyz=_coords_to_xyz(atomnos, atomcoords[-1], comment='single point'))]
 
 
 def _native_sp_frames(text: str) -> list[FrameRecord]:
     xyz = final_xyz_from_text(text)
-    return [FrameRecord(frame=0, electronic_energy_hartree=electronic_energy_hartree(text),
-        frequencies_cm=vibfreqs_from_text(text), xyz=xyz)] if xyz else []
+    if not xyz:
+        return []
+    match = _last_electronic_energy_match(text)
+    evaluated_xyz = final_xyz_from_text(text[:match.end()]) if match else ''
+    return [FrameRecord(frame=0,
+                        electronic_energy_hartree=electronic_energy_hartree(text) if xyz == evaluated_xyz else None,
+                        frequencies_cm=vibfreqs_from_text(text), xyz=xyz)]
 
 
 def _native_frames(text: str) -> list[FrameRecord]:
-    """Pair explicit SCF steps with their preceding printed orientations."""
-    frames = []
-    for match in _SCF_ENERGY_RE.finditer(text):
-        xyz = final_xyz_from_text(text[:match.start()])
-        if xyz:
-            frames.append(FrameRecord(frame=len(frames),
-                electronic_energy_hartree=float(match.group(1).replace('D', 'E').replace('d', 'e')),
-                xyz=xyz))
+    """Pair explicit SCF evaluations with preceding native Cartesian tables."""
+    orientations = list(re.finditer(r"Standard orientation:|Input orientation:", text))
+    evaluations = list(_SCF_ENERGY_RE.finditer(text))
+    frames: list[FrameRecord] = []
+    orientation_index = -1
+    for index, match in enumerate(evaluations):
+        while (orientation_index + 1 < len(orientations)
+               and orientations[orientation_index + 1].start() < match.start()):
+            orientation_index += 1
+        if orientation_index < 0:
+            continue
+        xyz = final_xyz_from_text(text[orientations[orientation_index].start():match.start()])
+        if not xyz:
+            continue
+        end = evaluations[index + 1].start() if index + 1 < len(evaluations) else len(text)
+        if orientation_index + 1 < len(orientations):
+            end = min(end, orientations[orientation_index + 1].start())
+        segment = text[match.end():end]
+        rms = re.search(r"RMS\s+Force\s+" + _THERMOCHEMISTRY_FLOAT, segment)
+        maximum = re.search(r"Maximum\s+Force\s+" + _THERMOCHEMISTRY_FLOAT, segment)
+        step = re.search(r"Step number\s+(\d+)", segment)
+        frames.append(FrameRecord(
+            frame=len(frames), step=int(step.group(1)) if step else None,
+            electronic_energy_hartree=float(match.group(1).replace('D', 'E').replace('d', 'e')),
+            rms_force=float(rms.group(1)) if rms else None,
+            max_force=float(maximum.group(1)) if maximum else None,
+            force_unit='Eh/Bohr' if rms or maximum else None, xyz=xyz,
+        ))
     final_xyz = final_xyz_from_text(text)
-    if not frames and final_xyz:
-        frames.append(FrameRecord(frame=0, electronic_energy_hartree=scf_energy_hartree(text), xyz=final_xyz))
-    elif frames and final_xyz and final_xyz != frames[-1].xyz:
+    if final_xyz and (not frames or final_xyz != frames[-1].xyz):
+        # An unevaluated, newly printed geometry has no implied energy.
         frames.append(FrameRecord(frame=len(frames), xyz=final_xyz))
     if frames:
-        # Frequency output can reprint the final orientation after the SCF step.
         frames[-1].frequencies_cm = vibfreqs_from_text(text)
         frames[-1].converged = opt_converged(text)
     return frames
+
+
+def iter_xyz_blocks(path):
+    """Stream complete XYZ blocks, leaving an incomplete live tail unread."""
+    with open(path, encoding='utf-8', errors='replace') as handle:
+        while True:
+            first = handle.readline()
+            if not first:
+                return
+            if not first.strip():
+                continue
+            try:
+                count = int(first.strip())
+            except ValueError as exc:
+                raise ValueError(f'Invalid XYZ atom count in {path}: {first.strip()}') from exc
+            if count <= 0:
+                raise ValueError(f'XYZ atom count must be positive in {path}')
+            comment = handle.readline()
+            rows = [handle.readline() for _ in range(count)]
+            if not comment or any(not row for row in rows):
+                return
+            yield ''.join([first, comment, *rows])
 
 
 # ---------------------------------------------------------------------------

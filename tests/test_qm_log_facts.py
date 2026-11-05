@@ -86,8 +86,29 @@ def test_gaussian_frame_native_convergence_overrides_optional_parser(monkeypatch
     monkeypatch.setattr('cclib.io.ccread', lambda *_a, **_k: SimpleNamespace(
         scfenergies=np.array([-75.0 * 27.21138505]), atomnos=np.array([1, 1]),
         atomcoords=np.array([[[0., 0., 0.], [0., 0., 0.74]]]), optdone=True))
-    frames = gaussian_frames.extract_frames_from_text('Gaussian 16\n # opt hf/sto-3g\nOptimization stopped.\nNormal termination\n')
-    assert frames[-1].converged is False
+    # Convergence belongs to an actual native geometry/evaluation. Optional
+    # arrays cannot create a calculation frame absent from the source log.
+    text = '''Gaussian 16
+ # opt hf/sto-3g
+ Standard orientation:
+ ---------------------------------------------------------------------
+ Center     Atomic      Atomic             Coordinates (Angstroms)
+ Number     Number       Type             X           Y           Z
+ ---------------------------------------------------------------------
+      1          1           0        0.000000    0.000000    0.000000
+      2          1           0        0.000000    0.000000    0.740000
+ ---------------------------------------------------------------------
+ SCF Done:  E(RHF) = -75.00000000 A.U. after 1 cycles
+ Optimization stopped.
+ Normal termination
+'''
+    frames = gaussian_frames.extract_frames_from_text(text)
+    assert len(frames) == 1
+    assert frames[0].xyz.splitlines()[0] == '2'
+    assert frames[0].electronic_energy_hartree == -75.0
+    assert frames[0].converged is False
+    assert gaussian_frames.extract_frames_from_text(
+        'Gaussian 16\n # opt hf/sto-3g\nOptimization stopped.\nNormal termination\n') == []
 
 
 def test_native_facts_do_not_require_cclib_import(monkeypatch):

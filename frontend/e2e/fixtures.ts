@@ -126,6 +126,12 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
     if (method === 'GET' && path.includes('/artifacts')) {
       return json(route, []);
     }
+    if (method === 'GET' && path.endsWith('/workbench/products')) {
+      return json(route, { products: [], objects: [] });
+    }
+    if (method === 'GET' && path.endsWith('/workbench/fragments')) {
+      return json(route, { fragments: [] });
+    }
     if (method === 'GET' && (path.includes('/dag/') || path.includes('/goal'))) {
       return json(route, path.includes('/projection')
         ? { mode: 'standard', pending_reviews: [], frontier: [] }

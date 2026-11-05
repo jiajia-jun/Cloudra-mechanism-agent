@@ -79,6 +79,22 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+export async function requestText(path: string, init?: RequestInit): Promise<string> {
+  const response = await fetch(`${runtimeUrl}${path}`, {
+    ...init,
+    headers: { ...(init?.headers as Record<string, string> | undefined), ...authHeaders() },
+  });
+  if (!response.ok) {
+    let message = response.statusText;
+    try {
+      const body = await response.json();
+      message = body.detail?.message ?? body.detail ?? message;
+    } catch { /* retain HTTP status */ }
+    throw new ApiError('http_error', String(message));
+  }
+  return response.text();
+}
+
 interface CommandResponse<T> {
   command_id: string;
   accepted: boolean;

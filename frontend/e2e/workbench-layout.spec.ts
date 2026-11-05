@@ -14,12 +14,12 @@ test('workbench keeps explicit project creation and global controls in its persi
   await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
   await expect(page.locator('.view-mode-btn').filter({ hasText: '控制台' })).toBeVisible();
   await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
-  for (const name of ['机理 DAG', '计算调度', '交付产物', '审计日志']) {
+  for (const name of ['结构、计算与机理', '计算调度', '审计日志']) {
     await expect(page.getByRole('button', { name, exact: true })).toBeVisible();
   }
 });
 
-test('workbench opens the mechanism graph and compute queue through their original tabs', async ({ page }) => {
+test('research results combine the mechanism graph and products while the molecular workbench opens independently', async ({ page }) => {
   const project = { ...PROJECT_ACTIVE, name: '机理研究工作台', settings: { orchestration_mode: 'dag_guided', defaults: {} } };
   await installApiMocks(page, { projects: [project], jobs: [JOB] });
   await page.route('**/api/v2/chem/render-smiles?*', (route) => {
@@ -38,7 +38,7 @@ test('workbench opens the mechanism graph and compute queue through their origin
   await openSpa(page);
   await page.getByTitle(`选择项目: ${project.name}`, { exact: true }).click();
   await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
-  await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
+  await page.getByRole('button', { name: '结构、计算与机理', exact: true }).click();
   await expect(page.locator('.dag-node-rect')).toHaveCount(2);
   await expect(page.locator('.dag-edge-hit')).toHaveCount(1);
   await expect(page.locator('.dag-canvas-compact')).toContainText('结合物种');
@@ -46,9 +46,12 @@ test('workbench opens the mechanism graph and compute queue through their origin
   await page.getByRole('button', { name: '计算调度', exact: false }).click();
   await expect(page.locator('.ops-dashboard-root')).toBeVisible();
   await expect(page.locator('.ops-table tbody tr').filter({ hasText: '#7' })).toContainText('running');
-  await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
+  await page.getByRole('button', { name: '结构、计算与机理', exact: true }).click();
   await expect(page.locator('.dag-node-rect')).toHaveCount(2);
-  await expect(page.locator('.molecule-3d-container canvas')).toBeVisible();
+  await expect(page.locator('.dag-open-structure')).toBeVisible();
+  await expect(page.locator('.molecule-3d-container')).toHaveCount(0);
+  await page.getByRole('button', { name: '分子工作台', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '分子工作台' })).toBeVisible();
   await page.screenshot({ path: '/tmp/cloudra-workbench-restored.png', fullPage: true });
 });
 

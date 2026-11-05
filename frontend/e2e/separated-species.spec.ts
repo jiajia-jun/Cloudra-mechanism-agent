@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { installApiMocks, openSpa, PROJECT_ACTIVE } from './fixtures';
 
 test('DAG keeps complexes distinct from separated products and preserves component charges', async ({ page }, testInfo) => {
-  await installApiMocks(page, { jobs: [] });
+  await installApiMocks(page, { jobs: [], projects: [{ ...PROJECT_ACTIVE, settings: { ...PROJECT_ACTIVE.settings, orchestration_mode: 'dag_guided' } }] });
   await page.route('**/api/v2/chem/render-smiles?*', route => {
     const smiles = new URL(route.request().url()).searchParams.get('smiles') ?? '';
     return route.fulfill({
@@ -22,7 +22,7 @@ test('DAG keeps complexes distinct from separated products and preserves compone
   await openSpa(page);
   await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
   await page.getByRole('button', { name: '控制台', exact: true }).click();
-  await page.getByRole('button', { name: '机理 DAG', exact: true }).click();
+  await page.getByRole('button', { name: '结构、计算与机理', exact: true }).click();
 
   const complex = page.locator('.dag-canvas-compact g').filter({ has: page.locator('text.dag-node-label', { hasText: 'Bound pair' }) });
   const separated = page.locator('.dag-canvas-compact g').filter({ has: page.locator('text.dag-node-label', { hasText: 'Released pair' }) });

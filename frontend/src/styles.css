@@ -7145,9 +7145,8 @@ body {
   flex-wrap: wrap;
 }
 
-/* 3D Visualizer at Top-Left */
-.dag-3d-visualizer-card {
-  flex: 1;
+/* Selected graph object and its explicit structure action */
+.dag-open-structure {
   min-height: 0;
   display: flex;
   flex-direction: column;

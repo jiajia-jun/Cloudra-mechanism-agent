@@ -1,7 +1,9 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { api, EVENTS_WINDOW, HISTORY_PAGE_SIZE, streamProject } from './api';
 import Markdown from './Markdown';
-import DagPanel from './DagPanel';
+import { ResearchPanel } from './ResearchPanel';
+import { MolecularWorkbench } from './MolecularWorkbench.tsx';
+import type { WorkbenchSource } from './workbenchTypes';
 import OpsPanel from './OpsPanel';
 import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, Project } from './types';
 import GlobalConfig from './GlobalConfig';
@@ -12,7 +14,6 @@ import BenchmarkPanel from './BenchmarkPanel';
 import TelemetryPanel from './TelemetryPanel';
 import HubPanel from './HubPanel';
 import { ConsoleIndexPage, type ConsoleTab } from './ConsoleIndexPage';
-import { ArtifactsPanel } from './ArtifactsPanel';
 import AuditLog from './AuditLog';
 import AttentionDock, { type NotifPermission } from './AttentionDock';
 import InteractionPrompt from './InteractionPrompt';
@@ -219,6 +220,19 @@ export default function App() {
   const sidebarJobsRequestRef = useRef(0);
   const [viewMode, setViewMode] = useState<'dialogue' | 'console'>('dialogue');
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>('overview');
+  const [workbench, setWorkbench] = useState<{projectId:string;source:WorkbenchSource|null}|null>(null);
+  const [researchRefreshVersion,setResearchRefreshVersion] = useState(0);
+  const openWorkbench = (source:WorkbenchSource|null) => { if(activeProjectId) setWorkbench({projectId:activeProjectId,source}); };
+  useEffect(() => { setWorkbench(null); }, [activeProjectId]);
+  useEffect(() => {
+    const handleWorkbenchShortcut = (event:KeyboardEvent) => {
+      const target=event.target;
+      if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT','TEXTAREA','SELECT'].includes(target.tagName))) return;
+      if (event.altKey && (event.code==='KeyM' || event.key.toLowerCase()==='m') && activeProjectId) { event.preventDefault(); setWorkbench(current=>current ?? {projectId:activeProjectId,source:null}); }
+    };
+    window.addEventListener('keydown',handleWorkbenchShortcut);
+    return ()=>window.removeEventListener('keydown',handleWorkbenchShortcut);
+  },[activeProjectId]);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
     const saved = localStorage.getItem('cloudra:sidebar-open') ?? localStorage.getItem('cloudra:right-sidebar-open');
     return saved !== null ? saved === 'true' : true;
@@ -2290,6 +2304,7 @@ export default function App() {
           </div>
 
           <div className="agentbar-group system-controls">
+            <button type="button" className="btn outline sm" disabled={!activeProject} title="Alt+M" onClick={()=>openWorkbench(null)}>{lang === 'zh' ? '分子工作台' : 'Molecular workbench'}</button>
             <button
               type="button"
               className="btn outline sm project-settings-btn"
@@ -2692,10 +2707,10 @@ export default function App() {
             </button>
             <button
               type="button"
-              className={`console-subnav-btn ${consoleTab === 'dag' ? 'active' : ''}`}
-              onClick={() => setConsoleTab('dag')}
+              className={`console-subnav-btn ${consoleTab === 'research' ? 'active' : ''}`}
+              onClick={() => setConsoleTab('research')}
             >
-              <span>{t.tabDag}</span>
+              <span>{lang === 'zh' ? '结构、计算与机理' : 'Research results'}</span>
               {(activeProject?.settings.orchestration_mode === 'dag_guided' ||
                 activeProject?.settings.defaults?.orchestration_mode === 'dag_guided') && (
                 <span className="subnav-dot-active" />
@@ -2710,13 +2725,6 @@ export default function App() {
               {sidebarJobs && sidebarJobs.length > 0 && (
                 <span className="badge sm">{sidebarJobs.length}</span>
               )}
-            </button>
-            <button
-              type="button"
-              className={`console-subnav-btn ${consoleTab === 'artifacts' ? 'active' : ''}`}
-              onClick={() => setConsoleTab('artifacts')}
-            >
-              <span>{t.tabArtifacts}</span>
             </button>
             <button
               type="button"
@@ -2772,18 +2780,12 @@ export default function App() {
               onError={reportError}
               onToast={(text, kind) => pushToast(kind === 'warn' ? 'info' : (kind ?? 'info'), text)}
             />
-          ) : consoleTab === 'dag' ? (
-            <DagPanel
-              project={activeProject}
-              onError={reportError}
-              onToast={pushToast}
-            />
+          ) : consoleTab === 'research' ? (
+            <ResearchPanel key={activeProject.id} project={activeProject} onError={reportError} onToast={pushToast} onOpenMolecule={openWorkbench} refreshVersion={researchRefreshVersion}/>
           ) : consoleTab === 'compute' ? (
             <div className="console-compute-container">
               <OpsPanel project={activeProject} agents={agents} onError={reportError} refreshVersion={computeRefreshVersion} />
             </div>
-          ) : consoleTab === 'artifacts' ? (
-            <ArtifactsPanel project={activeProject} onError={reportError} />
           ) : consoleTab === 'audit' ? (
             <div className="console-audit-container">
               <AuditLog
@@ -2834,6 +2836,7 @@ export default function App() {
           onRespond={handleAttentionRespond}
         />
       </div>
+        {workbench && activeProject && workbench.projectId===activeProject.id && <MolecularWorkbench key={activeProject.id} project={activeProject} source={workbench.source} onClose={()=>setWorkbench(null)} onError={reportError} onSaved={(result)=>{setResearchRefreshVersion(n=>n+1);pushToast('ok',`已保存结构：${result.path}`);}}/>}
         {projectSettingsOpen && activeProject && (
           <ProjectSettingsModal
             project={activeProject}

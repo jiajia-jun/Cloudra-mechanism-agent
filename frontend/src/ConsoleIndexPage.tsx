@@ -3,7 +3,7 @@ import { api } from './api';
 import type { Project, Agent, ComputeJob } from './types';
 import { useI18n, type Translations } from './i18n';
 
-export type ConsoleTab = 'overview' | 'dag' | 'compute' | 'artifacts' | 'audit' | 'telemetry' | 'hub';
+export type ConsoleTab = 'overview' | 'research' | 'compute' | 'audit' | 'telemetry' | 'hub';
 
 function NetworkSvg() {
   return (
@@ -154,7 +154,7 @@ export function ConsoleIndexPage({
   onError,
   onToast,
 }: ConsoleIndexPageProps) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
 
   const [goal, setGoal] = useState<{
     objective: string;
@@ -168,7 +168,6 @@ export function ConsoleIndexPage({
     current_focus: '',
   });
   const [savingGoal, setSavingGoal] = useState(false);
-  const [artifactsCount, setArtifactsCount] = useState<number | null>(null);
   const [hubPostsCount, setHubPostsCount] = useState<number | null>(null);
   const [dagSummary, setDagSummary] = useState<{
     mode: string;
@@ -298,15 +297,6 @@ export function ConsoleIndexPage({
       })
       .catch(() => setGoal(null));
   }, [activeAgent?.id]);
-
-  // Load Artifacts Count
-  useEffect(() => {
-    api.artifacts(project.id)
-      .then((arts) => {
-        setArtifactsCount(Array.isArray(arts) ? arts.length : 0);
-      })
-      .catch(() => setArtifactsCount(null));
-  }, [project.id]);
 
   // Load Hub Posts Count
   useEffect(() => {
@@ -557,7 +547,7 @@ export function ConsoleIndexPage({
           {/* Card 1: DAG Exploration */}
           <div
             className={`portal-nav-card ${dagModeActive ? 'card-highlight' : ''}`}
-            onClick={() => onNavigate('dag')}
+            onClick={() => onNavigate('research')}
           >
             <div className="nav-card-top">
               <div className="nav-card-icon-wrap icon-cyan">
@@ -577,9 +567,9 @@ export function ConsoleIndexPage({
             </div>
 
             <div className="nav-card-body">
-              <h3 className="nav-card-heading">{t.cardDagTitle}</h3>
+              <h3 className="nav-card-heading">{lang === 'zh' ? '结构、计算与机理' : 'Structures, calculations & mechanism'}</h3>
               <p className="nav-card-desc">
-                {t.cardDagDesc}
+                {lang === 'zh' ? '查看真实计算过程、结构与文件产物；从独立分子工作台编辑并保存。' : 'Open calculation frames, structures and artifacts; edit molecules in the independent workbench.'}
               </p>
             </div>
 
@@ -587,7 +577,7 @@ export function ConsoleIndexPage({
               <span className="nav-card-meta">
                 {dagSummary?.nodeCount ? t.cardDagMetaActive(dagSummary.nodeCount, dagSummary.edgeCount) : t.cardDagMetaDefault}
               </span>
-              <span className="nav-card-arrow">{t.cardDagAction}</span>
+              <span className="nav-card-arrow">{lang === 'zh' ? '打开研究结果 →' : 'Open research results →'}</span>
             </div>
           </div>
 
@@ -628,35 +618,6 @@ export function ConsoleIndexPage({
                 {sidebarJobs ? t.cardComputeMeta(sidebarJobs.length) : t.cardComputeMetaDefault}
               </span>
               <span className="nav-card-arrow">{t.cardComputeAction}</span>
-            </div>
-          </div>
-
-          {/* Card 3: Artifacts Download */}
-          <div className="portal-nav-card" onClick={() => onNavigate('artifacts')}>
-            <div className="nav-card-top">
-              <div className="nav-card-icon-wrap icon-purple">
-                {/* Vector SVG: Package Box */}
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                  <line x1="12" y1="22.08" x2="12" y2="12" />
-                </svg>
-              </div>
-              <span className="badge sm neutral">
-                {artifactsCount !== null ? t.cardArtifactsBadge(artifactsCount) : t.cardArtifactsBadgeDefault}
-              </span>
-            </div>
-
-            <div className="nav-card-body">
-              <h3 className="nav-card-heading">{t.cardArtifactsTitle}</h3>
-              <p className="nav-card-desc">
-                {t.cardArtifactsDesc}
-              </p>
-            </div>
-
-            <div className="nav-card-footer">
-              <span className="nav-card-meta">{t.cardArtifactsMeta}</span>
-              <span className="nav-card-arrow">{t.cardArtifactsAction}</span>
             </div>
           </div>
 

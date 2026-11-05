@@ -27,16 +27,13 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.fs_utils import atomic_write_text
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.tools.Chemtool.internal_coordinates import (
-    _angle_deg,
-    _dihedral_deg,
-)
 from cloudra.tools.core import gaussian_frames, orca_frames
 from cloudra.tools.core.geometry_inputs import (
     FrozenCoordinateInput,
     ScanCoordinateInput,
     atom_index_base,
     atom_indices,
+    native_coordinate_settings,
 )
 from cloudra.tools.core.irc_path import (
     COVALENT_RADII as _COVALENT_RADII,
@@ -1722,8 +1719,6 @@ class TsGuess(Tool):
 
     def _scan_prepare(self, user_input: TsGuess_input_schema) -> TsGuess_output_schema:
         """Build scan coordinates; the shared writer owns the complete native input."""
-        import numpy as np
-
         if user_input.engine == 'xtb':
             return self._xtb_scan_prepare(user_input)
         if not user_input.method or not user_input.method.strip():
@@ -1737,161 +1732,38 @@ class TsGuess(Tool):
         ScanGuess(kind='scan', calculation=calculation, scans=user_input.scans or [],
                   freeze=user_input.freeze, mode=user_input.scan_mode,
                   force_constant=user_input.force_constant, solvation=user_input.solvation)
-        need = {"bond": 2, "angle": 3, "dihedral": 4}
         if not user_input.scans:
             raise ValueError("scan_prepare requires scans: at least one scanned coordinate")
         if not user_input.output_path:
             raise ValueError("scan_prepare requires output_path (the path to write the input file)")
-
         mol = _source_molecule(user_input, "input")
-        syms = [atom.GetSymbol() for atom in mol.GetAtoms()]
-        pos = np.asarray(mol.GetConformer().GetPositions(), dtype=float)
-        n = len(syms)
+        coordinates = native_coordinate_settings(
+            mol, engine=user_input.engine, scans=user_input.scans, freeze=user_input.freeze,
+            scan_mode=user_input.scan_mode, end_setting=user_input.end_setting, orca_blocks=user_input.orca_blocks,
+        )
+        specs = coordinates['specs']
+        frozen = coordinates['frozen']
+        if coordinates['start_mismatches'] and user_input.engine == 'gaussian':
+            return TsGuess_output_schema(is_success=False, message=(
+                'start_geometry_mismatch: ' + '; '.join(coordinates['start_mismatches'])
+                + '. A Gaussian modredundant scan starts from the CURRENT geometry value and only applies '
+                'the increment — generate the target start geometry first (e.g. a constrained optimization '
+                'to the requested start value) instead of merely adjusting scan_start.'
+            ))
+        from cloudra.tools.Chemtool.internal_coordinates import InternalCoordinates
 
-        def _coord_current(coord_type: str, idx: list[int]) -> float:
-            if coord_type == "bond":
-                return float(np.linalg.norm(pos[idx[0]] - pos[idx[1]]))
-            if coord_type == "angle":
-                return _angle_deg(pos[idx[0]], pos[idx[1]], pos[idx[2]])
-            return _dihedral_deg(pos[idx[0]], pos[idx[1]], pos[idx[2]], pos[idx[3]])
-
-        specs = []
-        start_mismatches: list[str] = []
-        for raw in user_input.scans:
-            raw = raw.model_dump()
-            coord_type = raw.get("coord_type") or "bond"
-            if coord_type not in need:
-                raise ValueError(f"coord_type must be one of bond/angle/dihedral, got: {coord_type}")
-            atoms_list = raw.get("atoms") or []
-            if len(atoms_list) != need[coord_type]:
-                raise ValueError(
-                    f"coord_type={coord_type} requires {need[coord_type]} atom indices, "
-                    f"got {len(atoms_list)} (in {raw})"
-                )
-            steps = int(raw.get("scan_steps") or 0)
-            if steps < 1:
-                raise ValueError(f"scan_steps must be ≥ 1 (in {raw})")
-            idx = atom_indices(atoms_list, base=atom_index_base(user_input.engine), count=n)
-            for a in idx:
-                if not (0 <= a < n):
-                    raise ValueError(
-                        f"Scanned atom indices out of range: {atoms_list} (system has {n} atoms)"
-                    )
-            current = _coord_current(coord_type, idx)
-            explicit_start = raw.get("scan_start")
-            start = float(explicit_start) if explicit_start is not None else current
-            if explicit_start is not None:
-                # Gaussian modredundant 扫描从当前几何值出发只加增量；
-                # scan_start 与真实起点不同只调整增量会静默扫错区间。
-                tolerance = 0.005 if coord_type == "bond" else 0.5
-                if abs(start - current) > tolerance:
-                    start_mismatches.append(
-                        f"{coord_type} {atoms_list}: requested scan_start={start} "
-                        f"but the current geometry value is {current:.4f}"
-                    )
-            end = float(raw.get("scan_end") or 0.0)
-            specs.append({
-                "coord_type": coord_type,
-                "idx": idx,
-                "start": start,
-                "end": end,
-                "steps": steps,
-                "step_size": (end - start) / steps,
-            })
-
-        frozen = []
-        scanned = {(spec["coord_type"], min(tuple(spec["idx"]), tuple(reversed(spec["idx"])))) for spec in specs}
-        if len(scanned) != len(specs):
-            raise ValueError("Duplicate scanned coordinate (including reversed atom order)")
-        seen = set()
-        for entry in user_input.freeze:
-            idx = atom_indices(entry.atoms, base=atom_index_base(user_input.engine), count=n)
-            key = (entry.coord_type, min(tuple(idx), tuple(reversed(idx))))
-            if key in scanned:
-                raise ValueError(f"Coordinate {entry.atoms} is both scanned and frozen")
-            if key in seen:
-                continue
-            if entry.coord_type != "bond":
-                vectors = [pos[b] - pos[a] for a, b in zip(idx, idx[1:])]
-                if any(np.linalg.norm(v) <= np.finfo(float).eps for v in vectors):
-                    raise ValueError(f"Degenerate frozen coordinate {entry.atoms}")
-                if entry.coord_type == "dihedral" and any(
-                    np.linalg.norm(np.cross(a, b)) <= np.finfo(float).eps
-                    for a, b in zip(vectors, vectors[1:])
-                ):
-                    raise ValueError(f"Degenerate frozen dihedral {entry.atoms}")
-            seen.add(key)
-            frozen.append((entry.coord_type, idx))
-
-        if start_mismatches and user_input.engine == "gaussian":
-            return TsGuess_output_schema(
-                is_success=False,
-                message=(
-                    "start_geometry_mismatch: "
-                    + "; ".join(start_mismatches)
-                    + ". A Gaussian modredundant scan starts from the CURRENT geometry "
-                    "value and only applies the increment — generate the target start "
-                    "geometry first (e.g. a constrained optimization to the requested "
-                    "start value) instead of merely adjusting scan_start."
-                ),
-            )
-
-        coord_letter = {"bond": "B", "angle": "A", "dihedral": "D"}
-        scan_labels = [
-            f"{coord_letter[spec['coord_type']]} {' '.join(str(a + atom_index_base(user_input.engine)) for a in spec['idx'])}"
-            f" from {spec['start']:.4f} to {spec['end']:.4f} "
-            f"({spec['steps']} steps, {spec['step_size']:+.6f})"
-            for spec in specs
-        ]
-
+        scan_labels = coordinates['scan_labels']
         native_settings = calculation.model_dump(mode='json')
-        if user_input.engine == "gaussian":
-            scan_block = "\n".join(
-                f"{coord_letter[spec['coord_type']]} {' '.join(str(a + 1) for a in spec['idx'])} "
-                f"S {spec['steps']} {spec['step_size']:.6f}"
-                for spec in specs
-            )
-            if frozen:
-                scan_block += "\n" + "\n".join(
-                    f"{coord_letter[kind]} {' '.join(str(a + 1) for a in idx)} F"
-                    for kind, idx in frozen
-                )
-            native_settings['end_setting'] = '\n\n'.join(filter(None, [scan_block, user_input.end_setting]))
-            task_type = [{'opt': 'modredundant'}]
-            run_hint = (
-                f"Submit {user_input.output_path} with submit_compute_job (job_type='gaussian'); "
-                + ("this is a 2D independent potential-energy grid; scan_parse does not derive a TS candidate. "
-                   "Inspect its native points and use a selected XYZ with guess.kind='provided' for formal refinement."
-                   if len(specs) > 1 else
-                   "afterwards parse the log with ts_guess mode='scan_parse' for internal-peak candidates.")
-            )
-        else:
-            blocks = ["%geom", "    Scan"]
-            for spec in specs:
-                blocks.append(
-                    f"        {coord_letter[spec['coord_type']]} {' '.join(str(a) for a in spec['idx'])} "
-                    f"= {spec['start']:.6f}, {spec['end']:.6f}, {spec['steps']}"
-                )
-            blocks.append("    end")
-            if user_input.scan_mode == 'concerted':
-                blocks.append("    Simul_Scan true")
-            if frozen:
-                blocks.append("    Constraints")
-                blocks.extend(f"        {{ {coord_letter[kind]} {' '.join(str(a) for a in idx)} C }}"
-                              for kind, idx in frozen)
-                blocks.append("    end")
-            blocks.append("end")
-            if user_input.orca_blocks:
-                blocks.append(user_input.orca_blocks.strip())
-            native_settings['orca_blocks'] = '\n'.join(blocks)
-            task_type = [{'opt': None}]
-            run_hint = (
-                f"Submit {user_input.output_path} with submit_compute_job (job_type='orca'); "
-                + ("this is a 2D independent potential-energy grid; scan_parse does not derive a TS candidate. "
-                   "Inspect its native points and use a selected XYZ with guess.kind='provided' for formal refinement."
-                   if user_input.scan_mode == 'grid' else
-                   "afterwards parse the log with ts_guess mode='scan_parse' engine='orca' for internal-peak candidates.")
-            )
+        native_settings.update({field: coordinates[field] for field in ('end_setting', 'orca_blocks')})
+        task_type = coordinates['task_type']
+        grid = len(specs) > 1 and (user_input.engine == 'gaussian' or user_input.scan_mode == 'grid')
+        run_hint = (
+            f"Submit {user_input.output_path} with submit_compute_job (job_type='{user_input.engine}'); "
+            + ("this is a 2D independent potential-energy grid; scan_parse does not derive a TS candidate. "
+               "Inspect its native points and use a selected XYZ with guess.kind='provided' for formal refinement."
+               if grid else "afterwards parse the log with ts_guess mode='scan_parse' "
+               + ("engine='orca' " if user_input.engine == 'orca' else '') + "for internal-peak candidates.")
+        )
 
         from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema
         from cloudra.tools.core.calculation_intent import (
@@ -1944,9 +1816,10 @@ class TsGuess(Tool):
                 f"{user_input.engine} constrained-scan input written to {user_input.output_path} "
                 f"with method={calculation.method}, basis_set={calculation.basis_set!r}, keywords={calculation.keywords!r}: "
                 + "; ".join(scan_labels)
-                + ("; frozen at current values: " + "; ".join(
-                    f"{kind} {[i + atom_index_base(user_input.engine) for i in idx]}={_coord_current(kind, idx):.6f}"
-                    for kind, idx in frozen) if frozen else "")
+                + ("; frozen values: " + "; ".join(
+                    f"{kind} {[i + atom_index_base(user_input.engine) for i in idx]}="
+                    f"{value if value is not None else InternalCoordinates._coordinate_value(mol.GetConformer().GetPositions(), idx):.6f}"
+                    for kind, idx, value in frozen) if frozen else "")
                 + "."
             ),
         )

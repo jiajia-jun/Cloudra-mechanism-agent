@@ -10,6 +10,7 @@
 | --- | --- |
 | [安装与桌面启动](INSTALL_CN.md) | 下载 macOS / Linux 安装包、桌面启动、首次配置；另附源码安装。 |
 | [配置指南](CONFIGURATION_CN.md) | 模型登录、联网搜索、对话命令与服务访问。 |
+| [分子工作台](MOLECULAR_WORKBENCH_CN.md) | 结构、计算与机理页面；逐帧查看、分子编辑、冻结／扫描、共享基团与保存。 |
 | [TS 流程与科学验收](TS_PROCESS_SOP.md) | 过渡态搜索、修订、停止以及频率和 IRC 证据要求。 |
 | [DAG 编排](DAG_ORCHESTRATION.md) | 三种模式、机理图、证据绑定与 Supervisor 审查。 |
 | [论文、数据与复现](RESEARCH_DATA_CN.md) | 图表复算、原始实验、Gold 与重新运行的不同入口。 |

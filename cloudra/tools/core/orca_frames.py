@@ -1,23 +1,10 @@
-"""ORCA 输出日志关键帧提取：任务类型识别 + 逐帧结构/能量/频率导出。
+"""Native ORCA result facts, sharing FrameRecord with Gaussian.
 
-与 gaussian_frames 对齐的纯函数模块（复用其 FrameRecord / CSV 写出）：
-
-- opt / freq / sp / unrelaxed scan 走 cclib（scfenergies / atomcoords /
-  vibfreqs / optdone / scanparm），cclib 对 ORCA 支持良好；
-- **cclib 崩溃回退**：cclib 对 ORCA 6.1 日志会在 SCF 收敛段裸抛
-  IndexError（GH #44），opt/ts 与 sp 分支此时走文本权威解析（逐周期
-  CARTESIAN COORDINATES 块 + Current Energy 行 / 末帧块 + FINAL SP），
-  与 vibfreqs_from_text / final_xyz_from_text 同一纪律；scan 分支仍
-  依赖 cclib（relaxed scan 的逐点几何 cclib 本就不暴露，见下）；
-- ORCA 的松弛面扫描（relaxed surface scan）在 cclib 1.8.x 中不暴露
-  scanenergies/scancoords，仅给出 scfenergies + scanparm，几何序列暂缺；
-- IRC（`IRC` 关键字）：逐点的能量/收敛/端点能量从主输出的 FORWARD/
-  BACKWARD IRC 迭代块与 IRC PATH SUMMARY 解析（`extract_irc`）；逐点坐标
-  在 `*_trj.xyz` 边文件，主输出没有，故 extract_frames 对 IRC 返回空；
-- 热化学（`FREQ` 后的 THERMOCHEMISTRY 块）为自写正则解析，对齐
-  log_parser 的 corrections/totals 字段语义。
-
-cclib / numpy 在函数内惰性导入。
+Optimization and scan points bind printed coordinates, energies and convergence
+metrics inside their native step sections. Frequency displacements use the
+native NORMAL MODES table. IRC coordinates come from exact-job XYZ sidecars;
+main-output iteration rows remain a separate summary and are never zipped to
+trajectory geometries. cclib is used only for supported single-point fallback.
 """
 
 from __future__ import annotations
@@ -30,10 +17,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
-from cloudra.tools.core.cclib_units import energy_ev_to_hartree
 from cloudra.tools.core.gaussian_frames import (
     FrameRecord,
-    _as_float_list,
     _ccread_from_text,
     _coords_to_xyz,
     _get_vibfreqs,
@@ -167,6 +152,11 @@ FINAL_ENERGY_RE = _FINAL_ENERGY_RE
 _CURRENT_ENERGY_RE = re.compile(rf"Current Energy\s+\.+\s*{_FLOAT}\s+Eh")
 
 
+def _last_energy_match(text: str):
+    matches = [*_FINAL_ENERGY_RE.finditer(text), *_CURRENT_ENERGY_RE.finditer(text)]
+    return max(matches, key=lambda match: match.start()) if matches else None
+
+
 def final_energy_hartree(text: str) -> float | None:
     """取最终能量（Eh；含外部 MLIP 变体），按文本位置取最后出现的能量行。
 
@@ -178,14 +168,8 @@ def final_energy_hartree(text: str) -> float | None:
     位置在最后，按位置取最后者天然正确，单点/无 Current Energy 的日志
     行为不变。
     """
-    best_pos = -1
-    energy: float | None = None
-    for pattern in (_FINAL_ENERGY_RE, _CURRENT_ENERGY_RE):
-        for match in pattern.finditer(text):
-            if match.start() > best_pos:
-                best_pos = match.start()
-                energy = float(match.group(1).replace("D", "E").replace("d", "e"))
-    return energy
+    match = _last_energy_match(text)
+    return float(match.group(1).replace('D', 'E').replace('d', 'e')) if match else None
 
 
 def extract_thermochemistry(log_path: str) -> dict[str, float]:
@@ -283,6 +267,7 @@ def vibdisps_from_text(text: str, n_freqs: int, n_atoms: int):
     lines = text[idx:].splitlines()
     disps = np.zeros((n_freqs, n_atoms, 3), dtype=float)
     parsed_any = False
+    covered = np.zeros((n_freqs, n_atoms, 3), dtype=bool)
     i = 0
     total = len(lines)
     while i < total:
@@ -316,12 +301,13 @@ def vibdisps_from_text(text: str, n_freqs: int, n_atoms: int):
                 for k, mode in enumerate(mode_idx):
                     if 0 <= mode < n_freqs:
                         disps[mode, atom, comp] = values[k]
+                        covered[mode, atom, comp] = True
             parsed_any = True
             continue
         if parsed_any:
             break
         i += 1
-    return disps if parsed_any else None
+    return disps if parsed_any and covered.all() else None
 
 
 def frequencies_with_text_fallback(log_path: str) -> list[float]:
@@ -454,7 +440,15 @@ def _extract_opt_frames_native(log_text: str) -> list[FrameRecord]:
         m = _CURRENT_ENERGY_RE.search(segment)
         if m:
             energy = float(m.group(1).replace("D", "E").replace("d", "e"))
-        frames.append(FrameRecord(frame=len(frames), electronic_energy_hartree=energy, xyz=xyz))
+        rms = re.findall(r"RMS gradient\s+(?:\.\.\.\s*)?" + _FLOAT, segment)
+        maximum = re.findall(r"MAX gradient\s+(?:\.\.\.\s*)?" + _FLOAT, segment)
+        frames.append(FrameRecord(
+            frame=len(frames), step=len(frames) + 1,
+            electronic_energy_hartree=energy, xyz=xyz,
+            rms_force=float(rms[-1]) if rms else None,
+            max_force=float(maximum[-1]) if maximum else None,
+            force_unit='Eh/Bohr' if rms or maximum else None,
+        ))
     if not frames:
         return []
     converged = opt_converged(log_text)
@@ -462,9 +456,11 @@ def _extract_opt_frames_native(log_text: str) -> list[FrameRecord]:
     final_xyz = final_xyz_from_text(log_text)
     if final_xyz and final_xyz != frames[-1].xyz:
         # 收敛（或后续 freq 段）又打印了一份最终几何：追加为末帧
+        last = _last_energy_match(log_text)
+        evaluated_xyz = final_xyz_from_text(log_text[:last.end()]) if last else ''
         frames.append(FrameRecord(
             frame=len(frames),
-            electronic_energy_hartree=final_energy_hartree(log_text),
+            electronic_energy_hartree=final_energy_hartree(log_text) if evaluated_xyz == final_xyz else None,
             frequencies_cm=freqs,
             xyz=final_xyz,
             converged=converged,
@@ -480,118 +476,64 @@ def _extract_sp_frames_native(log_text: str) -> list[FrameRecord]:
     xyz = final_xyz_from_text(log_text)
     if not xyz:
         return []
+    last = _last_energy_match(log_text)
+    evaluated_xyz = final_xyz_from_text(log_text[:last.end()]) if last else ''
     return [FrameRecord(
         frame=0,
-        electronic_energy_hartree=final_energy_hartree(log_text),
+        electronic_energy_hartree=final_energy_hartree(log_text) if xyz == evaluated_xyz else None,
         frequencies_cm=vibfreqs_from_text(log_text),
         xyz=xyz,
     )]
 
 
 def _extract_opt_frames(log_text: str) -> list[FrameRecord]:
-    try:
-        data = _ccread_from_text(log_text)
-    except ValueError:
-        # cclib 对 ORCA 6.1 日志在 SCF 收敛段裸抛 IndexError（GH #44）：
-        # 帧提取回退文本权威通道，不让整条格式转换链不可判定。
-        return _extract_opt_frames_native(log_text)
-    energies = getattr(data, "scfenergies", None)
-    atomcoords = getattr(data, "atomcoords", None)
-    atomnos = getattr(data, "atomnos", None)
-    if energies is None or atomcoords is None or atomnos is None:
-        return []
-    energies_ev = _as_float_list(energies)
-    n = min(len(energies_ev), len(atomcoords))
-    converged = opt_converged(log_text)
-    freqs = vibfreqs_from_text(log_text) or _get_vibfreqs(data)
-
-    frames = []
-    for i in range(n):
-        is_last = i == n - 1
-        frames.append(FrameRecord(
-            frame=i,
-            electronic_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
-            frequencies_cm=freqs if (is_last and freqs) else [],
-            xyz=_coords_to_xyz(atomnos, atomcoords[i], comment=f"opt step={i}"),
-            converged=converged if is_last else None,
-        ))
-    return frames
+    return _extract_opt_frames_native(log_text)
 
 
 def _extract_scan_frames(log_text: str) -> list[FrameRecord]:
-    """ORCA 扫描：unrelaxed 时 scanparm 给出逐点参数；relaxed 扫描的
-
-    逐点几何在 cclib 1.8.x 不暴露（scancoords 为 None），能量取
-    scfenergies 序列（cclib 会把扫描各点的最终 SCF 记入）。
-    逐点参数值：cclib 的 scanparm 对 unrelaxed 扫描只有初值，
-    故回退解析 "TRAJECTORY STEP N / <param> : value" 文本标记。
-    """
-    data = _ccread_from_text(log_text)
-    energies = getattr(data, "scfenergies", None)
-    parm = getattr(data, "scanparm", None)
-    if energies is None:
-        return []
-    energies_ev = _as_float_list(energies)
-    n = len(energies_ev)
-
-    parm_values: list[float] = []
-    if parm is not None and len(parm) > 0:
-        parm_values = _as_float_list(parm[0])
-    if len(parm_values) < n:
-        # 文本兜底：TRAJECTORY STEP 块内的 "D7 : 32.72727273" 参数行
-        step_params = re.findall(
-            r"TRAJECTORY STEP\s+\d+\s*\n\s*\S+\s*:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[EeDd][+-]?\d+)?)",
-            log_text,
-        )
-        if len(step_params) >= n:
-            parm_values = [float(v) for v in step_params[:n]]
-
-    coords = getattr(data, "scancoords", None)
-    atomcoords = getattr(data, "atomcoords", None)
-    atomnos = getattr(data, "atomnos", None)
-    frames_source = coords if coords is not None else atomcoords
-    has_coords = frames_source is not None and atomnos is not None and len(frames_source) == n
-
-    frames = []
-    for i in range(n):
-        rx = parm_values[i] if i < len(parm_values) else None
-        xyz = ""
-        if has_coords:
-            xyz = _coords_to_xyz(atomnos, frames_source[i], comment=f"scan point={i} parm={rx}")
+    """Read each native scan-point section, never zip independent SCF arrays."""
+    markers = list(re.finditer(r"(?:TRAJECTORY STEP|RELAXED SURFACE SCAN STEP)\s+(\d+)", log_text))
+    frames: list[FrameRecord] = []
+    for index, marker in enumerate(markers):
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(log_text)
+        segment = log_text[marker.end():end]
+        # Parameter rows in ORCA's scan point heading preserve every dimension.
+        heading = segment.split('CARTESIAN COORDINATES', 1)[0]
+        parameters = [float(value.replace('D', 'E').replace('d', 'e')) for value in re.findall(
+            r"^\s*\*?\s*(?:[BADR]\d*|(?:Bond|Angle|Dihedral)\s*\([^\n)]+\))\s*:\s*"
+            + _FLOAT, heading, re.M | re.I)]
+        last = _last_energy_match(segment)
+        xyz = final_xyz_from_text(segment[:last.end()] if last else segment)
         frames.append(FrameRecord(
-            frame=i,
-            reaction_coordinate=rx,
-            electronic_energy_hartree=energy_ev_to_hartree(energies_ev[i]),
-            xyz=xyz,
+            frame=len(frames), step=int(marker.group(1)),
+            reaction_coordinate=parameters[0] if len(parameters) == 1 else None,
+            scan_coordinates=parameters, xyz=xyz,
+            electronic_energy_hartree=final_energy_hartree(segment),
+            converged=opt_converged(segment),
         ))
     return frames
 
 
 def _extract_sp_frames(log_text: str) -> list[FrameRecord]:
+    native = _extract_sp_frames_native(log_text)
+    if native:
+        return native
     try:
         data = _ccread_from_text(log_text)
     except ValueError:
-        return _extract_sp_frames_native(log_text)
-    energies = getattr(data, "scfenergies", None)
-    atomcoords = getattr(data, "atomcoords", None)
-    atomnos = getattr(data, "atomnos", None)
+        return []
+    atomcoords = getattr(data, 'atomcoords', None)
+    atomnos = getattr(data, 'atomnos', None)
     if atomcoords is None or atomnos is None or len(atomcoords) == 0:
-        return _extract_sp_frames_native(log_text)
-    energy_hartree = final_energy_hartree(log_text)
-    if energy_hartree is None and energies is not None and len(energies) > 0:
-        energy_hartree = energy_ev_to_hartree(_as_float_list(energies)[-1])
-    return [FrameRecord(
-        frame=0,
-        electronic_energy_hartree=energy_hartree,
-        frequencies_cm=vibfreqs_from_text(log_text) or _get_vibfreqs(data),
-        xyz=final_xyz_from_text(log_text) or _coords_to_xyz(atomnos, atomcoords[-1], comment="single point"),
-    )]
+        return []
+    return [FrameRecord(frame=0, frequencies_cm=_get_vibfreqs(data),
+                        xyz=_coords_to_xyz(atomnos, atomcoords[-1], comment='single point'))]
 
 
 def extract_frames(log_path: str) -> list[FrameRecord]:
     """按识别到的任务类型提取关键帧。
 
-    - IRC 的逐点坐标在 trj 边文件（主输出无）：返回空；点数/收敛/能量走 ``extract_irc``。
+    - IRC 的逐点坐标和逐帧能量读取精确作业名的 trj 边文件；缺边文件返回空。
     - NEB（``! NEB`` / ``! NEB-TS``）：逐图像几何在 ``<作业名>_im<N>.xyz`` 边文件里（主输出
       只有迭代表），这里读那些边文件，并把收敛的 ``<作业名>_NEB-TS_converged.xyz`` 作为带
       ``converged=True`` 的末帧。**读不到边文件时返回空但绝不退化成单点**——把一条路径报成
@@ -600,20 +542,19 @@ def extract_frames(log_path: str) -> list[FrameRecord]:
     return extract_frames_from_text(_read_text(log_path), log_path=log_path)
 
 
-def extract_frames_from_text(text: str, *, log_path: str | None = None) -> list[FrameRecord]:
+def extract_frames_from_text(text: str, *, log_path: str | None = None, sidecar_root: str | None = None) -> list[FrameRecord]:
     """extract_frames 的文本变体：调用方已读过日志时避免重复 IO。
 
-    ``log_path`` 仅用于 NEB 分支定位 ``<作业名>_im<N>.xyz`` 边文件；为 None 时
-    NEB 路径帧无从读取，返回空（原因由 ``frames_unavailable_reason`` 说明）。
+    ``log_path`` 用于 IRC / NEB 定位精确作业名的边文件；无边文件时不造路径。
     """
     jobs = detect_job_types_from_text(text)
     if "irc" in jobs:
-        return []
+        return _irc_sidecar_frames(text, log_path, sidecar_root=sidecar_root) if log_path else []
     if "neb" in jobs and not (jobs & {"opt", "ts", "scan"}):
         # 逐图像几何在 <作业名>_im<N>.xyz 边文件里；读不到就返回空，但调用方可用
         # frames_unavailable_reason 拿到**具体原因**（不是静默的"没有帧"）
-        roots = _orca_sidecar_roots(log_path, text) if log_path else []
-        frames, _reason = _neb_image_frames(roots)
+        roots = _bounded_sidecar_roots(log_path, text, sidecar_root) if log_path else []
+        frames, _reason = _neb_image_frames(roots, sidecar_root=sidecar_root)
         return frames
     if "scan" in jobs:
         return _extract_scan_frames(text)
@@ -649,6 +590,46 @@ def _parse_irc_direction_block(text: str) -> tuple[int, bool]:
         if _IRCA_ITER_RE.match(line):
             n_points += 1
     return n_points, bool(_IRCA_CONVERGED_RE.search(text))
+
+
+def _allowed_sidecar(path: str, sidecar_root: str | None) -> bool:
+    return sidecar_root is None or Path(path).resolve().is_relative_to(Path(sidecar_root).resolve())
+
+
+def _bounded_sidecar_roots(log_path: str, text: str, sidecar_root: str | None):
+    return [(directory, stem) for directory, stem in _orca_sidecar_roots(log_path, text)
+            if _allowed_sidecar(directory, sidecar_root)]
+
+
+def _irc_sidecar_frames(text: str, log_path: str, *, sidecar_root: str | None = None) -> list[FrameRecord]:
+    """Actual IRC geometries come from the exact job's F/B XYZ trajectories.
+
+    Energy is read from each frame comment. Main-output iteration rows do not
+    establish a one-to-one map to trajectory frames and are never zipped to it.
+    """
+    from cloudra.tools.core.gaussian_frames import iter_xyz_blocks
+
+    frames: list[FrameRecord] = []
+    for directory, stem in _bounded_sidecar_roots(log_path, text, sidecar_root):
+        found = False
+        for path_number, suffix in ((1, '_IRC_F_trj.xyz'), (2, '_IRC_B_trj.xyz')):
+            path = os.path.join(directory, stem + suffix)
+            if not _allowed_sidecar(path, sidecar_root) or not os.path.isfile(path):
+                continue
+            found = True
+            for step, xyz in enumerate(iter_xyz_blocks(path)):
+                comment = xyz.splitlines()[1]
+                energy = re.search(r"(?:\bE\s+|\benergy\s*[=:]\s*)" + _FLOAT, comment, re.I)
+                coordinate = re.search(r"(?:\brxcoord|\breaction_coordinate)\s*[=:]\s*" + _FLOAT,
+                                       comment, re.I)
+                frames.append(FrameRecord(
+                    frame=len(frames), step=step, path_number=path_number, xyz=xyz,
+                    electronic_energy_hartree=float(energy.group(1)) if energy else None,
+                    reaction_coordinate=float(coordinate.group(1)) if coordinate else None,
+                ))
+        if found:
+            return frames
+    return frames
 
 
 def extract_irc(log_path: str) -> dict:
@@ -725,7 +706,7 @@ _NEB_IMAGE_SUFFIX = "_im"
 _NEB_TS_SUFFIX = "_NEB-TS_converged.xyz"
 
 
-def _neb_image_frames(roots: list[tuple[str, str]]) -> tuple[list[FrameRecord], str | None]:
+def _neb_image_frames(roots: list[tuple[str, str]], *, sidecar_root: str | None = None) -> tuple[list[FrameRecord], str | None]:
     """读 NEB 的逐图像边文件，返回 ``(帧, 失败原因)``。
 
     与 IRC 同一个道理：路径几何**不在主输出里**，而是每个图像一个
@@ -740,7 +721,7 @@ def _neb_image_frames(roots: list[tuple[str, str]]) -> tuple[list[FrameRecord], 
             if not name.startswith(job + _NEB_IMAGE_SUFFIX) or not name.endswith(".xyz"):
                 continue
             middle = name[len(job) + len(_NEB_IMAGE_SUFFIX):-len(".xyz")]
-            if not middle.isdigit():
+            if not middle.isdigit() or not _allowed_sidecar(os.path.join(directory, name), sidecar_root):
                 continue
             images.append((int(middle), os.path.join(directory, name)))
         if not images:
@@ -773,7 +754,7 @@ def _neb_image_frames(roots: list[tuple[str, str]]) -> tuple[list[FrameRecord], 
             ))
         # 收敛的鞍点几何单独作为末帧（converged=True）：那是 NEB-TS 真正交出来的东西
         converged = os.path.join(directory, job + _NEB_TS_SUFFIX)
-        if os.path.isfile(converged):
+        if _allowed_sidecar(converged, sidecar_root) and os.path.isfile(converged):
             try:
                 text = _read_text(converged)
             except OSError:

@@ -13,6 +13,7 @@
     "test:e2e:install": "playwright install chromium"
   },
   "dependencies": {
+    "3dmol": "^2.5.5",
     "dagre": "^0.8.5",
     "katex": "^0.19.1",
     "react": "^19.0.0",

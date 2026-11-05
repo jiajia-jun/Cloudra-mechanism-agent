@@ -195,7 +195,7 @@ class InternalCoordinates_input_schema(input_schema):
         description="Transform operations, required when mode=transform (rejected in other modes). Applied in order "
                     "on a copy of the coordinates; all atom indices are 1-based, matching the analyze report; "
                     "fragment selection uses the input MOL/SDF bonds, or connectivity perceived once for coordinate-only input. "
-                    "Four operation types: "
+                    "Seven operation types: "
                     "(1) rotate — 'axis_atoms': [i, j] defines the rotation axis, 'degrees': angle in degrees, plus "
                     "exactly one group selector: 'atoms': [...] (explicit 1-based atom list) or 'side_of_bond': [a, b] "
                     "(rotate the fragment on the b side of bond a-b; fails when a-b is on a ring). "
@@ -215,7 +215,13 @@ class InternalCoordinates_input_schema(input_schema):
                     "reference bond length; the new bond order comes from the [*] bond in the SMILES (default single). "
                     "Surviving atoms keep their order and the new atoms are appended; operations listed after a "
                     "replace_group use the NEW atom numbering. "
-                    "Example: {\"type\": \"replace_group\", \"bond\": [3, 7], \"smiles\": \"[*]C(=O)O\"}."
+                    "Example: {\"type\": \"replace_group\", \"bond\": [3, 7], \"smiles\": \"[*]C(=O)O\"}. "
+                    "(5) coordinate — 'atoms': ordered [a,b], [a,b,c] or [a,b,c,d], 'value': absolute distance "
+                    "(Angstrom), angle or dihedral (degrees); 'fixed_side': 'first' (default) or 'last'; optional "
+                    "'moving_atoms': explicit group, required for ambiguous/ring splits. Default moves the last side rigidly. "
+                    "(6) mirror — 'plane': 'xy', 'xz' or 'yz' through the coordinate origin; optional 'moving_atoms' "
+                    "restricts reflection to those atoms, otherwise reflects the whole molecule. This is distinct from invert_chirality. "
+                    "(7) bond — 'atoms': [a,b], 'order': 0 deletes, 1/1.5/2/3 adds or changes a bond; preserves coordinates."
     )
 
 
@@ -368,10 +374,16 @@ class InternalCoordinates(Tool):
     @classmethod
     def _load_molecule(cls, input_path, input_text, input_format, charge):
         """保留分子文件的图；只有纯坐标输入在入口感知一次连接关系。"""
+        mol = read_molecule(input_path=input_path, input_text=input_text, input_format=input_format)
+        return cls._resolve_molecule(mol, charge)
+
+    @classmethod
+    def _resolve_molecule(cls, mol, charge=None):
+        """Explicit shared bond-perception authority; viewing does not call this."""
         from rdkit import Chem
         from rdkit.Chem import rdDetermineBonds
 
-        mol = read_molecule(input_path=input_path, input_text=input_text, input_format=input_format)
+        mol = Chem.Mol(mol)
         if not mol.HasProp("cloudra_graph_status") or mol.GetProp("cloudra_graph_status") != "unresolved":
             if not mol.GetNumConformers():
                 raise ValueError("Input molecule has no coordinates")
@@ -389,6 +401,7 @@ class InternalCoordinates(Tool):
         try:
             rdDetermineBonds.DetermineConnectivity(perceived)
             rdDetermineBonds.DetermineBonds(perceived, charge=charge)
+            perceived.SetProp("cloudra_graph_status", "perceived")
             return perceived, "RDKit (perceived)", []
         except Exception as e:
             # 感知失败时丢弃被部分改写的副本，保留原有的距离回退规则。
@@ -398,6 +411,7 @@ class InternalCoordinates(Tool):
             mol = rw.GetMol()
             mol.UpdatePropertyCache(strict=False)
             Chem.FastFindRings(mol)
+            mol.SetProp("cloudra_graph_status", "distance-inferred")
             return mol, "distance-inferred (all single)", [
                 f"RDKit bond perception failed ({e}); bond orders were not perceived — "
                 "bond info below is distance-inferred (all treated as single bonds)."
@@ -1345,22 +1359,146 @@ class InternalCoordinates(Tool):
             else cls._op_finite_number(new_length, "stretch 'new_length'")
         if target <= 0.0:
             raise ValueError(f"stretch: target bond length must be > 0 Angstrom, got {target:.3f}")
-        group = cls._bfs_group(cls._adjacency_without_edge(adj, i, j), j)
-        if i in group:
-            raise ValueError(
-                f"stretch: bond {i + 1}-{j + 1} lies on a ring (the graph stays connected after "
-                "cutting it); stretching it is not a rigid-fragment operation"
-            )
-        idx = sorted(group)
-        positions[idx] = positions[idx] + (target - current) * vec / current
+        summary = cls._op_coordinate(
+            {"atoms": [i + 1, j + 1], "value": target}, positions, adj, n,
+        )
         return {
-            "type": "stretch",
-            "atoms": [i + 1, j + 1],
-            "old_length": round(current, 4),
-            "new_length": round(target, 4),
-            "moved_atoms": [x + 1 for x in idx],
-            "n_moved": len(idx),
+            **summary, "type": "stretch", "atoms": [i + 1, j + 1],
+            "old_length": round(current, 4), "new_length": round(target, 4),
         }
+
+    @staticmethod
+    def _coordinate_value(positions, atoms):
+        """Ordered zero-based distance/angle/dihedral in Angstrom/degrees."""
+        import numpy as np
+
+        points = [positions[i] for i in atoms]
+        if len(atoms) == 2:
+            return float(np.linalg.norm(points[1] - points[0]))
+        vectors = [points[i + 1] - points[i] for i in range(len(points) - 1)]
+        if any(np.linalg.norm(vector) < 1e-9 for vector in vectors):
+            raise ValueError("Selected coordinate has coincident atoms")
+        if len(atoms) == 3:
+            return _angle_deg(*points)
+        if len(atoms) == 4:
+            if (np.linalg.norm(np.cross(vectors[0], vectors[1])) < 1e-9
+                    or np.linalg.norm(np.cross(vectors[1], vectors[2])) < 1e-9):
+                raise ValueError("Dihedral is undefined for collinear selected atoms")
+            return _dihedral_deg(*points)
+        raise ValueError("A coordinate requires 2, 3 or 4 ordered atoms")
+
+    @classmethod
+    def _op_coordinate(cls, op, positions, adj, n):
+        """One absolute-coordinate operation shared by web and Agent transforms."""
+        import numpy as np
+
+        raw = op.get('atoms')
+        if not isinstance(raw, list) or len(raw) not in (2, 3, 4):
+            raise ValueError('coordinate requires 2/3/4 ordered atoms')
+        atoms = [cls._transform_atom_index(i, n, 'coordinate atoms') for i in raw]
+        if len(set(atoms)) != len(atoms):
+            raise ValueError('coordinate atoms must be distinct')
+        side = op.get('fixed_side', 'first')
+        if side not in {'first', 'last'}:
+            raise ValueError("fixed_side must be 'first' or 'last'")
+        if side == 'last':
+            atoms.reverse()
+        target = cls._op_finite_number(op.get('value'), 'coordinate value')
+        if len(atoms) == 2 and target <= 0:
+            raise ValueError('Distance must be positive')
+        if len(atoms) == 3 and not 0 <= target <= 180:
+            raise ValueError('Angle must be between 0 and 180 degrees')
+        current = cls._coordinate_value(positions, atoms)
+        if op.get('moving_atoms') is not None:
+            moving = op['moving_atoms']
+            if not isinstance(moving, list) or not moving:
+                raise ValueError('moving_atoms must be a nonempty list')
+            group = {cls._transform_atom_index(i, n, 'moving_atoms') for i in moving}
+        else:
+            if op.get('graph_status') == 'unresolved':
+                raise ValueError('Graph unresolved: resolve bonds explicitly or specify moving_atoms')
+            cut_a, cut_b = (atoms[1], atoms[2]) if len(atoms) == 4 else (atoms[-2], atoms[-1])
+            group = cls._bfs_group(cls._adjacency_without_edge(adj, cut_a, cut_b), atoms[-1])
+            if atoms[0] in group:
+                raise ValueError('Cannot uniquely split this group (ring/connected coordinate); specify moving_atoms')
+        if atoms[-1] not in group or atoms[0] in group:
+            raise ValueError('moving_atoms must include the moving endpoint and exclude the fixed endpoint')
+        indexes = sorted(group)
+        if len(atoms) == 2:
+            direction = positions[atoms[1]] - positions[atoms[0]]
+            norm = float(np.linalg.norm(direction))
+            if norm < 1e-9:
+                raise ValueError('Distance direction is undefined for coincident atoms')
+            positions[indexes] += (target - current) * direction / norm
+        elif len(atoms) == 3:
+            a, b, c = atoms
+            if b in group:
+                raise ValueError('moving_atoms must exclude the angle vertex')
+            axis = np.cross(positions[a] - positions[b], positions[c] - positions[b])
+            norm = float(np.linalg.norm(axis))
+            if norm < 1e-9:
+                raise ValueError('Angle plane is undefined for collinear atoms')
+            positions[:] = rotate_about_axis(positions, indexes, positions[b], positions[b] + axis / norm,
+                                             target - current)
+        else:
+            _, b, c, _ = atoms
+            delta = (target - current + 180) % 360 - 180
+            positions[:] = rotate_about_axis(positions, indexes, positions[b], positions[c], delta)
+        moved = [i + 1 for i in indexes if len(atoms) != 4 or i not in atoms[1:3]]
+        return {'type': 'coordinate', 'atoms': raw, 'value': target,
+                'old_value': current, 'moved_atoms': moved, 'n_moved': len(moved)}
+
+    @classmethod
+    def _op_mirror(cls, mol, op):
+        import numpy as np
+        from rdkit import Chem
+
+        plane = op.get('plane', 'yz')
+        if plane not in {'xy', 'xz', 'yz'}:
+            raise ValueError('mirror plane must be xy, xz or yz')
+        n = mol.GetNumAtoms()
+        raw = op.get('moving_atoms')
+        if raw is not None and (not isinstance(raw, list) or not raw):
+            raise ValueError('mirror moving_atoms must be nonempty')
+        group = list(range(n)) if raw is None else [cls._transform_atom_index(i, n, 'mirror moving_atoms') for i in raw]
+        positions = np.array(mol.GetConformer().GetPositions(), copy=True)
+        # Coordinate planes pass through the origin; translation is never implicit.
+        positions[group, {'yz': 0, 'xz': 1, 'xy': 2}[plane]] *= -1
+        result = with_positions(mol, positions)
+        if not result.HasProp('cloudra_graph_status') or result.GetProp('cloudra_graph_status') != 'unresolved':
+            Chem.AssignStereochemistryFrom3D(result, replaceExistingTags=True)
+        return result, {'type': 'mirror', 'plane': plane, 'moved_atoms': [i + 1 for i in group], 'n_moved': len(group)}
+
+    @classmethod
+    def _op_bond(cls, mol, op):
+        from rdkit import Chem
+
+        raw = op.get('atoms')
+        if not isinstance(raw, list) or len(raw) != 2:
+            raise ValueError('bond requires exactly two atoms')
+        a, b = [cls._transform_atom_index(i, mol.GetNumAtoms(), 'bond atoms') for i in raw]
+        if a == b:
+            raise ValueError('bond atoms must be distinct')
+        order = op.get('order', 1)
+        types = {0: None, 1: Chem.BondType.SINGLE, 1.5: Chem.BondType.AROMATIC,
+                 2: Chem.BondType.DOUBLE, 3: Chem.BondType.TRIPLE}
+        if isinstance(order, bool) or order not in types:
+            raise ValueError('bond order must be 0, 1, 1.5, 2 or 3')
+        rw = Chem.RWMol(mol)
+        if rw.GetBondBetweenAtoms(a, b):
+            rw.RemoveBond(a, b)
+        elif order == 0:
+            raise ValueError('Cannot delete a bond which does not exist')
+        if order:
+            rw.AddBond(a, b, types[order])
+        result = rw.GetMol()
+        # This is an explicit draft graph edit, not a claim of valence validity.
+        # Keep arbitrary intermediate bond orders editable without optimizing geometry.
+        result.UpdatePropertyCache(strict=False)
+        Chem.FastFindRings(result)
+        if not result.HasProp('cloudra_graph_status') or result.GetProp('cloudra_graph_status') != 'unresolved':
+            result.SetProp('cloudra_graph_status', 'edited')
+        return result, {'type': 'bond', 'atoms': raw, 'order': order, 'moved_atoms': [], 'n_moved': 0}
 
     @classmethod
     def _op_invert_chirality(cls, op: dict, positions, adj: dict[int, set[int]], n: int) -> dict:
@@ -1577,9 +1715,18 @@ class InternalCoordinates(Tool):
         adj = {atom.GetIdx(): {nb.GetIdx() for nb in atom.GetNeighbors()} for atom in mol.GetAtoms()}
         op_type = op.get("type")
         if op_type == "replace_group":
+            if mol.HasProp('cloudra_graph_status') and mol.GetProp('cloudra_graph_status') == 'unresolved':
+                raise ValueError('Graph unresolved: resolve bonds explicitly before replacing a group')
             return cls._op_replace_group(mol, op, adj)
+        if op_type == 'mirror':
+            return cls._op_mirror(mol, op)
+        if op_type == 'bond':
+            return cls._op_bond(mol, op)
         positions = np.array(mol.GetConformer().GetPositions(), dtype=float, copy=True)
-        if op_type == "rotate":
+        if op_type == 'coordinate':
+            op = {**op, 'graph_status': mol.GetProp('cloudra_graph_status') if mol.HasProp('cloudra_graph_status') else 'declared'}
+            summary = cls._op_coordinate(op, positions, adj, n)
+        elif op_type == "rotate":
             summary = cls._op_rotate(op, positions, adj, n)
         elif op_type == "stretch":
             summary = cls._op_stretch(op, positions, adj, n)
@@ -1588,7 +1735,7 @@ class InternalCoordinates(Tool):
         else:
             raise ValueError(
                 f"unknown transform operation type {op_type!r}; supported types: "
-                "'rotate', 'stretch', 'invert_chirality', 'replace_group'"
+                "'rotate', 'stretch', 'invert_chirality', 'replace_group', 'coordinate', 'mirror', 'bond'"
             )
         result = with_positions(mol, positions)
         if op_type == "invert_chirality":
@@ -1597,6 +1744,8 @@ class InternalCoordinates(Tool):
 
     @staticmethod
     def _transform_summary_line(k: int, s: dict) -> str:
+        if s['type'] in {'coordinate', 'mirror', 'bond'}:
+            return f"{k}. {s['type']}: {s}"
         if s["type"] == "rotate":
             return (f"{k}. rotate {s['degrees']:g}° about axis atoms "
                     f"{s['axis_atoms'][0]}-{s['axis_atoms'][1]} ({s['selection']}): "

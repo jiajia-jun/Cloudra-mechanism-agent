@@ -30,6 +30,7 @@ from . import (
     runtime,
     tasks,
     telemetry,
+    workbench,
 )
 
 
@@ -46,6 +47,7 @@ def build_routers(ctx: ApiContext) -> list[APIRouter]:
         progress.build_router(ctx),
         tasks.build_router(ctx),
         artifacts.build_router(ctx),
+        workbench.build_router(ctx),
         dag.build_router(ctx),
         chem.build_router(ctx),
         events.build_router(ctx),

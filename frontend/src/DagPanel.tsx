@@ -4,18 +4,11 @@ import dagre from 'dagre';
 import { api } from './api';
 import type { Project } from './types';
 import { hasSaddleEvidence } from './tsEvidence';
-import { Molecule3DViewer } from './Molecule3DViewer';
+import type { WorkbenchSource } from './workbenchTypes';
+import type { ChemicalObject } from './researchProducts';
 import { useAppearance } from './appearance';
 
-/* Structured DAG panel:
-   - Left Column:
-     - Top-left: RDKit 2D molecular structure depiction frame
-     - Bottom-left: Draggable slider & categorized evidence shelf for the selected node/step
-   - Right Column:
-     - Top-right: Reaction DAG topology graph + overall physical consistency & completion stats
-     - Right Main: 3D Molecular Structure Visualizer (Cartesian ball-and-stick, vibration animation)
-   - Bottom Drawer: Collapsible graph mutation forms & audit reviews
-*/
+/* Reaction graph, explicit evidence references and mutation controls. */
 
 type Json = Record<string, any>;
 type Sel = { kind: 'node' | 'edge'; id: string } | null;
@@ -577,8 +570,16 @@ export default function DagPanel({
   project,
   onError,
   onToast,
+  onOpenMolecule,
+  onSelectObject,
+  selectedObject,
+  refreshVersion = 0,
 }: {
   project: Project;
+  onOpenMolecule?: (source: WorkbenchSource) => void;
+  onSelectObject?: (object: ChemicalObject | null) => void;
+  selectedObject?: ChemicalObject | null;
+  refreshVersion?: number;
   onError: (e: unknown) => void;
   onToast: (kind: 'error' | 'ok' | 'info', text: string) => void;
 }) {
@@ -612,14 +613,12 @@ export default function DagPanel({
 
   useEffect(() => {
     load().catch(onError);
-  }, [load]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [load, refreshVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Default selection to first node if none selected
   useEffect(() => {
-    if (!sel && data?.delivery?.nodes && data.delivery.nodes.length > 0) {
-      setSel({ kind: 'node', id: String(data.delivery.nodes[0].node_id) });
-    }
-  }, [data?.delivery?.nodes, sel]);
+    if (selectedObject !== undefined) setSel(selectedObject);
+  }, [selectedObject?.kind, selectedObject?.id]);
+  useEffect(() => { onSelectObject?.(sel); }, [sel?.kind, sel?.id, onSelectObject]);
 
   async function applyOps(operations: unknown[], rationale: string, okMsg: string) {
     setBusy(true);
@@ -791,15 +790,11 @@ export default function DagPanel({
       <div className="dag-grid-container">
         {/* Left Column: 3D Visualizer (Top) + Compact Evidence Shelf (Bottom) */}
         <div className="dag-left-focus-col">
-          {/* Top-left: 3D Molecular Structure Visualizer */}
-          <div className="dag-card dag-3d-visualizer-card">
-            <Molecule3DViewer
-              smiles={currentItem?.smiles}
-              xyz={currentItem?.xyz}
-              title={currentItem?.label}
-              isTransitionState={currentItem?.isTS}
-              saddleEvidenceSupported={currentItem?.saddleEvidenceSupported}
-            />
+          <div className="dag-card dag-open-structure">
+            <strong>{currentItem?.label || '选择物种或反应步'}</strong>
+            {currentItem?.xyz && <button className="btn outline sm" onClick={() => onOpenMolecule?.({input_text:currentItem.xyz,input_format:'xyz'})}>打开记录中的结构</button>}
+            {!currentItem?.xyz && currentItem?.smiles && <button className="btn outline sm" onClick={() => onOpenMolecule?.({smiles:currentItem.smiles})}>以 SMILES 新建编辑稿</button>}
+            <span className="dim">点选图对象筛选明确关联的结果；从下方计算卡片打开实际来源帧。</span>
           </div>
 
           {/* Bottom-left: Compact Evidence Shelf & Slider ("矮胖点，带滚动条") */}
@@ -926,6 +921,7 @@ export default function DagPanel({
                         <div className="stage-ref-box">
                           <span className="ref-type-tag">{String(activeStage.ref.ref_type)}:</span>
                           <span className="ref-id-tag mono">{String(activeStage.ref.ref_id)}</span>
+                          {['file','artifact'].includes(String(activeStage.ref.ref_type)) && onOpenMolecule && <button className="btn outline sm" onClick={() => onOpenMolecule(activeStage.ref.ref_type === 'artifact' ? {artifact_id:String(activeStage.ref.ref_id)} : {path:String(activeStage.ref.ref_id)})}>打开来源工作台</button>}
                           {activeStage.ref.ref_type === 'artifact' && (
                             <a
                               href={api.artifactDownloadUrl(project.id, String(activeStage.ref.ref_id))}
@@ -957,7 +953,7 @@ export default function DagPanel({
               <span className="mono-subhead">反应网络有向无环图 (DAG 拓扑)</span>
               <div className="topology-header-actions">
                 <span className="badge sm">{nodes.length} 节点 · {edges.length} 反应步</span>
-                <span className="dag-zoom-hint">点击节点或过渡态边查看 3D 构象</span>
+                <span className="dag-zoom-hint">点击图对象定位已关联计算与证据</span>
               </div>
             </div>
             <div className="topology-viewport">
