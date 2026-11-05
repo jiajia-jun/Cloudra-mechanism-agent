@@ -394,16 +394,6 @@ def background_completion_resume_steps(hold: asyncio.Event) -> list[Step]:
     return [Step(tools=[("stop", {})]), Step(wait_for=hold)]
 
 
-def repeated_wait_stop_steps(*, protocol: str, with_work: bool = False) -> list[Step]:
-    """同一互调反复只 stop；有真实工具工作时不能当成空转。"""
-    work = []
-    if with_work:
-        work = [Step(tools=[("js_exec", {"code": "text(await tools.todo_read({}));"})])]
-        if protocol == "traditional":
-            work = [Step(tools=[("todo_read", {})])]
-    return [*work, *[Step(tools=[("stop", {})]) for _ in range(5)]]
-
-
 def supervisor_feedback_recovery_steps() -> list[Step]:
     """协调员收到督导反馈后重新进入一轮，未完成计算仍受结题门禁保护。"""
     return [Step(tools=[("agent_hub", {"action": "browse"})]), Step(stop=True)]
