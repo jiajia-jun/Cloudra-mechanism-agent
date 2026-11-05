@@ -167,7 +167,10 @@ def _revise_structures(record, revised, changes):
         correspondences[role] = permutation
         setattr(revised.structures, role, new)
     unknown = {role for role, permutation in correspondences.items() if permutation is None} | species_changed
-    if unknown or electronic_changed or record.input.reaction.selected_candidate != revised.input.reaction.selected_candidate:
+    center_changed = record.input.reaction.reaction_center != revised.input.reaction.reaction_center
+    if (unknown or electronic_changed
+            or record.input.reaction.selected_candidate != revised.input.reaction.selected_candidate
+            or center_changed):
         revised.structures.product_to_reactant = None
     for role in ('reactant', 'product'):
         source = getattr(revised.input.conformers, role)
@@ -178,7 +181,7 @@ def _revise_structures(record, revised, changes):
             if mol is not None:
                 setattr(revised.structures, role, set_heavy_binding(mol, []))
     reaction_fields = changes.reaction.model_fields_set if changes.reaction else set()
-    if (unknown or electronic_changed) and 'selected_candidate' not in reaction_fields:
+    if (unknown or electronic_changed or center_changed) and 'selected_candidate' not in reaction_fields:
         revised.input.reaction.selected_candidate = None
     guidance = changes.conformers.guidance if changes.conformers else None
     guidance_fields = guidance.model_fields_set if guidance else set()

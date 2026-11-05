@@ -728,7 +728,10 @@ class ConformerSearch(Tool):
         for atom, atom_id in zip(mol.GetAtoms(), ids):
             atom.SetProp('cloudra_atom_id', atom_id)
         explicit = [DescriptorSpec(kind="distance", stable_atom_ids=[ids[i] for i in window.atoms], source="declared_window") for window in plan.windows]
-        parents = {cid: capture.capture(mol, cid, generator="ETKDGv3", seed=user_input.random_seed) for cid in cids}
+        # A multi-fragment ETKDG frame has no relative placement yet. Keep its
+        # molecular snapshot for lineage, but export only the placed children.
+        parents = {cid: capture.capture(mol, cid, generator="ETKDGv3", seed=user_input.random_seed,
+                                       export_geometry=len(prepared.components) == 1) for cid in cids}
         selected_records = list(capture.records)
         if len(prepared.components) > 1:
             from cloudra.tools.core.complex_assembly import AssemblyParameters, sample_independent_placements

@@ -155,6 +155,43 @@ def test_regions_preserve_raw_multicomponent_diversity_and_placement_lineage(tmp
         assert child.parameters['fragment_transforms']
 
 
+@pytest.mark.parametrize('smiles', ['O', 'O.O'])
+def test_regions_export_usable_geometries_without_unplaced_parent_files(tmp_path, smiles):
+    import json
+
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.conformer_store import list_candidates
+    from cloudra.tools.Chemtool.conformer_search import ConformerSearch, ConformerSearch_input_schema
+    from cloudra.tools.core.conformer_catalog import CandidateRecord
+
+    result = ConformerSearch()._run_regions(
+        ConformerSearch_input_schema(smiles=smiles, num_confs=2, catalog_mode='regions'), str(tmp_path),
+    )
+    assert result.is_success, result.message
+    records = [CandidateRecord.model_validate(row)
+               for row in json.loads(Path(result.catalog_path).read_text())['candidates']]
+    parents = [record for record in records if record.parent_id is None]
+    children = [record for record in records if record.parent_id is not None]
+    assert len(parents) == 2
+    if children:
+        # The molecular snapshots preserve lineage; unplaced fragments must not
+        # also become ordinary XYZ inputs that discard that context (#224).
+        assert len(children) == 2
+        assert all(not parent.geometry_ref and not parent.artifact_hash for parent in parents)
+        assert all(not (tmp_path / 'catalog_geometries' / f'{parent.candidate_id}.xyz').exists()
+                   for parent in parents)
+        exported = children
+    else:
+        exported = parents
+    assert all(record.geometry_ref and Path(record.geometry_ref).is_file() for record in exported)
+    assert len(list((tmp_path / 'catalog_geometries').glob('*.xyz'))) == 2
+    saved = list_candidates(ComputeDB(), result.catalog_id,
+                            project_id=records[0].project_id, owner_id=records[0].owner_id)
+    assert {record.candidate_id: record.immutable_payload() for record in saved} == {
+        record.candidate_id: record.immutable_payload() for record in records
+    }
+
+
 def test_capture_symmetry_equivalent_renumbering_preserves_descriptors(tmp_path):
     from cloudra.tools.core.conformer_capture import CandidateCapture
     from cloudra.tools.core.conformer_regions import RegionConfig, build_descriptor_specs, partition_candidates

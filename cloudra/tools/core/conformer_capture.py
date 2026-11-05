@@ -33,7 +33,8 @@ class CandidateCapture:
                 parent_id: str | None = None, state: str = 'generated',
                 energies: list[EnergyObservation] | None = None,
                 qualification: Qualification | None = None,
-                parameters: dict | None = None, job_ids: list[int] | None = None) -> CandidateRecord:
+                parameters: dict | None = None, job_ids: list[int] | None = None,
+                export_geometry: bool = True) -> CandidateRecord:
         from rdkit import Chem
 
         captured = copy_conformer(mol, cid)
@@ -70,7 +71,7 @@ class CandidateCapture:
                                  species_key=species, mol=captured,
                                  generator=generator, parameters=parameters or {}, seed=seed, parent_id=parent_id, state=state,
                                  energies=energies or [], job_ids=job_ids or [], qualification=qualification or Qualification())
-        return self._publish(record)
+        return self._publish(record, export_geometry=export_geometry)
 
     def capture_unresolved_frame(self, symbols, positions, *, generator, parameters, energy_hartree=None):
         """Archive returned atoms without inventing graph or inter-frame identity."""
@@ -89,17 +90,18 @@ class CandidateCapture:
             qualification=Qualification(reasons=['chemical graph and stable atom correspondence unresolved']))
         return self._publish(record)
 
-    def _publish(self, record):
-        path = Path(self.output_dir) / 'catalog_geometries' / f'{record.candidate_id}.xyz'
-        rows = to_xyz(record.mol).splitlines()
-        rows[1] = f'{record.candidate_id}; generated geometry, not verified TS'
-        text = '\n'.join(rows) + '\n'
-        if path.exists() and path.read_text() != text:
-            raise ValueError('immutable geometry path conflict')
-        if not path.exists():
-            path.parent.mkdir(parents=True, exist_ok=True)
-            atomic_write_text(str(path), text)
-        record = CandidateRecord(**record.model_dump(exclude={'geometry_ref', 'artifact_hash'}), geometry_ref=str(path))
+    def _publish(self, record, *, export_geometry: bool = True):
+        if export_geometry:
+            path = Path(self.output_dir) / 'catalog_geometries' / f'{record.candidate_id}.xyz'
+            rows = to_xyz(record.mol).splitlines()
+            rows[1] = f'{record.candidate_id}; generated geometry, not verified TS'
+            text = '\n'.join(rows) + '\n'
+            if path.exists() and path.read_text() != text:
+                raise ValueError('immutable geometry path conflict')
+            if not path.exists():
+                path.parent.mkdir(parents=True, exist_ok=True)
+                atomic_write_text(str(path), text)
+            record = CandidateRecord(**record.model_dump(exclude={'geometry_ref', 'artifact_hash'}), geometry_ref=str(path))
         if self.sink:
             self.sink(record)
         self.records.append(record)

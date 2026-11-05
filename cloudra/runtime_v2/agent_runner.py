@@ -572,9 +572,13 @@ class AgentRunner:
             await reconcile_supervision(self.core, agent.project_id)
         await deliver_child_completion_to_parent(self.core, agent)
         await deliver_peer_completion(self.core, agent)
-        await self.maybe_wake_parked_delivery(agent.project_id)
+        await self.maybe_wake_parked_delivery(
+            agent.project_id, background_finished=agent.role_id != "coordinator",
+        )
 
-    async def maybe_wake_parked_delivery(self, project_id: str) -> None:
+    async def maybe_wake_parked_delivery(
+        self, project_id: str, *, background_finished: bool = False,
+    ) -> None:
         """Resume a guided delivery wait once all project background work settles.
 
         Called by terminal agent and compute-notice events. The notice is
@@ -630,7 +634,12 @@ class AgentRunner:
                     continue
                 if await asyncio.to_thread(
                     has_running_siblings, core, project_id=project_id, session_id=coordinator.id,
-                ) or await asyncio.to_thread(core.reminders.pending, coordinator.id):
+                ):
+                    continue
+                # A real result supersedes an old polling reminder. The
+                # coordinator's own stop still waits for its reminder rather
+                # than immediately reopening the run it just parked.
+                if not background_finished and await asyncio.to_thread(core.reminders.pending, coordinator.id):
                     continue
                 # The DB check awaits; a regular child message may have
                 # already woken this coordinator in the meantime.
@@ -650,6 +659,10 @@ class AgentRunner:
                     and (event.data.get("manifest") or {}).get("parked_run_id")
                     == parked_run_id
                 ), None))
+                # History IO yields to submitters. Do not act on the earlier
+                # empty compute snapshot if a new job appeared meanwhile.
+                if await pending_compute_jobs_exist(data_dir=None, project_id=project_id):
+                    continue
                 if not still_parked():
                     continue
                 if marker is not None:

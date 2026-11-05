@@ -435,7 +435,7 @@ class LaunchGroupManager:
         runner = getattr(self._core, "runner", None)
         hook = getattr(runner, "maybe_wake_parked_delivery", None)
         if hook is not None:
-            await hook(project_id)
+            await hook(project_id, background_finished=True)
 
     async def _wait_terminal(self, child: AgentSession) -> AgentSession:
         if self._child_is_final(child):

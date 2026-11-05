@@ -52,7 +52,7 @@ def test_confirmed_molecule_heavy_identity_prevents_reopening_symmetry():
 
 
 @pytest.mark.parametrize('reactant,product,expected_candidates', [
-    ('N.O', '[NH4+].[OH-]', 1),
+    ('N.O', '[NH4+].[OH-]', 8),
     ('OC=O', 'O=C=O.[H][H]', 4),
 ])
 def test_hydrogen_transfer_and_free_hydrogen_have_complete_candidates(reactant, product, expected_candidates):
@@ -170,3 +170,92 @@ async def test_mapping_rejects_read_only_producer(mock_session):
         mapping.ReactionMapping_input_schema(reactant_smiles='CO', product_smiles='CO'), mock_session)
     assert not result.is_success
     assert result.candidates == []
+
+
+def nu3_hydrogen_transfer(engine='orca'):
+    """Concrete NU3 endpoints from the 2026-10-20 history, without RDKit pickle state."""
+    from pathlib import Path
+
+    directory = Path(__file__).parent / 'fixtures' / 'nu3_hydrogen_mapping'
+    reactant, product = (Chem.MolFromMolFile(str(directory / f'{role}.mol'), removeHs=False)
+                         for role in ('reactant', 'product'))
+    request = TsInput(reaction=dict(
+        reactant_smiles='[CH2-:1][PH2+:2]([H:5]).[CH2:3]=[O:4]',
+        product_smiles='[PH2:2][CH2:1][CH2:3][O:4][H:5]', charge=0, multiplicity=1),
+        ts_optimization=dict(engine=engine, method='B3LYP', basis_set='def2-SVP'))
+    return request, reactant, product
+
+
+def test_equivalent_transferred_hydrogens_remain_distinct_complete_candidates():
+    request, reactant, product = nu3_hydrogen_transfer()
+    result = mapping.bind_reaction_structures(request, reactant, product)
+    assert result['mapping_status'] == 'ambiguous'
+    assert len(result['candidates']) == 3
+    centers = {tuple(map(tuple, mapping._edit_facts(reactant, product,
+        [index - 1 for index in candidate['atom_map']])['broken_bonds']))
+        for candidate in result['candidates']}
+    assert centers == {((2, 5),), ((2, 6),), ((2, 7),)}
+    # Existing candidate ordering remains deterministic; no new chemical ranking.
+    assert result['atom_map'] == [2, 1, 8, 9, 5, 6, 3, 4, 10, 11, 7]
+
+
+@pytest.mark.parametrize('engine', ['gaussian', 'orca'])
+def test_declared_reaction_center_selects_matching_hydrogen_correspondence(engine):
+    request, reactant, product = nu3_hydrogen_transfer(engine)
+    request.reaction.reaction_center = [(0, 7), (1, 4), (4, 8)]
+    result = mapping.bind_reaction_structures(request, reactant, product)
+    assert result['binding_status'] == 'complete'
+    facts = mapping._edit_facts(reactant, product, [index - 1 for index in result['atom_map']])
+    assert facts['formed_bonds'] == [[1, 8], [5, 9]]
+    assert facts['broken_bonds'] == [[2, 5]]
+
+
+def test_transfer_candidates_do_not_permute_unchanged_spectator_hydrogens():
+    request = TsInput(reaction=dict(reactant_smiles='CCCCCCCCCCO.N',
+        product_smiles='CCCCCCCCCC[O-].[NH4+]', charge=0, multiplicity=1))
+    reactant, product = (Chem.AddHs(Chem.MolFromSmiles(smiles))
+        for smiles in (request.reaction.reactant_smiles, request.reaction.product_smiles))
+    result = mapping.bind_reaction_structures(request, reactant, product)
+    assert result['binding_status'] == 'complete'
+    assert result['mapping_status'] == 'ambiguous'
+    assert len(result['candidates']) == 4
+
+
+def test_explicit_center_preserves_candidate_indices_and_rejects_a_conflicting_override():
+    request, reactant, product = nu3_hydrogen_transfer()
+    request.reaction.reaction_center = [(1, 4), (4, 8)]
+    request.reaction.selected_candidate = 2
+    result = mapping.bind_reaction_structures(request, reactant, product)
+    assert len(result['candidates']) == 3
+    assert result['atom_map'] == result['candidates'][2]['atom_map']
+    assert result['atom_map'][-1] == 5
+    request.reaction.selected_candidate = 0
+    with pytest.raises(ValueError, match='selected_candidate.*reaction_center'):
+        mapping.bind_reaction_structures(request, reactant, product)
+
+
+def test_explicit_center_cannot_replace_concrete_hydrogen_identity():
+    request, reactant, product = nu3_hydrogen_transfer()
+    original = [2, 1, 8, 9, 5, 6, 3, 4, 10, 11, 7]
+    for atom in reactant.GetAtoms():
+        if atom.GetAtomicNum() == 1:
+            atom.SetAtomMapNum(atom.GetIdx() + 1)
+    for atom in product.GetAtoms():
+        if atom.GetAtomicNum() == 1:
+            atom.SetAtomMapNum(original[atom.GetIdx()])
+    request.reaction.reaction_center = [(1, 4), (4, 8)]
+    with pytest.raises(ValueError, match='reaction.reaction_center'):
+        mapping.bind_reaction_structures(request, reactant, product)
+
+
+def test_geometric_center_does_not_promote_bond_editing_candidates_for_unchanged_endpoints():
+    request = declaration('CCCC')
+    request.reaction.reaction_center = [(0, 1)]
+    molecule = Chem.AddHs(Chem.MolFromSmiles('CCCC'))
+    result = mapping.bind_reaction_structures(request, molecule, molecule)
+    # CCCC -> CCCC is a conformational path. The center must not turn a lower-ranked
+    # nonidentity permutation into an invented bond-breaking/forming mechanism.
+    assert result['atom_map'] == list(range(1, molecule.GetNumAtoms() + 1))
+    facts = mapping._edit_facts(molecule, molecule, [index - 1 for index in result['atom_map']])
+    assert facts['formed_bonds'] == []
+    assert facts['broken_bonds'] == []
