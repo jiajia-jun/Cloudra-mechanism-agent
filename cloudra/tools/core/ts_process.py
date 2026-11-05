@@ -1027,7 +1027,7 @@ def _direction_atom_binding(record: TsProcessRecord) -> dict | None:
 
 
 def _bind_structures(record: TsProcessRecord) -> TsProcessRecord:
-    from cloudra.tools.Chemtool.reaction_mapping import bind_reaction_structures
+    from cloudra.tools.Chemtool.reaction_mapping import ReactionCenterConflict, bind_reaction_structures
     try:
         if record.structures.product_to_reactant is not None:
             record.structures.complete_correspondence()
@@ -1070,6 +1070,8 @@ def _bind_structures(record: TsProcessRecord) -> TsProcessRecord:
         record.structures.product_to_reactant = tuple(index - 1 for index in result['atom_map'])
         record.structures.complete_correspondence()
         _record_stage(record, 'map', 'done', result['message'] + ' Full atom numbering maintained automatically.')
+    except ReactionCenterConflict as exc:
+        return _block(record, 'map', 'reaction_center_mapping_conflict', str(exc), needs=['reaction.reaction_center'])
     except (ValueError, OSError) as exc:
         return _block(record, 'map', 'input_identity_unconfirmed', str(exc), needs=['conformers', 'reaction.selected_candidate'])
     return record

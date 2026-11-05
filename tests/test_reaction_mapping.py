@@ -540,5 +540,6 @@ def test_transferred_deuterium_keeps_its_isotope_identity():
     atom_maps, diagnostic = _expand_full_atom_maps(
         reactant, product, [0, 1], [0, 1], [1, 2],
     )
-    assert atom_maps == [[1, 2, 6, 3, 4, 5]]
-    assert reactant.GetAtomWithIdx(atom_maps[0][2] - 1).GetIsotope() == product.GetAtomWithIdx(2).GetIsotope() == 2
+    assert atom_maps == [[1, 2, 6, 3, 4, 5], [1, 2, 6, 3, 5, 4], [1, 2, 6, 4, 5, 3]]
+    assert all(reactant.GetAtomWithIdx(candidate[2] - 1).GetIsotope() == 2 for candidate in atom_maps)
+    assert product.GetAtomWithIdx(2).GetIsotope() == 2

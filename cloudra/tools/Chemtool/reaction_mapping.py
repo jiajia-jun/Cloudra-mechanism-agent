@@ -897,6 +897,8 @@ def _expand_full_atom_maps(
         full_map[p_index] = r_index
 
     used = {index for index in full_map if index >= 0}
+    local_choices = []
+    count = 1
     for p_index, r_index in enumerate(full_map):
         if r_index < 0 or product_structure.GetAtomWithIdx(p_index).GetAtomicNum() == 1:
             continue
@@ -908,33 +910,47 @@ def _expand_full_atom_maps(
             if atom.GetAtomicNum() == 1 and atom.GetIdx() not in used:
                 r_groups[atom.GetIsotope()].append(atom.GetIdx())
         for isotope in sorted(p_groups):
-            for p_h, r_h in zip(sorted(p_groups[isotope]), sorted(r_groups[isotope])):
-                full_map[p_h] = r_h
-                used.add(r_h)
-    p_groups, r_groups = defaultdict(list), defaultdict(list)
-    for atom in product_structure.GetAtoms():
-        if full_map[atom.GetIdx()] < 0:
-            if atom.GetAtomicNum() != 1:
-                return [], 'Some heavy atoms remain unmapped; cannot output a partial atom_map.'
-            p_groups[atom.GetIsotope()].append(atom.GetIdx())
-    for atom in reactant_structure.GetAtoms():
-        if atom.GetIdx() not in used:
-            r_groups[atom.GetIsotope()].append(atom.GetIdx())
-    isotopes = sorted(p_groups)
-    if {key: len(value) for key, value in p_groups.items()} != {key: len(value) for key, value in r_groups.items()}:
-        return [], 'Unmatched hydrogen isotope inventories differ.'
-    count = math.prod(math.factorial(len(r_groups[key])) for key in isotopes)
-    if count >= 257:
-        return [], 'Hydrogen correspondence enumeration is incomplete; supply compatible concrete hydrogen atom-map labels.'
+            p_h, r_h = sorted(p_groups[isotope]), sorted(r_groups[isotope])
+            paired = min(len(p_h), len(r_h))
+            # Keep spectator H ordering, but retain every choice of which H moves.
+            # Permuting all unchanged methyl hydrogens would add no transfer choice.
+            count *= math.comb(len(p_h), paired) * math.comb(len(r_h), paired)
+            if count >= 257:
+                return [], 'Hydrogen correspondence enumeration is incomplete; supply compatible concrete hydrogen atom-map labels.'
+            local_choices.append([
+                list(zip(p_choice, r_choice))
+                for p_choice in itertools.combinations(p_h, paired)
+                for r_choice in itertools.combinations(r_h, paired)
+            ])
     candidates = []
-    for permutations in itertools.product(*(itertools.permutations(r_groups[key]) for key in isotopes)):
-        complete = list(full_map)
-        for isotope, permutation in zip(isotopes, permutations):
-            for p_index, r_index in zip(p_groups[isotope], permutation):
-                complete[p_index] = r_index
-        if sorted(complete) != list(range(reactant_structure.GetNumAtoms())):
-            return [], 'Some atoms remain unmapped or are mapped twice; cannot output a partial atom_map.'
-        candidates.append([index + 1 for index in complete])
+    for choices in itertools.product(*local_choices):
+        partial = list(full_map)
+        for pairs in choices:
+            for p_h, r_h in pairs:
+                partial[p_h] = r_h
+        used = {index for index in partial if index >= 0}
+        p_groups, r_groups = defaultdict(list), defaultdict(list)
+        for atom in product_structure.GetAtoms():
+            if partial[atom.GetIdx()] < 0:
+                if atom.GetAtomicNum() != 1:
+                    return [], 'Some heavy atoms remain unmapped; cannot output a partial atom_map.'
+                p_groups[atom.GetIsotope()].append(atom.GetIdx())
+        for atom in reactant_structure.GetAtoms():
+            if atom.GetIdx() not in used:
+                r_groups[atom.GetIsotope()].append(atom.GetIdx())
+        isotopes = sorted(p_groups)
+        if {key: len(value) for key, value in p_groups.items()} != {key: len(value) for key, value in r_groups.items()}:
+            return [], 'Unmatched hydrogen isotope inventories differ.'
+        if count * math.prod(math.factorial(len(r_groups[key])) for key in isotopes) >= 257:
+            return [], 'Hydrogen correspondence enumeration is incomplete; supply compatible concrete hydrogen atom-map labels.'
+        for permutations in itertools.product(*(itertools.permutations(r_groups[key]) for key in isotopes)):
+            complete = list(partial)
+            for isotope, permutation in zip(isotopes, permutations):
+                for p_index, r_index in zip(p_groups[isotope], permutation):
+                    complete[p_index] = r_index
+            if sorted(complete) != list(range(reactant_structure.GetNumAtoms())):
+                return [], 'Some atoms remain unmapped or are mapped twice; cannot output a partial atom_map.'
+            candidates.append([index + 1 for index in complete])
     return candidates, 'Complete concrete correspondence candidates preserve hydrogen isotope identities.'
 
 
@@ -985,6 +1001,10 @@ def _concrete_bindings(smiles: str, structure) -> tuple[str, list[list[int]], st
         if checked == 'match' and accepted:
             bindings.append(accepted)
     return identity, [list(value) for value in sorted(set(map(tuple, bindings)))], diagnostic
+
+
+class ReactionCenterConflict(ValueError):
+    """The declared forming/breaking pairs contradict the concrete endpoint maps."""
 
 
 def bind_reaction_structures(input: TsInput, reactant: Molecule, product: Molecule) -> dict:
@@ -1059,22 +1079,38 @@ def _bind_endpoint_structures(reaction, reactant, product, states, *, inspect_co
         result['mapping_status'] = 'inconclusive'
         result['binding_diagnostics'].extend(sorted(failed))
         return result
-    leading = [candidate for candidate in ordered if candidate['score'] <= ordered[0]['score'] + _AMBIGUITY_SCORE_WINDOW]
+    center = {tuple(sorted((left + 1, right + 1))) for left, right in reaction.reaction_center}
+    matching = list(range(len(ordered)))
+    # Assembly reports invalid indices with the concrete atom table before use.
+    if center and all(1 <= index <= reactant.GetNumAtoms() for pair in center for index in pair):
+        candidate_pairs = []
+        for candidate in ordered:
+            edits = _edit_facts(reactant, product, [atom - 1 for atom in candidate['atom_map']])
+            candidate_pairs.append({tuple(pair) for pair in edits['formed_bonds'] + edits['broken_bonds']})
+        # Keep the existing best-ranked path authoritative: geometric guidance must
+        # not promote a worse permutation that invents bond edits for unchanged endpoints.
+        if candidate_pairs[0]:
+            matching = [index for index, pairs in enumerate(candidate_pairs) if center <= pairs]
+            if not matching:
+                raise ReactionCenterConflict('reaction.reaction_center does not match any complete endpoint correspondence; check its forming/breaking atom pairs.')
+    leading = [index for index in matching if ordered[index]['score'] <= ordered[matching[0]]['score'] + _AMBIGUITY_SCORE_WINDOW]
     result['mapping_status'] = 'unique' if len(leading) == 1 else 'ambiguous'
     selection = reaction.selected_candidate
     automatic = selection is None
-    # 不填就复用既有排序选首项；保留歧义和候选，供研究者检查或显式覆盖。
-    selection = 0 if selection is None else selection
+    # Preserve public candidate indices; explicit centers constrain the same ranked list.
+    selection = matching[0] if selection is None else selection
     if not 0 <= selection < len(ordered):
         raise ValueError(f'selected_candidate={selection} out of range; {len(ordered)} complete concrete candidate(s) available')
+    if selection not in matching:
+        raise ValueError('reaction.selected_candidate conflicts with reaction.reaction_center; select a matching candidate or omit the override.')
     selected = ordered[selection]
     for field in ('heavy_atom_map', 'atom_map', 'heavy_atom_bindings', 'formed_bonds', 'broken_bonds',
                   'order_changes', 'graph_watch_pairs', 'concrete_watch_pairs'):
         result[field] = selected[field]
     result.update(binding_status='complete', binding_source='concrete', watch_pairs=selected['concrete_watch_pairs'])
     result['message'] = (
-        f'Automatically selected complete concrete candidate 0 of {len(ordered)} using the existing mapping ranking. '
-        f'Mapping remains {result["mapping_status"]}; selected_candidate can override this choice.'
+        f'Automatically selected complete concrete candidate {selection} of {len(ordered)} using the existing mapping ranking. '
+        f'Mapping remains {result["mapping_status"]}; a compatible selected_candidate can override this choice.'
         if automatic else 'Complete concrete endpoint correspondence accepted.'
     )
     return result
@@ -1097,7 +1133,7 @@ class ReactionMapping_input_schema(input_schema):
     run_id: str | None = Field(default=None, min_length=1, description="Existing TS run. Use only with selected_candidate to commit a concrete mapping choice; independent endpoint analysis returns alternatives, while ts_inspect shows the current bound structures.")
     reactant_smiles: str | None = Field(default=None, min_length=1, description="Independent analysis: reactant SMILES; mutually exclusive with run_id.")
     product_smiles: str | None = Field(default=None, min_length=1, description="Independent analysis: product SMILES.")
-    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="0-based complete concrete candidate override. Omit/null to adopt candidate 0 from the existing mapping ranking; ambiguity and alternatives remain available for inspection.")
+    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="0-based complete concrete candidate override within the reaction declaration. Independent analysis adopts candidate 0 when omitted/null; an existing run retains its declared reaction-center constraints. Ambiguity and alternatives remain available for inspection.")
     reactant_path: Optional[str] = Field(default=None, description="Path of a concrete reactant structure (mol/sdf/xyz).")
     reactant_text: Optional[str] = Field(default=None, description="Concrete reactant structure text. Path takes precedence.")
     product_path: Optional[str] = Field(default=None, description="Path of a concrete product structure (mol/sdf/xyz).")

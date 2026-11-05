@@ -156,3 +156,58 @@ def test_species_change_rebuilds_a_generated_endpoint_instead_of_reusing_old_mol
     assert revised.blocked is None
     assert revised.structures.reactant.GetNumAtoms() == 9
     assert record.structures.reactant.GetNumAtoms() == 3
+
+
+@pytest.mark.parametrize('engine', ['gaussian', 'orca'])
+def test_reaction_center_revision_rebinds_equivalent_hydrogen_without_changing_history(tmp_path, engine):
+    from cloudra.tools.core.reaction_state import ReactionStructures, mapped_reaction_center
+    from cloudra.tools.core.ts_process import TsProcessRecord, _bind_structures
+    from tests.test_reaction_structure_mapping import nu3_hydrogen_transfer
+
+    declaration, reactant, product = nu3_hydrogen_transfer(engine)
+    record = TsProcessRecord(run_id='nu3-mapping', run_dir=str(tmp_path), input=declaration,
+        structures=ReactionStructures(reactant=reactant, product=product))
+    _bind_structures(record)
+    assert mapped_reaction_center(record.structures) == [(0, 7), (1, 6), (6, 8)]
+    old_mapping = record.structures.product_to_reactant
+    revised, _ = revise(record, {'reaction': {'reaction_center': [[0, 7], [1, 4], [4, 8]]}})
+    _bind_structures(revised)
+    assert revised.blocked is None
+    assert mapped_reaction_center(revised.structures) == [(0, 7), (1, 4), (4, 8)]
+    assert revised.structures.product_to_reactant != old_mapping
+    assert record.structures.product_to_reactant == old_mapping
+    assert revised.attempt_history[0].structures.product_to_reactant == old_mapping
+
+
+def test_center_revision_does_not_inherit_a_conflicting_candidate_override(tmp_path):
+    from cloudra.tools.core.reaction_state import ReactionStructures, mapped_reaction_center
+    from cloudra.tools.core.ts_process import TsProcessRecord, _bind_structures
+    from tests.test_reaction_structure_mapping import nu3_hydrogen_transfer
+
+    declaration, reactant, product = nu3_hydrogen_transfer()
+    declaration.reaction.selected_candidate = 0
+    record = TsProcessRecord(run_id='nu3-mapping', run_dir=str(tmp_path), input=declaration,
+        structures=ReactionStructures(reactant=reactant, product=product))
+    _bind_structures(record)
+    revised, _ = revise(record, {'reaction': {'reaction_center': [[0, 7], [1, 4], [4, 8]]}})
+    assert revised.input.reaction.selected_candidate is None
+    _bind_structures(revised)
+    assert revised.blocked is None
+    assert mapped_reaction_center(revised.structures) == [(0, 7), (1, 4), (4, 8)]
+
+
+def test_incompatible_center_revision_names_the_center_instead_of_reusing_old_mapping(tmp_path):
+    from cloudra.tools.core.reaction_state import ReactionStructures
+    from cloudra.tools.core.ts_process import TsProcessRecord, _bind_structures
+    from tests.test_reaction_structure_mapping import nu3_hydrogen_transfer
+
+    declaration, reactant, product = nu3_hydrogen_transfer()
+    record = TsProcessRecord(run_id='nu3-mapping', run_dir=str(tmp_path), input=declaration,
+        structures=ReactionStructures(reactant=reactant, product=product))
+    _bind_structures(record)
+    revised, _ = revise(record, {'reaction': {'reaction_center': [[0, 1]]}})
+    _bind_structures(revised)
+    assert revised.blocked is not None
+    assert revised.blocked.needs == ['reaction.reaction_center']
+    assert revised.structures.product_to_reactant is None
+    assert record.structures.product_to_reactant is not None

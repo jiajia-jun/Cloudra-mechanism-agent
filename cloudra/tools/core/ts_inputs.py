@@ -72,7 +72,7 @@ class TsReaction(InputModel):
     multiplicity: StrictInt = Field(ge=1)
     electronic_character: Literal['closed_shell', 'open_shell'] | None = Field(default=None,
         description="Optional declared electronic character, including open-shell singlets. This describes the requested seed state; it does not choose a ground state, wavefunction method or spin initialization.")
-    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="Optional 0-based override of the existing algorithm's ranked complete mapping candidates. Omitted/null adopts its first candidate automatically and reports the choice.")
+    selected_candidate: StrictInt | None = Field(default=None, ge=0, description="Optional 0-based override of the existing algorithm's ranked complete mapping candidates, subject to any declared reaction_center. Omitted/null automatically adopts the first matching candidate and reports the choice.")
     reaction_center: list[tuple[StrictInt, StrictInt]] = Field(default_factory=list, description="Optional forming/breaking atom pairs in the bound reactant's full coordinate order, 1-based and including explicit hydrogens. Omitted/empty derives the pairs from the bound reaction mapping.")
 
 

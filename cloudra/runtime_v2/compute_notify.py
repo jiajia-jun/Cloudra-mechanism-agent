@@ -206,7 +206,7 @@ class ComputeNotifyBroker:
         hook = getattr(self.core.runner, "maybe_wake_parked_delivery", None)
         if hook is not None:
             for project_id in {row[0] for row in rows}:
-                await hook(project_id)
+                await hook(project_id, background_finished=True)
 
     @staticmethod
     def _pending_terminal_jobs(

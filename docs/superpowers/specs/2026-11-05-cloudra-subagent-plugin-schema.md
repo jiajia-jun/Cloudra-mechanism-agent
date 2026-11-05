@@ -1,6 +1,6 @@
 # Cloudra Subagent 插件：MCP schema 草案
 
-首版实现覆盖 list_projects、start_task、send_message、answer_question、get_progress、get_agent_progress、get_result 和结果附带的 MCP 资源。本文其余工具保留为后续接口设计。
+状态：接口评审稿。下文工具、返回类型与插件入口均为拟议定义。
 
 Codex 或 Claude Code 可以新发起一项化学研究，也可以接手 Cloudra 已有会话；通过同一组工具派活、判断阻塞、回答提问并取回交付证据。Cloudra 继续自己运行 Agent、调度计算和做科学审查。
 
@@ -110,7 +110,7 @@ declare function get_agent_progress(input: {
   project_id: string;
   session_id: string;
   limit?: number;                   // 整数 1–50，默认 1
-  filter?: string;                  // JavaScript 布尔表达式；变量名为 entry，最长 4,000 字符
+  filter?: string;                  // JavaScript 布尔表达式；变量名为 entry
   include_reasoning?: boolean;      // 默认 false
 }): {
   agent: AgentProgress;
@@ -151,7 +151,7 @@ declare function get_result(input: {
 - 会话进度读取 Cloudra 的运行事实，再附项目根目录 `PROCESS.md` 的开头（最多 8,000 字符）。未写笔记或请求省略时 `process=null`。状态、笔记和本次观察各标自己的时间。
 - 单 Agent 不传 `filter` 时只取已持久化的公开输出，默认一条；若显式启用 `include_reasoning`，同时纳入已记录的 reasoning。传 `filter` 时也纳入来信、工具和错误记录。工具记录使用同一份调用回执的摘要和状态；非工具记录的 `tool_name/status` 为 null。
 - `filter` 可由调用者现场编写，每条候选记录以 `entry: ContextItem` 传入。先过滤，再取最近 `limit` 条，按从旧到新返回。表达式看到的是限长后的公开投影（每条最多 2,000 字符），只看该 Agent；未启用 reasoning 时，表达式也看不到它。筛选最多检查最近 500 条候选记录；如果达到扫描上限且还有历史未检查，`history_truncated=true`。
-- 过滤表达式使用现有 QuickJS 沙盒和 500 毫秒的累计执行预算，单独用无工具桥接的上下文，仅注入 `entry`，不开放网络、文件或数据库。语法错误、结果不是布尔值或执行超限，明确报 `invalid_request`。无过滤时不启动 JS。
+- 过滤表达式使用现有 QuickJS 沙盒的隔离和执行上限，单独用无工具桥接的上下文，仅注入 `entry`，不开放网络、文件或数据库。语法错误、结果不是布尔值或执行超限，明确报 `invalid_request`。无过滤时不启动 JS。
 - 结果可短等。目标 Agent 真正终止、它或其子 Agent 有待处理的提问或审批、超时，满足任一项就返回；断连不取消委托。`waiting_background` 仍是 `pending`。新指令重新开启工作后，当前结果再次变为 `pending`。首版只查当前交付；先前返回的产物 ID 仍可独立读取。
 - `summary` 来自对应终态的结论，缺失时为 `null`。科学验证沿用 Cloudra 的完成依据。已有机理图或计算 `done` 不自动推出 `verified`。已有未解决项原样传出。
 - 首版通过短等收结果。需要逐条监控进度时复用已有持久事件游标，暂不加事件订阅工具。
@@ -246,7 +246,7 @@ declare function read_artifact(input: { project_id: string; artifact_id: string;
 
 - 默认 `active_only=true`，活跃包含等待、运行、待取消；false 取最近 100 条含终态。全局必须显式选 `scope="global"`，只在本机操作者连接上启用。PID 是节点上曾记录的值，可能为空或过期；操作按作业 ID。`cancel_requested` 表示执行端尚未确认退出。
 - DAG 读现有交付视图，缺图时不初始化。Standard 的 `graph/report` 为 null，已有根目录交付图则返回 `graph_artifact`。DAG 模式的图按节点和边索引，完整的机理图按交付文件取。报告复用现有未满足项和审查结果。
-- 正式交付时使用现有 artifact registry 固定交付引用中的文件版本，并把 ID 绑定到对应终态。读取结果时不从工作区重新登记旧证据；旧会话没有绑定版本的产物不补造。首版固定已提交 DAG 交付报告的图快照。Standard 图、量化原始日志与后续的独立 DAG 查询另行接入。已绑定的产物可通过 MCP 资源取回。
+- 正式交付时使用现有 artifact registry 固定交付引用中的文件版本，并把 ID 绑定到对应终态。读取结果时不从工作区重新登记旧证据；旧会话没有绑定版本的产物不补造。DAG 查询看到的是当前图与已绑定的交付文件，两者时间可能不同。文件应能在没有共享文件系统时取回。
 - `read_artifact` 为文本和量化日志的分页入口，`start_line` 从 1 开始，默认 1，每页最多 12,000 字符。超长单行截断时 `truncated_line=true`，原件或二进制用 URI 读取。资源同样检查项目授权，URI 不指向服务器绝对路径。
 
 ## AgentHub 与调用诊断

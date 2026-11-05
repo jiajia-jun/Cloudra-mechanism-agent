@@ -106,6 +106,73 @@ def _resolve_live_target(
     return name_matches[-1] if name_matches else None
 
 
+def _repeat_call_without_progress(core, target: AgentSession, *, sender: str, content: str) -> bool:
+    """Recognize an already consumed call whose only response was another wait."""
+    from cloudra.runtime_v2.agent_host import is_background_parked
+
+    if not is_background_parked(core, target):
+        return False
+    gate = core.event_log.query_session(target.id, types={"agent.completion_gate"}, limit=1)[0]
+    previous = core.event_log.query_session(
+        target.id, types={"agent.message_injected"}, before_session_seq=gate.session_seq, limit=1,
+    )
+
+    def same_call(event):
+        return (
+            event.data.get("sender") == sender
+            and event.data.get("content") == content
+            and event.data.get("post_id") is None
+        )
+
+    if not previous or not same_call(previous[0]):
+        return False
+    events = core.event_log.query_session(
+        target.id, run_id=gate.run_id,
+        types={"tool.requested", "tool.finished", "program.submitted", "context.appended"}, limit=None,
+    )
+    # JS programs have their own receipts. Conservatively keep their wake
+    # semantics instead of mistaking an outer program for a stop-only turn.
+    if any(event.type == "program.submitted" for event in events):
+        return False
+    requested = [event for event in events if event.type == "tool.requested"]
+    finished = [event for event in events if event.type == "tool.finished"]
+    if not requested or any(event.data.get("tool_name") != "stop" for event in requested):
+        return False
+    if ({event.data.get("tool_call_id") for event in requested}
+            != {event.data.get("tool_call_id") for event in finished}
+            or any(event.data.get("is_success") is not True for event in finished)):
+        return False
+    consumed = {message.get("message_id") for event in events if event.type == "context.appended"
+                for message in event.data.get("messages", []) if message.get("role") == "user"}
+    if previous[0].data.get("message_id") not in consumed:
+        return False
+    for event in core.event_log.iter_project(
+        target.project_id, after_seq=gate.seq,
+        types={"agent.message_injected", "run.finished", "launch_group.finished", "hub.posted",
+               "tool.result_recorded", "tool.finished"},
+    ):
+        if event.type == "run.finished" and event.session_id == target.id:
+            continue
+        if event.type in {"tool.result_recorded", "tool.finished"}:
+            # Hub content changes already have hub.posted/message events.
+            # Its call/read receipts and stop alone are not new work; every
+            # other tool result conservatively keeps the normal wake.
+            if event.data.get("tool_name") not in {"agent_hub", "stop"}:
+                return False
+            continue
+        if event.type == "agent.message_injected":
+            if event.session_id == target.id:
+                if not same_call(event):
+                    return False
+            elif (event.data.get("manifest") or {}).get("kind") in {
+                "compute_completion", "child_completion", "peer_completion",
+            }:
+                return False
+        else:
+            return False
+    return True
+
+
 async def _notify(
     core,
     project_id: str,
@@ -120,6 +187,12 @@ async def _notify(
     # mention/call 自动 reopen——消息驻留 durable 信箱，用户显式复活后首轮
     # 即可读到。其余状态照常唤醒（策略由 dispatcher 唯一解析）。
     wake = WakePolicy.PARK_TERMINAL
+    # Only program calls share this identity. Posts have their own durable
+    # evidence identity; user messages remain explicit instructions to wake.
+    if post_id is None and author is not None and await asyncio.to_thread(
+        _repeat_call_without_progress, core, target, sender=sender, content=content,
+    ):
+        wake = WakePolicy.NEVER
     # This snapshot describes wake intent. Persisting the message may yield,
     # so requested is not evidence that the recipient actually started a run.
     target_state = target.state.value
