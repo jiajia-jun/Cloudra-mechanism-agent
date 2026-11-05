@@ -6,6 +6,7 @@ BUILD="${CLOUDRA_PACKAGE_BUILD:-$ROOT/build/macos-package}"
 OUTPUT="${CLOUDRA_PACKAGE_OUTPUT:-$ROOT/dist}"
 mkdir -p "$BUILD" "$OUTPUT"
 VERSION="$(python3 -c 'import tomllib,sys; print(tomllib.load(open(sys.argv[1],"rb"))["project"]["version"])' "$ROOT/pyproject.toml")"
+BUNDLE_VERSION="${VERSION%%rc*}"
 APP="$BUILD/Cloudra.app"
 if [[ -e "$APP" ]]; then
     printf 'Build directory already contains Cloudra.app; choose a clean CLOUDRA_PACKAGE_BUILD.\n' >&2
@@ -32,7 +33,7 @@ for size in 16 32 128 256 512; do
     sips -z "$doubled" "$doubled" "$BUILD/logo-square.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/Cloudra.icns"
-python3 - "$APP/Contents/Info.plist" "$VERSION" <<'PY'
+python3 - "$APP/Contents/Info.plist" "$BUNDLE_VERSION" <<'PY'
 import plistlib, sys
 path = sys.argv[1]
 with open(path, 'rb') as stream:

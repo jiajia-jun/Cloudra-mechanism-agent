@@ -27,6 +27,7 @@ cp docs/assets/Cloudra-logo.svg "$PAYLOAD/cloudra.svg"
 chmod 755 "$PAYLOAD/Cloudra" "$PAYLOAD/launch-cloudra.sh"
 
 VERSION="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+DEB_VERSION="${VERSION/rc/~rc}"
 rm -rf "$STAGE"
 mkdir -p "$STAGE/opt" "$STAGE/DEBIAN" "$STAGE/usr/share/applications" "$STAGE/usr/share/doc/cloudra"
 cp -a "$PAYLOAD" "$STAGE/opt/cloudra"
@@ -36,7 +37,7 @@ sed -e 's|@EXEC@|"/opt/cloudra/Cloudra"|g' \
     packaging/linux/cloudra.desktop.in > "$STAGE/usr/share/applications/cloudra.desktop"
 cat > "$STAGE/DEBIAN/control" <<EOF
 Package: cloudra
-Version: $VERSION
+Version: $DEB_VERSION
 Section: science
 Priority: optional
 Architecture: $DEB_ARCH
