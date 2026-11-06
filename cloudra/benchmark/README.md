@@ -25,6 +25,8 @@
 
 [研究数据入口](../../docs/RESEARCH_DATA_CN.md)区分论文图表复算、P2 正式运行、P1b 先导运行与 Gold 参考计算。各数据包的版本、权限及上传状态只在对应交付页维护。
 
+已经下载的 P2 完整归档（以及可选的 P1b Standard 主包）可以用一条命令重新评分。它调用 `BenchmarkRunner.score_sandbox`，有整理图时用整理图，否则用原生交付；Agent 和量化计算都不启动。SI 配套包仍负责按 CSV 重绘图表。写法、2026-11-02 准确度校正表和单题试跑见[归档重评分](../../docs/benchmarks/P2_DELIVERY.md#rescore-archived-deliveries)。
+
 审查 Gold 时按[复现说明](../../gold_compute/evidence/REPRODUCE.md)下载和恢复原件；重新运行 Benchmark 使用本次 Agent 产生的日志评分，不会自动下载 Gold 原件。运行期即时评分是诊断快照，论文采用离线整理后的正式评分。
 
 ## 判分口径
