@@ -1,3 +1,706 @@
-.wb-backdrop{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.55);display:flex;padding:18px;align-items:stretch;justify-content:center}.molecular-workbench{--wb-accent:var(--green);background:var(--bg);color:var(--fg);width:min(1600px,100%);display:flex;flex-direction:column;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 18px 80px #0008}.wb-header{display:flex;justify-content:space-between;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border)}.wb-header strong{font-size:18px}.wb-header .wb-muted{margin-left:18px}.wb-muted{font-size:12px;color:var(--fg-secondary);overflow-wrap:anywhere}.wb-open{display:flex;gap:8px;padding:10px 16px;border-bottom:1px solid var(--border);align-items:center}.wb-open textarea{flex:1;min-width:150px}.molecular-workbench input,.molecular-workbench select,.molecular-workbench textarea{background:var(--bg-inset);color:inherit;border:1px solid var(--border-strong);border-radius:5px;padding:7px;min-width:0;max-width:100%;font:inherit;font-size:12px}.molecular-workbench input[type=range]{width:100%;padding:0}.wb-file{position:relative;overflow:hidden;white-space:nowrap}.wb-file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}.wb-body{display:grid;grid-template-columns:minmax(0,1fr) 355px;min-height:0;flex:1;overflow:hidden}.wb-main{padding:12px;overflow:auto;min-width:0}.wb-sidebar{overflow:auto;border-left:1px solid var(--border);padding:0 12px}.wb-section{padding:12px 0;border-bottom:1px solid var(--border)}.wb-section h3{font-size:14px;margin:0 0 10px}.wb-section p{font-size:12px;line-height:1.6;margin:8px 0}.wb-section label{display:flex;flex-direction:column;gap:4px;font-size:12px;margin:9px 0}.wb-section button{margin:3px 2px}.wb-section>.btn{width:calc(100% - 4px)}.wb-toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:8px}.wb-toolbar label{margin:0}.wb-viewer{min-height:430px;height:52vh}.wb-viewer .viewer-3d-canvas-wrap{min-height:330px;flex:1}.wb-empty{height:300px;display:grid;place-items:center;font-size:14px;color:var(--fg-secondary)}.wb-preview{display:flex;align-items:center;gap:10px;padding:12px;background:var(--yellow-dim);border:1px solid var(--yellow)}.wb-error,.wb-message{padding:9px 16px;overflow-wrap:anywhere;font-size:13px}.wb-error{background:var(--bg-layer);color:var(--red)}.wb-message{background:var(--green-dim);color:var(--fg)}.wb-curve svg{display:block;width:100%;max-height:220px}.wb-curve circle{cursor:pointer}.wb-atoms{display:flex;flex-wrap:wrap;max-height:112px;overflow:auto}.wb-row{display:flex;gap:7px}.wb-row label{flex:1;min-width:0}.wb-section label.wb-check{flex-direction:row;align-items:center}.wb-definition{display:flex;align-items:center;justify-content:space-between;font-size:12px;border-bottom:1px solid var(--border)}.wb-definition button:first-child{white-space:normal;text-align:left}.wb-fragments{max-height:210px;overflow:auto}.wb-fragments>div{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}.wb-fragments button:first-child{white-space:normal;overflow-wrap:anywhere;text-align:left}.wb-fragments small{display:block;font-size:10px;color:var(--fg-secondary)}.wb-fragment-preview .molecule-3d-container{height:260px}.wb-fragment-preview .viewer-3d-canvas-wrap{min-height:140px}.wb-fragment-preview .viewer-3d-controls{display:none}.wb-scan-points{display:flex;flex-wrap:wrap;max-height:180px;overflow:auto}.wb-facts{overflow-wrap:anywhere}.molecular-workbench .active{box-shadow:inset 0 0 0 1px var(--wb-accent);color:var(--wb-accent)}@media(max-width:850px){.wb-backdrop{padding:0}.molecular-workbench{border-radius:0}.wb-body{grid-template-columns:1fr;overflow:auto;display:block}.wb-main,.wb-sidebar{overflow:visible}.wb-open{flex-wrap:wrap}.wb-open textarea{flex-basis:65%}.wb-viewer{height:400px}.wb-header .wb-muted{display:block;margin:3px 0}}
+/* Molecular Workbench Styles — Laboratory Precision Theme */
 
-.wb-settings{border:0;border-bottom:1px solid var(--border);margin:0;min-width:0}
+.wb-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  display: flex;
+  padding: 18px;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.molecular-workbench {
+  --wb-accent: var(--green);
+  --wb-accent-dim: var(--green-dim);
+  background: var(--bg);
+  color: var(--fg);
+  width: min(1600px, 100%);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* Header */
+.wb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 18px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+.wb-header strong {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.wb-header .wb-muted {
+  margin-left: 14px;
+}
+.wb-muted {
+  font-size: 12px;
+  color: var(--fg-tertiary);
+  overflow-wrap: anywhere;
+}
+.wb-busy-indicator {
+  padding: 6px 18px;
+  background: var(--bg-layer);
+  border-bottom: 1px solid var(--border);
+  color: var(--fg-secondary);
+}
+
+/* Top Open Bar */
+.wb-open {
+  display: flex;
+  gap: 10px;
+  padding: 10px 18px;
+  background: var(--bg-layer);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+.wb-open select {
+  width: 175px;
+  flex-shrink: 0;
+  height: 32px;
+}
+.wb-open textarea {
+  flex: 1;
+  min-width: 180px;
+  resize: vertical;
+  min-height: 32px;
+  font-family: var(--mono);
+  line-height: 1.4;
+}
+.wb-open-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Form Controls & Inputs */
+.molecular-workbench input,
+.molecular-workbench select,
+.molecular-workbench textarea {
+  background: var(--bg-inset, var(--bg-panel));
+  color: inherit;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 6px 10px;
+  min-width: 0;
+  max-width: 100%;
+  font: inherit;
+  font-size: 12px;
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
+}
+.molecular-workbench input:focus,
+.molecular-workbench select:focus,
+.molecular-workbench textarea:focus {
+  border-color: var(--wb-accent);
+  outline: none;
+}
+.molecular-workbench input[type=range] {
+  width: 100%;
+  padding: 0;
+  accent-color: var(--wb-accent);
+}
+
+.wb-file {
+  position: relative;
+  overflow: hidden;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.wb-file input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+}
+
+/* Body Layout */
+.wb-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 365px;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.wb-main {
+  padding: 16px;
+  overflow-y: auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wb-sidebar {
+  overflow-y: auto;
+  border-left: 1px solid var(--border);
+  padding: 0 16px;
+  background: var(--bg-panel);
+}
+
+/* Sections */
+.wb-section {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.wb-section h3 {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--fg);
+  margin: 0 0 8px;
+}
+.wb-section p {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--fg-secondary);
+  margin: 6px 0;
+}
+.wb-section label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--fg-secondary);
+  margin: 8px 0;
+}
+.wb-section label.wb-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  color: var(--fg);
+  margin: 10px 0;
+}
+.wb-section label.wb-check input {
+  accent-color: var(--wb-accent);
+  cursor: pointer;
+}
+
+/* Button & Action Layout Utilities */
+.wb-btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.wb-btn-full {
+  width: 100%;
+  margin: 8px 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.wb-input-with-action {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+.wb-input-with-action select,
+.wb-input-with-action input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+}
+.wb-compact-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+  font-size: 12px;
+  flex: 1;
+  white-space: nowrap;
+}
+.wb-compact-label select {
+  flex: 1;
+}
+
+/* Toolbar & View Controls */
+.wb-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+.wb-toolbar label {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.wb-view-switcher {
+  display: inline-flex;
+  align-items: center;
+  background: var(--bg-layer);
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  padding: 2px;
+  gap: 2px;
+}
+.wb-view-switcher .btn {
+  border: 0;
+  background: transparent;
+  color: var(--fg-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 12px;
+  height: 24px;
+  line-height: 24px;
+  border-radius: 3px;
+  transition: all 0.15s var(--ease);
+}
+.wb-view-switcher .btn:hover:not(:disabled) {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.wb-view-switcher .btn.active {
+  background: var(--wb-accent);
+  color: #0b0f14;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+.wb-view-desc {
+  margin-left: auto;
+}
+
+/* 3D Viewport & Empty State */
+.wb-viewer {
+  min-height: 440px;
+  height: 52vh;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.wb-viewer .viewer-3d-canvas-wrap {
+  min-height: 330px;
+  flex: 1;
+}
+.wb-empty {
+  height: 380px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  color: var(--fg-tertiary);
+  background: var(--bg-layer);
+  border: 1px dashed var(--border-strong);
+  border-radius: 6px;
+}
+
+/* Banners (Preview & Discard) */
+.wb-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--yellow-dim);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--yellow-soft);
+}
+.wb-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.wb-error,
+.wb-message {
+  padding: 10px 16px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  border-radius: 4px;
+}
+.wb-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+}
+.wb-message {
+  background: var(--green-dim);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: var(--green-soft);
+}
+
+/* Trajectory Section */
+.wb-trajectory-toolbar {
+  justify-content: space-between;
+}
+.wb-trajectory-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.wb-curve svg {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  background: var(--bg-inset, var(--bg-panel));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 6px 0;
+}
+.wb-curve circle {
+  cursor: pointer;
+  transition: r 0.15s var(--ease), fill 0.15s var(--ease);
+}
+.wb-curve circle:hover {
+  r: 7;
+}
+
+/* Atom Selection Bar & Tags */
+.wb-selection-toolbar {
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.wb-selected-chips {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.wb-atom-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 24px;
+  font-size: 11px;
+  font-family: var(--mono);
+  background: var(--bg-layer-2);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  color: var(--fg);
+  cursor: pointer;
+  transition: all 0.15s var(--ease);
+}
+.wb-atom-tag:hover:not(:disabled) {
+  border-color: var(--yellow);
+  color: var(--yellow-soft);
+}
+.wb-atom-order {
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--wb-accent);
+  color: #0b0f14;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 2px;
+}
+.wb-atom-tag .wb-remove {
+  color: var(--fg-tertiary);
+  margin-left: 2px;
+  font-size: 13px;
+}
+
+/* Atom Periodic Chip Matrix */
+.wb-atoms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 112px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--bg-inset, var(--bg-layer));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 6px 0 10px;
+}
+.wb-atoms .btn {
+  height: 22px;
+  padding: 0 6px;
+  font-size: 11px;
+  font-family: var(--mono);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-secondary);
+  background: var(--bg-panel);
+  line-height: 20px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  margin: 0;
+  transition: all 0.15s var(--ease);
+}
+.wb-atoms .btn:hover:not(:disabled) {
+  border-color: var(--wb-accent);
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.wb-atoms .btn.active {
+  background: var(--wb-accent);
+  color: #0b0f14;
+  border-color: var(--wb-accent);
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+.wb-atom-sym {
+  font-weight: 600;
+}
+.wb-atom-idx {
+  font-size: 9px;
+  opacity: 0.8;
+}
+
+.wb-measure-display {
+  font-size: 13px;
+  color: var(--fg);
+  margin: 8px 0;
+  padding: 6px 8px;
+  background: var(--bg-layer);
+  border-radius: 4px;
+  border-left: 3px solid var(--wb-accent);
+}
+
+/* Rows & Grid Inputs */
+.wb-row {
+  display: flex;
+  gap: 8px;
+}
+.wb-row label {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Definitions (Frozen / Scan Lists) */
+.wb-definition {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  background: var(--bg-layer);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 4px 0;
+  transition: border-color 0.15s var(--ease);
+}
+.wb-definition:hover {
+  border-color: var(--border-strong);
+}
+.wb-def-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  font-size: 11px;
+  font-family: var(--mono);
+  text-align: left;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 4px;
+  height: 24px;
+  line-height: 24px;
+}
+.wb-def-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  font-family: var(--font);
+}
+.wb-freeze-badge {
+  background: var(--blue-dim);
+  color: var(--blue-soft);
+}
+.wb-scan-badge {
+  background: var(--yellow-dim);
+  color: var(--yellow-soft);
+}
+.wb-def-curr {
+  color: var(--fg-tertiary);
+  font-size: 10px;
+  margin-left: auto;
+}
+.wb-def-del {
+  border: 0;
+  background: transparent;
+  color: var(--fg-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 6px;
+  height: 24px;
+  line-height: 24px;
+  border-radius: 3px;
+  transition: all 0.15s var(--ease);
+}
+.wb-def-del:hover:not(:disabled) {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+/* Fragment Replacements & History */
+.wb-fragments {
+  max-height: 180px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+}
+.wb-fragment-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--bg-layer);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  transition: border-color 0.15s var(--ease);
+}
+.wb-fragment-row:hover {
+  border-color: var(--border-strong);
+}
+.wb-fragment-entry {
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  padding: 0;
+  height: auto;
+  white-space: normal;
+}
+.wb-fragment-title {
+  display: block;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-fragment-entry small {
+  display: block;
+  font-size: 10px;
+  color: var(--fg-tertiary);
+  font-family: var(--mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-fragment-del {
+  border: 0;
+  background: transparent;
+  color: var(--fg-tertiary);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 6px;
+  height: 24px;
+  border-radius: 3px;
+  transition: all 0.15s var(--ease);
+}
+.wb-fragment-del:hover:not(:disabled) {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+}
+.wb-fragment-preview .molecule-3d-container {
+  height: 240px;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+.wb-fragment-preview .viewer-3d-canvas-wrap {
+  min-height: 140px;
+}
+.wb-fragment-preview .viewer-3d-controls {
+  display: none;
+}
+
+/* Scan Points */
+.wb-scan-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.wb-scan-points button {
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* Save Draft CTA */
+.wb-save-btn {
+  height: 38px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+  margin-top: 14px !important;
+}
+
+/* Active Class override */
+.molecular-workbench .active {
+  box-shadow: inset 0 0 0 1px var(--wb-accent);
+  color: var(--wb-accent);
+}
+
+/* Responsive */
+@media (max-width: 850px) {
+  .wb-backdrop {
+    padding: 0;
+  }
+  .molecular-workbench {
+    border-radius: 0;
+  }
+  .wb-body {
+    grid-template-columns: 1fr;
+    overflow: auto;
+    display: block;
+  }
+  .wb-main,
+  .wb-sidebar {
+    overflow: visible;
+  }
+  .wb-open {
+    flex-wrap: wrap;
+  }
+  .wb-open textarea {
+    flex-basis: 100%;
+  }
+  .wb-viewer {
+    height: 380px;
+  }
+  .wb-header .wb-muted {
+    display: block;
+    margin: 3px 0 0;
+  }
+}
+
+.wb-settings {
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  margin: 0;
+  min-width: 0;
+}
