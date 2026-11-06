@@ -50,8 +50,10 @@ export function toRenderAtoms(atoms: Atom3D[], bonds: {atom1:number;atom2:number
   return rendered;
 }
 
-export function initializeRenderModel(model: Pick<import('3dmol').GLModel,'addAtoms'|'addFrame'|'selectedAtoms'>, atoms: RenderAtom[]) {
+export function initializeRenderModel(model: Pick<import('3dmol').GLModel,'addAtoms'|'assignBonds'|'addFrame'|'selectedAtoms'>, atoms: RenderAtom[], inferDisplayBonds = false) {
   model.addAtoms(atoms);
+  // Reuse 3Dmol's distance links only in its display copy; never change the source graph.
+  if (inferDisplayBonds) model.assignBonds();
   // addAtoms alone leaves 3Dmol.frames empty; vibrate/setFrame require a real reference frame.
   model.addFrame(model.selectedAtoms({}));
 }
