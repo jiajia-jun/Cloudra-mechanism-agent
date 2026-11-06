@@ -6,11 +6,12 @@ BUILD="${CLOUDRA_PACKAGE_BUILD:-$ROOT/build/macos-package}"
 OUTPUT="${CLOUDRA_PACKAGE_OUTPUT:-$ROOT/dist}"
 mkdir -p "$BUILD" "$OUTPUT"
 VERSION="$(python3 -c 'import tomllib,sys; print(tomllib.load(open(sys.argv[1],"rb"))["project"]["version"])' "$ROOT/pyproject.toml")"
-APP="$BUILD/Cloudra.app"
+APP="$BUILD/payload/Cloudra.app"
 if [[ -e "$APP" ]]; then
     printf 'Build directory already contains Cloudra.app; choose a clean CLOUDRA_PACKAGE_BUILD.\n' >&2
     exit 1
 fi
+mkdir -p "$BUILD/payload"
 osacompile -s -o "$APP" "$ROOT/packaging/macos/application.applescript"
 if [[ -n "${CLOUDRA_DESKTOP_PAYLOAD:-}" ]]; then
     cp -R "$CLOUDRA_DESKTOP_PAYLOAD" "$APP/Contents/Resources/runtime-staging"
@@ -32,7 +33,7 @@ for size in 16 32 128 256 512; do
     sips -z "$doubled" "$doubled" "$BUILD/logo-square.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/Cloudra.icns"
-python3 - "$APP/Contents/Info.plist" "$VERSION" <<'PY'
+python3 - "$APP/Contents/Info.plist" "$VERSION" "$BUILD/components.plist" <<'PY'
 import plistlib, sys
 path = sys.argv[1]
 with open(path, 'rb') as stream:
@@ -42,10 +43,12 @@ info.update(CFBundleIdentifier='io.github.yyywaa.cloudra', CFBundleName='Cloudra
             CFBundleIconFile='Cloudra.icns')
 with open(path, 'wb') as stream:
     plistlib.dump(info, stream)
+with open(sys.argv[3], 'wb') as stream:
+    plistlib.dump([{'RootRelativeBundlePath': 'Cloudra.app', 'BundleIsRelocatable': False}], stream)
 PY
 # Ad-hoc signing allows the assembled app to run locally; distribution signing/notarization is separate.
 codesign --force --deep --sign - "$APP"
-pkgbuild --component "$APP" --install-location /Applications --identifier io.github.yyywaa.cloudra --version "$VERSION" "$BUILD/Cloudra-component.pkg"
+pkgbuild --root "$BUILD/payload" --component-plist "$BUILD/components.plist" --install-location /Applications --identifier io.github.yyywaa.cloudra --version "$VERSION" "$BUILD/Cloudra-component.pkg"
 cat > "$BUILD/Distribution.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
