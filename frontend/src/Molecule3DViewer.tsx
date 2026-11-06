@@ -16,11 +16,12 @@ export interface Molecule3DViewerProps {
   saddleEvidenceSupported?: boolean;
   className?: string;
   compact?: boolean;
-  geometry?: { atoms: Atom3D[]; bonds: { atom1: number; atom2: number; order: number }[] };
+  geometry?: { atoms: Atom3D[]; bonds: { atom1: number; atom2: number; order: number }[]; graph_status?: string };
   selectedAtoms?: number[];
   onAtomPick?: (index: number) => void;
   modeDisplacements?: number[][];
   modePlaying?: boolean;
+  preserveView?: boolean;
   coordinateHighlights?: number[][];
 
 }
@@ -73,7 +74,7 @@ function acquireViewer(engine: MolecularEngine, mount: HTMLElement, compact: boo
 export function Molecule3DViewer({
   smiles, xyz, title, isTransitionState = false, saddleEvidenceSupported = false,
   className = '', compact = false, geometry, selectedAtoms = NO_SELECTION, onAtomPick,
-  modeDisplacements, modePlaying = false, coordinateHighlights = NO_HIGHLIGHTS,
+  modeDisplacements, modePlaying = false, preserveView = false, coordinateHighlights = NO_HIGHLIGHTS,
 }: Molecule3DViewerProps) {
   const appearance = useAppearance();
   const hostRef = useRef<HTMLDivElement>(null);
@@ -82,7 +83,7 @@ export function Molecule3DViewer({
   const [viewer, setViewer] = useState<GLViewer | null>(null);
   const [thumbnail, setThumbnail] = useState('');
   const [visible, setVisible] = useState(!compact);
-  const [legacyGeometry, setLegacyGeometry] = useState<{atoms: Atom3D[]; bonds: {atom1:number;atom2:number;order:number}[]}>({atoms:[],bonds:[]});
+  const [legacyGeometry, setLegacyGeometry] = useState<{atoms: Atom3D[]; bonds: {atom1:number;atom2:number;order:number}[]; graph_status?: string}>({atoms:[],bonds:[]});
   const [loading, setLoading] = useState(false);
   const [sourceError, setSourceError] = useState('');
   const [renderError, setRenderError] = useState('');
@@ -91,11 +92,12 @@ export function Molecule3DViewer({
   const [showLabels, setShowLabels] = useState(false);
   const [showCoords, setShowCoords] = useState(false);
   const [renderMode, setRenderMode] = useState<'ball_stick'|'spacefill'|'wireframe'>('ball_stick');
-  const lastDataRef = useRef<ReturnType<typeof toRenderAtoms> | null>(null);
+  const lastDataRef = useRef<{atoms: ReturnType<typeof toRenderAtoms>; preserveView: boolean} | null>(null);
   const initialViewRef = useRef<number[] | null>(null);
   const fittedModeRef = useRef('');
   const active = !compact || visible;
   const structure = geometry ?? legacyGeometry;
+  const inferDisplayBonds = structure.graph_status === 'unresolved' && structure.bonds.length === 0;
   const modeIsReal = validModeDisplacements(structure.atoms, modeDisplacements);
   const renderData = useMemo(() => {
     try { return {atoms:toRenderAtoms(structure.atoms,structure.bonds,modeDisplacements),error:''}; }
@@ -107,8 +109,8 @@ export function Molecule3DViewer({
     setSourceError(''); setNumFragments(1);
     if (geometry) { setLoading(false); return; }
     if (xyz?.trim()) {
-      // XYZ supplies positions only. Display never guesses a molecular graph.
-      setLegacyGeometry({atoms:parseXyz(xyz).map(atom=>({...atom,index:atom.index+1})),bonds:[]});
+      // XYZ has no graph; distance links exist only in the display model.
+      setLegacyGeometry({atoms:parseXyz(xyz).map(atom=>({...atom,index:atom.index+1})),bonds:[],graph_status:'unresolved'});
       setLoading(false); return;
     }
     setLegacyGeometry({atoms:[],bonds:[]});
@@ -145,7 +147,7 @@ export function Molecule3DViewer({
     let slot: ViewerSlot;
     try {
       slot=acquireViewer(engine,host,compact);
-      lastDataRef.current=null; initialViewRef.current=null;fittedModeRef.current='';
+      lastDataRef.current=null;initialViewRef.current=null;fittedModeRef.current='';
       setRenderError(''); setViewer(slot.viewer);
     } catch(error) {
       setRenderError(`WebGL 三维显示不可用：${error instanceof Error?error.message:String(error)}`);
@@ -178,8 +180,7 @@ export function Molecule3DViewer({
     viewer.stopAnimate(); viewer.clear();
     if (!renderData.atoms.length) { viewer.render(); return; }
     const model=viewer.addModel();
-    // addAtoms copies the declared bonds. No format parser or assignBonds is invoked.
-    initializeRenderModel(model,renderData.atoms);
+    initializeRenderModel(model,renderData.atoms,inferDisplayBonds);
     const style: AtomStyleSpec = renderMode==='spacefill' ? {sphere:{scale:1}} : renderMode==='wireframe' ? {line:{linewidth:2},sphere:{scale:0.075}} : {sphere:{scale:0.27},stick:{radius:0.115}};
     model.setStyle({},style);
     if (selectedAtoms.length) model.setStyle({index:renderData.atoms.filter(atom=>selectedAtoms.includes(atom.serial)).map(atom=>atom.index)},{...style,sphere:{scale:renderMode==='spacefill'?1:renderMode==='wireframe'?0.13:0.3,color:highlight}});
@@ -207,10 +208,12 @@ export function Molecule3DViewer({
       const end=structure.atoms.find(atom=>atom.index===indices[index]);
       if(start && end)viewer.addLine({start,end,color:highlight,dashed:true,linewidth:2});
     }
-    if (compact || lastDataRef.current!==renderData.atoms || fittedModeRef.current!==renderMode) {
-      if (compact || !lastDataRef.current) viewer.setView([0,0,0,0,0,0,0,1]);
+    const keepCamera = preserveView && lastDataRef.current?.preserveView;
+    const geometryChanged = lastDataRef.current?.atoms!==renderData.atoms;
+    if (compact || !initialViewRef.current || (!keepCamera && geometryChanged) || fittedModeRef.current!==renderMode) {
+      if (compact || !initialViewRef.current) viewer.setView([0,0,0,0,0,0,0,1]);
       viewer.zoomTo();
-      if (compact || !lastDataRef.current) { viewer.rotate(17,'x'); viewer.rotate(-24,'y'); }
+      if (compact || !initialViewRef.current) { viewer.rotate(17,'x'); viewer.rotate(-24,'y'); }
       const padding=renderMode==='spacefill'?2.2:renderMode==='wireframe'?0.2:0.6;
       const bounds=(['x','y','z'] as const).map(axis=>[Math.min(...structure.atoms.map(atom=>atom[axis]))-padding,Math.max(...structure.atoms.map(atom=>atom[axis]))+padding]);
       const corners=bounds[0].flatMap(x=>bounds[1].flatMap(y=>bounds[2].map(z=>({x,y,z}))));
@@ -218,8 +221,8 @@ export function Molecule3DViewer({
       viewer.zoom(fitProjectedScale(viewer.modelToScreen(corners),viewport.clientWidth,viewport.clientHeight,compact?0.74:0.82));
       fittedModeRef.current=renderMode;
       initialViewRef.current=viewer.getView();
-      lastDataRef.current=renderData.atoms;
     }
+    lastDataRef.current={atoms:renderData.atoms,preserveView};
     viewer.render();
     if (compact) setThumbnail(viewer.pngURI());
     if (!compact && modePlaying && modeIsReal) {
@@ -227,14 +230,14 @@ export function Molecule3DViewer({
       viewer.animate({loop:'backAndForth',interval:35,startFrame:20});
     }
     return ()=>{viewer.stopAnimate();};
-  },[viewer,engine,active,renderData,structure,selectedAtoms,renderMode,showLabels,modePlaying,modeIsReal,coordinateHighlights,compact,appearance,!!onAtomPick]);
+  },[viewer,engine,active,renderData,structure,inferDisplayBonds,selectedAtoms,renderMode,showLabels,modePlaying,modeIsReal,preserveView,coordinateHighlights,compact,appearance,!!onAtomPick]);
 
   useEffect(()=>{if(viewer && active && !compact)viewer.spin(autoSpin?'y':false,0.45,true);},[viewer,autoSpin,active,compact]);
   const error=sourceError || renderData.error || renderError;
   const reset=()=>{if(viewer && initialViewRef.current){viewer.setView(initialViewRef.current);viewer.render();}};
   return <div className={`molecule-3d-container molecule-webgl ${compact?'molecule-compact':''} ${className}`}>
     {!compact && <><div className="viewer-3d-badge viewer-evidence-note" role="note">{modeDisplacements?'实际计算简正模 · 位移幅度已缩放':'当前显示几何未与科学证据绑定'}</div>
-      <div className="viewer-3d-header"><div className="viewer-3d-title"><span className="viewer-3d-badge">3D 分子结构</span>{title && <span className="viewer-3d-molname">{title}</span>}{isTransitionState && <span className="badge-ts-marker">{saddleEvidenceSupported?'鞍点证据已支持':'候选 TS · 未确证'}</span>}{structure.atoms.length>0 && <span className="viewer-3d-atomcount">{numFragments>1?`${numFragments} 分子体系 · `:''}{structure.atoms.length} 原子 · {structure.bonds.length} 键</span>}</div>
+      <div className="viewer-3d-header"><div className="viewer-3d-title"><span className="viewer-3d-badge">3D 分子结构</span>{title && <span className="viewer-3d-molname">{title}</span>}{isTransitionState && <span className="badge-ts-marker">{saddleEvidenceSupported?'鞍点证据已支持':'候选 TS · 未确证'}</span>}{structure.atoms.length>0 && <span className="viewer-3d-atomcount">{numFragments>1?`${numFragments} 分子体系 · `:''}{structure.atoms.length} 原子 · {inferDisplayBonds?'按距离显示连线':`${structure.bonds.length} 键`}</span>}</div>
         <div className="viewer-3d-controls"><div className="btn-group sm viewer-mode-switch" role="group" aria-label="分子显示方式">{([['ball_stick','球棍'],['spacefill','填充'],['wireframe','线框']] as const).map(([value,label])=><button key={value} type="button" className={`btn outline sm ${renderMode===value?'active':''}`} aria-pressed={renderMode===value} onClick={()=>setRenderMode(value)}>{label}</button>)}</div>
           <button type="button" className={`btn outline sm ${showLabels?'active':''}`} aria-pressed={showLabels} onClick={()=>setShowLabels(!showLabels)}>编号</button><button type="button" className={`btn outline sm ${autoSpin?'active':''}`} aria-pressed={autoSpin} onClick={()=>setAutoSpin(!autoSpin)}>{autoSpin?'停止自转':'自转'}</button><button type="button" className="btn ghost sm" onClick={reset}>复位</button><button type="button" className={`btn ghost sm ${showCoords?'active':''}`} aria-pressed={showCoords} onClick={()=>setShowCoords(!showCoords)}>XYZ</button>
         </div>

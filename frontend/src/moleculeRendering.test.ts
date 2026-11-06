@@ -30,6 +30,20 @@ assert.doesNotThrow(()=>realModel.vibrate(20,0.7,true));
 await realModel.setFrame(20);
 assert.deepEqual(realModel.selectedAtoms({}).map(atom=>[atom.x,atom.y,atom.z]),atoms.map(atom=>[atom.x,atom.y,atom.z]));
 assert.deepEqual(realModel.selectedAtoms({})[0].bondOrder,[2]);
+assert.deepEqual(realModel.selectedAtoms({})[2].bonds,[]);
+
+// Coordinate-only inputs show distance links in the render model without inventing a source graph.
+const water=[{index:1,symbol:'O',x:0,y:0,z:0},{index:2,symbol:'H',x:0.96,y:0,z:0},{index:3,symbol:'H',x:-0.24,y:0.93,z:0},{index:4,symbol:'H',x:5,y:0,z:0}];
+const coordinateAtoms=toRenderAtoms(water,[]);
+const coordinateModel=new GLModel(1);
+initializeRenderModel(coordinateModel,coordinateAtoms,true);
+assert.deepEqual(coordinateModel.selectedAtoms({}).map(atom=>atom.bonds),[[1,2],[0],[0],[]]);
+assert.deepEqual(coordinateModel.selectedAtoms({}).map(atom=>atom.bondOrder),[[1,1],[1],[1],[]]);
+assert.deepEqual(coordinateAtoms.map(atom=>atom.bonds),[[],[],[],[]]);
+assert.equal(coordinateModel.getNumFrames(),1);
+const emptyDeclaredModel=new GLModel(2);
+initializeRenderModel(emptyDeclaredModel,toRenderAtoms(water,[]));
+assert.deepEqual(emptyDeclaredModel.selectedAtoms({}).map(atom=>atom.bonds),[[],[],[],[]]);
 
 assert.equal(fitProjectedScale([{x:0,y:0},{x:200,y:130}],900,600,0.6),2.7);
 assert.equal(fitProjectedScale([{x:0,y:0},{x:1800,y:300}],900,600,0.6),0.3);

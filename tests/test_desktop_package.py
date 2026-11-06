@@ -7,6 +7,7 @@ import os
 import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -57,3 +58,32 @@ def test_macos_bundle_uses_embedded_runtime_and_prebuilt_ui(tmp_path, arguments)
     }
     if not arguments:
         assert (home_dir / "Desktop/Cloudra.app").resolve() == app
+
+
+def test_macos_package_keeps_its_applications_install_location(tmp_path, monkeypatch):
+    tools = ("osacompile", "sips", "iconutil", "codesign", "pkgbuild", "productbuild", "pkgutil")
+    if sys.platform != "darwin" or any(shutil.which(tool) is None for tool in tools):
+        pytest.skip("requires native macOS packaging tools")
+    # A tiny payload exercises the real package builder without downloading runtimes.
+    payload = tmp_path / "runtime"
+    payload.mkdir()
+    (payload / "runtime.txt").write_text("test runtime")
+    build = tmp_path / "build with spaces"
+    output = tmp_path / "packages"
+    monkeypatch.setenv("CLOUDRA_DESKTOP_PAYLOAD", str(payload))
+    monkeypatch.setenv("CLOUDRA_PACKAGE_BUILD", str(build))
+    monkeypatch.setenv("CLOUDRA_PACKAGE_OUTPUT", str(output))
+    result = subprocess.run(
+        ["bash", str(ROOT / "scripts/build-macos-package.sh")],
+        capture_output=True, text=True, timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    expanded = tmp_path / "expanded"
+    subprocess.run(
+        ["pkgutil", "--expand", str(build / "Cloudra-component.pkg"), str(expanded)],
+        check=True, capture_output=True, text=True, timeout=30,
+    )
+    info = ET.parse(expanded / "PackageInfo").getroot()
+    assert info.attrib["install-location"] == "/Applications"
+    assert not info.findall("relocate/bundle"), "Installer can relocate Cloudra.app into the build directory"
+    assert Path(info.find("bundle").attrib["path"]) == Path("Cloudra.app")

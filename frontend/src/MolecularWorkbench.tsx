@@ -67,6 +67,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
   const [scanAxis, setScanAxis] = useState(0);
   const [scanSlice, setScanSlice] = useState<Record<string,string>>({});
   const requestVersion = useRef(0);
+  const frameCache = useRef(new Map<number, GeometryView>());
   const closed = useRef(false);
   const loadedProject = useRef<string | null>(null);
   const onErrorRef = useRef(onError); onErrorRef.current = onError;
@@ -75,6 +76,10 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     const version = requestVersion.current;
     const result = await workbenchApi.fragments(project.id);
     if (!closed.current && version === requestVersion.current) setFragments(result.fragments);
+  };
+  const installDocument = (result: DocumentView) => {
+    frameCache.current = new Map(result.geometry ? [[result.selected_frame, result.geometry]] : []);
+    setDoc(result); setDraft(fromDocument(result)); setFrame(result.selected_frame); setFrameGeometry(result.geometry); setTitle(result.title); setView('draft');
   };
 
   useEffect(() => {
@@ -85,12 +90,13 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     setDiscardAction(null);
     loadedProject.current = project.id;
     const version = ++requestVersion.current;
+    frameCache.current.clear();
     setDoc(null); setDraft(null); setHistory([]); setSelection([]); setPreview(null); setDirty(false); setPlaying(false); setModeIndex(-1); setModePlaying(false); setError(''); setMessage(''); setFragmentPreview(null);
     if (nextSource) {
       setBusy(true);
       workbenchApi.open(project.id, nextSource).then(result => {
         if (version !== requestVersion.current || closed.current) return;
-        setDoc(result); setDraft(fromDocument(result)); setFrame(result.selected_frame); setFrameGeometry(result.geometry); setTitle(result.title); setView('draft'); setDirty(!!nextSource.smiles || !!nextSource.input_text);
+        installDocument(result); setDirty(!!nextSource.smiles || !!nextSource.input_text);
       }).catch(e => { if (version === requestVersion.current) fail(e); }).finally(() => { if (version === requestVersion.current) setBusy(false); });
     } else setBusy(false);
     workbenchApi.fragments(project.id).then(r => { if (version === requestVersion.current) setFragments(r.fragments); }).catch(e => { if (version === requestVersion.current) fail(e); });
@@ -118,14 +124,14 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
   };
   const commit = (next: Draft) => {
     if (draft) setHistory(h => [...h,draft]);
-    setDraft(next); setView('draft'); setDirty(true); setPreview(null); setModeIndex(-1); setModePlaying(false); setSelection([]);
+    setDraft(next); setView('draft'); setDirty(true); setPreview(null); setModeIndex(-1); setModePlaying(false); setPlaying(false); setSelection([]);
   };
   const updateSettings = (settings: Draft['settings']) => {
     if (!draft) return;
     setHistory(h => [...h,draft]); setDraft({...draft,settings}); setDirty(true);
   };
   const perform = async (action: Omit<EditRequest,'molecule'>, fragment?: string) => {
-    setError(''); setMessage(''); setBusy(true);
+    setError(''); setMessage(''); setBusy(true); setPlaying(false);
     const version = requestVersion.current;
     try {
       const base = operationBase();
@@ -144,30 +150,73 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
       catch(e) { if(version === requestVersion.current && !closed.current) fail(e); }
     }
   };
+  const readFrame = async (index: number) => {
+    const cached = frameCache.current.get(index);
+    if (cached) return cached;
+    const version = requestVersion.current;
+    const geometry = await workbenchApi.frame(project.id,doc!.document_id,index);
+    if (version === requestVersion.current && !closed.current) frameCache.current.set(index,geometry);
+    return geometry;
+  };
+  const showFrame = (index: number, geometry: GeometryView | null) => {
+    setFrame(index); setFrameGeometry(geometry); setView('source'); setSelection([]);
+  };
+  const playableFrames = doc?.frames.flatMap((summary,index)=>summary.has_geometry === false ? [] : [index]) ?? [];
   const selectFrame = async (index: number) => {
     if (!doc || busy) return;
     const version = requestVersion.current;
-    setBusy(true); setError(''); setPreview(null); setModeIndex(-1); setModePlaying(false); setFrame(index); setFrameGeometry(null); setView('source');
-    if (doc.frames[index]?.has_geometry === false) { setBusy(false); setMessage('此原生采样点未输出几何，保留标量事实；请选取有实际坐标的帧进行编辑。'); return; }
-    try { const g = await workbenchApi.frame(project.id,doc.document_id,index); if(version !== requestVersion.current || closed.current) return; setFrame(index); setFrameGeometry(g); setView('source'); setSelection([]); }
-    catch(e) { if(version === requestVersion.current && !closed.current) { fail(e); setPlaying(false); } } finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
+    setPlaying(false); setError(''); setMessage(''); setPreview(null); setModeIndex(-1); setModePlaying(false);
+    if (doc.frames[index]?.has_geometry === false) {
+      showFrame(index,null); setMessage('此原生采样点未输出几何，保留标量事实；请选取有实际坐标的帧进行编辑。'); return;
+    }
+    setBusy(true);
+    try {
+      const geometry = await readFrame(index);
+      if (version === requestVersion.current && !closed.current) showFrame(index,geometry);
+    } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); }
+    finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
+  };
+  const togglePlayback = async () => {
+    if (playing) { setPlaying(false); return; }
+    if (!doc || busy || playableFrames.length < 2) return;
+    const version = requestVersion.current;
+    setBusy(true); setError(''); setMessage('正在缓存动画帧…');
+    let next = 0;
+    try {
+      // Fetch once before playback, with four requests at most. The timer never waits on I/O.
+      await Promise.all(Array.from({length:Math.min(4,playableFrames.length)},async () => {
+        while (next < playableFrames.length && version === requestVersion.current && !closed.current) {
+          await readFrame(playableFrames[next++]);
+        }
+      }));
+      if (version !== requestVersion.current || closed.current) return;
+      const index = playableFrames.includes(frame) ? frame : playableFrames[0];
+      showFrame(index,frameCache.current.get(index)!);
+      setPreview(null); setModeIndex(-1); setModePlaying(false); setMessage(''); setPlaying(true);
+    } catch(e) { if (version === requestVersion.current && !closed.current) { setMessage(''); fail(e); } }
+    finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
   };
   useEffect(() => {
-    if (!playing || busy || !doc || doc.frames.length < 2) return;
-    const timer = window.setTimeout(() => { void selectFrame((frame+1)%doc.frames.length); },450);
-    return () => window.clearTimeout(timer);
-  },[playing,busy,frame,doc]);
+    if (!playing || busy || playableFrames.length < 2) return;
+    let position = playableFrames.indexOf(frame);
+    const timer = window.setInterval(() => {
+      position = (position+1)%playableFrames.length;
+      const index = playableFrames[position];
+      showFrame(index,frameCache.current.get(index)!);
+    },100);
+    return () => window.clearInterval(timer);
+  },[playing,busy,doc]);
   const close = () => { if (dirty) setDiscardAction({kind:'close'}); else onClose(); };
   const importSource = async (confirmed = false) => {
     if (!input.trim()) return;
     if (dirty && !confirmed) { setDiscardAction({kind:'import'}); return; }
     setDiscardAction(null);
-    setBusy(true); setError('');
-    const version = requestVersion.current;
+    setBusy(true); setError(''); setPlaying(false);
+    const version = ++requestVersion.current;
     try {
       const result = await workbenchApi.open(project.id,inputKind === 'path' ? {path:input.trim()} : inputKind === 'smiles' ? {smiles:input.trim()} : {input_text:input,input_format:inputKind});
       if(version !== requestVersion.current || closed.current) return;
-      setDoc(result); setDraft(fromDocument(result)); setFrame(result.selected_frame); setFrameGeometry(result.geometry); setTitle(result.title); setHistory([]); setSelection([]); setPreview(null); setDirty(true); setView('draft'); setModeIndex(-1); setModePlaying(false); setPlaying(false);
+      installDocument(result); setHistory([]); setSelection([]); setPreview(null); setDirty(true); setModeIndex(-1); setModePlaying(false);
     } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); } finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
   };
   const coordinateEdit = (): Omit<EditRequest,'molecule'> => {
@@ -222,10 +271,10 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     {discardAction && <div className="wb-preview" role="alert"><span>编辑稿尚未保存。继续将放弃这些修改。</span><button className="btn" onClick={()=>{const action=discardAction;setDiscardAction(null);if(action.kind==='close') onClose();else if(action.kind==='import') void importSource(true);else loadSource(action.source??null);}}>继续并放弃修改</button><button className="btn outline" onClick={()=>setDiscardAction(null)}>保留编辑稿</button></div>}
     {error && <div className="wb-error" role="alert">{error}</div>}{message && <div className="wb-message" role="status">{message}</div>}{busy && <div className="wb-muted" role="status">正在处理…</div>}
     <div className="wb-body"><main className="wb-main">
-      <div className="wb-toolbar"><button className={`btn outline sm ${view==='draft'?'active':''}`} disabled={!draft || !!preview} onClick={()=>{setView('draft');setModeIndex(-1);setModePlaying(false);}}>编辑稿</button><button className={`btn outline sm ${view==='source'?'active':''}`} disabled={!doc || !!preview} onClick={()=>{setView('source');setModeIndex(-1);setModePlaying(false);}}>来源帧</button><button className="btn outline sm" disabled={!history.length || busy} onClick={()=>{if(draft){const restored=undoDraft(history,draft);setDraft(restored.draft);setHistory(restored.history);setView('draft');setDirty(true);setPreview(null);setSelection([]);}}}>撤销</button>{view==='source' && <button className="btn outline sm" disabled={!frameGeometry || busy || !!preview} onClick={()=>{try{commit(operationBase());}catch(e){fail(e);}}}>以此帧建立编辑稿</button>}<span className="wb-muted">{mode ? '简正模使用其真实参考几何' : preview ? '修改预览' : view==='draft' ? `派生自 ${draft?.sourcePath ?? '新结构'} · 帧 ${(draft?.sourceFrame ?? 0)+1}` : `原始来源帧 ${frame+1}`}</span></div>
-      {geometry ? <Molecule3DViewer geometry={geometry} title={doc?.title} selectedAtoms={visibleSelection} onAtomPick={i=>{if(!preview && !mode){setSelection(s=>toggleAtomSelection(s,i));setTarget('');}}} modeDisplacements={mode?.displacements} modePlaying={modePlaying} coordinateHighlights={showCoordinates && visibleDraft && !(view==='source' && visibleDraft.atomMappingChanged) ? [...visibleDraft.frozen.map(c=>c.atoms),...visibleDraft.scans.map(c=>c.atoms)] : []} className="wb-viewer"/> : <div className="wb-empty">{doc ? '此点没有可用的原生几何，选择其他帧查看结构。' : '输入 SMILES、粘贴结构，或打开项目内的计算结果。'}</div>}
+      <div className="wb-toolbar"><button className={`btn outline sm ${view==='draft'?'active':''}`} disabled={!draft || !!preview} onClick={()=>{setPlaying(false);setView('draft');setModeIndex(-1);setModePlaying(false);}}>编辑稿</button><button className={`btn outline sm ${view==='source'?'active':''}`} disabled={!doc || !!preview} onClick={()=>{setPlaying(false);setView('source');setModeIndex(-1);setModePlaying(false);}}>来源帧</button><button className="btn outline sm" disabled={!history.length || busy} onClick={()=>{if(draft){const restored=undoDraft(history,draft);setDraft(restored.draft);setHistory(restored.history);setView('draft');setDirty(true);setPreview(null);setSelection([]);}}}>撤销</button>{view==='source' && <button className="btn outline sm" disabled={!frameGeometry || busy || !!preview} onClick={()=>{try{commit(operationBase());}catch(e){fail(e);}}}>以此帧建立编辑稿</button>}<span className="wb-muted">{mode ? '简正模使用其真实参考几何' : preview ? '修改预览' : view==='draft' ? `派生自 ${draft?.sourcePath ?? '新结构'} · 帧 ${(draft?.sourceFrame ?? 0)+1}` : `原始来源帧 ${frame+1}`}</span></div>
+      {geometry ? <Molecule3DViewer key={`${doc?.document_id}:${doc?.geometry?.molecule}`} geometry={geometry} preserveView={view==='source' && !preview && !mode} title={doc?.title} selectedAtoms={visibleSelection} onAtomPick={i=>{if(!preview && !mode){setSelection(s=>toggleAtomSelection(s,i));setTarget('');}}} modeDisplacements={mode?.displacements} modePlaying={modePlaying} coordinateHighlights={showCoordinates && visibleDraft && !(view==='source' && visibleDraft.atomMappingChanged) ? [...visibleDraft.frozen.map(c=>c.atoms),...visibleDraft.scans.map(c=>c.atoms)] : []} className="wb-viewer"/> : <div className="wb-empty">{doc ? '此点没有可用的原生几何，选择其他帧查看结构。' : '输入 SMILES、粘贴结构，或打开项目内的计算结果。'}</div>}
       {preview && <div className="wb-preview"><span>检查移动部分、连接关系和镜像结果。</span><button className="btn" onClick={()=>void confirmPreview()}>确认修改</button><button className="btn outline" onClick={()=>setPreview(null)}>取消预览</button></div>}
-      {doc && <section className="wb-section"><div className="wb-toolbar"><strong>{doc.task_type || '来源结构'} · {doc.frames.length} 帧</strong><button className="btn outline sm" disabled={doc.frames.length<2} onClick={()=>setPlaying(!playing)}>{playing?'暂停帧播放':'播放各帧'}</button><button className="btn outline sm" onClick={()=>void csv()}>导出 CSV</button></div>
+      {doc && <section className="wb-section"><div className="wb-toolbar"><strong>{doc.task_type || '来源结构'} · {doc.frames.length} 帧</strong><button className="btn outline sm" disabled={busy || playableFrames.length<2} onClick={()=>void togglePlayback()}>{playing?'暂停帧播放':'播放各帧'}</button><button className="btn outline sm" onClick={()=>void csv()}>导出 CSV</button></div>
         <label>来源帧 {frame+1} / {doc.frames.length}<input aria-label="来源帧" type="range" min={0} max={Math.max(0,doc.frames.length-1)} value={frame} disabled={busy} onChange={e=>{setPlaying(false);void selectFrame(Number(e.target.value));}}/></label>
         <p className="wb-facts">步 {frameFacts?.step ?? '未知'} · 能量 {frameFacts?.energy_hartree ?? '未知'} Hartree · RMS 力 {frameFacts?.rms_force ?? '未知'} {frameFacts?.force_unit ?? ''} · 最大力 {frameFacts?.max_force ?? '未知'} {frameFacts?.force_unit ?? ''} · {frameFacts?.converged === true ? '原生记录已收敛' : frameFacts?.converged === false ? '原生记录未收敛' : '收敛状态未知'}{frameFacts?.path_number != null && ` · 路径 ${frameFacts.path_number}`}</p>
         <select aria-label="曲线指标" value={metric} onChange={e=>setMetric(e.target.value as Metric)}>{Object.entries(metricLabel).map(([key,value])=><option key={key} value={key}>{value}</option>)}</select><Curve frames={doc.frames} metric={metric} selected={frame} onSelect={i=>{setPlaying(false);void selectFrame(i);}}/>
@@ -245,11 +294,11 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
         {visibleDraft?.frozen.map((c,i)=><div className="wb-definition" key={`f${i}`}><button className="btn ghost sm" disabled={!!preview} onClick={()=>{setView('draft');setModeIndex(-1);setSelection(c.atoms);setTarget(String(c.value));}}>冻结 {c.atoms.join(' → ')} = {c.value} · 当前 {geometry && !(view==='source' && visibleDraft.atomMappingChanged) ? measureCoordinate(geometry.atoms,c.atoms)?.toFixed(4) ?? '?' : '?'}</button><button className="btn ghost sm" disabled={!!preview} onClick={()=>draft && commit({...draft,frozen:draft.frozen.filter((_,n)=>n!==i)})}>删除</button></div>)}
         {visibleDraft?.scans.map((c,i)=><div className="wb-definition" key={`s${i}`}><button className="btn ghost sm" disabled={!!preview} onClick={()=>{setView('draft');setModeIndex(-1);setSelection(c.atoms);setScanStart(String(c.scan_start));setScanEnd(String(c.scan_end));setScanSteps(String(c.scan_steps));}}>扫描 {c.atoms.join(' → ')}: {c.scan_start} → {c.scan_end}, {c.scan_steps} 步</button><button className="btn ghost sm" disabled={!!preview} onClick={()=>draft && commit({...draft,scans:draft.scans.filter((_,n)=>n!==i)})}>删除</button></div>)}
       </section>
-      <section className="wb-section"><h3>连接关系与镜像</h3><p className="wb-muted">图状态：{geometry?.graph_status ?? '未知'}。坐标文件不会自动推断化学键。</p><select aria-label="键级" value={bondOrder} onChange={e=>setBondOrder(Number(e.target.value))}><option value={0}>删除键</option><option value={1}>单键</option><option value={1.5}>芳香键</option><option value={2}>双键</option><option value={3}>三键</option></select><button className="btn outline" disabled={!editable || selection.length!==2} onClick={()=>void perform({action:'bond',atoms:selection,order:bondOrder})}>预览连接修改</button><button className="btn ghost" disabled={!editable} onClick={()=>void perform({action:'resolve_bonds'})}>明确感知连接关系</button>
+      <section className="wb-section"><h3>连接关系与镜像</h3><p className="wb-muted">图状态：{geometry?.graph_status ?? '未知'}。坐标文件默认按距离显示连线；编辑连接关系时可明确感知化学键。</p><select aria-label="键级" value={bondOrder} onChange={e=>setBondOrder(Number(e.target.value))}><option value={0}>删除键</option><option value={1}>单键</option><option value={1.5}>芳香键</option><option value={2}>双键</option><option value={3}>三键</option></select><button className="btn outline" disabled={!editable || selection.length!==2} onClick={()=>void perform({action:'bond',atoms:selection,order:bondOrder})}>预览连接修改</button><button className="btn ghost" disabled={!editable} onClick={()=>void perform({action:'resolve_bonds'})}>明确感知连接关系</button>
         <label>镜面<select value={plane} onChange={e=>setPlane(e.target.value as typeof plane)}><option value="xy">XY</option><option value="xz">XZ</option><option value="yz">YZ</option></select></label><button className="btn outline" disabled={!editable} onClick={()=>void perform({action:'mirror',plane,...(moving.trim()?{moving_atoms:atomList(moving)}:{})})}>预览{moving.trim()?'指定原子':'整分子'}镜像</button>
       </section>
       <section className="wb-section"><h3>基团替换与共享历史</h3><p>依次选择保留侧、被替换侧原子。预览后确认才记录使用次数。</p><label>基团 SMILES<input value={fragmentSmiles} onChange={e=>{setFragmentSmiles(e.target.value);setFragmentPreview(null);}} placeholder="带 [*:1] 连接点，或在预览中点选"/></label><label>名称（可选）<input value={fragmentName} onChange={e=>setFragmentName(e.target.value)}/></label><button className="btn outline" disabled={busy || !fragmentSmiles.trim()} onClick={()=>void previewFragment()}>预览基团／选择连接原子</button>
-        {fragmentPreview && <div className="wb-fragment-preview"><Molecule3DViewer geometry={fragmentPreview} selectedAtoms={attachment?[Number(attachment)]:[]} onAtomPick={i=>setAttachment(String(i))} title="基团连接位置"/></div>}
+        {fragmentPreview && <div className="wb-fragment-preview"><Molecule3DViewer key={fragmentPreview.molecule} geometry={fragmentPreview} selectedAtoms={attachment?[Number(attachment)]:[]} onAtomPick={i=>setAttachment(String(i))} title="基团连接位置"/></div>}
         <label>基团连接原子编号（有标记时可空）<input type="number" min={1} value={attachment} onChange={e=>setAttachment(e.target.value)}/></label><button className="btn outline" disabled={!editable || selection.length!==2 || !fragmentSmiles.trim()} onClick={()=>void perform({action:'replace_group',atoms:selection,smiles:fragmentSmiles,...(attachment?{attachment_atom:Number(attachment)}:{})},fragmentSmiles)}>预览替换结果</button>
         <input aria-label="搜索基团历史" placeholder="搜索名称或 SMILES" value={fragmentSearch} onChange={e=>setFragmentSearch(e.target.value)}/><div className="wb-fragments">{fragments.filter(f=>`${f.name} ${f.smiles}`.toLowerCase().includes(fragmentSearch.toLowerCase())).map(f=><div key={f.id}><button className="btn ghost" onClick={()=>{setFragmentSmiles(f.smiles);setFragmentName(f.name);setFragmentPreview(f.geometry??null);setAttachment(f.attachment_atom?String(f.attachment_atom):'');}}>{f.name || f.smiles}<small>{f.project_use_count?'本项目用过 · ':''}累计 {f.use_count} 次 · {f.smiles}</small></button><button className="btn ghost sm" aria-label={`删除基团 ${f.name || f.smiles}`} onClick={()=>{void workbenchApi.deleteFragment(project.id,f.id).then(refreshFragments).catch(fail);}}>×</button></div>)}</div>
       </section>
