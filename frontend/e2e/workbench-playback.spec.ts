@@ -2,6 +2,10 @@ import { expect, test, type Page } from '@playwright/test';
 import type { DocumentView, GeometryView } from '../src/workbenchTypes';
 import { PROJECT_ACTIVE, installApiMocks, openSpa } from './fixtures';
 
+// These tests need real WebGL; keep software rendering local to this file.
+test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
+test.describe.configure({ mode: 'default' });
+
 const geometries: Record<number, GeometryView> = Object.fromEntries([0, 1, 3].map((index) => {
   const x = 1 + index * 0.1;
   const xyz = `2\nFrame ${index}\nH 0 0 0\nH ${x} 0 0`;

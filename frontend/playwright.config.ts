@@ -16,8 +16,6 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
-    // Hosted runners have no GPU; use Chromium's software WebGL renderer explicitly.
-    launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] },
     ...devices['Desktop Chrome'],
   },
   webServer: {
