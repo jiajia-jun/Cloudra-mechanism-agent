@@ -16,20 +16,9 @@ Windows 的详细步骤见 [`windows` 分支教程](https://github.com/yyywaa/Cl
 
 ## 下载安装包
 
-当前安装包通过 GitHub Actions 的构建产物提供，尚未作为正式版本发布到 Releases。文件是否可下载，以对应打包工作流成功完成并上传产物为准。
+macOS 和 Linux 安装包直接从 [v0.1.1rc Release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1rc) 下载。Apple Silicon Mac 选择 `arm64`，Intel Mac 选择 `x86_64`；Linux x86_64 可选 `.deb` 或便携 `.tar.gz`。
 
-1. 登录 GitHub，打开项目的 [Actions 页面](https://github.com/yyywaa/Cloudra-mechanism-agent/actions)。
-2. 选择对应系统的打包工作流，打开目标分支最近一次成功的构建。
-3. 在页面底部的 **Artifacts** 区域下载对应系统与架构的产物，名称见下表。
-4. 解压下载的外层 ZIP，找到其中的 `.pkg`、`.deb`、`.tar.gz` 或 `Setup.exe` 文件。
-
-| 系统 | 打包工作流 | 产物名称 |
-| --- | --- | --- |
-| macOS | [macOS installer](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/package-macos.yml) | `Cloudra-macos-arm64` 或 `Cloudra-macos-x86_64` |
-| Linux | [Linux desktop packages](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/package-linux.yml) | `Cloudra-linux-x64` |
-| Windows | [Windows 安装包](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/windows-installer.yml) | `windows-installer-x64` |
-
-下载构建产物需要登录 GitHub，参见 [GitHub 官方说明](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)。如果没有对应产物，可等待打包成功，或使用[源码安装](#从源码安装)。
+实验性 Windows 安装包由单独的 `windows` 分支维护。在成功的 [Windows installer 工作流](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/windows-installer.yml)中下载 `windows-installer-x64` 构建产物；下载 Actions 构建产物需要登录 GitHub。
 
 ## macOS 安装
 

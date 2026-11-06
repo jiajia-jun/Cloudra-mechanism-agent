@@ -16,20 +16,9 @@ See the [Windows guide on the `windows` branch](https://github.com/yyywaa/Cloudr
 
 ## Download a package
 
-Packages are currently provided as GitHub Actions build artifacts and have not been published as formal Releases. A package becomes downloadable when its packaging workflow finishes successfully and uploads the artifact.
+Download the macOS or Linux installer for your system directly from the [v0.1.1rc release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1rc). Choose the `arm64` package for Apple Silicon or `x86_64` for Intel Macs. Linux offers both a `.deb` and a portable `.tar.gz` for x86_64.
 
-1. Sign into GitHub and open the repository's [Actions page](https://github.com/yyywaa/Cloudra-mechanism-agent/actions).
-2. Select the packaging workflow for your system, then open a recent successful build of the branch you want.
-3. Download the artifact for your system and architecture from **Artifacts** at the bottom of the page. Names are listed below.
-4. Extract the downloaded outer ZIP to find the `.pkg`, `.deb`, `.tar.gz` or `Setup.exe` inside.
-
-| System | Packaging workflow | Artifact name |
-| --- | --- | --- |
-| macOS | [macOS installer](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/package-macos.yml) | `Cloudra-macos-arm64` or `Cloudra-macos-x86_64` |
-| Linux | [Linux desktop packages](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/package-linux.yml) | `Cloudra-linux-x64` |
-| Windows | [Windows installer](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/windows-installer.yml) | `windows-installer-x64` |
-
-GitHub requires you to be signed in to download workflow artifacts; see [GitHub's instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts). If a package is unavailable, wait for a successful packaging run or [install from source](#install-from-source).
+Experimental Windows packages are maintained on the separate `windows` branch. Find them in a successful [Windows installer workflow](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/windows-installer.yml) run as the `windows-installer-x64` artifact; GitHub sign-in is required to download workflow artifacts.
 
 ## Install on macOS
 

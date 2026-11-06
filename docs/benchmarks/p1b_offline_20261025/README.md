@@ -42,9 +42,19 @@
 
 CSV 的 `undelivered` 沿用当前评分器对 `.cloudra/mechanism_evidence.json` 是否存在的标记；该标记本身不扣综合分，也不等于机理图缺失。`selfconsistency_score` 为连续分，`selfconsistency_passed` 为完整科学自洽验收结果。`seconds` 是本机离线评分耗时，不是研究运行成本。
 
-## 复现 HA1 / r2
+## 复现 Standard 12 次与 HA1 / r2
 
-先按 [P1b 交付说明](../P1B_DELIVERY.md)还原主包。以下在仓库根目录运行，参数分别为已解压的 `cloudra-p1b-20261024` 目录与一个尚不存在的输出目录；示例将原沙箱复制后放入离线机理图。
+先按 [P1b 交付说明](../P1B_DELIVERY.md)还原主包。在仓库根目录把 12 次 Standard 运行交给 `BenchmarkRunner.score_sandbox`。HA1/r2 使用本目录的 `ha1_r2_graph.json`，其余使用沙箱里的原生图。输出目录要放在主包外面。这条命令只读归档，不新增模型运行或量化计算。未写 `--p1b-offline` 时用的就是本目录。
+
+```bash
+.venv/bin/python -m cloudra.benchmark.rescore_archive \
+  --p1b-root /path/to/cloudra-p1b-20261024 \
+  --output /tmp/p1b-standard-rescore
+```
+
+只看 HA1/r2 时把 `--only standard/r2/HA1` 加到上面的命令。P2 与这条 P1b 路径一起运行的写法见 [P2 交付说明](../P2_DELIVERY.md#rescore-archived-deliveries)。
+
+下面的片段保留单次调用的样子：参数分别为已解压的 `cloudra-p1b-20261024` 目录与一个尚不存在的输出目录，并把离线机理图放进复制出的沙箱。
 
 ```bash
 .venv/bin/python - /path/to/cloudra-p1b-20261024 /tmp/p1b-ha1-replay <<'PY'

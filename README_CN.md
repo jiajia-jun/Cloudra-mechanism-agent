@@ -44,7 +44,7 @@ Cloudra 预印本已在 [arXiv](https://arxiv.org/abs/2611.02909) 公开。
 | Linux | 安装 `.deb`，或解压便携 `.tar.gz`，然后打开 Cloudra；见[Linux 教程](docs/INSTALL_CN.md#linux-安装)。 |
 | Windows，原生运行 | 双击 `Setup.exe` 安装，从开始菜单或桌面打开；见 [`windows` 分支教程](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS_CN.md)。 |
 
-当前安装包通过成功打包后的 [GitHub Actions 构建产物](docs/INSTALL_CN.md#下载安装包)提供，尚未发布为正式 Releases；macOS 测试包尚未完成开发者签名和公证。开发者及自行部署的用户可按[源码安装步骤](docs/INSTALL_CN.md#从源码安装)使用现有安装脚本。
+macOS 和 Linux 安装包可从 [v0.1.1rc Release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1rc) 下载；macOS 测试包尚未完成开发者签名和公证。开发者及自行部署的用户可按[源码安装步骤](docs/INSTALL_CN.md#从源码安装)使用现有安装脚本。
 
 1. 在全局设置（Global Setting）中配置主 Agent 与协作 Agent 的模型。可使用 OpenAI 兼容接口，也可选择 ChatGPT / Codex 账号登录。同时，也可以选择您偏好的前端UI风格。
 2. 配置研究所需的计算软件和节点；远端计算（如基于SLURM的集群计算）见[部署指南](docs/README.md#部署与配置)。

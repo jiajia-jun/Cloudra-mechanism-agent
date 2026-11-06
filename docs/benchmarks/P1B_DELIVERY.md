@@ -47,4 +47,4 @@ unzip cloudra-p1b-20261025-offline-results.zip -d p1b-offline
 
 正式评估采用运行采集轨迹、离线统一整理并评分的口径；人工整理及字段来源需要记录，各组采用同一规则，不能按 Gold 补入本次运行没有的科学结论或证据。
 
-随后按组别、轮次和题目查看原始运行、交付图与量化产物。历史补充包保留的 `rescore.py` 和 `compare_rescore.py` 硬编码工作站路径；此次 HA1/r2 的可移植复现步骤、评分器版本与路径迁移记录在新结果包中。
+随后按组别、轮次和题目查看原始运行、交付图与量化产物。历史补充包保留的 `rescore.py` 和 `compare_rescore.py` 硬编码工作站路径，只作为当时的记录。Standard 12 次运行的可移植重评分使用 [归档重评分命令](P2_DELIVERY.md#rescore-archived-deliveries)：主包提供沙箱，离线整理结果提供 HA1/r2 机理图，工作站绝对路径按沙箱内已经存在的文件改写。评分器版本与路径迁移记录仍在[离线整理结果](p1b_offline_20261025/README.md)。
