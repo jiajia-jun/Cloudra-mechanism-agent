@@ -337,9 +337,7 @@
 :root[data-appearance='modernism'] .project-node.active > .project-node-header { background: transparent; color: var(--accent); }
 :root[data-appearance='modernism'] .project-agent-swarm { background: rgba(214, 239, 255, 0.22); border-color: var(--border); }
 :root[data-appearance='modernism'] .project-title-text { font-size: 13px; }
-:root[data-appearance='modernism'] .agentbar { min-height: 72px; padding: 14px 18px; gap: 16px; flex-wrap: wrap; border-radius: 24px; }
-:root[data-appearance='modernism'] .agentbar-left { flex-wrap: wrap; flex-basis: 220px; }
-:root[data-appearance='modernism'] .agentbar-group.system-controls { flex-wrap: wrap; }
+:root[data-appearance='modernism'] .agentbar { min-height: 72px; padding: 14px 18px; gap: 16px; border-radius: 24px; }
 :root[data-appearance='modernism'] .brand-logo-text { color: var(--fg); }
 :root[data-appearance='modernism'] .agentbar .view-mode-switcher { padding: 4px; border-radius: 999px; border: 1px solid var(--border); background: rgba(190, 226, 248, 0.3); }
 :root[data-appearance='modernism'] .view-mode-switcher .view-mode-btn { height: 34px; padding: 0 16px; border-radius: 999px; }
@@ -486,12 +484,10 @@
 :root[data-appearance='acid'] .btn.ghost { padding: 0 10px; color: var(--fg-secondary); }
 :root[data-appearance='acid'] :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 :root[data-appearance='acid'] .agentbar { padding: 16px 28px; gap: 20px; background: #ffffff; min-height: 76px; }
-:root[data-appearance='acid'] .agentbar-left { min-width: 0; flex: 1; }
 :root[data-appearance='acid'] .brand-logo-text { font-size: 18px; }
-:root[data-appearance='acid'] .header-breadcrumb { min-width: 0; flex-wrap: wrap; row-gap: 4px; }
 :root[data-appearance='acid'] .breadcrumb-project { font-size: 14px; }
 :root[data-appearance='acid'] .breadcrumb-separator { display: none; }
-:root[data-appearance='acid'] :is(.breadcrumb-agent, .breadcrumb-agent-wrap) { flex-basis: 100%; font-size: 12px; }
+:root[data-appearance='acid'] :is(.breadcrumb-agent, .breadcrumb-agent-wrap) { font-size: 12px; }
 :root[data-appearance='acid'] .agentbar .view-mode-switcher { padding: 4px; gap: 2px; border: 0; border-radius: 12px; background: #f1f4e9; }
 :root[data-appearance='acid'] .view-mode-switcher .view-mode-btn { height: 34px; padding: 0 16px; border-radius: 8px; }
 :root[data-appearance='acid'] .view-mode-switcher .view-mode-btn.active { background: #ffffff; color: var(--fg); box-shadow: 0 1px 3px rgba(48, 59, 39, 0.1); }
@@ -576,9 +572,6 @@
 :root[data-appearance='acid'] :is(.agent-status-badge.state-idle, .agent-status-badge.state-cancelled) { color: var(--fg-tertiary); }
 :root[data-appearance='acid'] :is(.task-banner-text, .breadcrumb-task-text) { color: var(--accent); }
 @media (max-width: 1240px) {
-  :root[data-appearance='acid'] .agentbar { flex-wrap: wrap; gap: 12px 20px; }
-  :root[data-appearance='acid'] .agentbar-left { flex-basis: calc(100% - 220px); }
-  :root[data-appearance='acid'] .agentbar-group.system-controls { width: 100%; justify-content: flex-end; }
   :root[data-appearance='acid'] .console-subnav-pills { gap: 16px; }
 }
 @media (max-width: 1240px) {
