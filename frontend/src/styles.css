@@ -635,6 +635,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 100%;
 }
 .breadcrumb-agent-select {
   background: var(--bg-layer);
@@ -646,6 +649,7 @@ body {
   padding: 0 8px;
   outline: none;
   cursor: pointer;
+  min-width: 80px;
   max-width: 220px;
   white-space: nowrap;
   overflow: hidden;
@@ -1076,6 +1080,8 @@ body {
 
 .agentbar {
   display: flex;
+  flex-wrap: wrap;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -1089,12 +1095,16 @@ body {
   align-items: center;
   gap: 10px;
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 560px;
+  max-width: 100%;
 }
 .header-breadcrumb {
   display: flex;
+  flex: 1;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  row-gap: 4px;
   min-width: 0;
   font-size: 13px;
   white-space: nowrap;
@@ -1105,7 +1115,7 @@ body {
   color: var(--fg);
   cursor: pointer;
   white-space: nowrap;
-  flex-shrink: 0;
+  flex-shrink: 1;
   max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1125,7 +1135,9 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex: 1 1 240px;
   min-width: 0;
+  max-width: 100%;
   color: var(--fg-secondary);
   font-weight: 500;
   overflow: hidden;
@@ -1136,6 +1148,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 220px;
+}
+.header-breadcrumb .completion-badge {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .agentbar-group {
   display: flex;
@@ -1157,7 +1174,9 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-shrink: 0;
+  flex-wrap: wrap;
+  flex-shrink: 1;
+  max-width: 100%;
 }
 .agentbar-divider {
   width: 1px;
@@ -7851,6 +7870,7 @@ body {
   border: 1px solid rgba(16, 185, 129, 0.28);
   border-radius: 4px;
   padding: 2px 7px;
+  min-width: 0;
   max-width: 240px;
 }
 
