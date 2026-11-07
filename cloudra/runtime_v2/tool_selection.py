@@ -14,6 +14,20 @@ from cloudra.runtime_v2.event_writer import EventPersistenceError
 from cloudra.runtime_v2.schemas import AgentSession, RuntimeSettings
 from cloudra.tools.documentation import ToolCapabilitySummary, catalog_revision, validate_tool_names
 
+_DOCUMENT_SELECTION_GUIDANCE = (
+    'Select only the smallest set of full tool contracts needed to start this task. '
+    'Consider prerequisites and existing state, not just execution: get_skill to read a relevant SOP before acting; '
+    'goal_set/todo_write for a long task; ts_inspect for an existing TS run; '
+    'dag_view/dag_delivery_report for existing mechanism or delivery state; '
+    'get_subagent_report for existing delegated results. These are task-dependent reminders, '
+    'not a required bundle. Exclude later stages, optional analyses, speculative contingencies '
+    'and alternatives for the same purpose; if uncertain, omit. All permitted tool briefs remain '
+    'available and omitted tools remain callable; additional contracts can be read later with '
+    'get_tool_docs. get_tool_docs and update_memory already have complete bootstrap contracts: '
+    'never select them again. agent_hub is provided directly, including knowledge queries, '
+    'and needs no preload. '
+)
+
 
 class ToolSelectionResult(BaseModel):
     model_config = ConfigDict(extra='forbid')
@@ -96,16 +110,7 @@ class ToolDocumentSelector:
             elif source == 'llm':
                 directory = '\n'.join(f'- {item.name}: {item.summary}' for item in candidates)
                 response = await asyncio.wait_for(self.llm.select_tool_names(agent, [
-                    {'role':'system','content': 'Strictly select the smallest set of complete tool contracts '
-                        'essential to START the task with its first concrete actions. This is an initial '
-                        'documentation preload, not a tool plan for the entire workflow. '
-                        'All permitted tool names and brief purposes remain available. The agent can '
-                        'read any additional contract later with get_tool_docs; omitted tools remain callable. '
-                        'Include a tool only when its full contract is clearly needed immediately. '
-                        'Exclude later-stage tools, speculative contingencies, optional analyses and '
-                        'alternative tools for the same purpose. If uncertain, omit it and load its '
-                        'documentation when needed. Prefer too few initial documents over too many. '
-                        'get_tool_docs already has its complete bootstrap contract: never preload it. '
+                    {'role':'system','content': _DOCUMENT_SELECTION_GUIDANCE +
                         'Return [] if no tool contract is immediately needed. '
                         'Return only a JSON array of exact tool names. Do not execute tools, '
                         'choose scientific methods or generate documentation.\nAvailable tools:\n'+directory},
@@ -135,14 +140,10 @@ class ToolDocumentSelector:
         if source == 'jev':
             payload = {'model':backend.model, 'state':{'task':task}, 'questions':{
                 item.name: {'type':'noul', 'instructions': 'Is this complete tool contract clearly essential '
-                    'for the first concrete actions needed to START the task? Apply a strict standard: '
-                    'later-stage, optional, speculative or alternative tools do not qualify. '
-                    'All tool briefs remain available, and additional contracts can be read later '
-                    'with get_tool_docs; when uncertain, prefer exclusion. The get_tool_docs '
-                    'bootstrap contract is already provided and does not qualify for preloading. '
+                    'for the first concrete actions needed to START the task? ' + _DOCUMENT_SELECTION_GUIDANCE +
                     f'Tool {item.name}: {item.summary}'} for item in candidates}}
         else:
-            payload = {'model':backend.model,'query':task,
+            payload = {'model':backend.model,'query':f'Task:\n{task}\n\n{_DOCUMENT_SELECTION_GUIDANCE}',
                 'documents':[f'Tool {item.name}: {item.summary}' for item in candidates]}
         async with httpx.AsyncClient(transport=self.transport, timeout=30) as client:
             response = await client.post(backend.endpoint, json=payload, headers=headers)
