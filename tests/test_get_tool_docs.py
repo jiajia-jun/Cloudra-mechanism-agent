@@ -55,11 +55,18 @@ async def test_reader_requires_read_permission():
     assert result.documents == []
 
 
-def test_js_bootstrap_keeps_briefs_and_reader_but_not_business_types():
-    instructions = javascript_instructions(['ts_prepare', 'ts_inspect', 'get_tool_docs'], role_id='coordinator')
+@pytest.mark.parametrize('include_memory', [False, True])
+def test_js_bootstrap_keeps_briefs_and_default_contracts(include_memory):
+    names = ['ts_prepare', 'ts_inspect', 'get_tool_docs']
+    if include_memory:
+        names.append('update_memory')
+    instructions = javascript_instructions(names, role_id='coordinator')
     assert 'ts_prepare' in instructions
     assert 'ts_inspect' in instructions
     assert 'get_tool_docs(args:' in instructions
+    assert ('update_memory(args:' in instructions) is include_memory
+    if include_memory:
+        assert '"lesson": string;' in instructions
     assert 'ts_prepare(args:' not in instructions
     assert 'ts_inspect(args:' not in instructions
 

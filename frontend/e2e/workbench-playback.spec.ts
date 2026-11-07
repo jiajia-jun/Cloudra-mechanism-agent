@@ -69,27 +69,38 @@ test('manual frame changes retain the canvas during a slow fetch and reuse loade
 });
 
 test('playback prepares coordinates once then loops locally without blank frames or canvas replacement', async ({ page }) => {
+  // Check playback ticks independently of the software WebGL rendering speed.
+  await page.clock.install();
   const { dialog, requests } = await openTrajectory(page);
+  await page.clock.pauseAt(Date.now() + 1000);
   await dialog.getByRole('button', { name: '播放各帧', exact: true }).click();
   await expect.poll(() => requests.includes(1) && requests.includes(3)).toBe(true);
   await expect(dialog.getByRole('slider', { name: '来源帧' })).toBeEnabled();
-  const sample = (playing = true) => page.evaluate(async (playing) => {
-    const canvas = document.querySelector('.wb-viewer canvas');
-    const slider = document.querySelector<HTMLInputElement>('input[aria-label="来源帧"]')!;
-    const values = [slider.value];
-    let intact = !!canvas;
-    await new Promise<void>((resolve) => {
-      const finish = () => { observer.disconnect(); window.clearTimeout(timer); resolve(); };
+  const sample = async (playing = true) => {
+    if (playing) await expect(dialog.getByRole('button', { name: '暂停帧播放', exact: true })).toBeEnabled();
+    const slider = dialog.getByRole('slider', { name: '来源帧' });
+    let expectedFrame = await slider.inputValue();
+    const nextFrame: Record<string, string> = { '0': '1', '1': '3', '3': '0' };
+    const observation = await page.evaluateHandle(() => {
+      const canvas = document.querySelector('.wb-viewer canvas');
+      const slider = document.querySelector<HTMLInputElement>('input[aria-label="来源帧"]')!;
+      const sample = { values: [slider.value], intact: !!canvas };
       const observer = new MutationObserver(() => {
-        intact &&= canvas === document.querySelector('.wb-viewer canvas');
-        if (values.at(-1) !== slider.value) values.push(slider.value);
-        if (playing && values.length >= 7) finish();
+        sample.intact &&= canvas === document.querySelector('.wb-viewer canvas');
+        if (sample.values.at(-1) !== slider.value) sample.values.push(slider.value);
       });
       observer.observe(document.querySelector('.molecular-workbench')!, { childList: true, attributes: true, attributeFilter: ['value'], subtree: true });
-      const timer = window.setTimeout(finish, playing ? 10_000 : 600);
+      return { sample, observer };
     });
-    return { intact, values };
-  }, playing);
+    for (let tick = 0; tick < 6; tick++) {
+      if (playing) expectedFrame = nextFrame[expectedFrame];
+      await page.clock.runFor(100);
+      await expect(slider).toHaveValue(expectedFrame);
+    }
+    const result = await observation.evaluate(({ sample, observer }) => { observer.disconnect(); return sample; });
+    await observation.dispose();
+    return result;
+  };
   const firstLoop = await sample();
   expect(firstLoop.intact).toBe(true);
   expect(firstLoop.values.length).toBeGreaterThanOrEqual(7);

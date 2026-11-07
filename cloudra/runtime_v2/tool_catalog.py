@@ -225,7 +225,7 @@ def javascript_instructions(
     """
     names = guest_tool_names(tool_names, visual_mode=visual_mode,
         orchestration_mode=orchestration_mode, role_id=role_id)
-    declarations = tool_declarations(['get_tool_docs'] if 'get_tool_docs' in names else [],
+    declarations = tool_declarations([name for name in ('get_tool_docs', 'update_memory') if name in names],
         visual_mode=visual_mode, orchestration_mode=orchestration_mode, role_id=role_id)
     manifest = tool_capability_manifest(names, visual_mode=visual_mode,
         orchestration_mode=orchestration_mode, role_id=role_id)
@@ -262,7 +262,7 @@ def javascript_instructions(
         "program in a later js_exec call.\n"
         "- Program output is not scientific evidence; completed child call "
         "results are recorded as tool.result_recorded events.\n"
-        "Bootstrap reader contract:\n"
+        "Bootstrap tool contracts:\n"
         f"{declarations}\n\n"
         "Current capability directory (names and purposes, not argument contracts):\n"
         f"{manifest}\n"
