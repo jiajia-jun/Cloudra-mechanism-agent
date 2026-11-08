@@ -119,6 +119,20 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         summary='Convert molecular file formats while preserving atom information.',
     ),
     ToolRegistration(
+        module='cloudra.tools.Chemtool.pdb_inspect',
+        class_name='PDBInspect',
+        tool_name='pdb_inspect',
+        role_allowlist=_SCIENCE_ROLES,
+        summary='Inspect missing atoms/segments and geometric water/metal candidates in PDB/mmCIF.',
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.pdb_clean',
+        class_name='PDBClean',
+        tool_name='pdb_clean',
+        role_allowlist=_SCIENCE_ROLES,
+        summary='Selectively clean and repair PDB/mmCIF for a declared purpose; write a new structure and change log.',
+    ),
+    ToolRegistration(
         module='cloudra.tools.Chemtool.qm_input_writer',
         class_name='QmInputWriter',
         tool_name='qm_input_writer',
