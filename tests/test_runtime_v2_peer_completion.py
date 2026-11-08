@@ -80,7 +80,7 @@ async def test_spawn_cannot_combine_peer_requester_with_child_parent(tmp_path):
 
 async def _finish(core, peer, *, text: str, outcome: str, failure_kind=None, gate_action=None):
     run_id = await core.agent_host.start_run(peer)
-    message = await core.event_writer.commit(
+    await core.event_writer.commit(
         EventDraft(
             "agent.message_emitted",
             stream="agent",
@@ -90,8 +90,6 @@ async def _finish(core, peer, *, text: str, outcome: str, failure_kind=None, gat
             data={"sender": peer.role_id, "content": text},
         )
     )
-    if gate_action is None and outcome == "succeeded":
-        gate_action = "allow_final"
     if gate_action is not None:
         await core.event_writer.commit(
             EventDraft(
@@ -100,8 +98,7 @@ async def _finish(core, peer, *, text: str, outcome: str, failure_kind=None, gat
                 project_id=peer.project_id,
                 session_id=peer.id,
                 run_id=run_id,
-                data={"action": gate_action, "reason": "test gate", "source": "test",
-                      **({"result_message_id": message.event_id} if gate_action == "allow_final" else {})},
+                data={"action": gate_action, "reason": "test gate", "source": "test"},
             )
         )
     await core.agent_host.finish_run(

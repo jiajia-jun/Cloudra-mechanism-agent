@@ -82,24 +82,17 @@ def _final_summary(
     core, child: AgentSession, *, events: list[EventEnvelope] | None = None,
     state: AgentState | None = None, run_id: str | None = None,
 ) -> tuple[str, str]:
-    """Successful results use only the runner-bound reply; failures retain partial text."""
-    final_state = state or child.state
-    if final_state is AgentState.SUCCEEDED:
-        gate = _gate_event(core, child, events=events, run_id=run_id)
-        result = completion_result_message(core, child, gate) if gate is not None else None
-        if result is not None:
-            return result.data["content"], "message"
-        return "Sub-agent ended with state succeeded; no bound completion message was recorded.", "state_only"
-    else:
-        emitted = [e for e in events if e.type == "agent.message_emitted"] if events is not None else core.event_log.query_session(
-            child.id, run_id=run_id, types={"agent.message_emitted"}, limit=1
-        )
-        if events is not None and run_id is not None:
-            emitted = [e for e in emitted if e.run_id == run_id]
+    """(文本, 来源)：消息 → 失败原因 → 仅终态说明（顺序固定，不猜）。"""
+    emitted = [e for e in events if e.type == "agent.message_emitted"] if events is not None else core.event_log.query_session(
+        child.id, types={"agent.message_emitted"}, limit=1
+    )
+    if events is not None and run_id is not None:
+        emitted = [e for e in emitted if e.run_id == run_id]
     if emitted:
         content = str(emitted[-1].data.get("content") or "")
         if content.strip():
             return content, "message"
+    final_state = state or child.state
     if final_state is AgentState.FAILED:
         finished = [e for e in events if e.type == "run.finished"] if events is not None else core.event_log.query_session(
             child.id, types={"run.finished"}, limit=20
@@ -116,54 +109,23 @@ def _final_summary(
     return f"Sub-agent ended with state {final_state.value} and no final message.", "state_only"
 
 
-def completion_result_message(core, agent: AgentSession, gate: EventEnvelope) -> EventEnvelope | None:
-    """Resolve the host-bound result, never infer a conclusion from visible text.
-
-    A reviewed submission may be from an earlier run in this same session.
-    It must still be a real visible reply committed before its final gate.
-    """
-    if (gate.type != "agent.completion_gate" or gate.data.get("action") != "allow_final"
-            or gate.project_id != agent.project_id or gate.session_id != agent.id):
-        return None
-    message_id = gate.data.get("result_message_id")
-    if not isinstance(message_id, str) or not message_id:
-        return None
-    message = core.event_log.get(message_id)
-    if (message is None or message.type != "agent.message_emitted"
-            or message.project_id != gate.project_id or message.session_id != gate.session_id
-            or message.session_seq is None or gate.session_seq is None
-            or message.session_seq >= gate.session_seq
-            or not isinstance(message.data.get("content"), str) or not message.data["content"]):
-        return None
-    return message
-
-
-def _gate_event(
-    core, child: AgentSession, *, events: list[EventEnvelope] | None = None,
-    run_id: str | None = None,
-) -> EventEnvelope | None:
-    gates = [e for e in events if e.type == "agent.completion_gate"] if events is not None else core.event_log.query_session(
-        child.id, run_id=run_id, types={"agent.completion_gate"}, limit=1
-    )
-    if events is not None and run_id is not None:
-        gates = [e for e in gates if e.run_id == run_id]
-    gates = [e for e in gates if e.session_id == child.id and e.project_id == child.project_id]
-    return gates[-1] if gates else None
-
-
 def _last_gate(
     core, child: AgentSession, *, events: list[EventEnvelope] | None = None,
     run_id: str | None = None,
 ) -> dict[str, Any] | None:
-    gate = _gate_event(core, child, events=events, run_id=run_id)
-    if gate is None:
+    gates = [e for e in events if e.type == "agent.completion_gate"] if events is not None else core.event_log.query_session(
+        child.id, types={"agent.completion_gate"}, limit=1
+    )
+    if events is not None and run_id is not None:
+        gates = [e for e in gates if e.run_id == run_id]
+    if not gates:
         return None
-    data = gate.data
+    data = gates[-1].data
     return {
         "action": str(data.get("action") or "unknown"),
         "reason": str(data.get("reason") or ""),
         "source": str(data.get("source") or ""),
-        "run_id": gate.run_id,
+        "run_id": gates[-1].run_id,
     }
 
 
@@ -196,10 +158,20 @@ def build_child_manifest(
     last = runs[-1] if runs else None
     if last is None and state is AgentState.CANCELLED:
         last = {"run_id": None, "outcome": "cancelled", "failure_kind": None}
-    final_run_id = terminal_event.run_id if terminal_event is not None else last["run_id"] if last else None
-    summary_text, summary_source = _final_summary(
-        core, child, events=events, state=state, run_id=final_run_id,
-    )
+    final_run_id = terminal_event.run_id if terminal_event is not None else None
+    result_gate = None
+    if state is AgentState.SUCCEEDED and last is not None and last["run_id"] is not None:
+        gates = [e for e in events if e.type == "agent.completion_gate" and e.run_id == last["run_id"]
+                 ] if events is not None else core.event_log.query_session(
+            child.id, run_id=last["run_id"], types={"agent.completion_gate"}, limit=1,
+        )
+        result_gate = gates[-1] if gates else None
+    if result_gate is not None and "final_answer" in result_gate.data:
+        summary_text, summary_source = result_gate.data["final_answer"], "message"
+    else:
+        summary_text, summary_source = _final_summary(
+            core, child, events=events, state=state, run_id=final_run_id,
+        )
     gate = _last_gate(core, child, events=events, run_id=final_run_id)
     unresolved: list[str] = []
     if gate is not None and gate["action"] == "continue_work" and gate["reason"]:

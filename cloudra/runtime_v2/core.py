@@ -134,12 +134,10 @@ class ContextBroker:
 
     async def emit_assistant(
         self, *, agent: AgentSession, run_id: str, content: str, reasoning: str = "",
-        response_id: str | None = None,
     ) -> None:
         """One durable text source for both the transcript and session context.
 
-        Tool calls are committed separately with their matching results. A tool
-        that blocks, fails or is cancelled cannot remove an already shown reply.
+        Tool calls are committed separately with their matching results.
         """
         if not content:
             return
@@ -150,7 +148,6 @@ class ContextBroker:
                 "sender": agent.role_id,
                 "content": content,
                 "context": {"reasoning_content": reasoning} if reasoning else {},
-                **({"response_id": response_id} if response_id else {}),
             })],
         )
 

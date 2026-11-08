@@ -15,7 +15,6 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from cloudra.runtime_v2.child_manifest import completion_result_message
 from cloudra.runtime_v2.dispatcher import WakePolicy
 from cloudra.runtime_v2.schemas import AgentSession, EventEnvelope
 
@@ -33,7 +32,6 @@ class PeerCompletionIndex:
     reported: set[tuple[str, str]] = field(default_factory=set)
     latest_gate_by_session: dict[str, tuple[str | None, str]] = field(default_factory=dict)
     latest_message_by_session: dict[str, EventEnvelope] = field(default_factory=dict)
-    result_gate_by_session: dict[str, EventEnvelope] = field(default_factory=dict)
     watermarks: dict[str, int] = field(default_factory=dict)
 
     def apply(self, event: EventEnvelope, core) -> None:
@@ -59,13 +57,8 @@ class PeerCompletionIndex:
             if event.type == "run.started":
                 self.latest_gate_by_session.pop(peer.id, None)
                 self.latest_message_by_session.pop(peer.id, None)
-                self.result_gate_by_session.pop(peer.id, None)
             elif event.type == "agent.completion_gate" and event.run_id:
                 self.latest_gate_by_session[peer.id] = (event.run_id, str(event.data.get("action") or ""))
-                if event.data.get("action") == "allow_final":
-                    self.result_gate_by_session[peer.id] = event
-                else:
-                    self.result_gate_by_session.pop(peer.id, None)
             elif (
                 event.type == "agent.message_emitted" and event.run_id and str(event.data.get("content") or "").strip()
             ):
@@ -81,11 +74,8 @@ class PeerCompletionIndex:
                     return
                 self.terminal_by_session[peer.id] = event
                 final = self.latest_message_by_session.pop(peer.id, None)
-                if state != "succeeded" and final is not None and final.run_id == event.run_id:
+                if final is not None and final.run_id == event.run_id:
                     self.final_message_by_session[peer.id] = final
-                gate = self.result_gate_by_session.get(peer.id)
-                if state != "succeeded" or gate is None or gate.run_id != event.run_id:
-                    self.result_gate_by_session.pop(peer.id, None)
                 self.latest_gate_by_session.pop(peer.id, None)
 
     def snapshot(self) -> dict[str, Any]:
@@ -102,14 +92,11 @@ class PeerCompletionIndex:
             "latest_message_by_session": {
                 sid: event.model_dump(mode="json") for sid, event in self.latest_message_by_session.items()
             },
-            "result_gate_by_session": {
-                sid: event.model_dump(mode="json") for sid, event in self.result_gate_by_session.items()
-            },
             "watermarks": dict(self.watermarks),
         }
 
     def restore(self, payload: dict[str, Any]) -> None:
-        for name in ("terminal_by_session", "final_message_by_session", "latest_message_by_session", "result_gate_by_session"):
+        for name in ("terminal_by_session", "final_message_by_session", "latest_message_by_session"):
             setattr(
                 self, name, {sid: EventEnvelope.model_validate(event) for sid, event in payload.get(name, {}).items()}
             )
@@ -127,7 +114,6 @@ class PeerCompletionIndex:
             self.final_message_by_session,
             self.latest_gate_by_session,
             self.latest_message_by_session,
-            self.result_gate_by_session,
         ):
             for session_id in mapping.keys() - session_ids:
                 mapping.pop(session_id)
@@ -144,13 +130,16 @@ def _manifest(core, peer: AgentSession, terminal: EventEnvelope, index: PeerComp
     state = str(terminal.data["to"])
     run_id = terminal.run_id
     finished = index.finished_by_run.get((peer.id, run_id)) if run_id else None
-    if state == "succeeded":
-        gate = index.result_gate_by_session.get(peer.id)
-        final = completion_result_message(core, peer, gate) if gate is not None else None
-    else:
-        final = index.final_message_by_session.get(peer.id)
-    if final is not None:
-        summary = str(final.data["content"])
+    final = index.final_message_by_session.get(peer.id)
+    gates = core.event_log.query_session(
+        peer.id, run_id=run_id, before_session_seq=terminal.session_seq,
+        types={"agent.completion_gate"}, limit=1,
+    ) if state == "succeeded" and run_id else []
+    if gates and "final_answer" in gates[-1].data:
+        summary = gates[-1].data["final_answer"]
+        summary_source = "agent.message_emitted"
+    elif final is not None:
+        summary = str(final.data["content"]).strip()
         summary_source = "agent.message_emitted"
     elif state == "cancelled":
         summary = "Peer was cancelled before returning a result."
@@ -159,7 +148,7 @@ def _manifest(core, peer: AgentSession, terminal: EventEnvelope, index: PeerComp
         summary = "Peer failed without a final answer."
         summary_source = "terminal_state"
     else:
-        summary = "Peer finished; no bound completion message was recorded."
+        summary = "Peer finished without a final answer."
         summary_source = "terminal_state"
     return {
         "kind": _REPORT_KIND,

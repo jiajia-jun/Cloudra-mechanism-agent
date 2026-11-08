@@ -458,18 +458,13 @@ async def test_child_completion_to_failed_parent_parks_without_reopening():
         )
     ).data
     run_id = await core.agent_host.start_run(child)
-    reply = core.event_log.append(
+    core.event_log.append(
         "agent.message_emitted",
         stream="agent",
         project_id=project.id,
         session_id=child.id,
         run_id=run_id,
         data={"sender": "explorer", "content": "explored everything"},
-    )
-    core.event_log.append(
-        "agent.completion_gate", stream="agent", project_id=project.id,
-        session_id=child.id, run_id=run_id,
-        data={"action": "allow_final", "result_message_id": reply.event_id},
     )
     await core.agent_host.finish_run(child, outcome="succeeded")
     await core.agent_host.start_run(parent)
@@ -604,7 +599,7 @@ async def test_child_report_waits_for_first_final_run_and_is_delivered_once(tmp_
 
     async def finish(text: str, action: str):
         run_id = await core.agent_host.start_run(child)
-        reply = await core.event_writer.commit(EventDraft(
+        await core.event_writer.commit(EventDraft(
             "agent.message_emitted", stream="agent", project_id=project.id,
             session_id=child.id, run_id=run_id,
             data={"sender": child.role_id, "content": text},
@@ -612,8 +607,7 @@ async def test_child_report_waits_for_first_final_run_and_is_delivered_once(tmp_
         await core.event_writer.commit(EventDraft(
             "agent.completion_gate", stream="agent", project_id=project.id,
             session_id=child.id, run_id=run_id,
-            data={"action": action, "reason": "test", "source": "test",
-                  **({"result_message_id": reply.event_id} if action == "allow_final" else {})},
+            data={"action": action, "reason": "test", "source": "test"},
         ))
         await core.agent_host.finish_run(child, outcome="succeeded")
         await deliver_child_completion_to_parent(core, child, wake=False)
@@ -993,14 +987,13 @@ async def test_new_assignment_reports_latest_child_result_once_after_restore(tmp
 
     async def finish(summary, action):
         run_id = await core.agent_host.start_run(child)
-        reply = await core.event_writer.commit(EventDraft(
+        await core.event_writer.commit(EventDraft(
             "agent.message_emitted", stream="agent", project_id=project.id,
             session_id=child.id, run_id=run_id, data={"content": summary, "sender": child.role_id},
         ))
         await core.event_writer.commit(EventDraft(
             "agent.completion_gate", stream="agent", project_id=project.id,
-            session_id=child.id, run_id=run_id,
-            data={"action": action, **({"result_message_id": reply.event_id} if action == "allow_final" else {})},
+            session_id=child.id, run_id=run_id, data={"action": action},
         ))
         await core.agent_host.finish_run(child, outcome="succeeded")
         await deliver_child_completion_to_parent(core, child, wake=False)

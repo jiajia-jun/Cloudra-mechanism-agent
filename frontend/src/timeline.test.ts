@@ -496,37 +496,3 @@ assert.equal(unrelatedMessage.streamText, 'Actual current reply.', 'an unrelated
 assert.equal(cancelledStream.frozen[0].incomplete, true, 'uncommitted partial text is visibly marked incomplete');
 
 console.log('timeline.message-consistency ok');
-
-
-/* -------------------------------- response identity and delayed SSE */
-const firstRequest = applyStreamEvent(view(), {
-  type: 'llm.request_started', event_id: 'response-1', session_seq: 100, data: {},
-});
-const firstChunk = applyStreamEvent(firstRequest, {
-  type: 'llm.chunk', data: { response_id: 'response-1', kind: 'content', delta: 'partial' },
-});
-const firstCommitted = applyStreamEvent(firstChunk, {
-  type: 'agent.message_emitted', session_seq: 101,
-  data: { response_id: 'response-1', content: 'Complete provider-normalized reply.' },
-});
-assert.equal(firstCommitted.streamText, '', 'identity commits the right partial even if text differs');
-const lateChunk = applyStreamEvent(firstCommitted, {
-  type: 'llm.chunk', data: { response_id: 'response-1', kind: 'content', delta: 'late' },
-});
-assert.equal(lateChunk.streamText, '', 'a committed response never reopens from late tokens');
-const secondRequest = applyStreamEvent(firstCommitted, {
-  type: 'llm.request_started', event_id: 'response-2', session_seq: 102, data: {},
-});
-const secondChunk = applyStreamEvent(secondRequest, {
-  type: 'llm.chunk', data: { response_id: 'response-2', kind: 'content', delta: 'new response' },
-});
-const oldCommit = applyStreamEvent(secondChunk, {
-  type: 'agent.message_emitted', session_seq: 101,
-  data: { response_id: 'response-1', content: 'new response' },
-});
-assert.equal(oldCommit.streamText, 'new response', 'an old response cannot erase a new one even when text matches');
-const oldChunk = applyStreamEvent(secondChunk, {
-  type: 'llm.chunk', data: { response_id: 'response-1', kind: 'content', delta: 'obsolete' },
-});
-assert.equal(oldChunk.streamText, 'new response');
-console.log('timeline.response-identity ok');

@@ -99,9 +99,8 @@ async def test_result_tracks_parked_then_final_then_reopened_run(runtime):
 
     await core.agent_host.wake(agent)
     run_id = agent.current_run.run_id
-    reply = _emit(core, "agent.message_emitted", run_id, sender=agent.role_id, content="Delivered.")
-    _emit(core, "agent.completion_gate", run_id, action="allow_final", basis="declared",
-          result_message_id=reply.event_id)
+    _emit(core, "agent.completion_gate", run_id, action="allow_final", basis="declared")
+    _emit(core, "agent.message_emitted", run_id, content="Delivered.")
     await core.agent_host.finish_run(agent, outcome="succeeded")
     finished = core.event_log.query_session(agent.id, types={"run.finished"}, limit=1)[0]
     response = await client.get(RESULT)
@@ -181,9 +180,7 @@ async def test_result_returns_only_artifact_bound_when_delivery_finished(runtime
 
     runner = AgentRunner(core, SimpleNamespace(stages=[CommittedDagStage()]))
     gate = StopGate(action="allow_final", report=report, basis="partial_recorded")
-    reply = _emit(core, "agent.message_emitted", run_id, sender=agent.role_id, content="Partial.")
-    _emit(core, "agent.completion_gate", run_id, action=gate.action, basis=gate.basis,
-          result_message_id=reply.event_id)
+    _emit(core, "agent.completion_gate", run_id, action=gate.action, basis=gate.basis)
     assert await runner._finish_gated_run(agent, run_id, gate, explicit_stop=True)
     result = (await client.get(RESULT)).json()["result"]
     assert result["verification_label"] == "partial"
@@ -234,24 +231,6 @@ async def test_result_does_not_treat_narration_as_a_final_answer(runtime):
     _emit(core, "agent.completion_gate", run_id, action="allow_final", basis="declared")
     await core.agent_host.finish_run(agent, outcome="succeeded")
     assert (await client.get(RESULT)).json()["result"]["summary"] is None
-
-
-@pytest.mark.asyncio
-async def test_result_returns_bound_reviewed_reply_instead_of_newer_visible_narration(runtime):
-    core, client = runtime
-    agent = _agent(core)
-    run_id = await core.agent_host.start_run(agent)
-    accepted = _emit(core, "agent.message_emitted", run_id, sender=agent.role_id, content="Reviewed result.")
-    _emit(core, "agent.completion_gate", run_id, action="wait_review", request_id="review")
-    _emit(core, "agent.message_emitted", run_id, sender=agent.role_id, content="New user request acknowledged.")
-    _emit(core, "agent.completion_gate", run_id, action="allow_final", basis="supervisor_approved",
-          request_id="review", result_message_id=accepted.event_id)
-    await core.agent_host.finish_run(agent, outcome="succeeded")
-
-    result = (await client.get(RESULT)).json()["result"]
-    assert result["summary"] == accepted.data["content"]
-    assert result["verification_label"] == "partial"
-    assert len(core.event_log.query_session(agent.id, types={"agent.message_emitted"})) == 2
 
 
 @pytest.mark.asyncio

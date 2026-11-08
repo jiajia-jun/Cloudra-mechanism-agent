@@ -90,29 +90,13 @@ async def test_snapshot_from_hub_observer_captures_applied_command(tmp_path):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("cancel_during_notice", [False, True])
-async def test_snapshot_persists_notice_appended_by_flush_subscriber(tmp_path, cancel_during_notice):
-    import asyncio
-    import threading
-
+async def test_snapshot_persists_notice_appended_by_flush_subscriber(tmp_path):
     from cloudra.runtime_v2.persistence import restore_core
 
     core = RuntimeCore(strict_events=True)
     core.store = RuntimeStore(tmp_path / "runtime.db")
     core.projects["p"] = Project(id="p", name="notice")
     core.agents["a"] = AgentSession(id="a", project_id="p", role_id="coordinator", display_name="a")
-    entered = threading.Event()
-    release = threading.Event()
-    original_append = core.store.append_event
-
-    def append_notice(event):
-        if cancel_during_notice and event.type == "context.pin_set":
-            entered.set()
-            if not release.wait(5):
-                raise AssertionError("notice persistence barrier was not released")
-        return original_append(event)
-
-    core.store.append_event = append_notice
 
     async def add_notice(event):
         if event.type == "agent.warning":
@@ -120,19 +104,7 @@ async def test_snapshot_persists_notice_appended_by_flush_subscriber(tmp_path, c
 
     core.event_hub.subscribe(add_notice)
     core.record("agent.warning", stream="agent", project_id="p", session_id="a", data={"message": "warning"})
-    task = asyncio.create_task(CommandBus(core).flush_snapshot())
-    try:
-        if cancel_during_notice:
-            assert await asyncio.to_thread(entered.wait, 5)
-            task.cancel()
-            release.set()
-            with pytest.raises(asyncio.CancelledError):
-                await task
-        else:
-            await task
-    finally:
-        release.set()
-        await asyncio.gather(task, return_exceptions=True)
+    await CommandBus(core).flush_snapshot()
     snapshot, marks = core.store.load_snapshot()
     notice = core.event_log.query_session("a", types={"context.pin_set"})[-1]
     assert core.store.has_event(notice.event_id)

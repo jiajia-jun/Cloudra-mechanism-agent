@@ -171,7 +171,7 @@ async def test_stop_answer_is_visible_while_final_gate_authorizes_completion(tmp
         gate = next(e for e in events if e.type == "agent.completion_gate" and e.data["action"] == "allow_final")
         emitted = next(e for e in events if e.type == "agent.message_emitted" and e.data.get("content") == candidate)
         assert emitted.seq < gate.seq
-        assert gate.data["result_message_id"] == emitted.event_id
+        assert gate.data["final_answer"] == emitted.data["content"]
         assert [e.data["content"] for e in events if e.type == "agent.message_emitted"] == [candidate]
     finally:
         release.set()

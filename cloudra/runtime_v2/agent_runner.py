@@ -894,40 +894,6 @@ class AgentRunner:
             delivery_gate = await self._audit_benchmark_delivery(agent, workspace_dir)
             if delivery_gate is not None:
                 gate, source = delivery_gate, "benchmark_delivery"
-        result_message_id = None
-        if gate.action == "allow_final":
-            def bind_result_message():
-                answer = gate.final_answer if gate.final_answer is not None else candidate_answer
-                if not answer:
-                    return None
-                message_run_id = run_id
-                before = None
-                if gate.final_answer is not None and gate.request_id:
-                    # Freeze the original reviewed submission, not a later
-                    # acknowledgement (even one with identical text). A durable
-                    # accepted request can be confirmed after a run restart.
-                    submitted = next((event for event in core.event_log.query_session(
-                        agent.id, types={"agent.completion_gate"}, limit=None, tail=False,
-                    ) if event.project_id == agent.project_id
-                        and event.data.get("action") == "wait_review"
-                        and event.data.get("request_id") == gate.request_id), None)
-                    if submitted is not None:
-                        if submitted.run_id is None:
-                            return None
-                        message_run_id = submitted.run_id
-                        before = submitted.session_seq
-                messages = core.event_log.query_session(
-                    agent.id, run_id=message_run_id, before_session_seq=before,
-                    types={"agent.message_emitted"}, limit=None,
-                )
-                return next((event.event_id for event in reversed(messages)
-                    if event.type == "agent.message_emitted"
-                    and event.project_id == agent.project_id
-                    and event.session_id == agent.id and event.run_id == message_run_id
-                    and event.data.get("sender") == agent.role_id
-                    and event.data.get("content") == answer), None)
-
-            result_message_id = await asyncio.to_thread(bind_result_message)
         core.event_log.append(
             "agent.completion_gate",
             stream="agent",
@@ -943,7 +909,8 @@ class AgentRunner:
                 # 收尾依据（结构化）：投影成 UI 的「已验证完成 / 部分交付 /
                 # 未独立验证」。绝不由 reason 文本反推。
                 "basis": gate.basis,
-                **({"result_message_id": result_message_id} if gate.action == "allow_final" else {}),
+                **({"final_answer": gate.final_answer if gate.final_answer is not None else candidate_answer}
+                   if gate.action == "allow_final" else {}),
             },
         )
         return gate, source

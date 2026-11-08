@@ -496,12 +496,11 @@ class TurnPipeline:
                         run_id=run_id,
                         seq=0,
                         type="llm.chunk",
-                        data={"kind": kind, "delta": delta, "response_id": request_event.event_id},
+                        data={"kind": kind, "delta": delta},
                     )
                 )
 
-        # Request identity must reach clients before transient chunks; closed
-        # previous streams cannot be reopened by delayed or unidentified data.
+        # Open the next stream before transient chunks arrive.
         await self._publish(request_event)
         try:
             response = await self.llm.complete(agent, messages, capabilities.tools, on_delta=on_delta)
@@ -547,13 +546,12 @@ class TurnPipeline:
             if context_broker is not None:
                 await context_broker.emit_assistant(
                     agent=agent, run_id=run_id, content=content, reasoning=reasoning,
-                    response_id=request_event.event_id,
                 )
             else:
                 await self._publish(self.event_log.append(
                     "agent.message_emitted", stream="agent", project_id=agent.project_id,
                     session_id=agent.id, run_id=run_id,
-                    data={"sender": agent.role_id, "content": content, "response_id": request_event.event_id},
+                    data={"sender": agent.role_id, "content": content},
                 ))
 
         # Text is conversation, not proof of task completion. Commit it before

@@ -147,8 +147,13 @@ def _outcome(core, agent: AgentSession, boundary: int) -> FinishedResult | None:
             types={"agent.completion_gate"}, limit=1,
         )
         events.extend(gates)
-        # build_child_manifest resolves the runner's explicit result reference.
-        # Conversation replies are committed before the gate, not re-emitted.
+        if agent.state is AgentState.SUCCEEDED and gates and gates[0].data.get("action") == "allow_final":
+            # Tool-round narration uses the same message event. Only the text
+            # emitted after the matching final gate can be a conclusion.
+            events.extend(log.query_session(
+                agent.id, run_id=terminal.run_id, after_session_seq=gates[0].session_seq,
+                before_session_seq=terminal.session_seq, types={"agent.message_emitted"}, limit=1,
+            ))
     events.sort(key=lambda event: event.session_seq)
     completion = completion_summary(events)
     if completion is None or completion["run_outcome"] != agent.state.value:

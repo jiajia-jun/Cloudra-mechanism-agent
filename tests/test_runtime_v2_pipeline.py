@@ -210,9 +210,6 @@ async def test_llm_chunks_published_to_hub_not_logged():
     chunks = [e for e in received if e.type == "llm.chunk"]
     request = next(e for e in received if e.type == "llm.request_started")
     assert received.index(request) < received.index(chunks[0])
-    assert all(e.data["response_id"] == request.event_id for e in chunks)
-    emitted = next(e for e in received if e.type == "agent.message_emitted")
-    assert emitted.data["response_id"] == request.event_id
     assert "".join(e.data["delta"] for e in chunks) == "hello"
     assert all(e.seq == 0 and e.session_id == agent.id for e in chunks)
     # Chunks are transient hub-only events: the log stays free of them.
