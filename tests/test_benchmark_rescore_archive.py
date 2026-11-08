@@ -9,10 +9,15 @@ scores. No agent, model, or quantum-chemistry program is run.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 
-from cloudra.benchmark.rescore_archive import main, relativize_evidence_path
+from cloudra.benchmark.rescore_archive import (
+    main,
+    relativize_evidence_path,
+    repair_source_names_reconstruction,
+)
 from cloudra.benchmark.runner import BenchmarkRunner
 from cloudra.benchmark.schema import TaskSpec
 
@@ -75,12 +80,23 @@ def _p2_fixture(root: Path) -> Path:
         },
     )
     _write_json(archive / "reconstructions/standard/F1/mechanism_graph.json", GRAPH)
+    hi1 = archive / "campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/HI1/batch_94084d85d0634ca0"
+    _write_json(hi1 / "mechanism_graph.json", GRAPH)
+    _write_json(
+        archive / "reconstructions/guided/HI1/mechanism_graph.json",
+        {
+            "nodes": [
+                {"id": "fallback", "role": "reactant", "smiles": ["C"], "accessible": True}
+            ],
+            "edges": [],
+        },
+    )
     table = archive / "tables/final_scores_per_run.csv"
     table.parent.mkdir(parents=True, exist_ok=True)
     with table.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
-            fieldnames=["campaign", "arm", "task", "tier", "sandbox"],
+            fieldnames=["campaign", "arm", "task", "tier", "sandbox", "repair_source"],
         )
         writer.writeheader()
         writer.writerows(
@@ -91,6 +107,7 @@ def _p2_fixture(root: Path) -> Path:
                     "task": "F4",
                     "tier": "easy",
                     "sandbox": "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/F4/batch_aaa",
+                    "repair_source": "",
                 },
                 {
                     "campaign": "cloudra-p2c-20261025",
@@ -98,6 +115,20 @@ def _p2_fixture(root: Path) -> Path:
                     "task": "F1",
                     "tier": "easy",
                     "sandbox": "/home/ly/cloudra-p2c-20261025/standard/r1/sandboxes/F1/batch_bbb",
+                    "repair_source": (
+                        "/home/ly/adjudication/reconstructed/standard/F1/mechanism_graph.json"
+                    ),
+                },
+                {
+                    "campaign": "cloudra-p2c-20261025",
+                    "arm": "guided",
+                    "task": "HI1",
+                    "tier": "hard",
+                    "sandbox": (
+                        "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/HI1/"
+                        "batch_94084d85d0634ca0"
+                    ),
+                    "repair_source": "",
                 },
             ]
         )
@@ -109,6 +140,7 @@ def _tasks(root: Path) -> Path:
     _write_json(tasks / "easy/F4.json", _task("F4", "easy"))
     _write_json(tasks / "easy/F1.json", _task("F1", "easy"))
     _write_json(tasks / "hard/HA1.json", _task("HA1", "hard"))
+    _write_json(tasks / "hard/HI1.json", _task("HI1", "hard"))
     return tasks
 
 
@@ -147,6 +179,25 @@ def _by_task(output: Path) -> dict[tuple[str, str], dict[str, str]]:
     return {(row["archive"], row["task"]): row for row in _rows(output)}
 
 
+def test_repair_source_does_not_treat_a_completed_delivery_as_reconstructed():
+    assert repair_source_names_reconstruction(
+        "/home/ly/adjudication/reconstructed/brief-errors/IC3/mechanism_graph.json",
+        "brief-errors",
+        "IC3",
+    )
+    assert repair_source_names_reconstruction(
+        "/home/ly/adjudication/reconstructed/standard/F1/mechanism_graph.json",
+        "standard",
+        "F1",
+    )
+    assert not repair_source_names_reconstruction("", "guided", "HI1")
+    assert not repair_source_names_reconstruction(
+        "/home/ly/cloudra-p2c-20261025/guided/r1/sandboxes/HI1/batch_94084d85d0634ca0/mechanism_graph.json",
+        "guided",
+        "HI1",
+    )
+
+
 def test_relativize_keeps_unknown_absolute_paths(tmp_path):
     (tmp_path / "evidence.log").write_text("x\n", encoding="utf-8")
     assert (
@@ -166,10 +217,17 @@ def test_rescore_uses_organized_graph_without_editing_archive(tmp_path):
     output = tmp_path / "out"
     native_f4 = archive / "campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/F4/batch_aaa/mechanism_graph.json"
     native_f1 = archive / "campaign_data/cloudra-p2c-20261025/standard/r1/sandboxes/F1/batch_bbb/mechanism_graph.json"
+    native_hi1 = (
+        archive
+        / "campaign_data/cloudra-p2c-20261025/guided/r1/sandboxes/HI1/batch_94084d85d0634ca0/mechanism_graph.json"
+    )
+    fallback_hi1 = archive / "reconstructions/guided/HI1/mechanism_graph.json"
     p1b_log = campaign / "standard/r2/sandboxes/HA1/batch_x/native.log"
     before = {
         native_f4: native_f4.read_bytes(),
         native_f1: native_f1.read_bytes(),
+        native_hi1: native_hi1.read_bytes(),
+        fallback_hi1: fallback_hi1.read_bytes(),
         p1b_log: p1b_log.read_bytes(),
     }
 
@@ -189,9 +247,10 @@ def test_rescore_uses_organized_graph_without_editing_archive(tmp_path):
     ) == 0
 
     rows = _by_task(output)
-    assert set(rows) == {("p2", "F4"), ("p2", "F1"), ("p1b", "HA1")}
+    assert set(rows) == {("p2", "F4"), ("p2", "F1"), ("p2", "HI1"), ("p1b", "HA1")}
     f4 = rows[("p2", "F4")]
     f1 = rows[("p2", "F1")]
+    hi1 = rows[("p2", "HI1")]
     ha1 = rows[("p1b", "HA1")]
     assert f4["reconstruction"] == "false"
     assert f4["paths_relativized"] == "1"
@@ -212,6 +271,23 @@ def test_rescore_uses_organized_graph_without_editing_archive(tmp_path):
     )
     assert native_scored.final_score == -1
     assert float(f1["final_score"]) != native_scored.final_score
+
+    # guided/HI1 keeps the completed delivery. The reconstructions/ file is a
+    # fallback and the score table does not name it as repair_source.
+    assert hi1["reconstruction"] == "false"
+    assert hi1["graph_source"] == ""
+    assert hi1["score_input"] == "archive"
+    assert hi1["graph_sha256"] == hashlib.sha256(native_hi1.read_bytes()).hexdigest()
+    assert "fallback" not in native_hi1.read_text(encoding="utf-8")
+    direct_hi1 = BenchmarkRunner(tmp_path / "hi1-direct").score_sandbox(
+        TaskSpec.model_validate_json((tasks / "hard/HI1.json").read_text(encoding="utf-8")),
+        native_hi1.parent,
+    )
+    assert float(hi1["graph_score"]) == direct_hi1.graph_score
+    assert float(hi1["selfconsistency_score"]) == direct_hi1.selfconsistency_score
+    assert float(hi1["accuracy_score"]) == direct_hi1.accuracy_score
+    assert float(hi1["final_score"]) == direct_hi1.final_score
+    assert float(hi1["final_score"]) != -1
 
     staged_f1 = output / f1["scored_sandbox"]
     direct = BenchmarkRunner(tmp_path / "direct-score").score_sandbox(

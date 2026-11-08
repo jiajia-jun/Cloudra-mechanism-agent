@@ -1,12 +1,14 @@
 """Re-score organized deliveries already stored in a P2 or P1b archive.
 
 Calls ``BenchmarkRunner.score_sandbox`` on retained sandboxes. Does not run
-agents or quantum chemistry, and does not modify the archive. An organized
-``mechanism_graph.json`` under ``reconstructions/<arm>/<task>/`` replaces the
-native delivery for that P2 run. The P1b offline package does the same for
-the one reconstructed Standard HA1/r2 graph. Every other run keeps its native
-graph. Workstation-absolute evidence paths are rewritten only when that exact
-file is already inside the retained sandbox.
+agents or quantum chemistry, and does not modify the archive. A file under
+``reconstructions/<arm>/<task>/`` replaces the native delivery only when the
+score table's ``repair_source`` names that reconstructed graph, or when the
+sandbox has no ``mechanism_graph.json``. A completed delivery is kept when a
+reconstruction is only a fallback; guided/HI1 is that case. The P1b offline
+package still supplies the one reconstructed Standard HA1/r2 graph.
+Workstation-absolute evidence paths are rewritten only when that exact file
+is already inside the retained sandbox.
 
 ``--apply-target-overlay`` copies the five published 2 November Accuracy
 values and composites from the correction CSV. It does not calculate new
@@ -207,9 +209,51 @@ def p1b_sandbox(root: Path, sandbox_field: str) -> Path:
     raise ValueError(f"P1b sandbox is not under {root}: {sandbox_field}")
 
 
-def organized_p2_graph(archive: Path, arm: str, task: str) -> Path | None:
-    path = archive / "reconstructions" / arm / task / "mechanism_graph.json"
-    return path if path.is_file() else None
+def repair_source_names_reconstruction(repair_source: str, arm: str, task: str) -> bool:
+    """True when the score table points at this run's reconstructed graph.
+
+    The archive records that path as ``repair_source``. guided/HI1's completed
+    delivery has an empty ``repair_source``; its ``reconstructions/`` file is
+    the fallback INDEX.md says must not replace the run's own graph.
+    """
+    text = repair_source.strip()
+    if not text:
+        return False
+    parts = Path(text).parts
+    if len(parts) < 3 or parts[-1] != "mechanism_graph.json":
+        return False
+    return parts[-2] == task and parts[-3] == arm
+
+
+def organized_p2_graph(
+    archive: Path,
+    arm: str,
+    task: str,
+    sandbox: Path,
+    repair_source: str,
+) -> Path | None:
+    """Choose the organized graph, or None to score the native delivery.
+
+    ``repair_source`` authorizes a reconstruction to replace a graph that is
+    already in the sandbox (the brief-errors/IC3 reference repair and the
+    seven standard missing-graph repairs). A reconstruction file on its own
+    does not. When the sandbox has no mechanism graph, the reconstruction is
+    still the only delivery and is used.
+    """
+    reconstruction = archive / "reconstructions" / arm / task / "mechanism_graph.json"
+    native = sandbox / "mechanism_graph.json"
+    if repair_source_names_reconstruction(repair_source, arm, task):
+        if not reconstruction.is_file():
+            raise ValueError(
+                f"{arm}/{task} repair_source names a reconstructed graph, "
+                f"but {reconstruction} is missing"
+            )
+        return reconstruction
+    if native.is_file():
+        return None
+    if reconstruction.is_file():
+        return reconstruction
+    return None
 
 
 def relativize_evidence_path(raw: str, sandbox: Path) -> str:
@@ -390,7 +434,9 @@ def p2_jobs(archive: Path, tasks_root: Path, selectors: list[OnlySelector]) -> l
         if not matches_only(selectors, arm, round_, task):
             continue
         tier, spec = load_task(tasks_root, row["tier"], task, arm)
-        organized = organized_p2_graph(archive, arm, task)
+        organized = organized_p2_graph(
+            archive, arm, task, sandbox, row.get("repair_source", "")
+        )
         jobs.append(
             Job(
                 archive="p2",
