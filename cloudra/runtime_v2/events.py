@@ -35,7 +35,7 @@ EVENT_TYPES: dict[str, str] = {
     "agent.spawn_rejected": "spawn rejected",
     "agent.settings_changed": "runtime settings changed",
     "agent.message_injected": "user or peer message delivered",
-    "agent.message_emitted": "assistant final message produced",
+    "agent.message_emitted": "model-authored text committed for display and session context, independent of completion",
     "agent.cancel_requested": "cancel accepted",
     "agent.cancelled": "cancel completed, subprocesses reaped",
     "agent.restart_requested": "restart accepted",

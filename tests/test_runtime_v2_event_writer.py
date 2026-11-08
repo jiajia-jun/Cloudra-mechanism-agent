@@ -643,3 +643,64 @@ def test_persisted_watermarks_ignore_unpersisted_tail():
     )
     assert log.high_watermarks["p1"] == second.seq
     assert writer.persisted_watermarks()["p1"] == first.seq
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('fail', [False, True])
+async def test_cancellation_during_text_persistence_cannot_publish_unprojected_output(tmp_path, fail):
+    import threading
+
+    from cloudra.runtime_v2.event_writer import EventPersistenceError
+    from cloudra.runtime_v2.persistence import restore_core
+
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    project = (await bus.execute(Command(type='project.create', payload={'name': 'text-cancel'}))).data
+    agent = (await bus.execute(Command(type='agent.spawn', target={'project_id': project.id},
+                                      payload={'role_id': 'coordinator'}))).data
+    store = await asyncio.to_thread(RuntimeStore, tmp_path / 'text-cancel.db')
+    entered = threading.Event()
+    release = threading.Event()
+    original_append = store.append_event
+
+    def append_with_barrier(event):
+        if event.type == 'agent.message_emitted':
+            entered.set()
+            if not release.wait(timeout=5):
+                raise AssertionError('text persistence barrier was not released')
+            if fail:
+                raise OSError('text write failed')
+        return original_append(event)
+
+    store.append_event = append_with_barrier
+    core.store = store
+    visible = []
+    observed_contexts = []
+
+    async def observe(event):
+        if event.type == 'agent.message_emitted':
+            visible.append(event.data['content'])
+            observed_contexts.append([m['content'] for m in core.contexts.current_messages(agent.id)])
+
+    core.event_hub.subscribe(observe)
+    task = asyncio.create_task(core.contexts.emit_assistant(
+        agent=agent, run_id='text-run', content='committed-cancellation-marker',
+    ))
+    try:
+        assert await asyncio.to_thread(entered.wait, 5)
+        task.cancel()
+        await asyncio.sleep(0)
+        release.set()
+        with pytest.raises((asyncio.CancelledError, EventPersistenceError)):
+            await task
+        await core.event_writer.flush()
+        expected = [] if fail else ['committed-cancellation-marker']
+        assert visible == expected
+        assert observed_contexts == ([] if fail else [expected])
+        assert [m['content'] for m in core.contexts.current_messages(agent.id)] == expected
+        restored = RuntimeCore(strict_events=True)
+        await asyncio.to_thread(restore_core, restored, store)
+        assert restored.contexts.current_messages(agent.id) == core.contexts.current_messages(agent.id)
+    finally:
+        release.set()
+        await asyncio.gather(task, return_exceptions=True)

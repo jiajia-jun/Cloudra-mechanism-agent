@@ -235,7 +235,9 @@ async def test_stop_complete_on_empty_delivery_graph_rejected_by_unified_gate(tm
     emitted = [
         e for e in core.event_log.query_session(agent.id) if e.type == "agent.message_emitted"
     ]
-    assert any("Completion gate" in str(e.data["content"]) for e in emitted)
+    assert [e.data["content"] for e in emitted] == ["x"] * llm.calls
+    warnings = core.event_log.query_session(agent.id, types={"agent.warning"})
+    assert any("Completion gate" in str(e.data["message"]) for e in warnings)
 
 
 @pytest.mark.asyncio

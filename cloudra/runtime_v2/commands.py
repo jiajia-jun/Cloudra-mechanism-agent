@@ -1158,12 +1158,15 @@ class CommandBus:
         # high_watermarks——并发 append 会把水位抬过尚未 persist 的事件。
         await core.event_writer.flush()
         unpublished = []
+        cancelled = False
         async with core.command_lock, core.event_writer._lock:
             # Synchronous notices can append while a store write is off-loop,
             # including from the first flush's subscribers. Drain before
             # freezing their state and the durable cursor together.
             while core.event_writer._persisted < len(core.event_log):
-                unpublished.extend(await core.event_writer._flush_locked())
+                events, interrupted = await core.event_writer._flush_locked()
+                unpublished.extend(events)
+                cancelled |= interrupted
             snapshot = core.snapshot()
         try:
             await asyncio.to_thread(core.store.save_snapshot, **snapshot)
@@ -1172,3 +1175,5 @@ class CommandBus:
             await core.event_writer._publish(unpublished)
         self._snapshot_event_mark = len(core.event_log)
         self._snapshot_at = time.monotonic()
+        if cancelled:
+            raise asyncio.CancelledError

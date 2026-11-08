@@ -1591,9 +1591,10 @@ export default function App() {
     const persisted = new Set(
       persistedTimeline
         .filter((i): i is MessageItem => i.kind === 'message')
-        .map((m) => m.content),
+        .map((m) => m.responseId ? `response:${m.responseId}` : `content:${m.content}`),
     );
-    const frozen = streamView.frozen.filter((m) => !persisted.has(m.content));
+    const frozen = streamView.frozen.filter((m) =>
+      !persisted.has(m.responseId ? `response:${m.responseId}` : `content:${m.content}`));
     const merged: TimelineItem[] = [...persistedTimeline, ...frozen];
     merged.sort((a, b) => a.seq - b.seq);
     return merged;

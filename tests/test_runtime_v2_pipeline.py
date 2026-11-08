@@ -208,6 +208,11 @@ async def test_llm_chunks_published_to_hub_not_logged():
     )
     assert outcome.decision == "stop"
     chunks = [e for e in received if e.type == "llm.chunk"]
+    request = next(e for e in received if e.type == "llm.request_started")
+    assert received.index(request) < received.index(chunks[0])
+    assert all(e.data["response_id"] == request.event_id for e in chunks)
+    emitted = next(e for e in received if e.type == "agent.message_emitted")
+    assert emitted.data["response_id"] == request.event_id
     assert "".join(e.data["delta"] for e in chunks) == "hello"
     assert all(e.seq == 0 and e.session_id == agent.id for e in chunks)
     # Chunks are transient hub-only events: the log stays free of them.
@@ -284,7 +289,8 @@ async def test_permission_stage_blocks_unavailable_tool():
         capabilities=AgentCapabilities(permissions=PermissionSet(), tools=["allowed"]),
         inbox_messages=[],
     )
-    assert outcome.message.startswith("blocked by permission")
+    assert "is not in this agent's capabilities" in outcome.message
+    assert outcome.content == ""
     types = [e.type for e in core.event_log.query_session(agent.id)]
     # A blocked call is never admitted: tool.requested + diagnostic, closed by
     # tool.finished — no tool.started is emitted for it.
@@ -394,8 +400,8 @@ async def test_intermediate_content_reaches_hub_before_tools_run():
 
 
 @pytest.mark.asyncio
-async def test_stop_turn_content_not_double_emitted():
-    """stop 轮正文由 runner 的最终消息承载，管道不重复落事件。"""
+async def test_stop_turn_preserves_narration_and_model_authored_final_answer():
+    """停止工具不覆盖原文，正文与工具内的模型答复各提交一次。"""
     core = RuntimeCore(strict_events=True)
     _, agent = await _spawn_agent(core)
     pipeline = TurnPipeline(
@@ -417,7 +423,7 @@ async def test_stop_turn_content_not_double_emitted():
         inbox_messages=[],
     )
     emitted = core.event_log.query_session(agent.id, types={"agent.message_emitted"})
-    assert emitted == []
+    assert [event.data["content"] for event in emitted] == ["final narration", "x"]
 
 
 @pytest.mark.asyncio
@@ -564,3 +570,36 @@ async def test_loop_guard_resets_on_different_call_or_new_run():
         inbox_messages=[],
     )
     assert core.event_log.query_session(agent.id, types={"loop.detected"}) == []
+
+
+@pytest.mark.asyncio
+async def test_narration_enters_context_before_tool_execution_even_if_tool_is_cancelled():
+    """A completed provider reply cannot remain UI-only while a tool runs."""
+    import asyncio
+
+    core = RuntimeCore(strict_events=True)
+    _, agent = await _spawn_agent(core)
+    text = 'visible-before-tool-marker'
+    observed_context = []
+
+    class CancelTools:
+        async def execute(self, agent, call):
+            emitted = core.event_log.query_session(agent.id, types={'agent.message_emitted'})
+            assert [e.data['content'] for e in emitted] == [text]
+            observed_context.extend(core.contexts.current_messages(agent.id))
+            raise asyncio.CancelledError
+
+    pipeline = TurnPipeline(
+        event_log=core.event_log, event_hub=core.event_hub,
+        event_writer=core.event_writer, stages=default_stages(),
+        llm=FakeLLM(LLMResponse(content=text, tool_calls=[ToolCall(id='cancel-call', name='allowed', arguments={})])),
+        tools=CancelTools(),
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await pipeline.run_turn(
+            agent=agent, run_id='cancel-narration', settings=RuntimeSettings(),
+            capabilities=AgentCapabilities(permissions=PermissionSet(), tools=['*']),
+            inbox_messages=[], context_broker=core.contexts,
+        )
+    assert [m['content'] for m in observed_context if m['role'] == 'assistant'] == [text]
+    assert not any(m.get('tool_calls') for m in observed_context)

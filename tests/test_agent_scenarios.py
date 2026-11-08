@@ -126,7 +126,7 @@ async def test_stale_file_review_retires_wakes_and_requires_real_resubmission(tm
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("protocol", ["traditional", "javascript"])
-async def test_stop_answer_is_emitted_only_after_final_gate_authorizes_it(tmp_path, protocol):
+async def test_stop_answer_is_visible_while_final_gate_authorizes_completion(tmp_path, protocol):
     from cloudra.dag.review_requests import ReviewDecision
     from cloudra.dag.store import DagStore
     from cloudra.persistence.database import ConversationDB
@@ -144,7 +144,11 @@ async def test_stop_answer_is_emitted_only_after_final_gate_authorizes_it(tmp_pa
         coordinator = await harness.spawn("coordinator", protocol=protocol, orchestration_mode="dag_guided")
         await harness.wait_for(lambda: coordinator.state.value == "waiting_approval", "pending exit review")
         messages = [e for e in harness.events(coordinator) if e.type == "agent.message_emitted"]
-        assert not any(candidate in e.data.get("content", "") for e in messages)
+        assert [e.data["content"] for e in messages] == [candidate]
+        assert any(m.get("role") == "assistant" and m.get("content") == candidate
+            for m in harness.core.contexts.current_messages(coordinator.id))
+        assert not any(e.type == "agent.completion_gate" and e.data["action"] == "allow_final"
+            for e in harness.events(coordinator))
         await harness.wait_for(lambda: all(a.state.value == "succeeded" for a in harness.core.agents.values()
             if a.role_id == "supervisor"), "Supervisor idle while exit decision is pending")
         provider.script("coordinator", *[final for _ in range(4)])
@@ -166,9 +170,9 @@ async def test_stop_answer_is_emitted_only_after_final_gate_authorizes_it(tmp_pa
         events = harness.events(coordinator)
         gate = next(e for e in events if e.type == "agent.completion_gate" and e.data["action"] == "allow_final")
         emitted = next(e for e in events if e.type == "agent.message_emitted" and e.data.get("content") == candidate)
-        assert gate.seq < emitted.seq
-        assert not any(candidate in e.data.get("content", "") for e in events
-            if e.type == "agent.message_emitted" and e.seq < gate.seq)
+        assert emitted.seq < gate.seq
+        assert gate.data["result_message_id"] == emitted.event_id
+        assert [e.data["content"] for e in events if e.type == "agent.message_emitted"] == [candidate]
     finally:
         release.set()
         await harness.aclose()

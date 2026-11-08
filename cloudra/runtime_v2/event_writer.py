@@ -28,6 +28,7 @@ to keep replayed history from being re-persisted/re-published.
 from __future__ import annotations
 
 import asyncio
+from contextvars import copy_context
 from typing import TYPE_CHECKING, Callable
 
 from cloudra.runtime_v2.effects import EventDraft
@@ -68,18 +69,40 @@ class EventWriter:
     async def flush(self) -> None:
         """Persist the unflushed prefix in order, then publish unpublished events."""
         async with self._lock:
-            unpublished = await self._flush_locked()
+            unpublished, cancelled = await self._flush_locked()
         await self._publish(unpublished)
+        if cancelled:
+            raise asyncio.CancelledError
 
-    async def _flush_locked(self) -> list[EventEnvelope]:
-        """Persist/capture the next publishable prefix while the writer lock is held."""
+    async def _flush_locked(self) -> tuple[list[EventEnvelope], bool]:
+        """Persist/capture the next prefix, deferring cancellation until projection."""
+        cancelled = False
+
+        async def complete_io(operation, *args):
+            nonlocal cancelled
+            # Unlike an internal Task, this executor Future is not cancelled by
+            # asyncio.run's all-task shutdown sweep. Shield the actual IO, not
+            # a disposable coroutine waiting for an already-running store write.
+            future = asyncio.get_running_loop().run_in_executor(None, copy_context().run, operation, *args)
+            while True:
+                try:
+                    return await asyncio.shield(future)
+                except asyncio.CancelledError as exc:
+                    cancelled = True
+                    if future.cancelled():
+                        raise EventPersistenceError("store operation cancelled before completion") from exc
+                    if future.done():
+                        try:
+                            return future.result()
+                        except asyncio.CancelledError as interrupted:
+                            raise EventPersistenceError("store operation interrupted") from interrupted
         store = self._store_provider() if self._store_provider is not None else None
         if store is not None:
             self._log.attach_store(store)
         start = min(self._persisted, self._published) if store is not None else self._published
         events = (
             self._log.events_since(start) if start >= self._log.resident_start_index
-            else await asyncio.to_thread(self._log.events_since, start)
+            else await complete_io(self._log.events_since, start)
         )
         end = start + len(events)
         if store is not None:
@@ -90,15 +113,13 @@ class EventWriter:
                 # receives its acknowledgement. Probe by the durable id
                 # before treating that event as unpersisted.
                 try:
-                    await asyncio.to_thread(store.append_event, envelope)
+                    await complete_io(store.append_event, envelope)
                 except Exception as exc:
                     probe = getattr(store, "has_event", None)
                     committed = False
                     if callable(probe):
                         try:
-                            committed = await asyncio.to_thread(
-                                probe, envelope.event_id
-                            )
+                            committed = await complete_io(probe, envelope.event_id)
                         except Exception:
                             # Unknown durability must remain a failure.
                             pass
@@ -118,7 +139,7 @@ class EventWriter:
         # Mark before publishing: hub callbacks may re-enter flush, and
         # the hub dedupes by event_id, so this cannot double-deliver.
         self._published = end
-        return unpublished
+        return unpublished, cancelled
 
     async def _publish(self, events: list[EventEnvelope]) -> None:
         if self._hub is not None:
@@ -136,14 +157,17 @@ class EventWriter:
         Hub callbacks run after projection and after releasing the writer lock.
         """
         error = None
+        cancelled = False
         async with self._lock:
             keep = len(self._log)
             envelopes = [self._log.append(
                 draft.type, stream=draft.stream, project_id=draft.project_id,
                 session_id=draft.session_id, run_id=draft.run_id, data=draft.data,
             ) for draft in drafts]
+            # Keep the lock through durable projection even if the caller was
+            # cancelled while a store write continued in its executor thread.
             try:
-                unpublished = await self._flush_locked()
+                unpublished, cancelled = await self._flush_locked()
             except EventPersistenceError as exc:
                 self.discard_unpersisted(keep=keep)
                 # Own drafts form a contiguous append range. Apply exactly its
@@ -152,12 +176,19 @@ class EventWriter:
                 if durable_count != len(envelopes):
                     error = exc
                 envelopes = envelopes[:durable_count]
+                # Project before the recovery read can suspend/cancel. Later
+                # publication must never reveal an unapplied durable prefix.
+                for envelope in envelopes:
+                    apply(envelope)
+                envelopes = []
                 unpublished = await self._persisted_unpublished_locked()
             for envelope in envelopes:
                 apply(envelope)
         await self._publish(unpublished)
         if error is not None:
             raise error
+        if cancelled:
+            raise asyncio.CancelledError
 
     async def commit(self, draft: EventDraft) -> EventEnvelope:
         """Append one draft to the log and durably flush; returns the envelope."""

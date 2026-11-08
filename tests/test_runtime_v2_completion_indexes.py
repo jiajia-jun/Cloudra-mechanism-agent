@@ -155,9 +155,13 @@ def test_live_completion_reads_reuse_indexes_and_only_load_missing_child_report(
     core.child_completions = ChildCompletionIndex()
     core.peer_completions = PeerCompletionIndex()
     for session in ("child", "peer"):
+        started = _event(core, "run.started", session=session)
+        message = _event(core, "agent.message_emitted", session=session, content="finished work")
         for event in [
-            _event(core, "run.started", session=session),
-            _event(core, "agent.message_emitted", session=session, content="finished work"),
+            started,
+            message,
+            _event(core, "agent.completion_gate", session=session, action="allow_final",
+                   result_message_id=message.event_id),
             _event(core, "agent.state_changed", session=session, to="succeeded"),
             _event(core, "run.finished", session=session, outcome="succeeded"),
         ]:

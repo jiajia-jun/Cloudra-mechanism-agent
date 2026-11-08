@@ -132,6 +132,28 @@ class ContextBroker:
             agent=agent, run_id=run_id, events=events
         )
 
+    async def emit_assistant(
+        self, *, agent: AgentSession, run_id: str, content: str, reasoning: str = "",
+        response_id: str | None = None,
+    ) -> None:
+        """One durable text source for both the transcript and session context.
+
+        Tool calls are committed separately with their matching results. A tool
+        that blocks, fails or is cancelled cannot remove an already shown reply.
+        """
+        if not content:
+            return
+        await self._persist_then_apply(
+            agent=agent,
+            run_id=run_id,
+            events=[("agent.message_emitted", {
+                "sender": agent.role_id,
+                "content": content,
+                "context": {"reasoning_content": reasoning} if reasoning else {},
+                **({"response_id": response_id} if response_id else {}),
+            })],
+        )
+
     async def append_output(self, *, agent: AgentSession, run_id: str, messages: list[dict]) -> None:
         """响应落上下文：完整的 assistant/tool 消息（文本、工具配对、
         reasoning、稳定媒体引用）追加进投影。"""

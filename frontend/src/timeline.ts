@@ -52,6 +52,9 @@ export interface MessageItem {
   content: string;
   pending?: boolean;
   streaming?: boolean;
+  /** A transient partial is not a committed conversation message. */
+  incomplete?: boolean;
+  responseId?: string;
   /** Image attachments on user messages: workspace paths (from the event
    * payload) plus artifact ids when known (optimistic echo / future payloads). */
   imagePaths?: string[];
@@ -76,6 +79,8 @@ export type TimelineItem = ToolItem | ProgramItem | MessageItem | NoteItem | Thi
 export interface StreamView {
   streamText: string;
   frozen: MessageItem[];
+  responseId?: string;
+  streamClosed?: boolean;
   streamThinking?: string;
   streamThinkingLive?: boolean;
   streamThinkingSeq?: number;
@@ -102,7 +107,7 @@ function short(text: unknown, max = 80): string {
 function freezeStream(view: StreamView, seq: number): StreamView {
   const text = view.streamText;
   if (!text) return { ...view, streamText: '' };
-  if (view.frozen.some((m) => m.content === text)) {
+  if (view.frozen.some((m) => view.responseId ? m.responseId === view.responseId : m.content === text)) {
     return { ...view, streamText: '' };
   }
   return {
@@ -115,8 +120,10 @@ function freezeStream(view: StreamView, seq: number): StreamView {
         id: `stream-${seq}`,
         seq: seq + 0.4,
         sender: 'assistant',
-        senderLabel: 'assistant',
+        senderLabel: 'assistant (incomplete output, not saved)',
         content: text,
+        incomplete: true,
+        responseId: view.responseId,
       },
     ],
   };
@@ -125,10 +132,13 @@ function freezeStream(view: StreamView, seq: number): StreamView {
 /** Live streamText and streamThinking vs events that would otherwise wipe it. */
 export function applyStreamEvent(
   view: StreamView,
-  event: { type: string; session_seq?: number | null; data: Record<string, unknown> },
+  event: { type: string; event_id?: string; session_seq?: number | null; data: Record<string, unknown> },
   fallbackSeq = 0,
 ): StreamView {
   if (event.type === 'llm.chunk') {
+    const responseId = typeof event.data.response_id === 'string' ? event.data.response_id : undefined;
+    if (view.streamClosed || (responseId && view.responseId && responseId !== view.responseId)) return view;
+    view = { ...view, responseId: responseId ?? view.responseId };
     const delta = String(event.data.delta ?? '');
     if (!delta) return view;
     if (event.data.kind === 'reasoning') {
@@ -171,31 +181,44 @@ export function applyStreamEvent(
     // 新 run / 新尝试不能沿用上一次未持久化的思考，否则新分片会拼进旧文本。
     return {
       ...freezeStream(view, event.session_seq ?? 0),
+      responseId: undefined,
+      streamClosed: true,
       streamThinking: '',
       streamThinkingLive: false,
       streamThinkingSeq: 0,
     };
   }
+  if (event.type === 'llm.request_started') {
+    return {
+      ...freezeStream(view, event.session_seq ?? 0),
+      responseId: event.event_id,
+      streamClosed: false,
+      streamThinkingLive: false,
+    };
+  }
   if (
-    event.type === 'llm.request_started' ||
     event.type === 'run.finished' ||
     event.type === 'agent.cancelled' ||
     event.type === 'llm.failed'
   ) {
-    // 取消只发 agent.cancelled，不发 run.finished；两条路径同样结束实时显示。
-    const frozenView = freezeStream(view, event.session_seq ?? 0);
+    // A provider interruption leaves an explicitly incomplete local fragment,
+    // never a fabricated committed assistant message.
     return {
-      ...frozenView,
+      ...freezeStream(view, event.session_seq ?? 0),
+      streamClosed: true,
       streamThinkingLive: false,
     };
   }
   if (event.type === 'agent.message_emitted') {
     const content = String(event.data.content ?? '');
+    const responseId = typeof event.data.response_id === 'string' ? event.data.response_id : undefined;
+    const current = responseId ? responseId === view.responseId : content === view.streamText;
     return {
       ...view,
-      streamText: '',
-      frozen: view.frozen.filter((m) => m.content !== content),
-      streamThinkingLive: false,
+      streamText: current ? '' : view.streamText,
+      frozen: view.frozen.filter((m) => responseId ? m.responseId !== responseId : m.content !== content),
+      streamClosed: current ? true : view.streamClosed,
+      streamThinkingLive: current ? false : view.streamThinkingLive,
     };
   }
   return view;
@@ -367,6 +390,12 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
     const seq = event.session_seq ?? event.seq;
     if (MESSAGE_TYPES.has(event.type)) {
       const sender = String(event.data.sender ?? 'agent');
+      if (event.type === 'agent.message_injected' &&
+          ['system', 'completion_gate', 'background_quiescence'].includes(sender)) {
+        items.push({ kind: 'note', id: event.event_id, seq, level: 'info',
+          text: `${sender}: ${fullText(event.data.content)}` });
+        continue;
+      }
       const imagePaths = stringList(event.data.images);
       const imageArtifactIds = stringList(event.data.image_artifact_ids);
       items.push({
@@ -376,6 +405,7 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
         sender: event.type === 'agent.message_injected' && (sender === 'user' || sender === 'system') ? 'user' : 'assistant',
         senderLabel: sender,
         content: String(event.data.content ?? ''),
+        responseId: typeof event.data.response_id === 'string' ? event.data.response_id : undefined,
         imagePaths: imagePaths.length > 0 ? imagePaths : undefined,
         imageArtifactIds: imageArtifactIds.length > 0 ? imageArtifactIds : undefined,
       });
@@ -590,13 +620,21 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
           });
         }
       }
+    } else if (event.type === 'agent.completion_gate') {
+      const action = String(event.data.action ?? 'unknown');
+      const reason = fullText(event.data.reason);
+      items.push({
+        kind: 'note', id: event.event_id, seq,
+        level: action === 'continue_work' ? 'warn' : 'info',
+        text: `Completion gate (${action}): ${reason}`,
+      });
     } else if (event.type === 'agent.warning' || event.type === 'llm.failed' || event.type === 'tool.blocked') {
       items.push({
         kind: 'note',
         id: event.event_id,
         seq,
         level: 'warn',
-        text: short(event.data.message ?? event.data.error ?? event.type, 200),
+        text: fullText(event.data.message ?? event.data.error ?? event.type),
       });
     }
   }

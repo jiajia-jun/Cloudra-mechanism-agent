@@ -130,7 +130,8 @@ for (const type of ['run.started', 'run.retry']) {
   assert.equal(nextAttempt.streamThinking, '', `${type} clears old transient reasoning`);
   assert.equal(nextAttempt.streamThinkingLive, false);
   assert.equal(nextAttempt.streamThinkingSeq, 0);
-  const nextThinking = applyStreamEvent(nextAttempt, {
+  const nextRequest = applyStreamEvent(nextAttempt, { type: 'llm.request_started', session_seq: 12, data: {} });
+  const nextThinking = applyStreamEvent(nextRequest, {
     type: 'llm.chunk', session_seq: 12, data: { kind: 'reasoning', delta: 'Fresh reasoning.' },
   });
   assert.equal(nextThinking.streamThinking, 'Fresh reasoning.');
@@ -472,3 +473,60 @@ console.log('timeline.tool-args ok');
   assert.ok(notes[0].text.includes('API key'), 'the note must name the next step');
   console.log('timeline.run-failure-note ok');
 }
+
+/* --------------------------- task status is never assistant conversation */
+const gateStream = applyStreamEvent(view({ streamText: 'Original model reply.' }), {
+  type: 'agent.completion_gate', session_seq: 90,
+  data: { action: 'wait_background', reason: 'A real reminder is pending.' },
+});
+assert.equal(gateStream.streamText, 'Original model reply.');
+const gateRows = buildTimeline([
+  ev('agent.message_emitted', 89, { sender: 'coordinator', content: 'Original model reply.' }),
+  ev('agent.completion_gate', 90, { action: 'wait_background', reason: 'A real reminder is pending.' }),
+  ev('agent.message_injected', 91, { sender: 'completion_gate', content: 'System feedback.' }),
+], []);
+assert.deepEqual(gateRows.filter((item) => item.kind === 'message').map((item) => item.content), ['Original model reply.']);
+assert.ok(gateRows.some((item) => item.kind === 'note' && item.text.includes('wait_background') && item.text.includes('A real reminder is pending.')));
+assert.ok(gateRows.some((item) => item.kind === 'note' && item.text.includes('completion_gate') && item.text.includes('System feedback.')));
+
+const unrelatedMessage = applyStreamEvent(view({ streamText: 'Actual current reply.' }), {
+  type: 'agent.message_emitted', session_seq: 92, data: { content: 'Another response.' },
+});
+assert.equal(unrelatedMessage.streamText, 'Actual current reply.', 'an unrelated committed message cannot erase a stream');
+assert.equal(cancelledStream.frozen[0].incomplete, true, 'uncommitted partial text is visibly marked incomplete');
+
+console.log('timeline.message-consistency ok');
+
+
+/* -------------------------------- response identity and delayed SSE */
+const firstRequest = applyStreamEvent(view(), {
+  type: 'llm.request_started', event_id: 'response-1', session_seq: 100, data: {},
+});
+const firstChunk = applyStreamEvent(firstRequest, {
+  type: 'llm.chunk', data: { response_id: 'response-1', kind: 'content', delta: 'partial' },
+});
+const firstCommitted = applyStreamEvent(firstChunk, {
+  type: 'agent.message_emitted', session_seq: 101,
+  data: { response_id: 'response-1', content: 'Complete provider-normalized reply.' },
+});
+assert.equal(firstCommitted.streamText, '', 'identity commits the right partial even if text differs');
+const lateChunk = applyStreamEvent(firstCommitted, {
+  type: 'llm.chunk', data: { response_id: 'response-1', kind: 'content', delta: 'late' },
+});
+assert.equal(lateChunk.streamText, '', 'a committed response never reopens from late tokens');
+const secondRequest = applyStreamEvent(firstCommitted, {
+  type: 'llm.request_started', event_id: 'response-2', session_seq: 102, data: {},
+});
+const secondChunk = applyStreamEvent(secondRequest, {
+  type: 'llm.chunk', data: { response_id: 'response-2', kind: 'content', delta: 'new response' },
+});
+const oldCommit = applyStreamEvent(secondChunk, {
+  type: 'agent.message_emitted', session_seq: 101,
+  data: { response_id: 'response-1', content: 'new response' },
+});
+assert.equal(oldCommit.streamText, 'new response', 'an old response cannot erase a new one even when text matches');
+const oldChunk = applyStreamEvent(secondChunk, {
+  type: 'llm.chunk', data: { response_id: 'response-1', kind: 'content', delta: 'obsolete' },
+});
+assert.equal(oldChunk.streamText, 'new response');
+console.log('timeline.response-identity ok');

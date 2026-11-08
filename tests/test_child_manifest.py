@@ -78,13 +78,18 @@ async def _finish(core, child, outcome: str, **kwargs) -> None:
 @pytest.mark.asyncio
 async def test_manifest_shapes_succeeded_cancelled_and_no_final_text():
     core, child = await _child()
-    core.event_log.append(
+    reply = core.event_log.append(
         "agent.message_emitted",
         stream="agent",
         project_id=child.project_id,
         session_id=child.id,
         run_id=child.current_run.run_id,
         data={"content": "explorer done"},
+    )
+    core.event_log.append(
+        "agent.completion_gate", stream="agent", project_id=child.project_id,
+        session_id=child.id, run_id=child.current_run.run_id,
+        data={"action": "allow_final", "result_message_id": reply.event_id},
     )
     await _finish(core, child, "succeeded")
     manifest = build_child_manifest(core, child)
