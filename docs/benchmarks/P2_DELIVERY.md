@@ -75,7 +75,7 @@ tar -xzf Cloudra-P2-final-20261031-FULL.tar.gz -C cloudra-p2-data
   --apply-target-overlay
 ```
 
-命令读取包内 `tables/final_scores_per_run.csv` 的保留运行，并把表里的工作站沙箱路径定位到 `campaign_data/<campaign>/...`。整理图存在时，这次评分使用整理图；否则使用沙箱里的原生 `mechanism_graph.json`。图中写成绝对路径、且该文件已经在本沙箱内的证据，改写成相对路径。对不上现有文件的路径保持原样，程序不补造日志。
+命令读取包内 `tables/final_scores_per_run.csv` 的保留运行，并把表里的工作站沙箱路径定位到 `campaign_data/<campaign>/...`。`repair_source` 指向 `reconstructions/<分组>/<题号>/mechanism_graph.json` 时，这次评分使用那份整理图。沙箱里已经有正式交付的 `mechanism_graph.json`，且分数表没有把整理图记为修复来源时，使用正式交付。guided/HI1 属于后一种：`reconstructions/INDEX.md` 的 Final outcome 写明恢复完成后的正式交付才是权威结果，目录中的重建图只是 fallback，不能覆盖正式交付。沙箱里没有机理图时，仍使用 `reconstructions/` 下的整理图。图中写成绝对路径、且该文件已经在本沙箱内的证据，改写成相对路径。对不上现有文件的路径保持原样，程序不补造日志。
 
 默认任务定义是本仓库的 `ideapool/tasks`。当前版本这 50 个文件与 SI 配套包 `task_definitions/` 逐字节相同。结果写到输出目录的 `rescored_runs.csv` 和 `rescored_runs.json`。`sandbox` 是归档内的保留沙箱，`reconstruction` 标明是否使用了整理图。`graph_score`、`selfconsistency_score`、`accuracy_score`、`final_score` 是图结构、自洽性、准确度和综合分。`scorer_accuracy` 与 `scorer_final` 始终保留本次 `score_sandbox` 的原始准确度和综合分。
 
