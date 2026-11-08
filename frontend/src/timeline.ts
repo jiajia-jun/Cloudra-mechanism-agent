@@ -52,6 +52,8 @@ export interface MessageItem {
   content: string;
   pending?: boolean;
   streaming?: boolean;
+  /** A partial stream is not a saved assistant reply. */
+  incomplete?: boolean;
   /** Image attachments on user messages: workspace paths (from the event
    * payload) plus artifact ids when known (optimistic echo / future payloads). */
   imagePaths?: string[];
@@ -115,8 +117,9 @@ function freezeStream(view: StreamView, seq: number): StreamView {
         id: `stream-${seq}`,
         seq: seq + 0.4,
         sender: 'assistant',
-        senderLabel: 'assistant',
+        senderLabel: 'assistant (incomplete output, not saved)',
         content: text,
+        incomplete: true,
       },
     ],
   };
@@ -193,7 +196,7 @@ export function applyStreamEvent(
     const content = String(event.data.content ?? '');
     return {
       ...view,
-      streamText: '',
+      streamText: content === view.streamText ? '' : view.streamText,
       frozen: view.frozen.filter((m) => m.content !== content),
       streamThinkingLive: false,
     };
@@ -367,6 +370,12 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
     const seq = event.session_seq ?? event.seq;
     if (MESSAGE_TYPES.has(event.type)) {
       const sender = String(event.data.sender ?? 'agent');
+      if (event.type === 'agent.message_injected' &&
+          ['system', 'completion_gate', 'background_quiescence'].includes(sender)) {
+        items.push({kind: 'note', id: event.event_id, seq, level: 'info',
+          text: `${sender}: ${String(event.data.content ?? '')}`});
+        continue;
+      }
       const imagePaths = stringList(event.data.images);
       const imageArtifactIds = stringList(event.data.image_artifact_ids);
       items.push({
@@ -590,13 +599,16 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
           });
         }
       }
+    } else if (event.type === 'agent.completion_gate') {
+      items.push({kind: 'note', id: event.event_id, seq, level: 'info',
+        text: `Completion gate (${String(event.data.action ?? 'unknown')}): ${String(event.data.reason ?? '')}`});
     } else if (event.type === 'agent.warning' || event.type === 'llm.failed' || event.type === 'tool.blocked') {
       items.push({
         kind: 'note',
         id: event.event_id,
         seq,
         level: 'warn',
-        text: short(event.data.message ?? event.data.error ?? event.type, 200),
+        text: fullText(event.data.message ?? event.data.error ?? event.type),
       });
     }
   }

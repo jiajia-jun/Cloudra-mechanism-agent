@@ -42,6 +42,7 @@ from tests.agent_scenarios import (
     ScriptedProvider,
     Step,
     frozen_exit_confirmation_steps,
+    visible_background_reply_steps,
 )
 
 
@@ -551,8 +552,8 @@ async def test_new_user_instruction_prevents_automatic_exit_confirmation(tmp_pat
         assert any(user_instruction in str(message.get("content")) for message in messages)
         assert coordinator.state is AgentState.RUNNING
         assert await _dispositions(harness.project.id) == []
-        assert not any(event.type == "agent.message_emitted"
-            and event.data.get("content") == frozen_answer for event in harness.events(coordinator))
+        assert sum(event.type == "agent.message_emitted"
+            and event.data.get("content") == frozen_answer for event in harness.events(coordinator)) == 1
         assert len(await _review_requests(harness.project.id, state=None)) == 1
     finally:
         for release in (review_ready, continue_release, audit_release):
@@ -608,7 +609,9 @@ async def test_rejected_exit_review_feeds_reason_and_next_action(tmp_path):
             for e in core.event_log.query_session(coordinator.id)
             if e.type == "agent.message_emitted"
         ]
-        assert any("Completion gate" in str(e.data["content"]) for e in emitted)
+        assert not any("Completion gate" in str(e.data["content"]) for e in emitted)
+        warnings = core.event_log.query_session(coordinator.id, types={"agent.warning"})
+        assert any("Completion gate" in e.data["message"] for e in warnings)
         # 拒绝不登记交付处置。
         assert await _dispositions(project.id) == []
     finally:
@@ -1130,8 +1133,8 @@ async def test_review_binds_actual_candidate_when_stop_final_answer_is_omitted(t
         requests = await _review_requests(project.id)
         assert len(requests) == 1
         assert requests[0].proposal["final_answer"] == candidate
-        assert not any(event.type == "agent.message_emitted" and event.data.get("content") == candidate
-            for event in core.event_log.query_session(coordinator.id))
+        assert sum(event.type == "agent.message_emitted" and event.data.get("content") == candidate
+            for event in core.event_log.query_session(coordinator.id)) == bool(candidate)
         confirmation = LLMResponse(content="unreviewed-confirmation-marker", tool_calls=[ToolCall(
             id="confirm-stop", name="stop", arguments={"delivery_disposition": "partial", "reason": "", "final_answer": ""}
         )])
@@ -1150,3 +1153,85 @@ async def test_review_binds_actual_candidate_when_stop_final_answer_is_omitted(t
         assert [item.request_id for item in saved] == [requests[0].request_id]
     finally:
         await _teardown(core)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('action', ['allow_final', 'wait_background', 'wait_review', 'continue_work'])
+async def test_completion_gate_does_not_replace_model_reply_or_forge_assistant_text(action):
+    """Visible assistant text is the same durable text the next model turn sees."""
+    from cloudra.dag.stop_audit import StopGate
+
+    candidate = 'model-authored-reply-marker'
+    reason = 'system-gate-status-marker'
+
+    class GateStage:
+        name = 'message_consistency'
+
+        async def before_llm(self, ctx, messages):
+            pass
+
+        async def before_tool(self, ctx, call):
+            return PolicyResult.allow()
+
+        async def after_tool(self, ctx, call, result):
+            pass
+
+        async def audit_run_end(self, ctx, **kwargs):
+            return StopGate(action=action, reason=reason)
+
+    llm = _RoutingLLM([LLMResponse(content=candidate)])
+    core, bus, project = await _new_core(llm, extra_stages=[GateStage()], max_exit_strikes=1)
+    try:
+        agent = await _spawn_coordinator(bus, project)
+        await _wait_until(lambda: _gate_events(core, agent.id) and agent.state not in {AgentState.QUEUED, AgentState.RUNNING}, what=f'{action} disposition')
+        events = core.event_log.query_session(agent.id)
+        visible = [e.data['content'] for e in events if e.type == 'agent.message_emitted']
+        context = [m['content'] for m in core.contexts.current_messages(agent.id) if m['role'] == 'assistant']
+        assert visible == [candidate]
+        assert context == visible
+        assert not any(reason in text for text in visible)
+        gates = [e for e in events if e.type == 'agent.completion_gate']
+        assert gates[-1].data['action'] == action
+        if action == 'wait_review':
+            assert agent.state is AgentState.WAITING_APPROVAL
+        elif action == 'continue_work':
+            assert agent.state is AgentState.FAILED
+        else:
+            assert agent.state is AgentState.SUCCEEDED
+    finally:
+        await _teardown(core)
+
+
+@pytest.mark.asyncio
+async def test_background_reply_survives_resume_and_event_replay(tmp_path):
+    from cloudra.runtime_v2.persistence import restore_core
+
+    resume = asyncio.Event()
+    steps = visible_background_reply_steps(resume)
+    texts = [step.text for step in steps]
+    provider = ScriptedProvider(default=steps)
+    harness = await ScenarioHarness.start(tmp_path, provider=provider, workspace_dir=tmp_path)
+    try:
+        agent = await harness.spawn('coordinator', 'go', protocol='traditional', schedule_mode=True)
+        await harness.wait_for(lambda: agent.state is AgentState.SUCCEEDED, 'background suspension')
+        visible = [event.data['content'] for event in harness.events(agent) if event.type == 'agent.message_emitted']
+        assert visible == texts[:2]
+        assert _gate_events(harness.core, agent.id)[-1].data['action'] == 'wait_background'
+        await harness.bus.execute(Command(type='agent.message', target={'session_id': agent.id},
+                                          payload={'content': 'resume-user-marker'}))
+        resume.set()
+        await harness.wait_for(lambda: provider.call_count() == 3 and agent.state is AgentState.SUCCEEDED,
+                               'resumed background reply')
+        next_messages = provider.calls[2][1]
+        assert [m['content'] for m in next_messages if m['role'] == 'assistant' and m.get('content')] == texts[:2]
+        visible = [event.data['content'] for event in harness.events(agent) if event.type == 'agent.message_emitted']
+        context = harness.core.contexts.current_messages(agent.id)
+        assert [m['content'] for m in context if m['role'] == 'assistant' and m.get('content')] == visible == texts
+        restored = RuntimeCore(strict_events=True)
+        await asyncio.to_thread(restore_core, restored, harness.store)
+        assert restored.contexts.current_messages(agent.id) == context
+        assert [event.data['content'] for event in restored.event_log.query_session(agent.id,
+                types={'agent.message_emitted'})] == visible
+    finally:
+        resume.set()
+        await harness.aclose()

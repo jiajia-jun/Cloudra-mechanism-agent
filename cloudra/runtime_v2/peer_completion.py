@@ -126,12 +126,19 @@ def build_peer_completion_index(core) -> PeerCompletionIndex:
     return core.peer_completions
 
 
-def _manifest(peer: AgentSession, terminal: EventEnvelope, index: PeerCompletionIndex) -> dict[str, Any]:
+def _manifest(core, peer: AgentSession, terminal: EventEnvelope, index: PeerCompletionIndex) -> dict[str, Any]:
     state = str(terminal.data["to"])
     run_id = terminal.run_id
     finished = index.finished_by_run.get((peer.id, run_id)) if run_id else None
     final = index.final_message_by_session.get(peer.id)
-    if final is not None:
+    gates = core.event_log.query_session(
+        peer.id, run_id=run_id, before_session_seq=terminal.session_seq,
+        types={"agent.completion_gate"}, limit=1,
+    ) if state == "succeeded" and run_id else []
+    if gates and "final_answer" in gates[-1].data:
+        summary = gates[-1].data["final_answer"]
+        summary_source = "agent.message_emitted"
+    elif final is not None:
         summary = str(final.data["content"]).strip()
         summary_source = "agent.message_emitted"
     elif state == "cancelled":
@@ -173,7 +180,7 @@ def peer_completion_message(
     terminal = index.terminal_by_session.get(peer.id)
     if terminal is None or (recipient_id, peer.id) in index.reported:
         return None
-    manifest = _manifest(peer, terminal, index)
+    manifest = _manifest(core, peer, terminal, index)
     content = (
         f"[Peer finished] role={peer.role_id} session_id={peer.id} "
         f"state={manifest['state']}\n"

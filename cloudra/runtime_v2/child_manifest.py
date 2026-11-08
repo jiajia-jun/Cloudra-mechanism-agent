@@ -159,9 +159,19 @@ def build_child_manifest(
     if last is None and state is AgentState.CANCELLED:
         last = {"run_id": None, "outcome": "cancelled", "failure_kind": None}
     final_run_id = terminal_event.run_id if terminal_event is not None else None
-    summary_text, summary_source = _final_summary(
-        core, child, events=events, state=state, run_id=final_run_id,
-    )
+    result_gate = None
+    if state is AgentState.SUCCEEDED and last is not None and last["run_id"] is not None:
+        gates = [e for e in events if e.type == "agent.completion_gate" and e.run_id == last["run_id"]
+                 ] if events is not None else core.event_log.query_session(
+            child.id, run_id=last["run_id"], types={"agent.completion_gate"}, limit=1,
+        )
+        result_gate = gates[-1] if gates else None
+    if result_gate is not None and "final_answer" in result_gate.data:
+        summary_text, summary_source = result_gate.data["final_answer"], "message"
+    else:
+        summary_text, summary_source = _final_summary(
+            core, child, events=events, state=state, run_id=final_run_id,
+        )
     gate = _last_gate(core, child, events=events, run_id=final_run_id)
     unresolved: list[str] = []
     if gate is not None and gate["action"] == "continue_work" and gate["reason"]:

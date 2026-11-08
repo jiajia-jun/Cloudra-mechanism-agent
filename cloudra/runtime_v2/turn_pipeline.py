@@ -472,7 +472,7 @@ class TurnPipeline:
             resolver = getattr(self.llm, "resolve_effective_settings", None)
             if resolver is not None:
                 model = resolver(agent).model
-        self.event_log.append(
+        request_event = self.event_log.append(
             "llm.request_started",
             stream="agent",
             project_id=agent.project_id,
@@ -500,6 +500,8 @@ class TurnPipeline:
                     )
                 )
 
+        # Open the next stream before transient chunks arrive.
+        await self._publish(request_event)
         try:
             response = await self.llm.complete(agent, messages, capabilities.tools, on_delta=on_delta)
         except Exception as exc:
@@ -538,30 +540,30 @@ class TurnPipeline:
                 )
             )
 
+        async def emit_text(content: str, *, reasoning: str = "") -> None:
+            if not content:
+                return
+            if context_broker is not None:
+                await context_broker.emit_assistant(
+                    agent=agent, run_id=run_id, content=content, reasoning=reasoning,
+                )
+            else:
+                await self._publish(self.event_log.append(
+                    "agent.message_emitted", stream="agent", project_id=agent.project_id,
+                    session_id=agent.id, run_id=run_id,
+                    data={"sender": agent.role_id, "content": content},
+                ))
+
+        # Text is conversation, not proof of task completion. Commit it before
+        # tools or exit audits can block/cancel the turn. The same durable event
+        # updates the transcript and the context; never substitute system text.
+        await emit_text(response.content, reasoning=response.reasoning if not response.tool_calls else "")
+
         if not response.tool_calls:
             # 无工具调用的纯文本最终回复只是结束*意向*：是否允许结束由 runner
             # 收尾前的统一结束门禁裁决（与显式 stop 同一边界，Task 4A）。
             return TurnOutcome(
                 decision="stop", content=response.content, reasoning=response.reasoning
-            )
-
-        # 中间轮次的正文（模型在工具调用前后说的话）不能只活在流式气泡里：
-        # 落成持久 agent.message_emitted，否则历史轮次的 narration 全被吞掉。
-        # stop 轮的正文由 runner 的最终消息承载，这里跳过避免重复。
-        # 立刻推到 hub：等整轮工具跑完再 flush 时，前端会先被
-        # llm.request_started 清掉流式气泡，内容来不及进时间线。
-        if response.content.strip() and not any(
-            call.name == self.stop_tool for call in response.tool_calls
-        ):
-            await self._publish(
-                self.event_log.append(
-                    "agent.message_emitted",
-                    stream="agent",
-                    project_id=agent.project_id,
-                    session_id=agent.id,
-                    run_id=run_id,
-                    data={"sender": agent.role_id, "content": response.content},
-                )
             )
 
         exchanges: list[tuple[ToolCall, ToolResult]] = []
@@ -616,6 +618,7 @@ class TurnPipeline:
                     error = (result.data or {}).get("error") or {}
                     return TurnOutcome(
                         decision="wait_approval",
+                        content=response.content,
                         message=str(error.get("message") or ""),
                         tool_exchanges=tuple(exchanges),
                         reasoning=response.reasoning,
@@ -628,6 +631,7 @@ class TurnPipeline:
             if outcome.decision == "wait_approval":
                 return TurnOutcome(
                     decision="wait_approval",
+                    content=response.content,
                     message=outcome.error.message if outcome.error else "",
                     blocked_call=outcome.call,
                     tool_exchanges=tuple(exchanges),
@@ -636,8 +640,8 @@ class TurnPipeline:
             if outcome.error is not None and outcome.error.code == "policy_blocked":
                 return TurnOutcome(
                     decision="continue",
-                    content=outcome.error.message,
-                    message=f"blocked by {outcome.error.stage}",
+                    content=response.content,
+                    message=outcome.error.message,
                     blocked_call=outcome.call,
                     tool_exchanges=tuple(exchanges),
                     reasoning=response.reasoning,
@@ -650,7 +654,9 @@ class TurnPipeline:
             if outcome.call.name == self.stop_tool:
                 # Carry a candidate answer to the runner. A tool receipt is
                 # never a final answer or authorization to stop.
-                final_text = str(outcome.call.arguments.get("final_answer") or response.content).strip()
+                final_text = str(outcome.call.arguments.get("final_answer") or response.content)
+                if final_text and final_text != response.content:
+                    await emit_text(final_text)
                 return TurnOutcome(
                     decision="stop",
                     content=final_text,

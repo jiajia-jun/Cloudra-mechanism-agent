@@ -27,6 +27,7 @@
 - run.started / run.finished / agent.cancelled
 - compaction.requested（``pending_compactions`` 投影的唯一写入点；
   跨 run 存活，由 runner 在下个轮次边界应用到会话上下文）
+- agent.message_emitted（同一条正文事件驱动可见消息与会话上下文）
 - context.prefix_installed / context.appended / context.compacted
   （``session_contexts`` 会话级 LLM 上下文投影，Task 4）
 
@@ -34,7 +35,7 @@
 - 意图与审计标记：agent.spawn_requested / agent.spawn_rejected /
   agent.cancel_requested / agent.restart_requested / agent.restarted /
   command.rejected /
-  agent.message_emitted / agent.warning / loop.detected / project.synced
+  agent.warning / loop.detected / project.synced
 - 消息与对话：agent.message_injected / agent.thinking（本函数对二者不投影任何
   projects/agents/roles 状态；输入消息进入会话上下文走 context.appended，inbox
   队列则由恢复路径 ``persistence._rebuild_inboxes_from_events`` 从
@@ -222,6 +223,17 @@ def _apply_context_prefix_installed(core: RuntimeCore, envelope: EventEnvelope) 
     ctx.prefix_meta = dict(data.get("meta") or {})
 
 
+def _apply_assistant_message(core: RuntimeCore, envelope: EventEnvelope) -> None:
+    data = envelope.data or {}
+    # Events that only announced output have no context payload: their context
+    # was recorded in context.appended. New text commits use this event alone.
+    if not envelope.session_id or "context" not in data:
+        return
+    _context_of(core, envelope.session_id).messages.append({
+        "role": "assistant", "content": data["content"], **data["context"],
+    })
+
+
 def _apply_context_appended(core: RuntimeCore, envelope: EventEnvelope) -> None:
     if not envelope.session_id:
         return
@@ -302,6 +314,7 @@ _APPLIERS: dict[str, Callable[[RuntimeCore, EventEnvelope], None]] = {
     "compaction.requested": _apply_compaction_requested,
     "context.prefix_installed": _apply_context_prefix_installed,
     "context.appended": _apply_context_appended,
+    "agent.message_emitted": _apply_assistant_message,
     "context.compacted": _apply_context_compacted,
     'tool_documents.selection_started': _apply_tool_document_selection,
     'tool_documents.selection_finished': _apply_tool_document_selection,

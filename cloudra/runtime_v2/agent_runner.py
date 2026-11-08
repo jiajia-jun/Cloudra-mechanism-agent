@@ -15,8 +15,8 @@ prefix_installed/appended/compacted 由 apply_event 重建），跨 run、跨重
 连续；run 只是执行生命周期，不再各自重建对话。每个 run 创建自己的
 ContextPrefix owner，但 owner 状态从会话投影回灌（restored），跨 run 不重装
 前缀。发送 LLM 请求前，本轮输入（前缀增量/inbox/通知）经
-ContextBroker.commit_input 落事件并持久化；响应后 assistant/tool 消息经
-append_output 落事件——恰好一次。compact 的候选上下文经
+ContextBroker.commit_input 落事件并持久化；响应正文经 agent.message_emitted 同时投影到 UI 与上下文，工具调用与结果经
+append_output 成对落事件——恰好一次。compact 的候选上下文经
 ContextBroker.install_compacted 一条事件原子安装。
 
 易失状态（3e）：``_tasks`` 与 ``_exit_strikes``（无进展退出计数）是
@@ -418,7 +418,6 @@ class AgentRunner:
                         candidate_answer=outcome.content,
                     )
                     if gate.action == "continue_work":
-                        # Keep the candidate private until the completion gate permits delivery.
                         strike, exhausted = self._track_exit_strike(agent, run_id, gate)
                         if exhausted:
                             notice = (
@@ -427,7 +426,11 @@ class AgentRunner:
                                 f"{gate.reason}). The run was NOT marked complete; send a new "
                                 "message to resume with fresh instructions."
                             )
-                            self._emit_run_message(agent, run_id, notice)
+                            core.event_log.append(
+                                "agent.warning", stream="agent", project_id=agent.project_id,
+                                session_id=agent.id, run_id=run_id,
+                                data={"message": notice},
+                            )
                             await core.agent_host.finish_run(
                                 agent,
                                 outcome="failed",
@@ -495,7 +498,6 @@ class AgentRunner:
                     # cannot slip between this check and finish_run.
                     if not await self._finish_gated_run(
                         agent, run_id, gate, explicit_stop=explicit_stop,
-                        candidate_answer=outcome.content,
                     ):
                         continue
                     break
@@ -701,16 +703,6 @@ class AgentRunner:
                     wake=WakePolicy.PARK_TERMINAL,
                 )
 
-    def _emit_run_message(self, agent: AgentSession, run_id: str, content: str) -> None:
-        self.core.event_log.append(
-            "agent.message_emitted",
-            stream="agent",
-            project_id=agent.project_id,
-            session_id=agent.id,
-            run_id=run_id,
-            data={"sender": agent.role_id, "content": content},
-        )
-
     async def _confirm_reviewed_exit(self, agent: AgentSession, run_id: str, messages: list[dict]) -> bool:
         """Confirm a frozen accepted submission before asking for another LLM turn."""
         ids = {item.get("message_id") for item in messages}
@@ -803,7 +795,7 @@ class AgentRunner:
 
     async def _finish_gated_run(
         self, agent: AgentSession, run_id: str, gate, *, explicit_stop: bool,
-        candidate_answer: str = "", confirmation_messages: list[dict] | None = None,
+        confirmation_messages: list[dict] | None = None,
     ) -> bool:
         """One commit/output boundary for model exits and accepted frozen exits."""
         core = self.core
@@ -834,11 +826,8 @@ class AgentRunner:
                         {"role": "user", "content": item.get("content", ""),
                          "message_id": item["message_id"]} for item in confirmation_messages
                     ])
-                final_answer = gate.final_answer if gate.final_answer is not None else candidate_answer
-                if gate.action == "allow_final" and final_answer:
-                    self._emit_run_message(agent, run_id, final_answer)
-                elif gate.action == "wait_background":
-                    self._emit_run_message(agent, run_id, gate.reason or "Run paused awaiting background work.")
+                # Model-authored text was already committed and shown at the
+                # response boundary. Gate outcomes change task status only.
                 await core.agent_host.finish_run(agent, outcome="succeeded", delivery=delivery)
                 if self._inbox_has_pending(agent):
                     await core.agent_host.wake(agent, runner=core.runner)
@@ -920,6 +909,8 @@ class AgentRunner:
                 # 收尾依据（结构化）：投影成 UI 的「已验证完成 / 部分交付 /
                 # 未独立验证」。绝不由 reason 文本反推。
                 "basis": gate.basis,
+                **({"final_answer": gate.final_answer if gate.final_answer is not None else candidate_answer}
+                   if gate.action == "allow_final" else {}),
             },
         )
         return gate, source
@@ -1087,8 +1078,8 @@ class AgentRunner:
     async def _commit_turn_output(self, agent: AgentSession, run_id: str, outcome) -> None:
         """响应消息恰好一次落进会话上下文投影（context.appended）。
 
-        输入（前缀增量/inbox/通知）已在发送前由 ContextBroker.commit_input
-        入投影；这里只用同一事件原子追加 assistant tool_calls 与全部匹配的
+        输入已在发送前提交；可见正文由 emit_assistant 的单条事件提交。
+        这里只用同一事件原子追加 assistant tool_calls 与全部匹配的
         tool outputs。run_turn 失败/取消时不调用，不能留下 provider 拒绝的
         半条工具调用；已提交的输入仍留在投影里（它确实进入过请求）。
         """
@@ -1096,8 +1087,8 @@ class AgentRunner:
         tool_calls = [call for call, _ in outcome.tool_exchanges]
         if outcome.blocked_call is not None:
             tool_calls.append(outcome.blocked_call)
-        if outcome.content or tool_calls:
-            entry: dict = {"role": "assistant", "content": outcome.content}
+        if tool_calls:
+            entry: dict = {"role": "assistant", "content": ""}
             if outcome.reasoning:
                 entry["reasoning_content"] = outcome.reasoning
             if tool_calls:

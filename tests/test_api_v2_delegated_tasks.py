@@ -181,7 +181,7 @@ async def test_result_returns_only_artifact_bound_when_delivery_finished(runtime
     runner = AgentRunner(core, SimpleNamespace(stages=[CommittedDagStage()]))
     gate = StopGate(action="allow_final", report=report, basis="partial_recorded")
     _emit(core, "agent.completion_gate", run_id, action=gate.action, basis=gate.basis)
-    assert await runner._finish_gated_run(agent, run_id, gate, explicit_stop=True, candidate_answer="Partial.")
+    assert await runner._finish_gated_run(agent, run_id, gate, explicit_stop=True)
     result = (await client.get(RESULT)).json()["result"]
     assert result["verification_label"] == "partial"
     if snapshot_changed:

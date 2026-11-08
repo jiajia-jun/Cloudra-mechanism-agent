@@ -756,3 +756,14 @@ def scoped_compute_cancellation_steps(job_ids: list[int], ready: asyncio.Event) 
                 "  const result = await tools.cancel_compute_job(args);\n"
                 "  text(JSON.stringify(result));\n}",
     })]), Step(stop=True)]
+
+
+def visible_background_reply_steps(resume: asyncio.Event) -> list[Step]:
+    """Show narration and a parked reply, then resume the same conversation."""
+    return [
+        Step(text="before-background-marker", tools=[("schedule", {
+            "delay_seconds": 3600, "message": "check-background-marker",
+        })]),
+        Step(text="parked-reply-marker", stop=True),
+        Step(wait_for=resume, text="resumed-reply-marker", stop=True),
+    ]
