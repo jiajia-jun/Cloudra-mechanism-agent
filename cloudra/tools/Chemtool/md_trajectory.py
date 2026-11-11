@@ -9,7 +9,7 @@ from pydantic import Field, StringConstraints
 
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.tools.core.gromacs import GromacsError, gromacs_failure, read_gromacs_atom_count, start_gromacs
+from cloudra.tools.core.gromacs import GromacsError, check_trajectory_atom_count, gromacs_failure, start_gromacs
 
 NonemptyPath = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -45,14 +45,9 @@ def _inspect_trajectory(trajectory_path: str, topology_path: str | None) -> MDTr
 
     args = ['check', '-f', trajectory_path]
     if topology_path is not None:
-        trajectory_atoms = read_gromacs_atom_count(['dump', '-f', trajectory_path])
-        topology_atoms = read_gromacs_atom_count(['dump', '-s', topology_path])
-        if trajectory_atoms != topology_atoms:
-            return MDTrajectoryOutput(
-                is_success=False, atom_count=trajectory_atoms,
-                message=f'The trajectory has {trajectory_atoms} atoms and the TPR has {topology_atoms} atoms. '
-                        'Supply a TPR with the same atoms in the same order.',
-            )
+        trajectory_atoms, mismatch = check_trajectory_atom_count(trajectory_path, topology_path)
+        if mismatch:
+            return MDTrajectoryOutput(is_success=False, atom_count=trajectory_atoms, message=mismatch)
         args.extend(['-s1', topology_path])
 
     atom_count = frame_count = time_count = None

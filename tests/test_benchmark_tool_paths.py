@@ -397,6 +397,10 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     "md_box": {"components.structure_path": "workspace_input", "output_dir": "workspace_dir"},
     "md_energy": {"energy_path": "workspace_input", "output_path": "workspace_output"},
     "md_trajectory": {"trajectory_path": "workspace_input", "topology_path": "workspace_input"},
+    **dict.fromkeys(("md_rmsd", "md_rmsf", "md_rdf", "md_msd"), {
+        "trajectory_path": "workspace_input", "topology_path": "workspace_input",
+        "index_path": "workspace_input", "output_path": "workspace_output",
+    }),
     "smiles_to_mol": {"output_path": "workspace_output", "artifact_dir": "workspace_output"},
     "internal_coordinates": {
         "input_path": "workspace_input",

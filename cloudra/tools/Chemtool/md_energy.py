@@ -2,8 +2,6 @@
 
 import asyncio
 import math
-import os
-import tempfile
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -11,7 +9,13 @@ from pydantic import BaseModel, Field, FiniteFloat, StringConstraints, model_val
 
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
-from cloudra.tools.core.gromacs import GromacsError, gromacs_failure, run_gromacs
+from cloudra.tools.core.gromacs import (
+    GromacsError,
+    gromacs_failure,
+    incomplete_gromacs_warning,
+    run_gromacs,
+    stage_gromacs_xvg,
+)
 
 NonemptyText = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
@@ -105,12 +109,7 @@ def _statistics(report: str, labels: list[str]) -> list[MDEnergyStatistic]:
 def _extract_energy(energy_path: Path, output_path: Path, request: MDEnergyInput) -> MDEnergyOutput:
     if not energy_path.is_file() or energy_path.suffix.lower() != '.edr':
         raise GromacsError(f'Expected a local GROMACS .edr file: {energy_path}')
-    if output_path.suffix.lower() != '.xvg' or output_path.exists():
-        raise GromacsError(f'Choose a new .xvg output path: {output_path}')
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix='.md-energy-', dir=output_path.parent) as work_dir:
-        series = Path(work_dir) / 'energy.xvg'
+    with stage_gromacs_xvg(output_path) as series:
         args = ['energy', '-f', str(energy_path), '-o', str(series), '-xvg', 'xmgrace']
         for flag, time in (('-b', request.start_ps), ('-e', request.end_ps)):
             if time is not None:
@@ -118,10 +117,8 @@ def _extract_energy(energy_path: Path, output_path: Path, request: MDEnergyInput
         # GROMACS lists space-containing labels with hyphens in its interactive menu.
         names = [term.replace(' ', '-') for term in request.terms]
         process = run_gromacs(args, selection='\n'.join([*names, '0', '']))
-        for line in process.stdout.splitlines():
-            _, warning, detail = line.partition('WARNING: Incomplete ')
-            if warning:
-                raise GromacsError(warning + detail)
+        if warning := incomplete_gromacs_warning(process.stdout):
+            raise GromacsError(warning)
         if process.returncode or not series.is_file():
             details = gromacs_failure(process.stdout)
             if details == 'No energy terms selected':
@@ -135,8 +132,6 @@ def _extract_energy(energy_path: Path, output_path: Path, request: MDEnergyInput
                 f'{_selection_menu(process.stdout)}'
             )
         statistics = _statistics(process.stdout, labels)
-        # A concurrent extraction must not overwrite the result already published at this path.
-        os.link(series, output_path)
     return MDEnergyOutput(
         output_path=str(output_path), statistics=statistics, frame_count=count,
         first_time_ps=first, last_time_ps=last,
