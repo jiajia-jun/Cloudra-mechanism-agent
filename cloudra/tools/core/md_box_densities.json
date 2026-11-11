@@ -1,0 +1,78 @@
+{
+  "pure": {
+    "XLYOFNOQVPJJNP-UHFFFAOYSA-N": {
+      "name": "water",
+      "density_g_cm3": 0.99706,
+      "temperature_k": 298.15,
+      "pressure_kpa": 101.0,
+      "source": "https://www.static.tu.berlin/fileadmin/www/10002160/Publikationen/density_quaternary.pdf"
+    },
+    "OKKJLVBELUTLKV-UHFFFAOYSA-N": {
+      "name": "methanol",
+      "density_g_cm3": 0.78687,
+      "temperature_k": 298.15,
+      "pressure_kpa": 101.0,
+      "source": "https://www.static.tu.berlin/fileadmin/www/10002160/Publikationen/density_quaternary.pdf"
+    },
+    "LFQSCWFLJHTTHZ-UHFFFAOYSA-N": {
+      "name": "ethanol",
+      "density_g_cm3": 0.78514,
+      "temperature_k": 298.15,
+      "pressure_kpa": 101.0,
+      "source": "https://www.static.tu.berlin/fileadmin/www/10002160/Publikationen/density_quaternary.pdf"
+    },
+    "WEVYAHXRMPXWCK-UHFFFAOYSA-N": {
+      "name": "acetonitrile",
+      "density_g_cm3": 0.77669,
+      "temperature_k": 298.15,
+      "pressure_kpa": null,
+      "source": "https://doiserbia.nb.rs/img/doi/0352-5139/2002/0352-51390209581G.pdf"
+    },
+    "IAZDPXIOMUYVGZ-UHFFFAOYSA-N": {
+      "name": "dimethyl sulfoxide",
+      "density_g_cm3": 1.09529,
+      "temperature_k": 298.15,
+      "pressure_kpa": null,
+      "source": "https://doi.org/10.1021/je100369a"
+    }
+  },
+  "binary": [
+    {
+      "components": ["XLYOFNOQVPJJNP-UHFFFAOYSA-N", "LFQSCWFLJHTTHZ-UHFFFAOYSA-N"],
+      "temperature_k": 298.15,
+      "pressure_kpa": 101.0,
+      "source": "https://www.static.tu.berlin/fileadmin/www/10002160/Publikationen/density_quaternary.pdf",
+      "points": [
+        [0.0, 0.78514],
+        [0.2598, 0.81913],
+        [0.5017, 0.85911],
+        [0.7504, 0.91876],
+        [0.8564, 0.95063],
+        [1.0, 0.99706]
+      ]
+    },
+    {
+      "components": ["XLYOFNOQVPJJNP-UHFFFAOYSA-N", "WEVYAHXRMPXWCK-UHFFFAOYSA-N"],
+      "temperature_k": 293.15,
+      "pressure_kpa": 81.5,
+      "source": "https://trc.nist.gov/ThermoML/10.1021/je700645p.html",
+      "points": [
+        [0.0, 0.78197],
+        [0.0417, 0.78560],
+        [0.0833, 0.78962],
+        [0.1568, 0.79767],
+        [0.2095, 0.80401],
+        [0.3247, 0.81996],
+        [0.4127, 0.83427],
+        [0.4960, 0.84971],
+        [0.5704, 0.86478],
+        [0.6361, 0.88012],
+        [0.7201, 0.90294],
+        [0.7961, 0.92699],
+        [0.8788, 0.95673],
+        [0.9573, 0.98472],
+        [1.0, 0.99820]
+      ]
+    }
+  ]
+}

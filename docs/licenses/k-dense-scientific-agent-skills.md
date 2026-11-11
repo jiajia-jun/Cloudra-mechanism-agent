@@ -8,11 +8,9 @@ MIT licensed, Copyright (c) 2025 K-Dense Inc.
 - Upstream skill: `skills/molecular-dynamics/`
 - Upstream license: MIT
 
-Cloudra's copy is substantially extended: the upstream skill is written around OpenMM and
-MDAnalysis, while the Cloudra version re-anchors the workflow on the Cloudra toolchain
-(GROMACS / AMBER / CHARMM, `submit_compute_job`, the local analysis wrappers) and adds
-force-field pairing, ion-model and thermostat guidance. The OpenMM and MDAnalysis
-implementations in sections 4 and 5 of the skill remain derived from upstream.
+The upstream skill is written around OpenMM and MDAnalysis. Earlier Cloudra revisions
+included examples derived from those implementations. The current guide documents
+Cloudra's preparation and scheduling tools and includes native GROMACS examples.
 
 The provenance was recorded in the skill's frontmatter when it was first adapted, but was
 dropped during the skill rewrite in commit `27931d88` ("feat(skills): upgrade

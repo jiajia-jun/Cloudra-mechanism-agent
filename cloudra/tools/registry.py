@@ -119,6 +119,13 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         summary='Convert molecular file formats while preserving atom information.',
     ),
     ToolRegistration(
+        module='cloudra.tools.Chemtool.md_box',
+        class_name='MDBox',
+        tool_name='md_box',
+        role_allowlist=_SCIENCE_ROLES,
+        summary='Build a periodic solvent box from molecule templates with Packmol and report initial density.',
+    ),
+    ToolRegistration(
         module='cloudra.tools.Chemtool.pdb_inspect',
         class_name='PDBInspect',
         tool_name='pdb_inspect',

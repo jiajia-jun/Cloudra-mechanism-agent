@@ -1,6 +1,6 @@
 ---
 name: molecular-dynamics-simulation
-description: Domain expertise for classical molecular dynamics (MD) simulations (OpenMM, GROMACS, AMBER). Use when selecting biomolecular/small-molecule force fields (AMBER ff14SB/ff19SB, CHARMM36m, GAFF2, OpenFF), parameterizing ligands (Antechamber, AM1-BCC), configuring equilibration protocols (EM -> NVT heating -> NPT density equilibration -> Production), and analyzing trajectories (RMSD, RMSF, Gromos clustering, MM-PBSA/MM-GBSA binding free energies).
+description: Use when a task involves packing solvent boxes, preparing biomolecular or small-molecule MD inputs, running GROMACS or OpenMM, or checking minimization, equilibration, and trajectory analysis.
 license: MIT
 metadata:
   original-skill: "molecular-dynamics"
@@ -9,217 +9,128 @@ metadata:
   upstream-license: "MIT, Copyright (c) 2025 K-Dense Inc."
 ---
 
-# Molecular Dynamics Simulation Standard Operating Procedure (SOP)
+# Molecular dynamics in Cloudra
 
-This skill provides comprehensive methodology for classical molecular dynamics (MD) simulations across biomolecular, protein-ligand, and condensed-matter systems using OpenMM and GROMACS.
+The calls below use the JavaScript tool protocol. In traditional mode, call the same tool with the same arguments. Load the current schemas when needed.
 
-> **Provenance**: adapted from the `molecular-dynamics` skill of [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) (MIT License, Copyright (c) 2025 K-Dense Inc.), then substantially extended for the Cloudra toolchain. The OpenMM and MDAnalysis implementations in sections 4 and 5 derive from that upstream skill; the remainder is Cloudra's own methodology. The upstream permission notice is preserved in [docs/licenses/k-dense-scientific-agent-skills.md](../../../docs/licenses/k-dense-scientific-agent-skills.md).
+```javascript
+const docs = await tools.get_tool_docs({names: ["md_box", "format_converter", "submit_compute_job", "query_compute_job"]})
+text(docs.data.documents)
+```
 
----
+## 1. Prepare coordinates and topology
 
-## 1. Local Toolchain Mapping
+Before generating topology, use the force-field guide to match the model to the system and the property being studied. Confirm the proposed parameter set with the user if the study leaves it open. `md_box` builds the starting geometry and reports its density and distances.
 
-Anchor MD simulation stages in the `CLOUDRA` toolchain and Python ecosystem:
+```javascript
+const guide = await tools.get_skill({skill_name: "molecular-dynamics-simulation", reference: "force-field-selection.md"})
+text(guide.data.content)
+```
 
-- **System Preparation & Solvation**: Use `PDBFixer` to repair crystal structures and OpenMM `Modeller` or GROMACS `gmx solvate` / `gmx genion` to add explicit solvent boxes and neutralizing salt (0.15 M NaCl).
-- **Small-Molecule Parameterization**: For non-standard ligands and organic molecules, parameterize using AmberTools (`antechamber` for AM1-BCC charge calculation + `parmchk2` for GAFF2 force fields) or `openff-toolkit` / `openff-interchange`.
-- **Job Execution**: Run GROMACS, LAMMPS, or OpenMM workflows with the available command or script tools. `submit_compute_job` accepts Gaussian, VASP, ORCA, CP2K, and xTB inputs; it cannot schedule an arbitrary MD script. For an unavailable compute route, coordinate with the Coordinator or environment specialist.
-- **Trajectory Processing & Analysis**: Process trajectories using `MDAnalysis` or GROMACS tools (`gmx rms`, `gmx rmsf`, `gmx cluster`). Extract thermodynamic stability and compute binding free energies using **MM-GBSA / MM-PBSA** (`gmx_MMPBSA` or `MMPBSA.py`).
+For a mixed-solvent or reaction box, provide one explicit coordinate template per component and integer copy counts. Set `initial_density_g_cm3` for a starting cubic box, or set `box_lengths_angstrom` for explicit orthogonal dimensions. `min_distance_angstrom` defaults to 2.0 Å between atoms in different copies, including across periodic boundaries. Load `gromacs-smoke.md` below for the calls that create the two SDF files in this water–ethanol example.
 
----
+For an interface or a mixture that starts with separate phases, use `write` to prepare `packmol.inp` with the intended `pbc` cell and `above plane`/`below plane` constraints for the two layers. Run `packmol < packmol.inp` with `bash`. Carry the cell into the MD coordinates and inspect the component distribution before generating topology. For a planar bilayer, start from a membrane builder that places the selected lipids in each leaflet. [Packmol agent skill](https://github.com/Chenghao-Wu/skill_packmol/blob/main/.claude/skills/packmol/SKILL.md) · [Packmol interface example](https://m3g.github.io/packmol/userguide.shtml)
 
-## 2. Force Field & Parameter Selection Matrix
+```javascript
+const box = await tools.md_box({
+  components: [
+    {structure_path: "water.sdf", count: 100},
+    {structure_path: "ethanol.sdf", count: 100}
+  ],
+  box_lengths_angstrom: [24, 24, 24],
+  output_dir: "water-ethanol-box",
+  seed: 42
+})
+text(box.data)
+```
 
-### 2.1 Force Field & Water Model Pairings
+On success, open the file at `data.report_path`. This example writes `water-ethanol-box/box.json`.
 
-| System Archetype | Recommended Force Field | Compatible Water Model | Parameterization Tool for Ligands |
-| :--- | :--- | :--- | :--- |
-| **Standard Soluble Proteins** | AMBER ff14SB / ff19SB | TIP3P-FB / OPC | — |
-| **Protein-Ligand Complexes** | AMBER ff14SB + GAFF2 | TIP3P-FB / OPC | Antechamber (AM1-BCC) / OpenFF |
-| **Membrane Proteins & Lipids** | CHARMM36m | CHARMM-modified TIP3P (mTIP3P) | CGenFF / CHARMM-GUI |
-| **Nucleic Acids (DNA/RNA)** | AMBER OL15 (DNA) / OL3 (RNA) | TIP3P / OPC | — |
-| **Intrinsically Disordered Proteins** | ff19SB or CHARMM36m | OPC / TIP4P-D | — |
+```javascript
+const report = await tools.read({path: "water-ethanol-box/box.json"})
+text(report.data.content)
+```
 
-> **Critical Force-Field Pairing Rule**:
-> - Never mix water models arbitrarily: AMBER ff14SB pairs best with **TIP3P-FB**; AMBER ff19SB strictly requires **OPC**; CHARMM36m strictly requires **mTIP3P**.
-> - Incompatible water models distort hydration free energies, secondary structure propensities, and protein folding equilibria.
+Check the component counts, `box_lengths_angstrom`, `initial_density_g_cm3`, `minimum_observed_distance_angstrom` and `warnings` against the requested recipe. `density_reference` identifies the liquid reference and its temperature and pressure when available. Use the initial density to check the packing recipe. If the protocol includes NPT, examine the density time series from that stage. A warning can accompany a successful build. If the build fails, read `data.message` and address the named input, dependency or packing conflict.
 
----
+For GROMACS, convert the periodic coordinates through PDB, then run `gmx editconf`.
 
-### 2.2 Electrostatics, Cutoffs & Ensembles
+```javascript
+const converted = await tools.format_converter({
+  input_path: "water-ethanol-box/box.xyz", input_format: "xyz",
+  output_path: "water-ethanol-box/box.pdb", output_format: "pdb"
+})
+text(converted.data)
+```
 
-1. **Electrostatics (PME)**: Particle Mesh Ewald is mandatory for all periodic solvated systems. Set grid spacing $\le 0.1\text{ nm}$ with 4th-order B-splines.
-2. **Cutoff Distances**:
-   - AMBER family: $0.9 \sim 1.0\text{ nm}$ direct space cutoff.
-   - CHARMM family: $1.2\text{ nm}$ with force-switch modifier (`vdw-modifier = Force-switch`, `rvdw-switch = 1.0 nm`).
-3. **Thermostat & Barostat Choices**:
-   - **Production Ensembles**: Thermostat: `Nosé-Hoover` or `v-rescale` ($300\text{ K}$). Barostat: `Parrinello-Rahman`, `C-rescale`, or Monte Carlo Barostat ($1.0\text{ bar}$).
-   - **Pre-equilibration**: Use `Berendsen` or `Langevin` for initial thermalization and volume relaxation; do **not** use Berendsen in production runs (it does not generate a true thermodynamic ensemble).
-4. **Ion Parameters**:
-   - Monovalent ions: Standard 12-6 Lennard-Jones parameters.
-   - Highly charged transition metals ($\text{Zn}^{2+}, \text{Mg}^{2+}, \text{Fe}^{2+/3+}$): Standard 12-6 models underestimate charge transfer and coordination geometry. Use **12-6-4 LJ models** or bonded dummy atom parameters.
+```javascript
+const conversion = await tools.bash({
+  command: "gmx editconf -f water-ethanol-box/box.pdb -o water-ethanol-box/box.gro && sed -n '2p' water-ethanol-box/box.gro && tail -n 1 water-ethanol-box/box.gro"
+})
+text(conversion.data)
+```
 
----
+Verify 1200 atoms and a 2.4 × 2.4 × 2.4 nm cell in this example. For the actual MD input, assign each copy the residue and atom names from its separately prepared topology and match the order of its atoms. Check `[molecules]` in the `.top` against the order of copies in the `.gro`, and each `[atoms]` list in the included `.itp` against the coordinates of that copy. For a cell whose vectors are already set, the conversion above retains them. `editconf -box` sets absolute lengths in nm, while `-d` sets a solute-to-box distance. [GROMACS editconf](https://manual.gromacs.org/current/onlinehelp/gmx-editconf.html) · [Cloudra knowledge card dyn07, §§7–9]
 
-## 3. Small-Molecule Ligand Parameterization SOP
+For protein, protein–ligand and metal-containing inputs, load the structure preparation and parameter notes before choosing a route.
 
-When simulating protein-ligand complexes, parameterize the ligand into AMBER GAFF2 format:
+```javascript
+const guide = await tools.get_skill({skill_name: "molecular-dynamics-simulation", reference: "biomolecular-preparation.md"})
+text(guide.data.content)
+```
+
+## 2. Submit the prepared calculation and read the engine output
+
+Use `write` to create the Bash script in the directory containing its inputs. Make the script stop on a failed command with `set -euo pipefail`. For GROMACS, run `gmx grompp -f em.mdp -c system.gro -p topol.top -pp expanded.top -po em.effective.mdp -o em.tpr` with the selected protocol and named topology. Inspect `expanded.top` for the included parameters and molecule list and `em.effective.mdp` for the actual settings. Resolve atom-name, atom-order and parameter warnings before running `gmx mdrun -deffnm em -nt 4` for the four-CPU local thread-MPI example below.
+
+```javascript
+const job = await tools.submit_compute_job({
+  input_file: "md/run.sh", job_type: "shell", execution_backend: "local",
+  is_async: true, cpus: 4
+})
+text(job.data)
+```
+
+The job runs from the script's directory. Keep the returned `data.job_id`. For job 17, the MD agent can call the top-level `stop` with `{"reason":"Wait for MD job 17"}` and resume on its terminal notification. Use the actual job ID when querying.
+
+```javascript
+const job = await tools.query_compute_job({job_id: 17})
+text(job.data)
+```
+
+When the query returns a job record, check its `state` and `last_error`. Pass its `log_path` to `read` for the scheduler log. Open the native `em.log` in the calculation directory for the GROMACS minimization result. Record the inputs, engine log and artifact passed to the next stage.
+
+- **Minimization:** Read `em.log` and record the achieved maximum force and termination reason for GROMACS. OpenMM `Simulation.minimizeEnergy` takes a force tolerance in kJ/(mol·nm). Check the force and any iteration limit against the chosen criterion before starting dynamics.
+- **Thermalization and equilibration:** Use the approved temperature, restraints and ensemble. NVT keeps the box fixed. NPT allows the box to relax under the chosen pressure. Use `gmx energy -f npt.edr -o equilibration.xvg` and select the relevant terms, such as Temperature, Density, Volume and Potential, when present. Check slow observables that matter to the system, such as local composition for a mixture or contacts in a binding pocket. Choose the analysis interval from the observed time series.
+- **Production:** Use the actual end state from equilibration. Load the run checks before changing stages, resuming a job or trusting its trajectory. A shell job at `done` reports script completion.
+
+```javascript
+const guide = await tools.get_skill({skill_name: "molecular-dynamics-simulation", reference: "run-and-check.md"})
+text(guide.data.content)
+```
+
+Load the reference for the template creation calls, geometry check and complete local scheduler probe.
+
+```javascript
+const guide = await tools.get_skill({skill_name: "molecular-dynamics-simulation", reference: "gromacs-smoke.md"})
+text(guide.data.content)
+```
+
+## 3. Prepare the trajectory for the observable
+
+Run `gmx check -f md.xtc -s1 md.tpr` for a full-system trajectory. Read the atom count, frame times, interval and any bond warnings. For a trajectory saved with an atom subset, use a topology with those same atoms in the same order. Retain the raw trajectory and write each analysis-specific transformation to a new file. [GROMACS `check`](https://manual.gromacs.org/current/onlinehelp/gmx-check.html) · [AI-Computational-Chemist GROMACS validation](https://github.com/JCLiuGroup/AI-Computational-Chemist/blob/main/tools/gromacs/references/validation.md)
+
+For structural analysis of a single protein chain, restore whole molecules before fitting.
 
 ```bash
-# 1. Add hydrogens and assign physiological protonation (pH 7.4) in RDKit / obabel
-obabel ligand.sdf -O ligand_h.mol2 -p 7.4
-
-# 2. Run Antechamber for AM1-BCC charge calculation and atom typing (GAFF2)
-antechamber -i ligand_h.mol2 -fi mol2 -o ligand_gaff2.mol2 -fo mol2 \
-            -c bcc -nc 0 -at gaff2 -rn LIG
-
-# 3. Generate missing force-field parameters using parmchk2
-parmchk2 -i ligand_gaff2.mol2 -f mol2 -o ligand.frcmod -s gaff2
-
-# 4. Combine protein and ligand in tleap
-tleap -f - <<_EOF
-source leaprc.protein.ff14SB
-source leaprc.gaff2
-source leaprc.water.tip3pfb
-loadamberparams ligand.frcmod
-LIG = loadmol2 ligand_gaff2.mol2
-PROT = loadpdb cleaned_protein.pdb
-COMPLEX = combine {PROT LIG}
-solvatebox COMPLEX TIP3PBOX 10.0
-addions COMPLEX Na+ 0
-addions COMPLEX Cl- 0
-saveamberparm COMPLEX system.prmtop system.inpcrd
-quit
-_EOF
+printf '%s\n' System | gmx trjconv -s md.tpr -f md.xtc -o whole.xtc -pbc whole
+gmx rms -s md.tpr -f whole.xtc -o backbone-rmsd.xvg
 ```
 
----
+In this backbone RMSD example, choose `Backbone` for both fitting and measurement if that group is present. For a multichain complex, use the whole-molecule trajectory and an index containing the chains in the assembly. Run `gmx trjconv -s md.tpr -f whole.xtc -n complex.ndx -o assembly.xtc -pbc cluster`, select the assembly to cluster and `System` for output if present. Inspect representative frames and contacts before fitting `assembly.xtc`. For diffusion, preserve continuous unwrapped displacement. Record the actual selection, reference and frame/time interval for each reported observable. [Computational Chemistry Commune PBC example](https://bbs.keinsci.com/thread-53952-1-1.html) · [MDAnalysis RMSD/RMSF documentation](https://docs.mdanalysis.org/stable/documentation_pages/analysis/rms.html)
 
-## 4. Multi-Stage Equilibration & Production Workflow
+For MM-PBSA/GBSA, report the method, frame selection, entropy treatment and uncertainty. Treat residue decomposition as a model-dependent contribution and examine consistency across blocks or independent runs. For an unstable run, start with the first engine warning and its atom IDs. Check coordinates, topology, timestep, constraints and equilibration before changing the protocol. [GROMACS run-time errors](https://manual.gromacs.org/current/user-guide/run-time-errors.html) · [gmx_MMPBSA output](https://valdes-tresanco-ms.github.io/gmx_MMPBSA/dev/output/)
 
-```
-[1. Energy Minimization (EM)] ──> 5000 steps Steepest Descent, eliminate steric clashes
-            │
-            ▼
-[2. NVT Heating (100 ps)]    ──> Heat 0 -> 300 K, position restraints on heavy atoms (1000 kJ/mol/nm^2)
-            │
-            ▼
-[3. NPT Equilibration (1 ns)]──> Relax solvent density, step-down restraints (1000 -> 500 -> 100 -> 0)
-            │
-            ▼
-[4. Production NPT (100+ ns)]──> Unrestrained run, 2 fs timestep (HBonds), save coords every 10-50 ps
-            │
-            ▼
-[5. Trajectory & Free Energy]──> RMSD/RMSF, Gromos clustering, MM-PBSA / MM-GBSA binding free energy
-```
+Use the top-level `agent_hub` search for a concrete chemistry question. Search with `{"action":"search","keyword":"GROMACS RMSD 周期性边界"}` for equilibration and PBC guidance (`kb:627`), or with `"蛋白 配体 脱离 原因"` for ligand dissociation (`kb:632`). For building and topology, see `kb:473` and `kb:dyn07`. Confirm command semantics against the current engine help. [Packmol forum thread](https://bbs.keinsci.com/thread-12549-1-1.html) · [Equilibration forum thread](https://bbs.keinsci.com/thread-27122-1-1.html) · [Ligand dissociation forum thread](https://bbs.keinsci.com/thread-27434-1-1.html)
 
-### 4.1 Production OpenMM Python Implementation
-
-```python
-from openmm.app import *
-from openmm import *
-from openmm.unit import *
-
-# 1. Load Parameterized System
-prmtop = AmberPrmtopFile('system.prmtop')
-inpcrd = AmberInpcrdFile('system.inpcrd')
-
-system = prmtop.createSystem(
-    nonbondedMethod=PME,
-    nonbondedCutoff=1.0 * nanometer,
-    constraints=HBonds,
-    rigidWater=True,
-    ewaldErrorTolerance=0.0005
-)
-
-# 2. Select Platform (CUDA -> CPU fallback)
-try:
-    platform = Platform.getPlatformByName('CUDA')
-    properties = {'Precision': 'mixed', 'DeviceIndex': '0'}
-except Exception:
-    platform = Platform.getPlatformByName('CPU')
-    properties = {}
-
-# 3. Energy Minimization
-integrator = LangevinMiddleIntegrator(300 * kelvin, 1.0 / picosecond, 0.002 * picoseconds)
-simulation = Simulation(prmtop.topology, system, integrator, platform, properties)
-simulation.context.setPositions(inpcrd.positions)
-if inpcrd.boxVectors is not None:
-    simulation.context.setPeriodicBoxVectors(*inpcrd.boxVectors)
-
-print("Starting energy minimization...")
-simulation.minimizeEnergy(maxIterations=2000, tolerance=10.0 * kilojoule / mole)
-
-# 4. NVT Thermalization (100 ps)
-print("Running NVT heating...")
-simulation.context.setVelocitiesToTemperature(300 * kelvin)
-simulation.step(50000)  # 100 ps
-
-# 5. Add Monte Carlo Barostat for NPT Production
-system.addForce(MonteCarloBarostat(1.0 * bar, 300 * kelvin, 25))
-simulation.context.reinitialize(preserveState=True)
-
-# 6. Production Reporters
-simulation.reporters = [
-    StateDataReporter('production.log', 5000, step=True, time=True,
-                      potentialEnergy=True, temperature=True, density=True, speed=True),
-    DCDReporter('production.dcd', 5000),  # Save every 10 ps
-    CheckpointReporter('checkpoint.chk', 50000)
-]
-
-print("Running production MD...")
-simulation.step(5000000)  # 10 ns (expand to 100 ns for production)
-```
-
----
-
-## 5. Trajectory & Free Energy Analysis
-
-### 5.1 RMSD, RMSF, and Gromos Clustering (MDAnalysis)
-
-```python
-import MDAnalysis as mda
-from MDAnalysis.analysis import rms, align
-import numpy as np
-
-u = mda.Universe('system.prmtop', 'production.dcd')
-
-# 1. Align on protein backbone
-align.AlignTraj(u, u, select='backbone', in_memory=True).run()
-
-# 2. Compute Backbone RMSD
-R = rms.RMSD(u, select='backbone', ref_frame=0)
-R.run()
-rmsd_time = R.results.rmsd[:, 1]  # ps
-rmsd_val = R.results.rmsd[:, 2]   # Angstrom
-
-# 3. Compute Residue-Averaged RMSF (discard first 20% equilibration)
-n_frames = len(u.trajectory)
-start_frame = int(0.2 * n_frames)
-protein = u.select_atoms('protein and name CA')
-rmsf_calc = rms.RMSF(protein).run(start=start_frame)
-rmsf_per_residue = rmsf_calc.results.rmsf
-```
-
-### 5.2 Binding Free Energy: MM-GBSA Protocol
-
-The binding free energy is computed across equilibrated snapshots ($N \ge 100 \sim 500$ frames):
-$$\Delta G_{\text{bind}} = \langle G_{\text{complex}} \rangle - \langle G_{\text{protein}} \rangle - \langle G_{\text{ligand}} \rangle$$
-$$\Delta G = \Delta E_{\text{MM}} + \Delta G_{\text{solv}} - T \Delta S$$
-$$\Delta E_{\text{MM}} = \Delta E_{\text{vdw}} + \Delta E_{\text{elec}}, \quad \Delta G_{\text{solv}} = \Delta G_{\text{GB/PB}} + \Delta G_{\text{nonpolar}}$$
-
-- **Per-Residue Energy Decomposition**: Run `gmx_MMPBSA` with `idecomp=1` to identify key hotspot residues ($\Delta G_{\text{contrib}} < -1.0\text{ kcal/mol}$).
-
----
-
-## 6. Diagnostics & Troubleshooting
-
-1. **"Flying Ice Cube" Effect**:
-   - *Symptom*: System translationally freezes while kinetic energy accumulates in center-of-mass drift.
-   - *Fix*: Remove center-of-mass motion every 100 steps (`comm-mode = Linear`, `nstcomm = 100` in GROMACS; or `system.addForce(CMMotionRemover(100))` in OpenMM).
-2. **LINCS Warnings & Box Explosion**:
-   - *Symptom*: Simulation crashes during early NPT with bond constraint errors.
-   - *Fix*: Insufficient solvent padding or severe steric overlap. Rerun minimization with smaller step size, verify box dimensions ($\ge 1.0\text{ nm}$ padding), or reduce timestep to $0.5 \sim 1.0\text{ fs}$ for initial NPT.
-3. **Ligand Disassociating in < 5 ns**:
-   - *Symptom*: Ligand spontaneously leaves binding pocket.
-   - *Fix*: Check partial charge assignment in `antechamber`. An incorrect net charge or reversed dipole generates strong repulsive forces.
+Adapted from the MIT-licensed K-Dense scientific-agent-skills package. The repository retains its upstream permission notice in `docs/licenses/k-dense-scientific-agent-skills.md`.
