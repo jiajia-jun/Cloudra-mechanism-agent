@@ -6,7 +6,7 @@ import pytest
 
 from cloudra.runtime_v2.core import RuntimeCore
 from cloudra.runtime_v2.policies.base import ToolCall, ToolResult
-from cloudra.runtime_v2.policies.schedule_stage import ScheduleStage
+from cloudra.runtime_v2.policies.schedule_stage import INTERCEPT_MESSAGE, ScheduleStage
 from cloudra.runtime_v2.schemas import AgentCapabilities, PermissionSet
 from cloudra.runtime_v2.turn_pipeline import LLMResponse, TurnPipeline
 
@@ -204,10 +204,11 @@ async def test_schedule_mode_blocks_first_stop_without_reminder():
     core = RuntimeCore(strict_events=True)
     _, agent = await _setup_agent(core, schedule_mode=True)
     agent.settings.schedule_mode = True
+    assistant_text = "I checked the current status."
     pipeline = TurnPipeline(
         event_log=core.event_log,
         stages=[ScheduleStage(core)],
-        llm=FakeLLM(LLMResponse(content="", tool_calls=[ToolCall(id="c1", name="stop", arguments={})])),
+        llm=FakeLLM(LLMResponse(content=assistant_text, tool_calls=[ToolCall(id="c1", name="stop", arguments={})])),
         tools=FakeTools(),
     )
     capabilities = AgentCapabilities(permissions=PermissionSet(), tools=["*"])
@@ -220,7 +221,9 @@ async def test_schedule_mode_blocks_first_stop_without_reminder():
     )
     assert outcome.blocked_call is not None
     assert outcome.blocked_call.name == "stop"
-    assert "Stop intercepted by Schedule Mode" in (outcome.content or "")
+    assert outcome.decision == "continue"
+    assert outcome.content == assistant_text
+    assert outcome.message == INTERCEPT_MESSAGE
 
 
 @pytest.mark.asyncio
