@@ -86,7 +86,7 @@ class WorkbenchService:
                 'engine': document['settings'].get('engine'), 'frame_count': len(document['frames']),
                 'mode_count': len(document['modes']),
                 'selected_frame_facts': document['frames'][document['selected_frame']],
-                **{key: geometry[key] for key in ('xyz', 'atoms', 'bonds', 'graph_status')}}
+                **{key: geometry[key] for key in ('xyz', 'atoms', 'bonds', 'graph_status', 'manual_bonds')}}
 
     def save(self, request) -> dict[str, Any]:
         from rdkit import Chem
@@ -97,6 +97,8 @@ class WorkbenchService:
             self.source_path(request.source_path)
         mol = request.molecule
         atom_count = mol.GetNumAtoms()
+        if atom_count == 0:
+            raise ValueError('结构必须包含至少一个原子才能保存')
         for coordinate in [*request.frozen_coordinates, *request.scan_coordinates]:
             if any(not 1 <= atom <= atom_count for atom in coordinate.atoms):
                 raise ValueError(f'坐标引用的原子已不存在：{coordinate.atoms}')
@@ -128,7 +130,7 @@ class WorkbenchService:
         }
         payloads = {
             'xyz': to_xyz(mol, state['title']),
-            'mol': Chem.MolToMolBlock(mol, forceV3000=True),
+            'mol': Chem.MolToMolBlock(mol, kekulize=False, forceV3000=True),
         }
         if input_text is not None:
             payloads['input'] = input_text

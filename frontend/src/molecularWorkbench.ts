@@ -46,9 +46,11 @@ export function applyGeometry(draft: Draft, geometry: GeometryView) {
     if (changes?.deleted_atoms.some(i => c.atoms.includes(i))) { invalidated++; return []; }
     return [{...c, atoms: c.atoms.map(i => changes?.index_map[String(i)] ?? i)}];
   });
-  return { draft: {...draft, atomMappingChanged: draft.atomMappingChanged || !!changes?.deleted_atoms.length || !!changes && Object.entries(changes.index_map).some(([oldIndex,newIndex])=>Number(oldIndex)!==newIndex), geometry, frozen: remap(draft.frozen), scans: remap(draft.scans)}, invalidated };
+  const mappingChanged = geometry.atoms.length !== draft.geometry.atoms.length || !!changes?.deleted_atoms.length
+    || !!changes && Object.entries(changes.index_map).some(([oldIndex, newIndex]) => Number(oldIndex) !== newIndex);
+  return { draft: { ...draft, atomMappingChanged: draft.atomMappingChanged || mappingChanged, geometry, frozen: remap(draft.frozen), scans: remap(draft.scans) }, invalidated };
 }
-export function undoDraft(history: Draft[], draft: Draft) {
+export function undoDraft<T extends Draft | null>(history: T[], draft: T) {
   return history.length ? { draft: history[history.length - 1], history: history.slice(0,-1) } : { draft, history };
 }
 

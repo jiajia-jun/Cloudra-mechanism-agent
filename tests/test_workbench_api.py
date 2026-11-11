@@ -32,6 +32,45 @@ def _core(tmp_path):
     return core, root
 
 
+@pytest.mark.asyncio
+async def test_manual_builder_round_trip_from_blank_to_saved_structure(tmp_path):
+    core, _root = _core(tmp_path)
+    base = '/api/v2/projects/p/workbench'
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app(core)), base_url='http://testserver') as client:
+        async def edit(**body):
+            response = await client.post(f'{base}/edit', json=body)
+            assert response.status_code == 200, response.text
+            return response.json()
+
+        seed = await edit(action='add_atom', element='N')
+        nitrogen = seed['atoms'][0]
+        assert nitrogen['symbol'] == 'N' and not seed['bonds']
+        declared = await edit(action='atom_state', molecule=seed['molecule'], atoms=[1], formal_charge=1, valence=4)
+        ammonium = await edit(action='fill_valence', molecule=declared['molecule'], atoms=[1])
+        assert [atom['symbol'] for atom in ammonium['atoms']] == ['N', 'H', 'H', 'H', 'H']
+        assert ammonium['atoms'][0]['bond_valence'] == 4
+        assert ammonium['atoms'][0]['atom_id'] == nitrogen['atom_id']
+        assert len(ammonium['bonds']) == 4
+
+        response = await client.post(f'{base}/save', json={'title': 'Ammonium', 'molecule': ammonium['molecule']})
+        assert response.status_code == 200, response.text
+        saved = response.json()
+        assert Path(saved['files']['mol']).is_file()
+        reopened = await client.post(f'{base}/open', json={'path': saved['path']})
+        assert reopened.status_code == 200, reopened.text
+        geometry = reopened.json()['geometry']
+        assert geometry['atoms'] == ammonium['atoms']
+        assert geometry['bonds'] == ammonium['bonds']
+        assert geometry['atoms'][0]['formal_charge'] == 1
+        assert geometry['atoms'][0]['target_valence'] == 4
+
+        empty = await edit(action='delete_atom', molecule=geometry['molecule'], atoms=[1, 2, 3, 4, 5])
+        assert empty['atoms'] == [] and empty['bonds'] == []
+        rejected = await client.post(f'{base}/save', json={'molecule': empty['molecule']})
+        assert rejected.status_code == 400
+    await core.aclose()
+
+
 def _dag_store():
     from cloudra.dag.store import DagStore
     from cloudra.persistence.database import ConversationDB
