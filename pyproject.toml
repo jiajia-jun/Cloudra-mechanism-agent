@@ -120,6 +120,7 @@ cloudra = [
     "skills/**/*",
     "calculator.sh",
     "infra/token_data/*",
+    "tools/core/md_box_densities.json",
     "runtime_v2/js_host/*.mjs",
     "runtime_v2/js_host/package.json",
     "runtime_v2/js_host/package-lock.json",
