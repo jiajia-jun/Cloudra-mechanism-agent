@@ -14,7 +14,10 @@ metadata:
 The calls below use the JavaScript tool protocol. In traditional mode, call the same tool with the same arguments. Load the current schemas when needed.
 
 ```javascript
-const docs = await tools.get_tool_docs({names: ["md_box", "format_converter", "submit_compute_job", "query_compute_job"]})
+const docs = await tools.get_tool_docs({names: [
+  "md_box", "md_energy", "md_trajectory", "md_rmsd", "md_rmsf", "md_rdf", "md_msd",
+  "format_converter", "submit_compute_job", "query_compute_job"
+]})
 text(docs.data.documents)
 ```
 
@@ -101,7 +104,7 @@ text(job.data)
 When the query returns a job record, check its `state` and `last_error`. Pass its `log_path` to `read` for the scheduler log. Open the native `em.log` in the calculation directory for the GROMACS minimization result. Record the inputs, engine log and artifact passed to the next stage.
 
 - **Minimization:** Read `em.log` and record the achieved maximum force and termination reason for GROMACS. OpenMM `Simulation.minimizeEnergy` takes a force tolerance in kJ/(mol·nm). Check the force and any iteration limit against the chosen criterion before starting dynamics.
-- **Thermalization and equilibration:** Use the approved temperature, restraints and ensemble. NVT keeps the box fixed. NPT allows the box to relax under the chosen pressure. Use `gmx energy -f npt.edr -o equilibration.xvg` and select the relevant terms, such as Temperature, Density, Volume and Potential, when present. Check slow observables that matter to the system, such as local composition for a mixture or contacts in a binding pocket. Choose the analysis interval from the observed time series.
+- **Thermalization and equilibration:** Use the approved temperature, restraints and ensemble. NVT keeps the box fixed. NPT allows the box to relax under the chosen pressure. Use `md_energy` for the recorded quantities. Check slow observables that matter to the system, such as local composition for a mixture or contacts in a binding pocket. Choose the analysis interval from the observed time series.
 - **Production:** Use the actual end state from equilibration. Load the run checks before changing stages, resuming a job or trusting its trajectory. A shell job at `done` reports script completion.
 
 ```javascript
@@ -118,16 +121,46 @@ text(guide.data.content)
 
 ## 3. Prepare the trajectory for the observable
 
-Run `gmx check -f md.xtc -s1 md.tpr` for a full-system trajectory. Read the atom count, frame times, interval and any bond warnings. For a trajectory saved with an atom subset, use a topology with those same atoms in the same order. Retain the raw trajectory and write each analysis-specific transformation to a new file. [GROMACS `check`](https://manual.gromacs.org/current/onlinehelp/gmx-check.html) · [AI-Computational-Chemist GROMACS validation](https://github.com/JCLiuGroup/AI-Computational-Chemist/blob/main/tools/gromacs/references/validation.md)
+Run these tools on GROMACS files available in the Cloudra workspace. Use the actual term names present in the `.edr`, and set `start_ps` and `end_ps` only when you have chosen an analysis interval. The result lists the actual exported time range and the GROMACS statistics in XVG column order. The native statistics can use averages over MD steps between saved XVG samples. [GROMACS `energy`](https://manual.gromacs.org/current/onlinehelp/gmx-energy.html)
+
+```javascript
+const energy = await tools.md_energy({
+  energy_path: "npt.edr", terms: ["Temperature", "Density", "Potential"],
+  output_path: "analysis/equilibration.xvg"
+})
+text(energy.data)
+```
+
+Before PBC correction, inspect the full-system trajectory with its matching TPR. Read the atom count, frame times and native diagnostics. For a trajectory saved with an atom subset, use a topology with those same atoms in the same order. Retain the raw trajectory and write each analysis-specific transformation to a new file. [GROMACS `check`](https://manual.gromacs.org/current/onlinehelp/gmx-check.html)
+
+```javascript
+const trajectory = await tools.md_trajectory({trajectory_path: "md.xtc", topology_path: "md.tpr"})
+text(trajectory.data)
+```
 
 For structural analysis of a single protein chain, restore whole molecules before fitting.
 
 ```bash
 printf '%s\n' System | gmx trjconv -s md.tpr -f md.xtc -o whole.xtc -pbc whole
-gmx rms -s md.tpr -f whole.xtc -o backbone-rmsd.xvg
 ```
 
-In this backbone RMSD example, choose `Backbone` for both fitting and measurement if that group is present. For a multichain complex, use the whole-molecule trajectory and an index containing the chains in the assembly. Run `gmx trjconv -s md.tpr -f whole.xtc -n complex.ndx -o assembly.xtc -pbc cluster`, select the assembly to cluster and `System` for output if present. Inspect representative frames and contacts before fitting `assembly.xtc`. For diffusion, preserve continuous unwrapped displacement. Record the actual selection, reference and frame/time interval for each reported observable. [Computational Chemistry Commune PBC example](https://bbs.keinsci.com/thread-53952-1-1.html) · [MDAnalysis RMSD/RMSF documentation](https://docs.mdanalysis.org/stable/documentation_pages/analysis/rms.html)
+Use `md_rmsd` with a measurement `group` and a `fit_group`. Pass `null` as the fit group for an already aligned trajectory when measuring against the chosen TPR coordinates. `md_rmsf` fits the selected group by default. To fit a different group, align first and pass `fit: false`. For a multichain complex, use the whole-molecule trajectory and an index containing the chains in the assembly. Run `gmx trjconv -s md.tpr -f whole.xtc -n complex.ndx -o assembly.xtc -pbc cluster`, select the assembly to cluster and `System` for output if present. Inspect representative frames and contacts before fitting `assembly.xtc`. [Computational Chemistry Commune PBC example](https://bbs.keinsci.com/thread-53952-1-1.html) · [GROMACS `rms`](https://manual.gromacs.org/current/onlinehelp/gmx-rms.html) · [GROMACS `rmsf`](https://manual.gromacs.org/current/onlinehelp/gmx-rmsf.html)
+
+```javascript
+const structure = {trajectory_path: "whole.xtc", topology_path: "md.tpr", group: "Backbone"}
+text((await tools.md_rmsd({...structure, fit_group: "Backbone", output_path: "analysis/rmsd.xvg"})).data)
+text((await tools.md_rmsf({...structure, per_residue: true, output_path: "analysis/rmsf.xvg"})).data)
+```
+
+For bulk RDF or MSD, use the trajectory with its periodic cell and the intended index groups. For MSD, preserve continuous displacements and save frames often enough to resolve boundary crossings. `molecular_com: true` uses the mass-weighted center of each molecule touched by the group. Set `origin_spacing_ps` to a multiple of the saved frame interval when specifying the spacing between time origins. The exported MSD is a curve versus lag time. [GROMACS `rdf`](https://manual.gromacs.org/current/onlinehelp/gmx-rdf.html) · [GROMACS `msd`](https://manual.gromacs.org/current/onlinehelp/gmx-msd.html)
+
+```javascript
+const liquid = {trajectory_path: "md.xtc", topology_path: "md.tpr", index_path: "mixture.ndx"}
+text((await tools.md_rdf({...liquid, reference_group: "Water_O", group: "Ethanol_O", output_path: "analysis/rdf.xvg"})).data)
+text((await tools.md_msd({...liquid, group: "Ethanol_O", molecular_com: true, output_path: "analysis/msd.xvg"})).data)
+```
+
+These four tools take an XTC, TRR or TNG trajectory and its matching TPR. Each writes a two-column numeric XVG and returns the number of points and axis units. Use exact group names from `index_path` or the default groups generated from the TPR. Pass `start_ps` and `end_ps` to select frames and record the chosen interval, groups and reference with the result. `md_msd` uses the selection interface available from GROMACS 2022. Check `gmx --version` on the analysis host if the command rejects `-sel`. [GROMACS 2022 `msd`](https://manual.gromacs.org/2022/onlinehelp/gmx-msd.html)
 
 For MM-PBSA/GBSA, report the method, frame selection, entropy treatment and uncertainty. Treat residue decomposition as a model-dependent contribution and examine consistency across blocks or independent runs. For an unstable run, start with the first engine warning and its atom IDs. Check coordinates, topology, timestep, constraints and equilibration before changing the protocol. [GROMACS run-time errors](https://manual.gromacs.org/current/user-guide/run-time-errors.html) · [gmx_MMPBSA output](https://valdes-tresanco-ms.github.io/gmx_MMPBSA/dev/output/)
 
