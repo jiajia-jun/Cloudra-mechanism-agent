@@ -29,6 +29,8 @@ text(guide.data.content)
 
 For a mixed-solvent or reaction box, provide one explicit coordinate template per component and integer copy counts. Set `initial_density_g_cm3` for a starting cubic box, or set `box_lengths_angstrom` for explicit orthogonal dimensions. `min_distance_angstrom` defaults to 2.0 Å between atoms in different copies, including across periodic boundaries. Load `gromacs-smoke.md` below for the calls that create the two SDF files in this water–ethanol example.
 
+For an interface or a mixture that starts with separate phases, use `write` to prepare `packmol.inp` with the intended `pbc` cell and `above plane`/`below plane` constraints for the two layers. Run `packmol < packmol.inp` with `bash`. Carry the cell into the MD coordinates and inspect the component distribution before generating topology. For a planar bilayer, start from a membrane builder that places the selected lipids in each leaflet. [Packmol agent skill](https://github.com/Chenghao-Wu/skill_packmol/blob/main/.claude/skills/packmol/SKILL.md) · [Packmol interface example](https://m3g.github.io/packmol/userguide.shtml)
+
 ```javascript
 const box = await tools.md_box({
   components: [
@@ -79,7 +81,7 @@ text(guide.data.content)
 
 ## 2. Submit the prepared calculation and read the engine output
 
-Use `write` to create the Bash script in the directory containing its inputs. Make the script stop on a failed command with `set -euo pipefail`. For GROMACS, run `gmx grompp -f em.mdp -c system.gro -p topol.top -pp expanded.top -o em.tpr` with the selected protocol and named topology. Use `expanded.top` to inspect the included parameters and molecule list. Resolve atom-name, atom-order and parameter warnings before running `gmx mdrun -deffnm em -nt 4` for the four-CPU local thread-MPI example below.
+Use `write` to create the Bash script in the directory containing its inputs. Make the script stop on a failed command with `set -euo pipefail`. For GROMACS, run `gmx grompp -f em.mdp -c system.gro -p topol.top -pp expanded.top -po em.effective.mdp -o em.tpr` with the selected protocol and named topology. Inspect `expanded.top` for the included parameters and molecule list and `em.effective.mdp` for the actual settings. Resolve atom-name, atom-order and parameter warnings before running `gmx mdrun -deffnm em -nt 4` for the four-CPU local thread-MPI example below.
 
 ```javascript
 const job = await tools.submit_compute_job({
@@ -100,7 +102,12 @@ When the query returns a job record, check its `state` and `last_error`. Pass it
 
 - **Minimization:** Read `em.log` and record the achieved maximum force and termination reason for GROMACS. OpenMM `Simulation.minimizeEnergy` takes a force tolerance in kJ/(mol·nm). Check the force and any iteration limit against the chosen criterion before starting dynamics.
 - **Thermalization and equilibration:** Use the approved temperature, restraints and ensemble. NVT keeps the box fixed. NPT allows the box to relax under the chosen pressure. Use `gmx energy -f npt.edr -o equilibration.xvg` and select the relevant terms, such as Temperature, Density, Volume and Potential, when present. Check slow observables that matter to the system, such as local composition for a mixture or contacts in a binding pocket. Choose the analysis interval from the observed time series.
-- **Production:** Use the actual end state from equilibration. For GROMACS, supply the checkpoint with `grompp -t` when preparing a new stage that continues from it. To resume the same interrupted run, use `mdrun -cpi` with its checkpoint and matching run files. Confirm trajectory times, output paths and requested steps in the native log. A shell job at `done` reports script completion.
+- **Production:** Use the actual end state from equilibration. Load the run checks before changing stages, resuming a job or trusting its trajectory. A shell job at `done` reports script completion.
+
+```javascript
+const guide = await tools.get_skill({skill_name: "molecular-dynamics-simulation", reference: "run-and-check.md"})
+text(guide.data.content)
+```
 
 Load the reference for the template creation calls, geometry check and complete local scheduler probe.
 
@@ -110,6 +117,8 @@ text(guide.data.content)
 ```
 
 ## 3. Prepare the trajectory for the observable
+
+Run `gmx check -f md.xtc -s1 md.tpr` for a full-system trajectory. Read the atom count, frame times, interval and any bond warnings. For a trajectory saved with an atom subset, use a topology with those same atoms in the same order. Retain the raw trajectory and write each analysis-specific transformation to a new file. [GROMACS `check`](https://manual.gromacs.org/current/onlinehelp/gmx-check.html) · [AI-Computational-Chemist GROMACS validation](https://github.com/JCLiuGroup/AI-Computational-Chemist/blob/main/tools/gromacs/references/validation.md)
 
 For structural analysis of a single protein chain, restore whole molecules before fitting.
 
