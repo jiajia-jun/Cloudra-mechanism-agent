@@ -126,6 +126,20 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         summary='Build a periodic solvent box from molecule templates with Packmol and report initial density.',
     ),
     ToolRegistration(
+        module='cloudra.tools.Chemtool.md_energy',
+        class_name='MDEnergy',
+        tool_name='md_energy',
+        role_allowlist=_SCIENCE_ROLES,
+        summary='Extract GROMACS EDR time series and native statistics for named observables.',
+    ),
+    ToolRegistration(
+        module='cloudra.tools.Chemtool.md_trajectory',
+        class_name='MDTrajectory',
+        tool_name='md_trajectory',
+        role_allowlist=_SCIENCE_ROLES,
+        summary='Inspect GROMACS trajectory coverage and diagnostics with an optional matching TPR.',
+    ),
+    ToolRegistration(
         module='cloudra.tools.Chemtool.pdb_inspect',
         class_name='PDBInspect',
         tool_name='pdb_inspect',

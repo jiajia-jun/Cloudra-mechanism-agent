@@ -392,6 +392,11 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     },
     "submit_compute_job": {"input_file": "workspace_input"},
     "format_converter": {"input_path": "workspace_input", "output_path": "workspace_output"},
+    "pdb_inspect": {"input_path": "workspace_input"},
+    "pdb_clean": {"input_path": "workspace_input", "output_path": "workspace_output"},
+    "md_box": {"components.structure_path": "workspace_input", "output_dir": "workspace_dir"},
+    "md_energy": {"energy_path": "workspace_input", "output_path": "workspace_output"},
+    "md_trajectory": {"trajectory_path": "workspace_input", "topology_path": "workspace_input"},
     "smiles_to_mol": {"output_path": "workspace_output", "artifact_dir": "workspace_output"},
     "internal_coordinates": {
         "input_path": "workspace_input",
