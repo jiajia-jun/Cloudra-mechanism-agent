@@ -8,7 +8,8 @@ from typing import Literal
 import numpy as np
 from ase import Atoms
 from ase.cell import Cell
-from ase.geometry import get_distances, minkowski_reduce
+from ase.constraints import FixAtoms
+from ase.geometry import find_mic, get_distances, minkowski_reduce
 from scipy.spatial import QhullError, Voronoi
 
 SiteKind = Literal['ontop', 'bridge', 'hollow']
@@ -25,14 +26,34 @@ class AdsorptionSite:
     atom_indices: list[int]
 
 
-def minimum_image_distances(atoms: Atoms, first: np.ndarray, second: np.ndarray) -> np.ndarray:
-    """Measure distances on the periodic sublattice, including skew cells."""
+def minimum_image_cell(atoms: Atoms) -> Cell:
+    """Return the reduced periodic sublattice for ASE minimum-image operations."""
     reduced, _ = minkowski_reduce(atoms.cell, pbc=atoms.pbc)
     cell = Cell(reduced.copy())
     # ASE completes the missing axes orthogonally before wrapping distances.
     cell[~atoms.pbc] = 0
-    _, distances = get_distances(first, second, cell=cell, pbc=atoms.pbc)
+    return cell
+
+
+def minimum_image_vectors(atoms: Atoms, vectors: np.ndarray) -> np.ndarray:
+    displacements, _ = find_mic(vectors, minimum_image_cell(atoms), pbc=atoms.pbc)
+    return displacements
+
+
+def minimum_image_distances(atoms: Atoms, first: np.ndarray, second: np.ndarray) -> np.ndarray:
+    """Measure distances on the periodic sublattice, including skew cells."""
+    _, distances = get_distances(first, second, cell=minimum_image_cell(atoms), pbc=atoms.pbc)
     return distances
+
+
+def fixed_atom_indices(atoms: Atoms) -> set[int]:
+    """Collect zero-based whole-atom constraints and reject partial masks."""
+    if any(not isinstance(constraint, FixAtoms) for constraint in atoms.constraints):
+        raise ValueError('The geometry has unsupported partial constraints.')
+    indices = {int(index) for constraint in atoms.constraints for index in constraint.get_indices()}
+    if any(index < 0 or index >= len(atoms) for index in indices):
+        raise ValueError('A fixed atom index is outside the geometry.')
+    return indices
 
 
 def slab_normal(cell, in_plane: np.ndarray) -> np.ndarray:

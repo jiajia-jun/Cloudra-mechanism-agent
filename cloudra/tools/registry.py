@@ -119,6 +119,13 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         summary='Inspect and build periodic cells, edit defects, and prepare slab adsorption geometries.',
     ),
     ToolRegistration(
+        module='cloudra.tools.Chemtool.periodic_ts',
+        class_name='PeriodicTS',
+        tool_name='periodic_ts',
+        role_allowlist=_SCIENCE_ROLES,
+        summary='Prepare periodic VASP or CP2K NEB paths and read native convergence and saddle-candidate evidence.',
+    ),
+    ToolRegistration(
         module='cloudra.tools.Chemtool.format_converter',
         class_name='FormatConverter',
         tool_name='format_converter',

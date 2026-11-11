@@ -710,40 +710,13 @@ def _idpp_relax(images, mode: str = "standard", max_iter: int | None = None,
                       criterion="max_abs_gradient_component", learning_rate=lr, **status)
         return coordinates, report
 
-    import ase
     from ase import Atoms
-    from ase.mep import NEB
-    from ase.mep.neb import idpp_interpolate
-    from ase.optimize import MDMin
 
-    report.update(optimizer="MDMin", objective="current_distance^-4", neb_method="improvedtangent",
-                  spring_constant=0.1, criterion="max_neb_force_norm", ase_version=ase.__version__)
-    pairs = np.triu_indices(images.shape[1], k=1)
-    if any(np.any(_dist_matrix(frame)[pairs] == 0) for frame in images):
-        raise ValueError("standard IDPP cannot start from coincident atoms; inspect endpoint mapping/geometry")
-    if len(images) == 2 or np.array_equal(images, np.broadcast_to(images[0], images.shape)):
-        report.update(converged=None, termination="not_required", steps=0, residual=None)
-        return images, report
+    from cloudra.tools.core.neb_idpp import relax_standard_idpp
 
     atoms = [Atoms(numbers=[1] * len(frame), positions=frame) for frame in images]
-    neb = NEB(atoms, method="improvedtangent", k=0.1)
-
-    class RecordedMDMin(MDMin):
-        def run(self, fmax=0.1, steps=100):
-            converged = super().run(fmax=fmax, steps=steps)
-            residual = float(np.linalg.norm(neb.get_forces(), axis=1).max())
-            if not np.isfinite(residual):
-                raise ValueError("standard IDPP produced non-finite NEB forces")
-            report.update(converged=bool(converged), steps=self.nsteps, residual=residual,
-                          termination="converged" if converged else "max_steps")
-            return converged
-
-    idpp_interpolate(neb, optimizer=RecordedMDMin, fmax=threshold, steps=steps,
-                     traj=None, log=None, mic=False)
-    coordinates = np.asarray([image.positions for image in atoms])
-    if not np.isfinite(coordinates).all():
-        raise ValueError("standard IDPP produced non-finite coordinates")
-    return coordinates, report
+    report = relax_standard_idpp(atoms, steps=steps, threshold=threshold)
+    return np.asarray([image.positions for image in atoms]), report
 
 
 def _idpp_relax_light(images, max_iter: int = 4000, lr: float = 0.02, tol: float = 1e-7):

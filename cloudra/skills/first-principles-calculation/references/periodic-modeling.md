@@ -74,6 +74,8 @@ text(adsorbed.data)
 
 For geometry optimization after placement, load `surface-modeling-sop.md` and use [the staged relaxation workflow](surface-modeling-sop.md#33-staged-relaxation-of-molecular-adsorbates).
 
+For a reaction or diffusion hop between two relaxed structures, continue with the [periodic transition state workflow](periodic-ts.md).
+
 ## Periodic structure exchange
 
 Use EXTXYZ between operations to retain lattice vectors, per-axis periodicity and contiguous molecular coordinates. CIF wraps atoms individually into the cell. Export to POSCAR for VASP. POSCAR uses three periodic axes and groups atoms by element. Inspect the exported file when you need its atom numbers. Model summaries describe the geometry before target-format export. Ordered, explicit occupations are required for modeling.

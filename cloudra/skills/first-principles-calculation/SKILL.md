@@ -9,12 +9,13 @@ When planning and executing periodic first-principles calculations (VASP / CP2K)
 
 ## 1.1 VASP Toolchain & Python Automation
 - **Crystal modeling**: Use `periodic_model` for slabs, supercells, explicit site edits and adsorption geometries. Use `format_converter` for periodic structure exchange. See [the tool workflow](references/periodic-modeling.md) for calls and format coverage. Use ASE for operations beyond these tools.
+- **Periodic transition states**. Load `get_skill("first-principles-calculation", reference="periodic-ts.md")` for fixed-cell NEB, dimer refinement and independent saddle verification with VASP or CP2K.
 - **Extended methodology & reference library**: Before starting surface modeling, reaction network construction, or production runs, load the detailed reference guides:
   - Surface & Slab Modeling SOP: `get_skill("first-principles-calculation", reference="surface-modeling-sop.md")` (bulk lattice relaxation, slab thickness/vacuum convergence, Tasker surface polarity, adsorption site catalogs, placement, and staged molecular adsorption relaxation).
-  - Heterogeneous Catalysis & CHE Electrocatalysis: `get_skill("first-principles-calculation", reference="heterogeneous-catalysis-mechanisms.md")` (LH/ER/MvK models, CHE standard free energy corrections, HER/OER/CO2RR/NRR reaction networks, scaling relations, and CI-NEB / Partial Hessian SOP).
+  - Heterogeneous Catalysis & CHE Electrocatalysis: `get_skill("first-principles-calculation", reference="heterogeneous-catalysis-mechanisms.md")` (LH/ER/MvK models, CHE standard free energy corrections, HER/OER/CO2RR/NRR reaction networks, and scaling relations).
   - Production INCAR / CP2K Blueprints & Troubleshooting: `get_skill("first-principles-calculation", reference="vasp-cp2k-production-blueprints.md")` (bulk opt, slab relaxation, PDOS/d-band center, DFT+U table, HSE06 two-stage acceleration, and failure diagnosis decision trees).
   - ASE code library: `get_skill("first-principles-calculation", reference="ase-guide.md")` and `examples/` (`adsorption_energy.py`, `lattice_optimization.py`, `neb_barrier.py`, `che_electrocatalysis.py`).
-- **Job submission**: Submit compute tasks via `submit_compute_job` with `job_type="vasp"`. Set `is_async=True` for long relaxation, DOS, or NEB jobs.
+- **Job submission**. Submit single-engine jobs via `submit_compute_job`. Use the site MPI launcher for parallel NEB and set `is_async=True` for long jobs.
 - **Result parsing and monitoring**: Avoid running `cat` on giant `OUTCAR` or `vasprun.xml` files. Use Python scripts (`ase.io.read`, `pymatgen`, or regex log parsers) via `bash` to extract energies, forces, magnetic moments, and stress tensors.
 
 ## 1.2 CP2K Toolchain
@@ -49,7 +50,7 @@ Numeric settings below are **production starting points**. A number is accepted 
 | --- | --- |
 | Vacuum $V(z)$ not flat / density not decayed | Increase vacuum; do not deliver $E_{\text{ads}}$ or barriers. |
 | Slab thickness not converged | Thicken; do not quote absolute surface energies. |
-| CI-NEB end states not at minima, or climbing image has 2+ significant imaginaries in the PHVA subspace | Fix path/ends first; do not quote a barrier. |
+| NEB endpoints lack minimum evidence, or the candidate lacks one reaction-relevant unstable mode in the declared subspace | Resolve the endpoint or saddle evidence before reporting an activation barrier. |
 | Polar Tasker III surface without compensation | Model compensation or refuse that surface energy. |
 | Functional / U / dispersion differs from the user's current requirements, or from an active Benchmark task's actual MethodPolicy | Do not change the requested method silently. Ordinary research projects have no default method/basis whitelist; global configuration, examples and earlier tasks do not create one. |
 | CO/CO₂/O₂ empirical correction needed but scheme/functional mismatched | Do not apply a foreign offset; state the scheme or refuse the thermodynamic cycle. |
@@ -85,9 +86,9 @@ Numeric settings below are **production starting points**. A number is accepted 
 - **Scaling Relations (associative CHE assumption)**:
   - OER intermediate scaling $\Delta G_{*\text{OOH}} = \Delta G_{*\text{OH}} + 3.20\ (\pm 0.20)\text{ eV}$ and $\eta_{\text{min}} = 0.37\text{ V}$ hold for **associative** OER pathways where that linear relation is valid. Lattice-oxygen / broken-scaling mechanisms (MvK) can violate it — do not treat 0.37 V as a universal ceiling without checking the pathway.
 
-### 3.5 Surface Transition States: CI-NEB & Partial Hessian
-- **Climbing Image NEB (CI-NEB)**: Interpolate initial path using IDPP across 4–8 images. Enable `LCLIMB = .TRUE.` and `SPRING = -5.0` with VTST optimizers (`IOPT = 1`, L-BFGS).
-- **Partial Hessian Frequency Verification (`IBRION=5`)**: Fix all substrate atoms (`F F F`); unfreeze only adsorbate atoms and coordinating surface atoms (`T T T`). Verify **exactly one significant imaginary frequency in the PHVA subspace** whose eigenvector aligns with the reaction coordinate (this is not a full-crystal Hessian claim).
+### 3.5 Periodic Transition States
+
+Use `periodic_ts` on matched fixed-cell endpoints. Inspect the periodic path before running the engine. Use native NEB output to locate and optionally refine an interior candidate. Confirm stationary-point forces, a single reaction-relevant imaginary mode in the declared Hessian subspace, and connections to both intended minima. Follow the [periodic TS workflow](references/periodic-ts.md).
 
 ---
 
@@ -106,14 +107,14 @@ Numeric settings below are **production starting points**. A number is accepted 
 [Step 4: Catalytic Pathways]──> Build reaction network (LH / ER / MvK or CHE HER/OER/CO2RR/NRR steps)
        │
        ▼
-[Step 5: TS & CI-NEB]       ──> Align IS/FS, IDPP interpolate, CI-NEB climb to saddle, IBRION=5 partial Hessian
+[Step 5: Periodic TS]       ──> Match endpoints, relax band, refine and verify the saddle and both connections
 ```
 
 - **Step 1: Bulk Optimization**: Establish true ground-state lattice constants and volume.
 - **Step 2: Surface Cleaving & Convergence**: Select stoichiometric/symmetric slabs where possible. Confirm slab thickness convergence ($\Delta d_{\text{center}} < 0.5\%$) and vacuum potential flatness.
 - **Step 3: Adsorption Exploration**. Load `surface-modeling-sop.md` before optimizing molecular adsorption or coadsorption. Start from distinct poses. Use a constrained first pass when it helps with approach or local contacts, then release temporary holds and relax the adsorbate with the chosen surface layers. Verify final ionic convergence and compare the minima found under matched settings.
 - **Step 4: Reaction Energy Profile**: For thermal catalysis, compute reaction energies $\Delta E$ and surface coverage; for electrocatalysis, compute CHE free energy steps $\Delta G(U)$ and theoretical overpotentials $\eta$.
-- **Step 5: Barrier & Saddle Verification**: Run CI-NEB between initial and final states; confirm the saddle point with `IBRION=5` partial Hessian analysis.
+- **Step 5: Barrier & Saddle Verification**. Follow the fixed-cell NEB, refinement and validation workflow in `periodic-ts.md`.
 
 ---
 
@@ -142,6 +143,7 @@ When a VASP/CP2K calculation fails or diverges, follow this diagnosis hierarchy:
 
 Load domain references as needed:
 - `surface-modeling-sop.md`: Detailed surface cleavage, Tasker rules, slab thickness/vacuum convergence, adsorbate placement, and staged optimization for adsorption and coadsorption.
-- `heterogeneous-catalysis-mechanisms.md`: LH, ER, MvK mechanisms, CHE electrocatalysis equations, gas-phase thermodynamic corrections, scaling relations, and CI-NEB / partial frequency SOP.
+- `heterogeneous-catalysis-mechanisms.md`: LH, ER, MvK mechanisms, CHE electrocatalysis equations, gas-phase thermodynamic corrections, and scaling relations.
+- `periodic-ts.md`: Periodic endpoint correspondence, native NEB and dimer inputs, output evidence, and saddle verification.
 - `vasp-cp2k-production-blueprints.md`: Production INCAR / CP2K .inp parameter templates, d-band center calculations, and failure diagnosis tables.
 - `ase-guide.md` & `examples/`: Code libraries for ASE crystal modeling, adsorption energy, EOS lattice fitting, CI-NEB barriers, and CHE free energy calculators.
