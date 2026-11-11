@@ -22,6 +22,10 @@ _PACKMOL_PRECISION = 0.01
 _PACKMOL_XYZ_DISTANCE_ROUNDING = math.sqrt(3) * 1e-6
 
 
+class MDBoxError(ValueError):
+    """A build failure the caller can address with its inputs or environment."""
+
+
 def _read_template(path):
     from cloudra.tools.core.molecule import _read_xyz_structure, read_molecule, to_ase
 
@@ -34,7 +38,10 @@ def _read_template(path):
     if format_name not in {'mol', 'sdf'}:
         raise ValueError(f'{path}: use an XYZ, MOL, or SDF template with explicit atom coordinates')
 
-    from rdkit import Chem
+    try:
+        from rdkit import Chem
+    except ImportError as exc:
+        raise ValueError("MOL/SDF requires RDKit. Install 'cloudra[chem]' or provide an XYZ template.") from exc
 
     content = path.read_text(encoding='utf-8-sig')
     if format_name == 'sdf' and sum(line.strip() == '$$$$' for line in content.splitlines()) > 1:
@@ -42,6 +49,8 @@ def _read_template(path):
     molecule = read_molecule(input_text=content, input_format=format_name)
     if not molecule.GetNumAtoms() or not molecule.GetNumConformers():
         raise ValueError(f'{path}: a molecular template must have explicit atom coordinates')
+    if molecule.GetNumAtoms() > 1 and not molecule.GetConformer().Is3D():
+        raise ValueError(f'{path}: provide a 3D conformer with explicit atom coordinates for packing')
     if any(atom.GetTotalNumHs() for atom in molecule.GetAtoms()):
         raise ValueError(f'{path}: add explicit hydrogens with coordinates before packing')
     atoms = to_ase(molecule)
@@ -58,7 +67,7 @@ def _read_template(path):
 def _run_packmol(work_dir, templates, lengths, min_distance, seed):
     executable = shutil.which('packmol')
     if executable is None:
-        raise ValueError('Packmol is required on PATH. Use version 20.15.0 or newer for periodic packing.')
+        raise MDBoxError('Install Packmol 20.15.0 or newer and add its executable to PATH for periodic packing.')
 
     lines = [
         'filetype xyz', 'output packed.xyz', f'tolerance {min_distance:.17g}', f'seed {seed}',
@@ -76,9 +85,13 @@ def _run_packmol(work_dir, templates, lengths, min_distance, seed):
     output = [line.strip() for line in run.stdout.splitlines() if line.strip()]
     if run.returncode or 'Success!' not in output or not (work_dir / 'packed.xyz').is_file():
         diagnostics = '\n'.join(output[-12:])
-        raise ValueError(f'Packmol did not produce a converged periodic box (exit {run.returncode}):\n{diagnostics}')
+        dimensions = ' × '.join(f'{length:g}' for length in lengths)
+        raise MDBoxError(
+            f'Packmol did not produce a converged periodic box (exit {run.returncode}). '
+            f'Box {dimensions} Å, minimum distance {min_distance:g} Å, seed {seed}.\n{diagnostics}'
+        )
     if 'Periodic boundary condition activated:' not in output:
-        raise ValueError('Packmol did not confirm periodic packing. Use version 20.15.0 or newer.')
+        raise MDBoxError('Packmol did not confirm periodic packing. Use version 20.15.0 or newer.')
     return next((line.removeprefix('Version ') for line in output if line.startswith('Version ')), None)
 
 
@@ -143,14 +156,14 @@ def build_md_box(
 
     output_dir = Path(output_dir)
     if output_dir.exists():
-        raise ValueError(f'Output path already exists: {output_dir}; choose a new directory')
+        raise MDBoxError(f'Output path already exists: {output_dir}. Choose a new directory.')
     templates = []
     for component in components:
         path = Path(component['structure_path'])
         try:
             atoms, inchi_key = _read_template(path)
         except (OSError, ValueError) as exc:
-            raise ValueError(f'Cannot read component {path}: {exc}') from exc
+            raise MDBoxError(f'Cannot read component {path}: {exc}') from exc
         templates.append((path, atoms, inchi_key, component['count']))
 
     mass = sum(float(atoms.get_masses().sum()) * count for _, atoms, _, count in templates)
@@ -190,7 +203,7 @@ def build_md_box(
         packed = read(work_dir / 'packed.xyz', format='xyz')
         expected_numbers = np.concatenate([np.tile(atoms.numbers, count) for _, atoms, _, count in templates])
         if not np.array_equal(packed.numbers, expected_numbers) or not np.isfinite(packed.positions).all():
-            raise ValueError('Packmol output has unexpected atom counts, atom order, or nonfinite coordinates')
+            raise MDBoxError('Packmol output has unexpected atom counts, atom order, or nonfinite coordinates')
 
         copy_sizes = [len(atoms) for _, atoms, _, count in templates for _ in range(count)]
         copy_ids = np.repeat(np.arange(len(copy_sizes)), copy_sizes)
@@ -199,7 +212,7 @@ def build_md_box(
             (observed_distance + _PACKMOL_XYZ_DISTANCE_ROUNDING) ** 2
             < min_distance_angstrom**2 - _PACKMOL_PRECISION
         ):
-            raise ValueError(
+            raise MDBoxError(
                 f'Packmol output violates the requested minimum distance of {min_distance_angstrom:g} Å. '
                 f'Closest atoms in different copies are {observed_distance:.6g} Å apart under PBC.'
             )

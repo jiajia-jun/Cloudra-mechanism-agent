@@ -3,6 +3,37 @@ import shutil
 import pytest
 
 
+def test_declared_2d_sdf_requires_a_3d_conformer(tmp_path, rdkit_chemistry):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    from cloudra.tools.core.md_box import _read_template
+
+    ethanol = Chem.AddHs(Chem.MolFromSmiles('CCO'))
+    AllChem.Compute2DCoords(ethanol)
+    path = tmp_path / 'ethanol.sdf'
+    with Chem.SDWriter(str(path)) as writer:
+        writer.write(ethanol)
+
+    with pytest.raises(ValueError, match='3D conformer'):
+        _read_template(path)
+
+
+def test_monatomic_ion_template_needs_only_one_position(tmp_path, rdkit_chemistry):
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    from cloudra.tools.core.md_box import _read_template
+
+    sodium = Chem.MolFromSmiles('[Na+]')
+    AllChem.Compute2DCoords(sodium)
+    path = tmp_path / 'sodium.mol'
+    Chem.MolToMolFile(sodium, str(path))
+
+    atoms, _ = _read_template(path)
+    assert atoms.get_chemical_symbols() == ['Na']
+
+
 def test_packmol_candidate_file_without_convergence_is_not_published(tmp_path, monkeypatch):
     from cloudra.tools.core.md_box import build_md_box
 
@@ -19,13 +50,14 @@ def test_packmol_candidate_file_without_convergence_is_not_published(tmp_path, m
     structure.write_text('1\nArgon\nAr 0 0 0\n', encoding='utf-8')
     output_dir = tmp_path / 'box'
 
-    with pytest.raises(ValueError, match='Unable to satisfy packing constraints'):
+    with pytest.raises(ValueError, match='Unable to satisfy packing constraints') as error:
         build_md_box(
             [{'structure_path': str(structure), 'count': 1}], output_dir,
             initial_density_g_cm3=None, box_lengths_angstrom=(10, 10, 10),
             min_distance_angstrom=2, seed=17,
         )
 
+    assert 'minimum distance 2 Å, seed 17' in str(error.value)
     assert not output_dir.exists()
 
 

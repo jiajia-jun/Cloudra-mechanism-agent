@@ -43,14 +43,15 @@ class MDBoxInput(input_schema):
 
 class MDBoxOutput(output_schema):
     is_success: bool = True
-    coordinates_path: str
-    report_path: str
-    box_lengths_angstrom: tuple[float, float, float]
-    initial_density_g_cm3: float
-    components: list[dict]
-    min_distance_angstrom: float
-    minimum_observed_distance_angstrom: float | None
-    seed: int
+    message: str = ''
+    coordinates_path: str = ''
+    report_path: str = ''
+    box_lengths_angstrom: tuple[float, float, float] | None = None
+    initial_density_g_cm3: float | None = None
+    components: list[dict] = Field(default_factory=list)
+    min_distance_angstrom: float | None = None
+    minimum_observed_distance_angstrom: float | None = None
+    seed: int | None = None
     packmol_version: str | None = None
     density_reference: dict | None = None
     warnings: list[str] = Field(default_factory=list)
@@ -71,10 +72,14 @@ class MDBox(Tool):
         return True
 
     async def tool_call(self, user_input: MDBoxInput, session=None):
-        from cloudra.tools.core.md_box import build_md_box
+        from cloudra.tools.core.md_box import MDBoxError, build_md_box
 
         options = user_input.model_dump()
         options['output_dir'] = resolve_tool_path(self, options['output_dir'])
         for component in options['components']:
             component['structure_path'] = resolve_tool_path(self, component['structure_path'])
-        return MDBoxOutput(**await asyncio.to_thread(build_md_box, **options))
+        try:
+            result = await asyncio.to_thread(build_md_box, **options)
+        except MDBoxError as exc:
+            return MDBoxOutput(is_success=False, message=str(exc))
+        return MDBoxOutput(**result)

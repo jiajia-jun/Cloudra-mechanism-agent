@@ -10,6 +10,13 @@ import pytest
 from ase.io import read
 from pydantic import ValidationError
 
+from cloudra.runtime_v2.adapters import LegacyToolExecutor
+from cloudra.runtime_v2.commands import CommandBus
+from cloudra.runtime_v2.core import RuntimeCore
+from cloudra.runtime_v2.invocation import InvocationService
+from cloudra.runtime_v2.policies.base import PipelineContext, ToolCall
+from cloudra.runtime_v2.policies.permission import PermissionStage
+from cloudra.runtime_v2.schemas import Command
 from cloudra.tools import get_tools_lst
 
 
@@ -125,14 +132,43 @@ async def test_md_box_reports_density_reference_and_keeps_packing_result(tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_md_box_missing_structure_cannot_publish_a_success(tmp_path):
-    from cloudra.tools.Chemtool.md_box import MDBox, MDBoxInput
+@pytest.mark.parametrize(('structure', 'diagnostics'), [
+    ('absent.xyz', ('absent.xyz',)),
+    ('argon.xyz', ('Install Packmol', 'PATH')),
+])
+async def test_md_box_runtime_reports_recoverable_failure_without_artifacts(tmp_path, monkeypatch, structure, diagnostics):
+    which = shutil.which
+    monkeypatch.setattr(shutil, 'which', lambda name, *args, **kwargs: (
+        None if name == 'packmol' else which(name, *args, **kwargs)
+    ))
+    (tmp_path / 'argon.xyz').write_text('1\nargon\nAr 0 0 0\n')
 
-    output_dir = tmp_path / 'box'
-    with pytest.raises(RuntimeError, match='absent.xyz'):
-        await MDBox().safe_call(MDBoxInput(
-            components=[{'structure_path': str(tmp_path / 'absent.xyz'), 'count': 4}],
-            box_lengths_angstrom=[10.0, 10.0, 10.0],
-            output_dir=str(output_dir),
-        ), None)
-    assert not output_dir.exists()
+    core = RuntimeCore(strict_events=True)
+    bus = CommandBus(core)
+    await bus.execute(Command(type='project.create', payload={'name': 'MD box', 'workspace_dir': str(tmp_path)}))
+    project = next(iter(core.projects.values()))
+    spawned = await bus.execute(Command(
+        type='agent.spawn', target={'project_id': project.id}, payload={'role_id': 'md'},
+    ))
+    agent = spawned.data
+    service = InvocationService(
+        event_writer=core.event_writer, stages=[PermissionStage()], tools=LegacyToolExecutor(core),
+    )
+    outcome = await service.invoke(
+        PipelineContext(
+            agent=agent, run_id='md-box', settings_snapshot=agent.settings, capabilities=agent.capabilities,
+            inbox_messages=[], emit=lambda *_: None,
+        ),
+        ToolCall(id='failed-box', name='md_box', arguments={
+            'components': [{'structure_path': structure, 'count': 4}],
+            'box_lengths_angstrom': [10, 10, 10],
+            'output_dir': 'box',
+        }),
+    )
+    result = outcome.result
+    assert not result.is_success
+    assert all(text in result.data.get('message', '') for text in diagnostics), result.summary
+    assert result.error is None
+    assert not result.data['coordinates_path']
+    assert not result.data['report_path']
+    assert not (tmp_path / 'box').exists()
