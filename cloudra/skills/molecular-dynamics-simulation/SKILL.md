@@ -20,6 +20,13 @@ text(docs.data.documents)
 
 ## 1. Prepare coordinates and topology
 
+Before generating topology, use the force-field guide to match the model to the system and the property being studied. Confirm the proposed parameter set with the user if the study leaves it open. `md_box` builds the starting geometry and reports its density and distances.
+
+```javascript
+const guide = await tools.get_skill({skill_name: "molecular-dynamics-simulation", reference: "force-field-selection.md"})
+text(guide.data.content)
+```
+
 For a mixed-solvent or reaction box, provide one explicit coordinate template per component and integer copy counts. Set `initial_density_g_cm3` for a starting cubic box, or set `box_lengths_angstrom` for explicit orthogonal dimensions. `min_distance_angstrom` defaults to 2.0 Å between atoms in different copies, including across periodic boundaries. Load `gromacs-smoke.md` below for the calls that create the two SDF files in this water–ethanol example.
 
 ```javascript
