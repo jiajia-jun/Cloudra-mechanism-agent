@@ -8,7 +8,7 @@ license: MIT
 When planning and executing periodic first-principles calculations (VASP / CP2K), anchor all actions in the `CLOUDRA` toolchain:
 
 ## 1.1 VASP Toolchain & Python Automation
-- **Configuration generation and crystal modeling**: Rely on the ASE (Atomic Simulation Environment) library. Write Python automation scripts using `ase.io`, `ase.build` (`bulk`, `surface`, `add_adsorbate`), and `FixAtoms` constraints. Avoid blindly hand-typing POSCAR coordinates or concatenating raw text with shell `echo`.
+- **Crystal modeling**: Use `periodic_model` for slabs, supercells and explicit site edits from an existing crystal. Use `format_converter` for periodic structure exchange. See [the tool workflow](references/periodic-modeling.md) for calls and format coverage. Use ASE for operations beyond these tools.
 - **Extended methodology & reference library**: Before starting surface modeling, reaction network construction, or production runs, load the detailed reference guides:
   - Surface & Slab Modeling SOP: `get_skill("first-principles-calculation", reference="surface-modeling-sop.md")` (bulk lattice relaxation, slab thickness/vacuum convergence, Tasker surface polarity, adsorption site catalogs, and adsorbate placement rules).
   - Heterogeneous Catalysis & CHE Electrocatalysis: `get_skill("first-principles-calculation", reference="heterogeneous-catalysis-mechanisms.md")` (LH/ER/MvK models, CHE standard free energy corrections, HER/OER/CO2RR/NRR reaction networks, scaling relations, and CI-NEB / Partial Hessian SOP).

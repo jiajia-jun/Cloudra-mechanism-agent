@@ -392,6 +392,7 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     },
     "submit_compute_job": {"input_file": "workspace_input"},
     "format_converter": {"input_path": "workspace_input", "output_path": "workspace_output"},
+    "periodic_model": {"input_path": "workspace_input", "output_path": "workspace_output"},
     "pdb_inspect": {"input_path": "workspace_input"},
     "pdb_clean": {"input_path": "workspace_input", "output_path": "workspace_output"},
     "md_box": {"components.structure_path": "workspace_input", "output_dir": "workspace_dir"},

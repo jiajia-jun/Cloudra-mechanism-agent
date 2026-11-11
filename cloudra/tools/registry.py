@@ -112,11 +112,18 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         summary='Analyze electronic properties from declared structures and calculations.',
     ),
     ToolRegistration(
+        module='cloudra.tools.Chemtool.periodic_model',
+        class_name='PeriodicModel',
+        tool_name='periodic_model',
+        role_allowlist=_SCIENCE_ROLES,
+        summary='Inspect a crystal, construct slabs and supercells, or edit explicit atom sites.',
+    ),
+    ToolRegistration(
         module='cloudra.tools.Chemtool.format_converter',
         class_name='FormatConverter',
         tool_name='format_converter',
         role_allowlist=_SCIENCE_ROLES,
-        summary='Convert molecular file formats while preserving atom information.',
+        summary='Convert molecular and periodic geometries, reporting format-specific data loss.',
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.md_box',

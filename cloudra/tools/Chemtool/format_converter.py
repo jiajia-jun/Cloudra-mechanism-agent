@@ -1,7 +1,8 @@
 import asyncio
 import os
 from io import StringIO
-from typing import Any, Literal
+from pathlib import Path
+from typing import Any, Literal, get_args
 
 from pydantic import Field
 
@@ -9,9 +10,18 @@ from cloudra.base.session_class import Session
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
 from cloudra.tools.core.molecule import from_ase, read_molecule, to_ase, total_charge
+from cloudra.tools.core.periodic_io import (
+    PeriodicInputFormat,
+    PeriodicOutputFormat,
+    ase_geometry_format,
+    read_geometry,
+    validate_cell_geometry,
+    write_periodic_geometry,
+)
 
 description = (
-    "Convert among common computational-chemistry file formats (mol, xyz, gjf, inp (ORCA), pdb, SDF, cif, etc.) via ASE; "
+    "Convert molecular and periodic geometries. For solids use CIF, POSCAR/CONTCAR, EXTXYZ, XSF or GEN. "
+    "Extract explicit-cell Quantum ESPRESSO or ABACUS STRU geometry and export CP2K &CELL/&COORD blocks. "
     "coordinates stay in files and never appear in the return value. "
     "Also extracts key frames from a Gaussian or ORCA log (input_format='log') to CSV (output_format='csv'): "
     "optimization trajectories, scan curves, and IRC path structures/energies/reaction coordinates for programmatic analysis. "
@@ -19,18 +29,9 @@ description = (
     "turning IRC/scan logs into CSV for pandas and similar. "
     "Native inputs must contain one explicit Cartesian geometry; external xyzfile and multiple jobs are unsupported. "
     "Native outputs are geometry skeletons without method, basis or solver settings; use qm_input_writer for production inputs. "
-    "Do not use for: generating an initial 3D structure from SMILES (use smiles_to_mol)."
+    "Use periodic_model to build slabs, supercells or defects, and smiles_to_mol to generate molecular geometries from SMILES."
 )
 
-
-# 用户可见格式名 -> ASE 内部格式名的映射
-_ASE_FORMAT_MAP = {
-    "pdb": "proteindatabank",
-    "xyz": "extxyz",
-    "gjf": "gaussian-in",
-    "poscar": "vasp",
-    "vasp": "vasp",
-}
 
 # 能携带化学信息的格式：必须用 RDKit 读写（保留键/形式电荷/立体），
 # ASE 不存键与电荷（其 mol/sdf 读写只搬坐标，会静默丢化学信息）。
@@ -89,15 +90,19 @@ class FormatConverter_input_schema(input_schema):
         description="Path of the input file: absolute as-is, or relative to the "
                     "Agent working directory."
     )
-    input_format: Literal["mol", "xyz", "gjf", "inp", "pdb", "cif", "sdf", "log", "poscar", "vasp"] = Field(
+    input_format: Literal["mol", "gjf", "inp", "pdb", "sdf", "log", PeriodicInputFormat] = Field(
         description="Input format. gjf/inp require one inline Cartesian Gaussian/ORCA geometry. "
+                    "espresso-in requires explicit CELL_PARAMETERS (ibrav=0). Prefer explicit angstrom or bohr units. "
+                    "espresso-out selects the last frame "
+                    "with results. abacus-stru requires explicit LATTICE_VECTORS. "
                     "log means a Gaussian or ORCA output log (.log/.out); then output must be csv or xyz."
     )
-    output_format: Literal["mol", "xyz", "gjf", "inp", "pdb", "cif", "sdf", "csv", "poscar", "vasp"] = Field(
+    output_format: Literal["mol", "gjf", "inp", "pdb", "sdf", "csv", PeriodicOutputFormat] = Field(
         description="Target output format. gjf/inp are geometry skeletons without method, basis or solver settings; "
                     "known molecular charge/multiplicity are retained, absent values use 0/1 with explicit disclosure. "
                     "XYZ comments and SDF properties retain native molecular-state metadata; "
                     "formats unable to carry it report that loss. Use qm_input_writer for production inputs. "
+                    "EXTXYZ preserves per-axis periodicity. cp2k-geometry emits a &SUBSYS include fragment. "
                     "When input_format='log', output can be 'csv' (key-frame table) or 'xyz' (final optimized frame)."
     )
     output_path: str = Field(
@@ -121,11 +126,6 @@ class FormatConverter(Tool):
 
     def is_write(self) -> bool:
         return True
-
-    @staticmethod
-    def _to_ase_format(fmt: str) -> str:
-        """将用户格式名映射为 ASE 可识别的格式名。"""
-        return _ASE_FORMAT_MAP.get(fmt, fmt)
 
     @staticmethod
     def _write_native_skeleton(mol, output_path: str, fmt: str) -> None:
@@ -287,8 +287,7 @@ class FormatConverter(Tool):
         try:
             import ase.io
 
-            ase_input_fmt = self._to_ase_format(user_input.input_format)
-            ase_output_fmt = self._to_ase_format(user_input.output_format)
+            ase_output_fmt = ase_geometry_format(user_input.output_format)
 
             chem_input = user_input.input_format in _CHEMICAL_FORMATS
             chem_output = user_input.output_format in _CHEMICAL_FORMATS
@@ -296,9 +295,9 @@ class FormatConverter(Tool):
             # 3. 读取输入
             # mol/sdf 走 RDKit（保留键/形式电荷/立体）；其余走 ASE 坐标面。
             # 多帧/多分子输入明确取第一帧并在 message 披露（不静默丢帧）。
-            frame_note = ""
+            source_notes = []
             if chem_input:
-                mol, n_frames, desc = _read_rdkit_first(input_path, user_input.input_format)
+                mol, n_frames, _ = _read_rdkit_first(input_path, user_input.input_format)
                 if mol is None:
                     return FormatConverter_output_schema(
                         is_success=False,
@@ -308,7 +307,7 @@ class FormatConverter(Tool):
                                 "Check that the file is a valid MOL/SDF with at least one molecule.",
                     )
                 if n_frames > 1:
-                    frame_note = (
+                    source_notes.append(
                         f"Input {user_input.input_format} contains {n_frames} frames/molecules; "
                         "only the first one was converted."
                     )
@@ -317,26 +316,13 @@ class FormatConverter(Tool):
                     input_format='gaussian-in' if user_input.input_format == 'gjf' else 'orca')
                 atoms = to_ase(mol)
             else:
-                # 单次惰性扫描：只物化第一帧（整条轨迹物化既耗内存也只用首帧），
-                # 帧数仍在同一趟扫描里数出，message 如实披露"取第一帧"。
-                atoms = None
-                n_frames = 0
-                for frame in ase.io.iread(input_path, format=ase_input_fmt):
-                    n_frames += 1
-                    if atoms is None:
-                        atoms = frame
-                if atoms is None:
-                    return FormatConverter_output_schema(
-                        is_success=False,
-                        output_path="",
-                        message=f"Could not read a structure from {input_path}. "
-                                f"Check that the file content matches input_format='{user_input.input_format}'."
-                    )
-                if n_frames > 1:
-                    frame_note = (
-                        f"Input {user_input.input_format} contains {n_frames} coordinate frames; "
-                        "only the first one was converted."
-                    )
+                atoms, _, source_notes = read_geometry(Path(input_path), user_input.input_format)
+                if atoms.pbc.any() or atoms.cell.rank == 3:
+                    if user_input.output_format in get_args(PeriodicOutputFormat) or user_input.output_format == 'pdb':
+                        source_notes.extend(write_periodic_geometry(Path(output_path), atoms, user_input.output_format))
+                        return self._converted(user_input, source_notes)
+                    validate_cell_geometry(atoms)
+                    source_notes.append('This molecular format does not retain the periodic lattice or boundary flags.')
                 mol = from_ase(atoms)
                 mol.SetProp('cloudra_graph_status', 'unresolved')
                 # EXTXYZ carries converter-produced molecular state explicitly;
@@ -389,33 +375,31 @@ class FormatConverter(Tool):
                     elif total_charge(mol) != 0:
                         charge_note += f' Molecular charge {total_charge(mol):+d} is retained in the geometry card.'
                 else:
-                    if user_input.output_format == 'xyz':
+                    if user_input.output_format in {'xyz', 'extxyz'}:
                         for name in ('cloudra_total_charge', 'cloudra_multiplicity', 'cloudra_graph_status',
                                      'cloudra_coordinate_units', 'cloudra_source_coordinate_units'):
                             if mol.HasProp(name):
                                 value = mol.GetProp(name)
                                 atoms.info[name] = int(value) if name in {'cloudra_total_charge', 'cloudra_multiplicity'} else value
-                    if ase_output_fmt == "vasp" and (atoms.cell is None or atoms.cell.volume == 0):
-                        atoms.center(vacuum=10.0)
-                    ase.io.write(output_path, atoms, format=ase_output_fmt)
+                    if ase_output_fmt == 'vasp':
+                        if atoms.cell.volume == 0:
+                            atoms.center(vacuum=10.0)
+                            source_notes.append('The molecular geometry was given 10 Å of padding on each side.')
+                        source_notes.extend(write_periodic_geometry(Path(output_path), atoms, user_input.output_format))
+                    elif ase_output_fmt == 'cp2k-geometry':
+                        source_notes.extend(write_periodic_geometry(Path(output_path), atoms, user_input.output_format))
+                    else:
+                        ase.io.write(output_path, atoms, format=ase_output_fmt)
 
             state_note = ''
             if mol.HasProp('cloudra_multiplicity'):
                 state_note = f'Molecular charge {total_charge(mol):+d}, multiplicity {mol.GetProp("cloudra_multiplicity")}; coordinates are Angstrom.'
                 if mol.HasProp('cloudra_source_coordinate_units'):
                     state_note += f' Source coordinate units: {mol.GetProp("cloudra_source_coordinate_units")}.'
-                if user_input.output_format not in {'gjf', 'inp', 'xyz', 'sdf'}:
+                if user_input.output_format not in {'gjf', 'inp', 'xyz', 'extxyz', 'sdf'}:
                     state_note += ' Molecular charge/spin metadata are not retained in this output format; no atomic identity assignment was inferred.'
 
-            notes = " ".join(note for note in (frame_note, charge_note, state_note) if note)
-            message = f"Converted {user_input.input_format} to {user_input.output_format}: {output_path}"
-            if notes:
-                message += f" NOTE: {notes}"
-            return FormatConverter_output_schema(
-                is_success=True,
-                output_path=output_path,
-                message=message,
-            )
+            return self._converted(user_input, [*source_notes, charge_note, state_note])
 
         except FileNotFoundError as e:
             return FormatConverter_output_schema(
@@ -439,3 +423,11 @@ class FormatConverter(Tool):
                         f"Check that {input_path} is a valid {user_input.input_format} file and that "
                         f"'{user_input.output_format}' is supported, then retry."
             )
+
+    @staticmethod
+    def _converted(user_input: FormatConverter_input_schema, notes: list[str]) -> FormatConverter_output_schema:
+        message = f"Converted {user_input.input_format} to {user_input.output_format}: {user_input.output_path}"
+        details = " ".join(note for note in notes if note)
+        if details:
+            message += f" NOTE: {details}"
+        return FormatConverter_output_schema(is_success=True, output_path=user_input.output_path, message=message)
