@@ -13,12 +13,23 @@ from ase.build import make_supercell
 from ase.data import atomic_numbers
 from ase.geometry import minkowski_reduce
 from pydantic import AfterValidator, Field, StrictInt, StringConstraints, model_validator
+from scipy.spatial.transform import Rotation
 
 from cloudra.base.tools_class import Tool, input_schema, output_schema
 from cloudra.persistence.workspace import resolve_tool_path
+from cloudra.tools.core.periodic_geometry import (
+    GEOMETRY_TOLERANCE_ANGSTROM,
+    AdsorptionSite,
+    SiteKind,
+    adsorption_surface,
+    enumerate_adsorption_sites,
+    minimum_image_distances,
+    slab_normal,
+)
 from cloudra.tools.core.periodic_io import (
     geometry_format_from_path,
     read_geometry,
+    validate_atomic_geometry,
     validate_cell_geometry,
     write_periodic_geometry,
 )
@@ -103,7 +114,52 @@ class EditSites(input_schema):
     edits: list[SiteEdit] = Field(min_length=1, description='Vacancy, substitution or explicit atom insertion. All atom numbers refer to the original input.')
 
 
-Operation = Annotated[Inspect | Supercell | Slab | EditSites, Field(discriminator='type')]
+class SurfaceInput(input_schema):
+    side: Literal['top', 'bottom'] = Field(
+        description='Top follows the cell vector out of the periodic plane; bottom points the opposite way.',
+    )
+    vacuum_axis: Literal['a', 'b', 'c'] | None = Field(
+        default=None, description='Required for three-periodic slabs such as POSCAR. Names the out-of-plane lattice vector.',
+    )
+    surface_atoms: list[PositiveInt] | None = Field(
+        default=None, min_length=1,
+        description='Atom numbers for candidate enumeration. Omit for the outermost atomic plane of a clean slab.',
+    )
+
+
+class AdsorptionSites(SurfaceInput):
+    type: Literal['adsorption_sites']
+    kind: SiteKind | None = Field(default=None, description='Filter by kind while keeping the original candidate numbers.')
+    start_site: PositiveInt = Field(default=1, description='First 1-based candidate number to return.')
+    limit: PositiveInt = Field(default=24, le=100, description='Maximum number of candidates to return.')
+
+
+class AtopAtom(input_schema):
+    atom_index: PositiveInt = Field(description='1-based input atom to use directly as an atop reference.')
+
+
+class AdsorbateOrientation(input_schema):
+    axis_atom: PositiveInt = Field(description='1-based molecule atom defining the vector from the anchor.')
+    direction: Literal['outward'] | Vector = Field(
+        description='Align the anchor-to-axis vector with the outward surface normal or a slab Cartesian direction.',
+    )
+    twist_degrees: FiniteFloat = Field(default=0.0, description='Subsequent right-handed rotation around direction in degrees.')
+
+
+class AdsorbateGeometry(input_schema):
+    path: PathString = Field(description='Single nonperiodic XYZ or EXTXYZ file with explicit Å coordinates.')
+    anchor_atom: PositiveInt = Field(description='1-based molecule atom to place above the site.')
+    orientation: AdsorbateOrientation | None = Field(default=None, description='Omit to use the orientation in the input file.')
+
+
+class Adsorb(SurfaceInput):
+    type: Literal['adsorb']
+    site: PositiveInt | AtopAtom = Field(description='Candidate number or an explicit input atom as an atop reference.')
+    adsorbate: Element | AdsorbateGeometry = Field(description='Element symbol for one atom, or an explicit molecule.')
+    height_angstrom: PositiveLength = Field(description='Anchor displacement from the site along the outward normal in Å.')
+
+
+Operation = Annotated[Inspect | Supercell | Slab | EditSites | AdsorptionSites | Adsorb, Field(discriminator='type')]
 
 
 class PeriodicModelInput(input_schema):
@@ -113,15 +169,15 @@ class PeriodicModelInput(input_schema):
     )
     operation: Operation
     output_path: PathString | None = Field(
-        default=None, description='New structure file path for a build. Omit for inspect or for a slab termination preview.',
+        default=None, description='New structure file path for a build. Omit for inspection or a candidate preview.',
     )
 
     @model_validator(mode='after')
     def output_matches_operation(self):
-        if isinstance(self.operation, Inspect) and self.output_path is not None:
-            raise ValueError('Omit output_path for inspect.')
-        if isinstance(self.operation, (Supercell, EditSites)) and self.output_path is None:
-            raise ValueError('Give an output_path for supercell or edit_sites.')
+        if isinstance(self.operation, (Inspect, AdsorptionSites)) and self.output_path is not None:
+            raise ValueError(f'Omit output_path for {self.operation.type}.')
+        if isinstance(self.operation, (Supercell, EditSites, Adsorb)) and self.output_path is None:
+            raise ValueError(f'Give an output_path for {self.operation.type}.')
         return self
 
 
@@ -157,6 +213,8 @@ class PeriodicModelOutput(output_schema):
     sites: list[Site] = Field(default_factory=list)
     terminations: list[Termination] = Field(default_factory=list)
     termination: int | None = None
+    adsorption_sites: list[AdsorptionSite] = Field(default_factory=list)
+    adsorbate_min_distance_angstrom: float | None = None
     warnings: list[str] = Field(default_factory=list)
     message: str = ''
 
@@ -165,8 +223,7 @@ def _summarize(atoms: Atoms) -> CellSummary:
     reduced, _ = minkowski_reduce(atoms.cell, pbc=atoms.pbc)
     normal_size = {}
     if sum(atoms.pbc) == 2:
-        normal = np.cross(*atoms.cell[atoms.pbc])
-        normal /= np.linalg.norm(normal)
+        normal = slab_normal(atoms.cell, atoms.pbc)
         thickness = float(np.ptp(atoms.positions @ normal))
         normal_size = {
             'thickness_angstrom': thickness,
@@ -285,6 +342,12 @@ def _slab(atoms: Atoms, operation: Slab, *, build: bool) -> tuple[Atoms | None, 
     return atoms, terminations, selected
 
 
+def _atom_index(atoms: Atoms, atom_number: int) -> int:
+    if atom_number > len(atoms):
+        raise ValueError(f'Atom {atom_number} is outside the input structure, which has {len(atoms)} atoms.')
+    return atom_number - 1
+
+
 def _edit_sites(atoms: Atoms, operation: EditSites) -> Atoms:
     removals = []
     seen = set()
@@ -293,28 +356,90 @@ def _edit_sites(atoms: Atoms, operation: EditSites) -> Atoms:
         if isinstance(edit, Add):
             additions.append(edit)
             continue
-        index = edit.atom_index
-        if index > len(atoms):
-            raise ValueError(f'Atom {index} is outside the input structure, which has {len(atoms)} atoms.')
+        index = _atom_index(atoms, edit.atom_index)
         if index in seen:
-            raise ValueError(f'Atom {index} has more than one edit.')
+            raise ValueError(f'Atom {edit.atom_index} has more than one edit.')
         seen.add(index)
         if isinstance(edit, Remove):
-            removals.append(index - 1)
+            removals.append(index)
         else:
-            atoms[index - 1].symbol = edit.element
+            atoms[index].symbol = edit.element
 
     del atoms[removals]
     for addition in additions:
         fractional = np.array(addition.fractional)
         fractional[atoms.pbc] %= 1
         atoms.append(Atom(addition.element, fractional @ atoms.cell))
-        distances = atoms.get_distances(len(atoms) - 1, range(len(atoms) - 1), mic=True)
-        if np.any(distances < 1e-7):
+        distances = minimum_image_distances(atoms, atoms.positions[-1:], atoms.positions[:-1])
+        if np.any(distances < GEOMETRY_TOLERANCE_ANGSTROM):
             raise ValueError(f'Inserted {addition.element} at {addition.fractional} coincides with an existing site.')
     if not len(atoms):
         raise ValueError('Site edits would leave an empty structure.')
     return atoms
+
+
+def _candidate_sites(
+    atoms: Atoms, operation: SurfaceInput, in_plane: np.ndarray, normal: np.ndarray,
+) -> list[AdsorptionSite]:
+    indices = None
+    if operation.surface_atoms is not None:
+        indices = sorted(_atom_index(atoms, number) for number in operation.surface_atoms)
+    return enumerate_adsorption_sites(atoms, in_plane, normal, indices)
+
+
+def _adsorb(atoms: Atoms, operation: Adsorb, warnings: list[str]) -> tuple[AdsorptionSite, float]:
+    in_plane, normal = adsorption_surface(atoms, operation.vacuum_axis, operation.side)
+    if isinstance(operation.site, AtopAtom):
+        index = _atom_index(atoms, operation.site.atom_index)
+        site = AdsorptionSite(None, 'ontop', tuple(atoms.positions[index].tolist()), [operation.site.atom_index])
+    else:
+        candidates = _candidate_sites(atoms, operation, in_plane, normal)
+        if operation.site > len(candidates):
+            raise ValueError(f'Site {operation.site} is absent. Preview adsorption_sites for this slab and surface selection.')
+        site = candidates[operation.site - 1]
+
+    if isinstance(operation.adsorbate, str):
+        molecule = Atoms(operation.adsorbate)
+    else:
+        geometry = operation.adsorbate
+        path = Path(geometry.path)
+        if path.suffix.lower() not in {'.xyz', '.extxyz'}:
+            raise ValueError('Use an XYZ or EXTXYZ adsorbate. Convert other molecule files with format_converter.')
+        template, count, _ = read_geometry(path, 'extxyz')
+        validate_atomic_geometry(template)
+        if count != 1 or template.pbc.any():
+            raise ValueError('Provide one nonperiodic adsorbate geometry.')
+        if template.info.get('cloudra_coordinate_units', 'angstrom') != 'angstrom':
+            raise ValueError('Provide adsorbate coordinates in Å.')
+        molecule = Atoms(numbers=template.numbers, positions=template.positions)
+        anchor = _atom_index(molecule, geometry.anchor_atom)
+        molecule.translate(-molecule.positions[anchor].copy())
+        if geometry.orientation is not None:
+            orientation = geometry.orientation
+            axis = molecule.positions[_atom_index(molecule, orientation.axis_atom)]
+            direction = normal if orientation.direction == 'outward' else np.asarray(orientation.direction)
+            norm = np.linalg.norm(direction)
+            if not np.linalg.norm(axis) or not np.isfinite(norm) or not norm:
+                raise ValueError('Give a distinct axis atom and a nonzero finite orientation direction.')
+            unit_direction = direction / norm
+            align, _ = Rotation.align_vectors(unit_direction, axis)
+            twist = Rotation.from_rotvec(unit_direction * orientation.twist_degrees, degrees=True)
+            molecule.positions[:] = (twist * align).apply(molecule.positions)
+
+    molecule.translate(np.asarray(site.position_angstrom) + operation.height_angstrom * normal)
+    distances = minimum_image_distances(atoms, molecule.positions, atoms.positions)
+    minimum = float(distances.min())
+    if minimum < GEOMETRY_TOLERANCE_ANGSTROM:
+        raise ValueError('An adsorbate atom coincides with an input atom under periodic boundaries.')
+    if len(molecule) > 1:
+        internal = minimum_image_distances(atoms, molecule.positions, molecule.positions)
+        if np.any(internal[np.triu_indices(len(molecule), k=1)] < GEOMETRY_TOLERANCE_ANGSTROM):
+            raise ValueError('Adsorbate atoms coincide under periodic boundaries.')
+    fractional = atoms.cell.scaled_positions(molecule.positions)[:, ~in_plane]
+    if np.any((fractional < 0) | (fractional > 1)):
+        warnings.append('The placed adsorbate extends outside the cell along the vacuum axis.')
+    atoms.extend(molecule)
+    return site, minimum
 
 
 def _run_model(input_path: Path, output_path: Path | None, operation: Operation) -> PeriodicModelOutput:
@@ -332,12 +457,22 @@ def _run_model(input_path: Path, output_path: Path | None, operation: Operation)
             if index >= operation.start_atom and (operation.element is None or symbol == operation.element)
         )
         return PeriodicModelOutput(summary=_summarize(atoms), sites=list(islice(sites, operation.limit)), warnings=warnings)
+    if isinstance(operation, AdsorptionSites):
+        in_plane, normal = adsorption_surface(atoms, operation.vacuum_axis, operation.side)
+        candidates = _candidate_sites(atoms, operation, in_plane, normal)
+        matches = (site for site in candidates[operation.start_site - 1:] if operation.kind in (None, site.kind))
+        return PeriodicModelOutput(
+            summary=_summarize(atoms), adsorption_sites=list(islice(matches, operation.limit)), warnings=warnings,
+            message='Geometric adsorption candidates for the selected surface.',
+        )
 
     summary = _summarize(atoms) if isinstance(operation, Slab) else None
     had_constraints = bool(atoms.constraints)
     atoms = Atoms(numbers=atoms.numbers, positions=atoms.positions, cell=atoms.cell, pbc=atoms.pbc)
     terminations = []
     selected = None
+    adsorption_sites = []
+    min_distance = None
     if isinstance(operation, Slab):
         atoms, terminations, selected = _slab(atoms, operation, build=output_path is not None)
         if atoms is None:
@@ -347,6 +482,9 @@ def _run_model(input_path: Path, output_path: Path | None, operation: Operation)
             )
     elif isinstance(operation, Supercell):
         atoms = _supercell(atoms, operation)
+    elif isinstance(operation, Adsorb):
+        site, min_distance = _adsorb(atoms, operation, warnings)
+        adsorption_sites.append(site)
     else:
         atoms = _edit_sites(atoms, operation)
 
@@ -356,6 +494,7 @@ def _run_model(input_path: Path, output_path: Path | None, operation: Operation)
     warnings.extend(write_periodic_geometry(output_path, atoms, geometry_format_from_path(output_path), exclusive=True))
     return PeriodicModelOutput(
         output_path=str(output_path), summary=summary, terminations=terminations, termination=selected,
+        adsorption_sites=adsorption_sites, adsorbate_min_distance_angstrom=min_distance,
         warnings=warnings, message='Initial periodic geometry written.',
     )
 
@@ -365,7 +504,7 @@ class PeriodicModel(Tool):
     tool_name: str = 'periodic_model'
     tool_description: str = (
         'Inspect a known crystal, expand a bulk or slab supercell, cut a slab by Miller indices, '
-        'or edit explicitly identified sites for vacancies, substitutions and insertions. '
+        'or edit explicit sites for defects. Enumerate surface adsorption sites and place atoms or molecules. '
         'Inspect for 1-based atom numbers and preview slab terminations before choosing a cut. '
         'Use EXTXYZ to keep per-axis periodicity when chaining operations. Results are initial geometries.'
     )
@@ -381,7 +520,12 @@ class PeriodicModel(Tool):
     async def tool_call(self, user_input: PeriodicModelInput, session=None) -> PeriodicModelOutput:
         source = Path(resolve_tool_path(self, user_input.input_path))
         target = Path(resolve_tool_path(self, user_input.output_path)) if user_input.output_path else None
+        operation = user_input.operation
+        if isinstance(operation, Adsorb) and isinstance(operation.adsorbate, AdsorbateGeometry):
+            geometry = operation.adsorbate
+            geometry = geometry.model_copy(update={'path': resolve_tool_path(self, geometry.path)})
+            operation = operation.model_copy(update={'adsorbate': geometry})
         try:
-            return await asyncio.to_thread(_run_model, source, target, user_input.operation)
+            return await asyncio.to_thread(_run_model, source, target, operation)
         except (ValueError, OSError) as exc:
             return PeriodicModelOutput(is_success=False, message=str(exc))

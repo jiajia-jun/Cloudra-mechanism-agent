@@ -138,10 +138,13 @@ def read_geometry(path: Path, fmt: str) -> tuple[Atoms, int, list[str]]:
     count = 0
     last = fmt == 'espresso-out'
     source = _espresso_output(path) if last else str(path)
-    for frame in iread(source, format=ase_geometry_format(fmt), do_not_split_by_at_sign=True):
-        count += 1
-        if atoms is None or last:
-            atoms = frame
+    try:
+        for frame in iread(source, format=ase_geometry_format(fmt), do_not_split_by_at_sign=True):
+            count += 1
+            if atoms is None or last:
+                atoms = frame
+    except KeyError as exc:
+        raise ValueError(f'Could not read a structure from {path} as {fmt}: {exc}') from exc
     if atoms is None:
         raise ValueError(f'Could not read a structure from {path} as {fmt}.')
     if fmt == 'espresso-in':
@@ -153,17 +156,21 @@ def read_geometry(path: Path, fmt: str) -> tuple[Atoms, int, list[str]]:
     return atoms, count, notes
 
 
-def validate_cell_geometry(atoms: Atoms) -> None:
+def validate_atomic_geometry(atoms: Atoms) -> None:
     if not len(atoms) or np.any(atoms.numbers == 0) or not np.isfinite(atoms.positions).all():
         raise ValueError('A structure needs real elements and finite coordinates.')
-    if not np.isfinite(atoms.cell).all() or np.linalg.matrix_rank(atoms.cell) != 3:
-        raise ValueError('A finite, nondegenerate 3D cell is required. Supply a cell-bearing structure file.')
     cif_occupancies = atoms.info.get('occupancy', {})
     if not np.allclose(atoms.arrays.get('occupancy', 1.0), 1.0, rtol=0, atol=1e-8) or any(
         len(species) != 1 or not np.isclose(next(iter(species.values())), 1.0, rtol=0, atol=1e-8)
         for species in cif_occupancies.values()
     ):
         raise ValueError('Partial or mixed site occupancy requires an explicit ordered structure.')
+
+
+def validate_cell_geometry(atoms: Atoms) -> None:
+    validate_atomic_geometry(atoms)
+    if not np.isfinite(atoms.cell).all() or np.linalg.matrix_rank(atoms.cell) != 3:
+        raise ValueError('A finite, nondegenerate 3D cell is required. Supply a cell-bearing structure file.')
 
 
 def _cp2k_geometry(atoms: Atoms) -> str:

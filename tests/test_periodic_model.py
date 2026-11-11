@@ -210,8 +210,24 @@ async def test_dft_agent_builds_and_converts_periodic_geometry(tmp_path, crystal
     }))
     assert outcome.result.is_success, outcome.result.summary
     assert outcome.result.data['summary']['pbc'] == [True, True, False]
+    preview = await service.invoke(context, ToolCall(id='sites', name='periodic_model', arguments={
+        'input_path': 'slab.extxyz',
+        'operation': {'type': 'adsorption_sites', 'side': 'top', 'kind': 'ontop', 'limit': 1},
+    }))
+    assert preview.result.is_success, preview.result.summary
+    write(tmp_path / 'co.xyz', Atoms('CO', positions=[[0, 0, 0], [0, 0, 1.1]]))
+    adsorbed = await service.invoke(context, ToolCall(id='adsorb', name='periodic_model', arguments={
+        'input_path': 'slab.extxyz',
+        'operation': {
+            'type': 'adsorb', 'side': 'top', 'site': preview.result.data['adsorption_sites'][0]['index'],
+            'adsorbate': {'path': 'co.xyz', 'anchor_atom': 1}, 'height_angstrom': 2,
+        },
+        'output_path': 'adsorbed.extxyz',
+    }))
+    assert adsorbed.result.is_success, adsorbed.result.summary
+    assert adsorbed.result.data['summary']['composition'] == {'Na': 2, 'Cl': 2, 'C': 1, 'O': 1}
     outcome = await service.invoke(context, ToolCall(id='convert', name='format_converter', arguments={
-        'input_path': 'slab.extxyz', 'input_format': 'extxyz',
+        'input_path': 'adsorbed.extxyz', 'input_format': 'extxyz',
         'output_path': 'slab.inc', 'output_format': 'cp2k-geometry',
     }))
     assert outcome.result.is_success, outcome.result.summary

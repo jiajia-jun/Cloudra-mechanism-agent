@@ -392,7 +392,10 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
     },
     "submit_compute_job": {"input_file": "workspace_input"},
     "format_converter": {"input_path": "workspace_input", "output_path": "workspace_output"},
-    "periodic_model": {"input_path": "workspace_input", "output_path": "workspace_output"},
+    "periodic_model": {
+        "input_path": "workspace_input", "output_path": "workspace_output",
+        "operation.adsorbate.path": "workspace_input",
+    },
     "pdb_inspect": {"input_path": "workspace_input"},
     "pdb_clean": {"input_path": "workspace_input", "output_path": "workspace_output"},
     "md_box": {"components.structure_path": "workspace_input", "output_dir": "workspace_dir"},
@@ -457,21 +460,25 @@ def test_path_field_inventory_matches_registry():
     （改名/删除 fail-loud）；嵌套字段用 ``model.field`` 表示。"""
     from typing import get_args
 
+    from pydantic import BaseModel
+
     from cloudra.tools import get_tools_lst
+
+    def model_types(annotation):
+        if isinstance(annotation, type) and issubclass(annotation, BaseModel):
+            yield annotation
+        for argument in get_args(annotation):
+            yield from model_types(argument)
 
     entries = {e.tool_name: e for e in get_tools_lst()}
     for tool_name, fields in TOOL_PATH_FIELDS.items():
         assert tool_name in entries, f"tool {tool_name!r} not in registry"
-        schema = entries[tool_name].input_schema
         for field in fields:
-            if "." in field:
-                outer, inner = field.split(".", 1)
-                annotation = schema.model_fields[outer].annotation
-                args = get_args(annotation)
-                nested = args[0] if args else annotation
-                assert inner in nested.model_fields, f"{tool_name}.{field} missing"
-            else:
-                assert field in schema.model_fields, f"{tool_name}.{field} missing"
+            models = [entries[tool_name].input_schema]
+            for name in field.split("."):
+                matches = [model.model_fields[name] for model in models if name in model.model_fields]
+                assert matches, f"{tool_name}.{field} missing"
+                models = [model for info in matches for model in model_types(info.annotation)]
 
 
 def test_registry_path_fields_are_documented():

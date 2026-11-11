@@ -49,7 +49,7 @@ LCHARG = .FALSE.
 ---
 
 ### 1.2 Slab & Surface Adsorption Relaxation
-Optimization of surface slab models and molecular adsorbates with fixed cell volume.
+This example holds the cell fixed. Choose the SCF, smearing, dispersion and force criteria for the task. Apply the current atom mask and use the [staged relaxation workflow](surface-modeling-sop.md#33-staged-relaxation-of-molecular-adsorbates) for molecular adsorption.
 
 ```ini
 # --- Precision & Plane Waves ---
@@ -61,7 +61,7 @@ ISYM   = 0             # Disable symmetry to prevent artificial zero-force traps
 
 # --- Electronic SCF ---
 ALGO   = Fast
-EDIFF  = 1E-5          # 1E-5 for slab relaxation, 1E-6 for static single points
+EDIFF  = 1E-5          # Example. Verify force repeatability for the target tolerance.
 NELM   = 120
 
 # --- Smearing ---
@@ -69,14 +69,14 @@ ISMEAR = 0
 SIGMA  = 0.05
 
 # --- Ionic Relaxation ---
-IBRION = 2             # CG for initial search; switch to 1 (RMM-DIIS) near minimum
+IBRION = 2             # Conjugate-gradient option for the initial search
 ISIF   = 2             # Relax ion positions only; lock lattice constants and vacuum thickness
 EDIFFG = -0.02         # Force threshold -0.02 eV/Å
 NSW    = 300
 POTIM  = 0.15          # Reduced step size for adsorbate stability
 
 # --- Dipole Correction ---
-LDIPOL = .TRUE.        # Enable dipole correction
+LDIPOL = .TRUE.        # Example for an asymmetric slab with vacuum along c
 IDIPOL = 3             # Along z-axis (surface normal)
 
 # --- Dispersion Correction ---
@@ -251,12 +251,8 @@ ICHARG  = 1            # Read pre-converged CHGCAR
 
 ### 2.2 Quickstep OT vs. Diagonalization & Basis/Potential Pairings
 
-*   **OT (Orbital Transformation)**:
-    Use for semiconductors, insulators, wide-gap slabs ($\text{gap} \ge 0.5\text{ eV}$) at $\Gamma$-point only. Unconditionally converges without density mixing.
-    *Recipe*: `PRECONDITIONER FULL_ALL` + `MINIMIZER CG` + `LINESEARCH 3PNT` + `&OUTER_SCF`.
-*   **Traditional Diagonalization**:
-    Use for metals, zero-gap conductors, or k-point meshes.
-    *Recipe*: `&SMEAR` (Fermi-Dirac) + `ADDED_MOS 30~80` + `&MIXING` (Broyden) + `LEVEL_SHIFT 0.3`.
+*   **Orbital transformation**. The OT input above illustrates a gapped case. Check the available occupation and k-point treatment against the installed CP2K version.
+*   **Diagonalization**. For a metallic slab with unstable SCF, inspect the occupation and density-mixing settings. The diagonalization path supports smearing and mixing. Choose the smearing, virtual orbital count and mixing from the system and verify force repeatability before changing ionic parameters. [CP2K SCF convergence](https://manual.cp2k.org/cp2k-2026_2-branch/methods/dft/convergence.html)
 *   **Basis & GTH Potential Pairings**:
     *   *Standard production*: `DZVP-MOLOPT-GTH` paired with `GTH-PBE-qX`.
     *   *High-precision / Adsorption*: `TZV2P-MOLOPT-GTH` (minimal BSSE; Counterpoise correction usually unnecessary).

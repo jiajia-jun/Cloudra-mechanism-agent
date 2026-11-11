@@ -1,6 +1,6 @@
 ---
 name: first-principles-calculation
-description: Provide domain expertise for periodic DFT / first-principles calculations (VASP, CP2K, Quantum ESPRESSO, ASE). Use when setting up INCAR parameters, optimizing k-points and ENCUT, configuring DFT+U, calculating surface slabs, adsorption energies, heterogeneous catalysis mechanisms (LH/ER/MvK), electrocatalytic CHE free energy diagrams (HER, OER, ORR, CO2RR, NRR), CI-NEB surface transition states, partial Hessian vibrations, or troubleshooting SCF/ZBRENT/EDDAV errors.
+description: Use when building periodic crystal or slab models, planning molecular adsorption or coadsorption, diagnosing noisy forces in staged geometry relaxation, or setting up k-points, cutoffs, DFT+U, surface thermochemistry, electrocatalysis, CI-NEB or partial Hessians with VASP, CP2K, Quantum ESPRESSO, ABACUS or ASE.
 license: MIT
 ---
 
@@ -8,9 +8,9 @@ license: MIT
 When planning and executing periodic first-principles calculations (VASP / CP2K), anchor all actions in the `CLOUDRA` toolchain:
 
 ## 1.1 VASP Toolchain & Python Automation
-- **Crystal modeling**: Use `periodic_model` for slabs, supercells and explicit site edits from an existing crystal. Use `format_converter` for periodic structure exchange. See [the tool workflow](references/periodic-modeling.md) for calls and format coverage. Use ASE for operations beyond these tools.
+- **Crystal modeling**: Use `periodic_model` for slabs, supercells, explicit site edits and adsorption geometries. Use `format_converter` for periodic structure exchange. See [the tool workflow](references/periodic-modeling.md) for calls and format coverage. Use ASE for operations beyond these tools.
 - **Extended methodology & reference library**: Before starting surface modeling, reaction network construction, or production runs, load the detailed reference guides:
-  - Surface & Slab Modeling SOP: `get_skill("first-principles-calculation", reference="surface-modeling-sop.md")` (bulk lattice relaxation, slab thickness/vacuum convergence, Tasker surface polarity, adsorption site catalogs, and adsorbate placement rules).
+  - Surface & Slab Modeling SOP: `get_skill("first-principles-calculation", reference="surface-modeling-sop.md")` (bulk lattice relaxation, slab thickness/vacuum convergence, Tasker surface polarity, adsorption site catalogs, placement, and staged molecular adsorption relaxation).
   - Heterogeneous Catalysis & CHE Electrocatalysis: `get_skill("first-principles-calculation", reference="heterogeneous-catalysis-mechanisms.md")` (LH/ER/MvK models, CHE standard free energy corrections, HER/OER/CO2RR/NRR reaction networks, scaling relations, and CI-NEB / Partial Hessian SOP).
   - Production INCAR / CP2K Blueprints & Troubleshooting: `get_skill("first-principles-calculation", reference="vasp-cp2k-production-blueprints.md")` (bulk opt, slab relaxation, PDOS/d-band center, DFT+U table, HSE06 two-stage acceleration, and failure diagnosis decision trees).
   - ASE code library: `get_skill("first-principles-calculation", reference="ase-guide.md")` and `examples/` (`adsorption_energy.py`, `lattice_optimization.py`, `neb_barrier.py`, `che_electrocatalysis.py`).
@@ -18,7 +18,7 @@ When planning and executing periodic first-principles calculations (VASP / CP2K)
 - **Result parsing and monitoring**: Avoid running `cat` on giant `OUTCAR` or `vasprun.xml` files. Use Python scripts (`ase.io.read`, `pymatgen`, or regex log parsers) via `bash` to extract energies, forces, magnetic moments, and stress tensors.
 
 ## 1.2 CP2K Toolchain
-- **Input generation**: Use Multiwfn or ASE's `CP2K` calculator for `.inp` files. For 2D surface slabs, strictly use `&POISSON` with `PSOLVER MT` (Martyna-Tuckerman) and `PERIODIC XY`.
+- **Input generation**. Use `format_converter` to export geometry and supply the calculation settings in the CP2K input. Choose the `CELL` and `POISSON` periodicity and a compatible solver for the intended slab model. Check the density extent in the nonperiodic direction when using `MT`. [CP2K POISSON](https://manual.cp2k.org/cp2k-2025_2-branch/CP2K_INPUT/FORCE_EVAL/DFT/POISSON.html)
 - **Job dispatch**: Call `submit_compute_job` with `job_type="cp2k"`.
 - **Result parsing**: Monitor `SCF run converged`, total energies, and `MAX gradient` in `.out` files. Read slices using `read` or parse with Python.
 
@@ -31,10 +31,9 @@ Numeric settings below are **production starting points**. A number is accepted 
 1. **Slab & Vacuum Dimensions**:
    - For 2D materials, surface slabs, and adsorption systems, the vacuum-direction (usually $Z$) k-point **must be 1** (e.g. `4 4 1` or `5 5 1`).
    - **Start** vacuum at $15\text{–}20\text{ \AA}$; accept a smaller vacuum (metals often OK at $12\text{–}15\text{ \AA}$) only if electron density in the vacuum center decays to $< 10^{-5}\ e/\text{\AA}^3$ **and** the electrostatic potential plateaus ($V(z)$ flat within a few meV). Otherwise increase vacuum.
-2. **Selective Dynamics on Slabs**:
-   - **Start** with $\ge 4$ atomic layers for close-packed metals and $\ge 6$ for oxides/2D (system-dependent). Fix the bottom $2$ layers (more if needed); relax the rest and adsorbates. **Acceptance:** forces on fixed layers stay small and key observables (lattice parameter of the slab, $E_{\text{ads}}$, barrier) change $\lesssim 0.05$ eV when adding another relaxed layer or extending vacuum — otherwise thicken.
+2. **Selective Dynamics on Slabs**. Use a defined fixed substrate mask for the clean slab and its matched adsorption references. Check the target observable against slab thickness, relaxed layer depth, vacuum and lateral cell size as relevant. See `surface-modeling-sop.md` for the staged relaxation and its final force checks.
 3. **Dipole Correction**:
-   - Asymmetric slabs (different top/bottom terminations) and single-sided adsorption models **enable dipole correction** (`LDIPOL = .TRUE.`, `IDIPOL = 3`). Symmetric slabs usually omit it; report the choice.
+   - For an asymmetric slab in a 3D-periodic VASP model, evaluate the dipole correction along the actual vacuum direction. Use the chosen electrostatic settings consistently for the final comparisons. [VASP LDIPOL](https://vasp.at/wiki/LDIPOL)
 4. **Smearing (ISMEAR) Selection**:
    - **Metals / semimetals**: start `ISMEAR = 1` or `2`, `SIGMA = 0.1 ~ 0.2 eV`. **Gate:** `entropy T S` $< 1\text{ meV/atom}$ (tighten SIGMA or switch method if not).
    - **Semiconductors / insulators**: `ISMEAR = 0` (Gaussian, `SIGMA = 0.05 eV`) for relaxation; `ISMEAR = -5` for high-accuracy static DOS/single points on gapped systems.
@@ -101,7 +100,7 @@ Numeric settings below are **production starting points**. A number is accepted 
 [Step 2: Slab Cleaving]    ──> Cleave (hkl), check Tasker polarity, add 15-20 Å vacuum, fix bottom layers
        │
        ▼
-[Step 3: Adsorption Search] ──> Test Top/Bridge/Hollow sites, compute E_ads, ZPE, and d-band center
+[Step 3: Adsorption Search] ──> Generate poses, relax candidates, verify forces, compare the resulting minima
        │
        ▼
 [Step 4: Catalytic Pathways]──> Build reaction network (LH / ER / MvK or CHE HER/OER/CO2RR/NRR steps)
@@ -112,7 +111,7 @@ Numeric settings below are **production starting points**. A number is accepted 
 
 - **Step 1: Bulk Optimization**: Establish true ground-state lattice constants and volume.
 - **Step 2: Surface Cleaving & Convergence**: Select stoichiometric/symmetric slabs where possible. Confirm slab thickness convergence ($\Delta d_{\text{center}} < 0.5\%$) and vacuum potential flatness.
-- **Step 3: Adsorption Exploration**: Place adsorbates with proper initial angles/bonds (see `surface-modeling-sop.md`). Identify the global minimum binding site and compute $E_{\text{ads}}$.
+- **Step 3: Adsorption Exploration**. Load `surface-modeling-sop.md` before optimizing molecular adsorption or coadsorption. Start from distinct poses. Use a constrained first pass when it helps with approach or local contacts, then release temporary holds and relax the adsorbate with the chosen surface layers. Verify final ionic convergence and compare the minima found under matched settings.
 - **Step 4: Reaction Energy Profile**: For thermal catalysis, compute reaction energies $\Delta E$ and surface coverage; for electrocatalysis, compute CHE free energy steps $\Delta G(U)$ and theoretical overpotentials $\eta$.
 - **Step 5: Barrier & Saddle Verification**: Run CI-NEB between initial and final states; confirm the saddle point with `IBRION=5` partial Hessian analysis.
 
@@ -142,7 +141,7 @@ When a VASP/CP2K calculation fails or diverges, follow this diagnosis hierarchy:
 ## 6. Reference Document Index
 
 Load domain references as needed:
-- `surface-modeling-sop.md`: Detailed surface cleavage, Tasker rules, slab thickness/vacuum convergence, and adsorbate placement rules.
+- `surface-modeling-sop.md`: Detailed surface cleavage, Tasker rules, slab thickness/vacuum convergence, adsorbate placement, and staged optimization for adsorption and coadsorption.
 - `heterogeneous-catalysis-mechanisms.md`: LH, ER, MvK mechanisms, CHE electrocatalysis equations, gas-phase thermodynamic corrections, scaling relations, and CI-NEB / partial frequency SOP.
 - `vasp-cp2k-production-blueprints.md`: Production INCAR / CP2K .inp parameter templates, d-band center calculations, and failure diagnosis tables.
 - `ase-guide.md` & `examples/`: Code libraries for ASE crystal modeling, adsorption energy, EOS lattice fitting, CI-NEB barriers, and CHE free energy calculators.

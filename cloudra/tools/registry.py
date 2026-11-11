@@ -116,7 +116,7 @@ TOOL_REGISTRY: tuple[ToolRegistration, ...] = (
         class_name='PeriodicModel',
         tool_name='periodic_model',
         role_allowlist=_SCIENCE_ROLES,
-        summary='Inspect a crystal, construct slabs and supercells, or edit explicit atom sites.',
+        summary='Inspect and build periodic cells, edit defects, and prepare slab adsorption geometries.',
     ),
     ToolRegistration(
         module='cloudra.tools.Chemtool.format_converter',

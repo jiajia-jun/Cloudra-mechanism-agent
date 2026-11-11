@@ -34,7 +34,7 @@ Before constructing any slab model, the bulk crystal structure must be thoroughl
     *   **Asymmetric Slabs**: Top and bottom surfaces differ (e.g. metal-terminated on one side, oxygen-terminated on the other; or one-sided adsorption).
         *   *Physical Problem*: Unequal surface charges produce a net dipole moment $\mu_z$ along the surface normal ($z$-axis). Under 3D periodic boundary conditions (PBC), this generates a sawtooth electrostatic potential artifact, causing artificial Kohn-Sham band tilting and spurious charge transfer.
 *   **Dipole Correction Protocol**:
-    *   For asymmetric slabs and one-sided adsorption, always enable dipole correction:
+    *   For an asymmetric slab under 3D periodicity, evaluate a dipole correction. This VASP example assumes the vacuum axis is the third lattice direction. [VASP LDIPOL](https://vasp.at/wiki/LDIPOL)
         ```ini
         LDIPOL = .TRUE.
         IDIPOL = 3       # Apply dipole correction along the surface normal (z-axis)
@@ -100,16 +100,7 @@ Slabs must be thick enough that the central layers reproduce bulk electronic str
     1.  **Simulate Semi-Infinite Bulk**: Slabs connect to rigid bulk below. Free relaxation of thin slabs can trigger unphysical macroscopic warping or artificial phase transitions.
     2.  **Decouple Bottom Relaxation from Top Adsorption**: Keeps bottom surface as unperturbed bulk reference.
     3.  **Computational Efficiency**: Restricting degrees of freedom speeds up ionic optimization and Hessian builds.
-*   **Best Practice**:
-    *   **Metals/Alloys**: Total layers $\ge 4 \sim 6$; **fix bottom $2 \sim 3$ layers** (`F F F`), relax top $2 \sim 3$ layers and all adsorbates (`T T T`).
-    *   **Oxides/Multilayers**: Fix bottom $1 \sim 2$ stoichiometric repeat units (e.g., $\text{O-Ce-O}$ trilayers), relax top $1 \sim 2$ units.
-    *   **ASE Constraint Code**:
-        ```python
-        from ase.constraints import FixAtoms
-        z_mid = (slab.positions[:, 2].max() + slab.positions[:, 2].min()) / 2.0
-        fix_indices = [atom.index for atom in slab if atom.position[2] < z_mid]
-        slab.set_constraint(FixAtoms(indices=fix_indices))
-        ```
+Build the fixed substrate mask on the clean slab using layer membership along its actual surface normal. Carry the chosen substrate atom numbers into the adsorbed system and check them against the atom order in the final engine input. Use the same fixed substrate mask for the clean slab and the matched adsorption runs. Select the depth of the mobile region based on convergence of the target observable.
 
 ---
 
@@ -140,7 +131,7 @@ Slabs must be thick enough that the central layers reproduce bulk electronic str
 | :--- | :--- | :--- | :--- |
 | **FCC (111)** | **Top (Atop)** | Directly above single surface atom ($CN=1$) | *CO (on Pt/Rh), *OH, *CH3 |
 | | **Bridge** | Midpoint between two adjacent surface atoms ($CN=2$) | *CO (on Pd), *H |
-| | **Hollow-fcc** | 3-fold hollow with no atom directly in layer 2 below ($CN=3$) | *O, *N, *H, *S (frequently global minimum) |
+| | **Hollow-fcc** | 3-fold hollow with no atom directly in layer 2 below ($CN=3$) | *O, *N, *H, *S |
 | | **Hollow-hcp** | 3-fold hollow with atom in layer 2 directly below ($CN=3$) | *O, *H, *N |
 | **FCC (100)** | **Top / Bridge** | 1-fold / 2-fold coordination | Weakly bound adsorbates |
 | | **4-fold Hollow** | Square hollow of 4 surface atoms ($CN=4$) | *C, *N, *O, *S, strong chemisorption |
@@ -181,11 +172,37 @@ Slabs must be thick enough that the central layers reproduce bulk electronic str
 
 ---
 
-### 3.3 Adsorption Energy & Free Energy Calculation
+### 3.3 Staged Relaxation of Molecular Adsorbates
+
+Start from a relaxed clean slab and chemically plausible molecular conformers or adsorbed parents. For each trial, record the starting file, site, anchor, height, orientation and declared composition, charge and spin. Compare plausible poses that differ in site, orientation or binding group. Inspect the closest contacts, including periodic images. Set the electronic method, dispersion treatment, final force criteria and fixed substrate layers using the task's scientific requirements.
+
+| Starting condition | First ionic pass |
+| --- | --- |
+| Plausible contacts and reproducible initial forces | Start directly with the production mobile region at fixed cell. |
+| Molecule starts far from the surface or the pose drifts before approaching | Consider a short fixed-slab approach. Allow motion along the actual surface normal or relax the molecule on the fixed slab. Use an explicit temporary anchor restraint when the intended approach requires one. |
+| Strong bonding, possible dissociation or local reconstruction | Let the adsorbate and nearby surface atoms move together early. Preserve distinct molecular, dissociated or reconstructed endpoints as separate outcomes. |
+| Second adsorbate added to a relaxed complex | Seed from the verified first complex. Include plausible sites on the first adsorbate and exposed substrate as appropriate. If the placement needs a local first pass, release the first adsorbate and chosen surface layers in the coupled pass. |
+
+In the coupled pass, use an evaluated geometry from the preceding run. Set a fresh constraint mask from that file's atom order, free all adsorbates and the chosen active substrate layers, and keep the fixed cell and declared bulk-like substrate layers. Recheck atom numbers after an export that groups by element. Carry coordinates across stages and reuse electronic restart files only when the engine and new input are compatible. A change in composition, such as adding Li, calls for checking species, basis/pseudopotential mappings, electron count and the electronic starting guess.
+
+**Check force quality and convergence.** If forces are noisy, recompute them on the same geometry with tighter electronic convergence. For GPW, check grid sensitivity with `CUTOFF` and `REL_CUTOFF`. If reliable forces still give unstable ionic steps, reduce the trust radius or step length, or use a more robust optimizer for the early steps. At the final geometry check the engine's electronic and ionic termination, the force criterion on the mobile degrees of freedom, and the actual binding site, contact geometry and bonding. Record migration, desorption and starting poses that converge to the same structure. Use the native evaluated geometry and its log together. A saved frame from a step limit, interruption or unconverged run can seed a retry with its status recorded. Compare energies of verified endpoints at matched production settings and name the lowest-energy structure among the tested candidates. [CP2K force and optimizer guidance](https://manual.cp2k.org/trunk/methods/optimization/geometry.html) · [GPW grid convergence](https://manual.cp2k.org/trunk/methods/dft/cutoff.html) · [VASP structure optimization](https://vasp.at/wiki/Structure_optimization)
+
+| Engine | Fixed-cell relaxation and constraint handoff |
+| --- | --- |
+| VASP | Use ionic relaxation with `ISIF = 2`. Set the `Selective dynamics` mask on the current POSCAR. Flags follow direct lattice directions even with Cartesian coordinates. For a force-based stop use a negative `EDIFFG`. Match the evaluated output geometry to the ionic and SCF logs before using it in the next stage. [ISIF](https://vasp.at/wiki/ISIF) · [POSCAR](https://vasp.at/wiki/POSCAR) · [EDIFFG](https://vasp.at/wiki/EDIFFG) |
+| CP2K | Use `RUN_TYPE GEO_OPT` and set `MOTION / CONSTRAINT / FIXED_ATOMS` by 1-based `LIST` in input coordinate order. Components are fractional. When constraints change, use the evaluated coordinates and rebuild the mask. Check restart input for retained constraints. Read `MAX_FORCE`, `RMS_FORCE`, `MAX_DR` and `RMS_DR` against the chosen criteria and units. [FIXED_ATOMS](https://manual.cp2k.org/trunk/CP2K_INPUT/MOTION/CONSTRAINT/FIXED_ATOMS.html) · [GEO_OPT](https://manual.cp2k.org/cp2k-2026_2-branch/CP2K_INPUT/MOTION/GEO_OPT.html) · [EXT_RESTART](https://manual.cp2k.org/trunk/CP2K_INPUT/EXT_RESTART.html) |
+| ABACUS | Use `calculation relax` and set movement flags in the new `STRU`, with 0 for fixed and 1 for mobile components. Check the evaluated frame and the configured force threshold in the log, including the threshold's units. [ABACUS geometry optimization](https://abacus-rtd.readthedocs.io/en/latest/advanced/opt.html) |
+| Quantum ESPRESSO | Use `calculation='relax'`. Set Cartesian force multipliers `if_pos(1..3)` in `ATOMIC_POSITIONS` for the current stage. Check both the force and energy stopping criteria from `&CONTROL`. [PW input reference](https://www.quantum-espresso.org/Doc/INPUT_PW.html) |
+
+Published examples illustrate different entry routes. In a pre-relaxation benchmark for B2O starting far above Ag(111), the first pass allowed molecular motion along the surface normal with the Ag fixed. The second pass relaxed the molecule and three upper Ag layers together. For quinones on Ag(111), a search over position and rotation preceded joint relaxation with two upper Ag layers. Use these as evidence for staging and multiple poses. Select the mobile region for the system at hand. [B2O on Ag(111)](https://doi.org/10.1039/D2DD00016D) · [Quinones on Ag(111)](https://doi.org/10.1021/acsnano.0c10065)
+
+---
+
+### 3.4 Adsorption Energy & Free Energy Calculation
 
 *   **Electronic Adsorption Energy (Gas-Phase Reference)**:
     $$E_{\text{ads}} = E_{\text{slab+adsorbate}} - E_{\text{slab}} - E_{\text{adsorbate(gas)}}$$
-    $E_{\text{ads}} < 0$ denotes exothermic (stable) binding. Compute isolated gas-phase molecules in an asymmetric cubic box (e.g. $15\times 16\times 17\text{ \AA}$) at $\Gamma$-point only.
+    $E_{\text{ads}} < 0$ is exothermic relative to the declared references. Use compatible production settings and the same substrate mask for the clean and covered slabs. For incremental adsorption on a pre-covered slab, use the verified pre-covered slab and the declared incoming-species reference.
 *   **Electrochemical Reference (CHE Model, Nørskov)**:
     $$\Delta G_{*\text{OH}} = G_{*\text{OH}} + \frac{1}{2} G_{\text{H}_2} - G_{*} - G_{\text{H}_2\text{O}} - eU$$
 *   **ZPE & Vibrational Entropy Corrections**:
@@ -194,7 +211,7 @@ Slabs must be thick enough that the central layers reproduce bulk electronic str
 
 ---
 
-### 3.4 Partial Hessian Vibrational Analysis (PHVA) SOP
+### 3.5 Partial Hessian Vibrational Analysis (PHVA) SOP
 
 *   **VASP Setup**:
     ```ini
