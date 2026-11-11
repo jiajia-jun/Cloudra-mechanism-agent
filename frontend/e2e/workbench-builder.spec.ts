@@ -2,7 +2,10 @@ import { expect, test } from '@playwright/test';
 import type { GeometryView } from '../src/workbenchTypes';
 import { installApiMocks, openSpa, PROJECT_ACTIVE } from './fixtures';
 
-test('builds a molecule from blank, edits its graph and saves the native draft', async ({ page }) => {
+// Exercise the accessible atom list on a machine without WebGL.
+test.use({ launchOptions: { args: ['--disable-webgl'] } });
+
+test('builds a molecule from blank with the atom list and saves the native draft', async ({ page }) => {
   await installApiMocks(page, { jobs: [] });
   const carbon = { index: 1, symbol: 'C', atom_id: 'c', x: 0, y: 0, z: 0, formal_charge: 0, target_valence: null, bond_valence: 0 };
   const oxygen = { index: 2, symbol: 'O', atom_id: 'o', x: 1.3, y: 0, z: 0, formal_charge: 0, target_valence: null, bond_valence: 0 };
@@ -26,10 +29,11 @@ test('builds a molecule from blank, edits its graph and saves the native draft',
       changes: { deleted_atoms: [2], deleted_atom_ids: ['o'], index_map: { '1': 1 }, moved_atoms: [] },
     } },
   ];
-  let next = 0;
+  const edits: unknown[] = [];
   await page.route('**/workbench/edit', async route => {
-    const step = steps[next++];
-    expect(route.request().postDataJSON()).toEqual(step.action);
+    const step = steps[edits.length];
+    edits.push(route.request().postDataJSON());
+    if (!step) return route.fulfill({ status: 400, json: { detail: 'Unexpected molecule edit' } });
     await route.fulfill({ json: step.result });
   });
   const saved: unknown[] = [];
@@ -69,5 +73,5 @@ test('builds a molecule from blank, edits its graph and saves the native draft',
   await dialog.getByRole('button', { name: '新建空白分子', exact: true }).click();
   await expect(dialog.locator('.wb-empty')).toBeVisible();
   await expect(dialog.getByRole('button', { name: '撤销', exact: true })).toBeDisabled();
-  expect(next).toBe(steps.length);
+  expect(edits).toEqual(steps.map(step => step.action));
 });
