@@ -35,6 +35,10 @@ console.log('molecular workbench behavior passed');
 assert.deepEqual(curvePoints([{index:0,step:1,energy_hartree:-2,reaction_coordinate:-1},{index:1,step:2,energy_hartree:-1}], 'energy_hartree').map(p=>p.x), [0,1]);
 assert.equal(validateSettings({engine:'orca',method:'chosen',basis_set:'',charge:0,multiplicity:0},true), '电荷须为整数，多重度须为正整数。');
 assert.equal(undoDraft([], previous).draft, previous);
+assert.equal(undoDraft([null], previous).draft, null);
+const added = applyGeometry(previous, { ...geometry, atoms: [...atoms, { index: 5, symbol: 'H', x: 2, y: 0, z: 0 }] });
+assert.equal(added.draft.atomMappingChanged, true);
+assert.deepEqual(added.draft.frozen, previous.frozen);
 
 const newBranch = draftFromFrame(edited.draft, geometry, 'calc.log', 1);
 assert.equal(newBranch.sourceFrame, 1);

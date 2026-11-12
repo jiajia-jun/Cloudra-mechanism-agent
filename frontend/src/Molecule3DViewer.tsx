@@ -16,7 +16,7 @@ export interface Molecule3DViewerProps {
   saddleEvidenceSupported?: boolean;
   className?: string;
   compact?: boolean;
-  geometry?: { atoms: Atom3D[]; bonds: { atom1: number; atom2: number; order: number }[]; graph_status?: string };
+  geometry?: { atoms: Atom3D[]; bonds: { atom1: number; atom2: number; order: number }[]; graph_status?: string; manual_bonds?: boolean };
   selectedAtoms?: number[];
   onAtomPick?: (index: number) => void;
   modeDisplacements?: number[][];
@@ -97,7 +97,7 @@ export function Molecule3DViewer({
   const fittedModeRef = useRef('');
   const active = !compact || visible;
   const structure = geometry ?? legacyGeometry;
-  const inferDisplayBonds = structure.graph_status === 'unresolved' && structure.bonds.length === 0;
+  const inferDisplayBonds = structure.graph_status === 'unresolved' && structure.bonds.length === 0 && !geometry?.manual_bonds;
   const modeIsReal = validModeDisplacements(structure.atoms, modeDisplacements);
   const renderData = useMemo(() => {
     try { return {atoms:toRenderAtoms(structure.atoms,structure.bonds,modeDisplacements),error:''}; }

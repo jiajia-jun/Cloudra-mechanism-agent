@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Project } from './types';
 import { Molecule3DViewer } from './Molecule3DViewer';
+import { MoleculeBuilder } from './MoleculeBuilder';
 import { workbenchApi } from './workbenchApi';
 import type { DocumentView, Draft, EditRequest, FragmentEntry, FrameSummary, GeometryView, SaveResult, WorkbenchSource, WorkbenchInputFormat } from './workbenchTypes';
 import { applyGeometry, draftFromFrame, coordinateType, curvePoints, defineFrozenCoordinate, detectImportFormat, measureCoordinate, selectionAfterEdit, toggleAtomSelection, undoDraft, validateSettings } from './molecularWorkbench';
@@ -30,7 +31,7 @@ function Curve({ frames, metric, selected, onSelect }: { frames: FrameSummary[];
 export function MolecularWorkbench({ project, source, onClose, onSaved, onError }: MolecularWorkbenchProps) {
   const [doc, setDoc] = useState<DocumentView | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [history, setHistory] = useState<Draft[]>([]);
+  const [history, setHistory] = useState<(Draft | null)[]>([]);
   const [frame, setFrame] = useState(0);
   const [frameGeometry, setFrameGeometry] = useState<GeometryView | null>(null);
   const [view, setView] = useState<'draft'|'source'>('draft');
@@ -39,7 +40,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
-  const [discardAction, setDiscardAction] = useState<{kind:'close'|'import'|'source'; source?:WorkbenchSource|null} | null>(null);
+  const [discardAction, setDiscardAction] = useState<{kind:'close'|'import'|'source'|'blank'; source?:WorkbenchSource|null} | null>(null);
   const [inputKind, setInputKind] = useState<WorkbenchInputFormat|'path'>('smiles');
   const [input, setInput] = useState('');
   const [title, setTitle] = useState('');
@@ -50,7 +51,6 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
   const [scanEnd, setScanEnd] = useState('');
   const [scanSteps, setScanSteps] = useState('');
   const [showCoordinates, setShowCoordinates] = useState(true);
-  const [bondOrder, setBondOrder] = useState(1);
   const [plane, setPlane] = useState<'xy'|'xz'|'yz'>('yz');
   const [fragmentSmiles, setFragmentSmiles] = useState('');
   const [fragmentName, setFragmentName] = useState('');
@@ -92,6 +92,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     const version = ++requestVersion.current;
     frameCache.current.clear();
     setDoc(null); setDraft(null); setHistory([]); setSelection([]); setPreview(null); setDirty(false); setPlaying(false); setModeIndex(-1); setModePlaying(false); setError(''); setMessage(''); setFragmentPreview(null);
+    setFrame(0); setFrameGeometry(null); setView('draft'); setTitle(''); setGenerateInput(false);
     if (nextSource) {
       setBusy(true);
       workbenchApi.open(project.id, nextSource).then(result => {
@@ -115,6 +116,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
   const coordType = coordinateType(visibleSelection.length);
   const unit = visibleSelection.length === 2 ? 'Å' : '°';
   const editable = !!originalGeometry && !mode && !preview && !busy;
+  const builderDisabled = busy || !!preview || !!mode || playing || (!originalGeometry && !!doc);
   const operationBase = (): Draft => {
     if (!originalGeometry) throw new Error('请先打开有实际坐标的结构帧。');
     if (!draft) return {geometry:originalGeometry,settings:{...doc?.settings},sourcePath:doc?.source_path,sourceFrame:frame,frozen:doc?.frozen_coordinates??[],scans:doc?.scan_coordinates??[]};
@@ -122,21 +124,34 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     if (draft.atomMappingChanged && (draft.frozen.length || draft.scans.length)) setMessage('已从原始帧建立新稿；之前拓扑编辑中的冻结／扫描定义保留在撤销记录中，请为此帧重新定义。');
     return draftFromFrame(draft,originalGeometry,doc?.source_path,frame);
   };
-  const commit = (next: Draft) => {
-    if (draft) setHistory(h => [...h,draft]);
-    setDraft(next); setView('draft'); setDirty(true); setPreview(null); setModeIndex(-1); setModePlaying(false); setPlaying(false); setSelection([]);
+  const commit = (next: Draft, nextSelection: number[] = []) => {
+    setHistory(h => [...h,draft]);
+    setDraft(next); setView('draft'); setDirty(true); setPreview(null); setModeIndex(-1); setModePlaying(false); setPlaying(false); setSelection(nextSelection);
   };
   const updateSettings = (settings: Draft['settings']) => {
     if (!draft) return;
     setHistory(h => [...h,draft]); setDraft({...draft,settings}); setDirty(true);
   };
-  const perform = async (action: Omit<EditRequest,'molecule'>, fragment?: string) => {
+  const perform = async (action: Omit<EditRequest,'molecule'>, { fragment, immediate }: { fragment?: string; immediate?: boolean } = {}) => {
     setError(''); setMessage(''); setBusy(true); setPlaying(false);
     const version = requestVersion.current;
     try {
-      const base = operationBase();
-      const edited = await workbenchApi.edit(project.id, {...action,molecule:base.geometry.molecule});
-      if (version === requestVersion.current && !closed.current) setPreview({geometry:edited,base,fragment});
+      const base = !originalGeometry && !doc && action.action === 'add_atom' ? null : operationBase();
+      const edited = await workbenchApi.edit(project.id, { ...action, molecule: base?.geometry.molecule });
+      if (version !== requestVersion.current || closed.current) return;
+      if (base && !immediate) {
+        setPreview({ geometry: edited, base, fragment });
+        return;
+      }
+      const result = base ? applyGeometry(base, edited) : {
+        draft: { geometry: edited, settings: {}, frozen: [], scans: [] }, invalidated: 0,
+      };
+      const added = action.action === 'add_atom' ? edited.atoms.at(-1) : undefined;
+      commit(result.draft, added ? [added.index] : selectionAfterEdit(selection, edited.changes));
+      setTarget('');
+      const notes = [...(edited.warnings ?? [])];
+      if (result.invalidated) notes.push(`已移除 ${result.invalidated} 条引用被删除原子的冻结／扫描定义。`);
+      if (notes.length) setMessage(notes.join(' '));
     } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); } finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
   };
   const confirmPreview = async () => {
@@ -144,7 +159,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     const version = requestVersion.current;
     const result = applyGeometry(preview.base,preview.geometry);
     commit(result.draft);
-    setMessage(result.invalidated ? `已移除 ${result.invalidated} 条引用被删除原子的冻结／扫描定义，请重新定义。` : '已确认修改，原始计算帧保持原样。');
+    setMessage(result.invalidated ? `已移除 ${result.invalidated} 条引用被删除原子的冻结／扫描定义，请重新定义。` : '已确认修改。');
     if (preview.fragment) {
       try { await workbenchApi.useFragment(project.id,preview.geometry.changes?.fragment_smiles ?? preview.fragment,fragmentName); if (version === requestVersion.current && !closed.current) await refreshFragments(); }
       catch(e) { if(version === requestVersion.current && !closed.current) fail(e); }
@@ -159,7 +174,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     return geometry;
   };
   const showFrame = (index: number, geometry: GeometryView | null) => {
-    setFrame(index); setFrameGeometry(geometry); setView('source'); setSelection([]);
+    setFrame(index); setFrameGeometry(geometry); setView('source'); setSelection([]); setTarget('');
   };
   const playableFrames = doc?.frames.flatMap((summary,index)=>summary.has_geometry === false ? [] : [index]) ?? [];
   const selectFrame = async (index: number) => {
@@ -207,6 +222,13 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     return () => window.clearInterval(timer);
   },[playing,busy,doc]);
   const close = () => { if (dirty) setDiscardAction({kind:'close'}); else onClose(); };
+  const switchView = (next: 'draft' | 'source') => {
+    setPlaying(false); setView(next); setModeIndex(-1); setModePlaying(false); setSelection([]); setTarget('');
+  };
+  const startBlank = (confirmed = false) => {
+    if (dirty && !confirmed) { setDiscardAction({ kind: 'blank' }); return; }
+    loadSource(null);
+  };
   const importSource = async (confirmed = false) => {
     if (!input.trim()) return;
     if (dirty && !confirmed) { setDiscardAction({kind:'import'}); return; }
@@ -238,7 +260,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
     } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); } finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
   };
   const save = async () => {
-    if (!draft) return;
+    if (!draft?.geometry.atoms.length) return;
     const invalid = validateSettings(draft.settings,generateInput);
     if (invalid) { fail(invalid); return; }
     setBusy(true); setError('');
@@ -271,11 +293,44 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
         <label className="btn outline sm wb-file">本地结构／计算文件<input type="file" accept=".xyz,.mol,.sdf,.smi,.smiles,.log,.out,.gjf,.com,.inp,.pdb,.cif" onChange={e=>{ const file=e.target.files?.[0]; if (!file) return; const format=detectImportFormat(file.name); if(!format){fail('不支持的文件类型。');return;} setInputKind(format); void file.text().then(setInput).catch(fail); }}/></label>
       </div>
     </div>
-    {discardAction && <div className="wb-preview" role="alert"><span>编辑稿尚未保存。继续将放弃这些修改。</span><div className="wb-banner-actions"><button className="btn yellow sm" onClick={()=>{const action=discardAction;setDiscardAction(null);if(action.kind==='close') onClose();else if(action.kind==='import') void importSource(true);else loadSource(action.source??null);}}>继续并放弃修改</button><button className="btn outline sm" onClick={()=>setDiscardAction(null)}>保留编辑稿</button></div></div>}
+    {discardAction && <div className="wb-preview" role="alert">
+      <span>编辑稿尚未保存。继续将放弃这些修改。</span>
+      <div className="wb-banner-actions">
+        <button className="btn yellow sm" onClick={() => {
+          setDiscardAction(null);
+          if (discardAction.kind === 'close') onClose();
+          else if (discardAction.kind === 'import') void importSource(true);
+          else if (discardAction.kind === 'blank') startBlank(true);
+          else loadSource(discardAction.source ?? null);
+        }}>继续并放弃修改</button>
+        <button className="btn outline sm" onClick={() => setDiscardAction(null)}>保留编辑稿</button>
+      </div>
+    </div>}
     {error && <div className="wb-error" role="alert">{error}</div>}{message && <div className="wb-message" role="status">{message}</div>}{busy && <div className="wb-busy-indicator wb-muted" role="status">正在处理…</div>}
     <div className="wb-body"><main className="wb-main">
-      <div className="wb-toolbar"><div className="wb-view-switcher"><button className={`btn outline sm ${view==='draft'?'active':''}`} disabled={!draft || !!preview} onClick={()=>{setPlaying(false);setView('draft');setModeIndex(-1);setModePlaying(false);}}>编辑稿</button><button className={`btn outline sm ${view==='source'?'active':''}`} disabled={!doc || !!preview} onClick={()=>{setPlaying(false);setView('source');setModeIndex(-1);setModePlaying(false);}}>来源帧</button></div><button className="btn outline sm wb-undo-btn" disabled={!history.length || busy} title="撤销上一次几何修改" onClick={()=>{if(draft){const restored=undoDraft(history,draft);setDraft(restored.draft);setHistory(restored.history);setView('draft');setDirty(true);setPreview(null);setSelection([]);}}}>撤销</button>{view==='source' && <button className="btn green sm" disabled={!frameGeometry || busy || !!preview} onClick={()=>{try{commit(operationBase());}catch(e){fail(e);}}}>以此帧建立编辑稿</button>}<span className="wb-muted wb-view-desc">{mode ? '简正模使用其真实参考几何' : preview ? '修改预览' : view==='draft' ? `派生自 ${draft?.sourcePath ?? '新结构'} · 帧 ${(draft?.sourceFrame ?? 0)+1}` : `原始来源帧 ${frame+1}`}</span></div>
-      {geometry ? <Molecule3DViewer key={`${doc?.document_id}:${doc?.geometry?.molecule}`} geometry={geometry} preserveView={view==='source' && !preview && !mode} title={doc?.title} selectedAtoms={visibleSelection} onAtomPick={i=>{if(!preview && !mode){setSelection(s=>toggleAtomSelection(s,i));setTarget('');}}} modeDisplacements={mode?.displacements} modePlaying={modePlaying} coordinateHighlights={showCoordinates && visibleDraft && !(view==='source' && visibleDraft.atomMappingChanged) ? [...visibleDraft.frozen.map(c=>c.atoms),...visibleDraft.scans.map(c=>c.atoms)] : []} className="wb-viewer"/> : <div className="wb-empty">{doc ? '此点没有可用的原生几何，选择其他帧查看结构。' : '输入 SMILES、粘贴结构，或打开项目内的计算结果。'}</div>}
+      <div className="wb-toolbar">
+        <div className="wb-view-switcher">
+          <button className={`btn outline sm ${view === 'draft' ? 'active' : ''}`} disabled={!draft || !!preview} onClick={() => switchView('draft')}>编辑稿</button>
+          <button className={`btn outline sm ${view === 'source' ? 'active' : ''}`} disabled={!doc || !!preview} onClick={() => switchView('source')}>来源帧</button>
+        </div>
+        <button className="btn outline sm" disabled={busy} onClick={() => startBlank()}>新建空白分子</button>
+        <button className="btn outline sm wb-undo-btn" disabled={!history.length || busy || !!preview} title="撤销上一次编辑"
+          onClick={() => {
+            const restored = undoDraft(history, draft);
+            setDraft(restored.draft); setHistory(restored.history); setView('draft'); setDirty(!!restored.draft);
+            setModeIndex(-1); setModePlaying(false); setPlaying(false); setSelection([]); setTarget(''); setMessage(''); setError('');
+          }}>撤销</button>
+        {view === 'source' && <button className="btn green sm" disabled={!frameGeometry || busy || !!preview} onClick={() => { try { commit(operationBase()); } catch (e) { fail(e); } }}>以此帧建立编辑稿</button>}
+        <span className="wb-muted wb-view-desc">
+          {mode ? '简正模使用其真实参考几何' : preview ? '修改预览' : view === 'source' ? `原始来源帧 ${frame + 1}`
+            : draft?.sourcePath ? `派生自 ${draft.sourcePath} · 帧 ${(draft.sourceFrame ?? 0) + 1}` : '手工建模'}
+        </span>
+      </div>
+      <MoleculeBuilder geometry={originalGeometry} selection={selection} disabled={builderDisabled}
+        onEdit={action => void perform(action, { immediate: true })} />
+      {geometry && geometry.atoms.length > 0 ? <Molecule3DViewer key={`${doc?.document_id}:${doc?.geometry?.molecule}`} geometry={geometry} preserveView={view==='source' && !preview && !mode} title={view === 'source' ? doc?.title : title} selectedAtoms={visibleSelection} onAtomPick={i=>{if(!busy && !preview && !mode){setSelection(s=>toggleAtomSelection(s,i));setTarget('');}}} modeDisplacements={mode?.displacements} modePlaying={modePlaying} coordinateHighlights={showCoordinates && visibleDraft && !(view==='source' && visibleDraft.atomMappingChanged) ? [...visibleDraft.frozen.map(c=>c.atoms),...visibleDraft.scans.map(c=>c.atoms)] : []} className="wb-viewer"/> : <div className="wb-empty">
+        {doc && !geometry ? '此点没有可用的原生几何，选择其他帧查看结构。' : '添加原子后将在此显示三维结构。'}
+      </div>}
       {preview && <div className="wb-preview"><span>检查移动部分、连接关系和镜像结果。</span><div className="wb-banner-actions"><button className="btn primary sm" onClick={()=>void confirmPreview()}>确认修改</button><button className="btn outline sm" onClick={()=>setPreview(null)}>取消预览</button></div></div>}
       {doc && <section className="wb-section"><div className="wb-toolbar wb-trajectory-toolbar"><strong>{doc.task_type || '来源结构'} · {doc.frames.length} 帧</strong><div className="wb-trajectory-actions"><button className={`btn ${playing ? 'yellow' : 'outline'} sm`} disabled={busy || playableFrames.length<2} onClick={()=>void togglePlayback()}>{playing?'暂停帧播放':'播放各帧'}</button><button className="btn outline sm" onClick={()=>void csv()}>导出 CSV</button></div></div>
         <label>来源帧 {frame+1} / {doc.frames.length}<input aria-label="来源帧" type="range" min={0} max={Math.max(0,doc.frames.length-1)} value={frame} disabled={busy} onChange={e=>{setPlaying(false);void selectFrame(Number(e.target.value));}}/></label>
@@ -287,7 +342,13 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
       </section>}
     </main><aside className="wb-sidebar">
       <section className="wb-section"><h3>有序点选与内坐标</h3><p>画面点选原子；再次点击可取消。编号是结构编号，选 1／2／3／4 是点击顺序。</p><div className="wb-toolbar wb-selection-toolbar"><div className="wb-selected-chips">{visibleSelection.map((i,n)=><button disabled={!!preview} key={i} className="wb-atom-tag" onClick={()=>setSelection(s=>s.filter(a=>a!==i))} title="点击取消选择"><span className="wb-atom-order">{n+1}</span> {geometry?.atoms.find(a=>a.index===i)?.symbol}{i} <span className="wb-remove">×</span></button>)}</div>{visibleSelection.length > 0 && <button className="btn ghost sm" onClick={()=>setSelection([])}>清空</button>}</div>
-        <div className="wb-atoms" aria-label="原子列表">{geometry?.atoms.map(a=><button key={a.index} disabled={!!mode || !!preview} className={`btn ghost sm ${visibleSelection.includes(a.index)?'active':''}`} onClick={()=>{setSelection(s=>toggleAtomSelection(s,a.index));setTarget('');}}><span className="wb-atom-sym">{a.symbol}</span><span className="wb-atom-idx">{a.index}</span></button>)}</div>
+        <div className="wb-atoms" aria-label="原子列表">{geometry?.atoms.map(atom =>
+          <button key={atom.atom_id ?? atom.index} disabled={busy || !!mode || !!preview}
+            aria-label={`${atom.symbol}${atom.index}`} aria-pressed={visibleSelection.includes(atom.index)}
+            className={`btn ghost sm ${visibleSelection.includes(atom.index) ? 'active' : ''}`}
+            onClick={() => { setSelection(s => toggleAtomSelection(s, atom.index)); setTarget(''); }}>
+            <span className="wb-atom-sym">{atom.symbol}</span><span className="wb-atom-idx">{atom.index}</span>
+          </button>)}</div>
         <p className="wb-measure-display"><strong>{coordType ? {bond:'距离',angle:'键角',dihedral:'二面角'}[coordType] : '选择 2、3 或 4 个原子'}{measured != null && `：${measured.toFixed(5)} ${unit}`}</strong></p>
         <label>目标值 {unit}<input aria-label="内坐标目标值" type="number" step="any" value={target} placeholder={measured?.toFixed(5)} onChange={e=>setTarget(e.target.value)}/></label>
         <label>固定侧<select value={fixedSide} onChange={e=>setFixedSide(e.target.value as typeof fixedSide)}><option value="first">固定前侧，移动末侧基团</option><option value="last">固定末侧，移动前侧基团</option></select></label><label>手动指定移动原子（逗号分隔，可留空）<input value={moving} onChange={e=>setMoving(e.target.value)} placeholder="如 4,5,6"/></label>
@@ -297,21 +358,23 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onError 
         {visibleDraft?.frozen.map((c,i)=><div className="wb-definition" key={`f${i}`}><button className="wb-def-content" disabled={!!preview} onClick={()=>{setView('draft');setModeIndex(-1);setSelection(c.atoms);setTarget(String(c.value));}}><span className="wb-def-badge wb-freeze-badge">冻结</span><span>{c.atoms.join(' → ')} = {c.value}</span><span className="wb-def-curr">当前 {geometry && !(view==='source' && visibleDraft.atomMappingChanged) ? measureCoordinate(geometry.atoms,c.atoms)?.toFixed(4) ?? '?' : '?'}</span></button><button className="wb-def-del" title="删除定义" disabled={!!preview} onClick={()=>draft && commit({...draft,frozen:draft.frozen.filter((_,n)=>n!==i)})}>×</button></div>)}
         {visibleDraft?.scans.map((c,i)=><div className="wb-definition" key={`s${i}`}><button className="wb-def-content" disabled={!!preview} onClick={()=>{setView('draft');setModeIndex(-1);setSelection(c.atoms);setScanStart(String(c.scan_start));setScanEnd(String(c.scan_end));setScanSteps(String(c.scan_steps));}}><span className="wb-def-badge wb-scan-badge">扫描</span><span>{c.atoms.join(' → ')}: {c.scan_start} → {c.scan_end}</span><span className="wb-def-curr">{c.scan_steps} 步</span></button><button className="wb-def-del" title="删除定义" disabled={!!preview} onClick={()=>draft && commit({...draft,scans:draft.scans.filter((_,n)=>n!==i)})}>×</button></div>)}
       </section>
-      <section className="wb-section"><h3>连接关系与镜像</h3><p className="wb-muted">图状态：{geometry?.graph_status ?? '未知'}。坐标文件默认按距离显示连线；编辑连接关系时可明确感知化学键。</p>
-        <div className="wb-input-with-action"><select aria-label="键级" value={bondOrder} onChange={e=>setBondOrder(Number(e.target.value))}><option value={0}>删除键</option><option value={1}>单键</option><option value={1.5}>芳香键</option><option value={2}>双键</option><option value={3}>三键</option></select><button className="btn green sm" disabled={!editable || selection.length!==2} onClick={()=>void perform({action:'bond',atoms:selection,order:bondOrder})}>预览连接修改</button></div>
+      <section className="wb-section"><h3>连接感知与镜像</h3>
+        {geometry?.graph_status === 'unresolved' && <p className="wb-muted">
+          {geometry.manual_bonds ? '连接关系尚未完整确定，画面显示已指定的键。' : '坐标文件按距离显示连线。感知连接后可按分子图编辑。'}
+        </p>}
         <button className="btn outline sm wb-btn-full" disabled={!editable} onClick={()=>void perform({action:'resolve_bonds'})}>明确感知连接关系</button>
         <div className="wb-input-with-action"><label className="wb-compact-label">镜面<select value={plane} onChange={e=>setPlane(e.target.value as typeof plane)}><option value="xy">XY</option><option value="xz">XZ</option><option value="yz">YZ</option></select></label><button className="btn outline sm" disabled={!editable} onClick={()=>void perform({action:'mirror',plane,...(moving.trim()?{moving_atoms:atomList(moving)}:{})})}>预览{moving.trim()?'指定原子':'整分子'}镜像</button></div>
       </section>
       <section className="wb-section"><h3>基团替换与共享历史</h3><p>依次选择保留侧、被替换侧原子。预览后确认才记录使用次数。</p><label>基团 SMILES<input value={fragmentSmiles} onChange={e=>{setFragmentSmiles(e.target.value);setFragmentPreview(null);}} placeholder="带 [*:1] 连接点，或在预览中点选"/></label><label>名称（可选）<input value={fragmentName} onChange={e=>setFragmentName(e.target.value)}/></label><button className="btn outline sm wb-btn-full" disabled={busy || !fragmentSmiles.trim()} onClick={()=>void previewFragment()}>预览基团／选择连接原子</button>
         {fragmentPreview && <div className="wb-fragment-preview"><Molecule3DViewer key={fragmentPreview.molecule} geometry={fragmentPreview} selectedAtoms={attachment?[Number(attachment)]:[]} onAtomPick={i=>setAttachment(String(i))} title="基团连接位置"/></div>}
-        <label>基团连接原子编号（有标记时可空）<input type="number" min={1} value={attachment} onChange={e=>setAttachment(e.target.value)}/></label><button className="btn green sm wb-btn-full" disabled={!editable || selection.length!==2 || !fragmentSmiles.trim()} onClick={()=>void perform({action:'replace_group',atoms:selection,smiles:fragmentSmiles,...(attachment?{attachment_atom:Number(attachment)}:{})},fragmentSmiles)}>预览替换结果</button>
+        <label>基团连接原子编号（有标记时可空）<input type="number" min={1} value={attachment} onChange={e=>setAttachment(e.target.value)}/></label><button className="btn green sm wb-btn-full" disabled={!editable || selection.length!==2 || !fragmentSmiles.trim()} onClick={()=>void perform({action:'replace_group',atoms:selection,smiles:fragmentSmiles,...(attachment?{attachment_atom:Number(attachment)}:{})},{fragment:fragmentSmiles})}>预览替换结果</button>
         <input aria-label="搜索基团历史" placeholder="搜索名称或 SMILES" value={fragmentSearch} onChange={e=>setFragmentSearch(e.target.value)}/><div className="wb-fragments">{fragments.filter(f=>`${f.name} ${f.smiles}`.toLowerCase().includes(fragmentSearch.toLowerCase())).map(f=><div key={f.id} className="wb-fragment-row"><button className="wb-fragment-entry" onClick={()=>{setFragmentSmiles(f.smiles);setFragmentName(f.name);setFragmentPreview(f.geometry??null);setAttachment(f.attachment_atom?String(f.attachment_atom):'');}}><span className="wb-fragment-title">{f.name || f.smiles}</span><small>{f.project_use_count?'本项目用过 · ':''}累计 {f.use_count} 次 · {f.smiles}</small></button><button className="wb-fragment-del" aria-label={`删除基团 ${f.name || f.smiles}`} onClick={()=>{void workbenchApi.deleteFragment(project.id,f.id).then(refreshFragments).catch(fail);}}>×</button></div>)}</div>
       </section>
       {draft && <fieldset disabled={!!preview || busy} className="wb-section wb-settings"><h3>下一次计算与保存</h3><label>结构名称<input value={title} onChange={e=>{setTitle(e.target.value);setDirty(true);}}/></label><label>引擎<select value={draft.settings.engine ?? ''} onChange={e=>updateSettings({...draft.settings,engine:e.target.value as 'gaussian'|'orca'})}><option value="" disabled>请选择</option><option value="gaussian">Gaussian</option><option value="orca">ORCA</option></select></label>
         {(['method','basis_set','keywords'] as const).map(key=><label key={key}>{{method:'方法',basis_set:'基组（可明确留空）',keywords:'原生关键词'}[key]}<input value={String(draft.settings[key]??'')} onChange={e=>updateSettings({...draft.settings,[key]:e.target.value})}/></label>)}
         <label className="wb-check"><input type="checkbox" checked={draft.settings.basis_set === ''} onChange={e=>updateSettings({...draft.settings,basis_set:e.target.checked?'':undefined})}/>明确使用无需独立基组的方法</label>
         <div className="wb-row">{(['charge','multiplicity'] as const).map(key=><label key={key}>{key==='charge'?'电荷':'多重度'}<input type="number" value={draft.settings[key]??''} onChange={e=>updateSettings({...draft.settings,[key]:e.target.value===''?null:Number(e.target.value)})}/></label>)}</div>
-        <label>计算类型<select value={Object.keys(draft.settings.task_type?.[0]??{})[0]??''} onChange={e=>updateSettings({...draft.settings,task_type:[{[e.target.value]:null}]})}><option value="" disabled>请选择</option><option value="opt">几何优化</option><option value="freq">频率</option><option value="irc">IRC</option><option value="sp">单点能</option></select></label><label className="wb-check"><input type="checkbox" checked={generateInput} onChange={e=>setGenerateInput(e.target.checked)}/>同时生成原生计算输入</label><p className="wb-muted">保存编辑稿、连接关系、来源与设置，并通知主 Agent。</p><button className="btn primary wb-btn-full wb-save-btn" disabled={busy || !!preview} onClick={()=>void save()}>保存编辑稿到项目</button>
+        <label>计算类型<select value={Object.keys(draft.settings.task_type?.[0]??{})[0]??''} onChange={e=>updateSettings({...draft.settings,task_type:[{[e.target.value]:null}]})}><option value="" disabled>请选择</option><option value="opt">几何优化</option><option value="freq">频率</option><option value="irc">IRC</option><option value="sp">单点能</option></select></label><label className="wb-check"><input type="checkbox" checked={generateInput} onChange={e=>setGenerateInput(e.target.checked)}/>同时生成原生计算输入</label><p className="wb-muted">保存编辑稿、连接关系、来源与设置，并通知主 Agent。</p><button className="btn primary wb-btn-full wb-save-btn" disabled={busy || !!preview || !draft.geometry.atoms.length} onClick={()=>void save()}>保存编辑稿到项目</button>
       </fieldset>}
     </aside></div>
   </section></div>;

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN" data-appearance="acid">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Molecular workbench browser test</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module">
+      import { createElement } from 'react';
+      import { createRoot } from 'react-dom/client';
+      import { MolecularWorkbench } from '/src/MolecularWorkbench.tsx';
+      import { PROJECT_ACTIVE } from './fixtures.ts';
+      import '/src/styles.css';
+      import '/src/appearance.css';
+
+      createRoot(document.getElementById('root')).render(createElement(MolecularWorkbench, {
+        project: PROJECT_ACTIVE,
+        source: null,
+        onClose() {},
+        onSaved() {},
+        onError() {},
+      }));
+    </script>
+  </body>
+</html>
