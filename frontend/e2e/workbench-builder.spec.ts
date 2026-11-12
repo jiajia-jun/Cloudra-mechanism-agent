@@ -1,8 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
 import type { GeometryView } from '../src/workbenchTypes';
 
 // Exercise the accessible atom list on a machine without WebGL.
 test.use({ launchOptions: { args: ['--disable-webgl'] } });
+
+async function activate(button: Locator) {
+  await expect(button).toBeEnabled();
+  await button.press('Enter');
+}
 
 test('builds a molecule from blank with the atom list and saves the native draft', async ({ page }) => {
   await page.route('**/workbench/fragments', route => route.fulfill({ json: { fragments: [] } }));
@@ -47,34 +52,34 @@ test('builds a molecule from blank with the atom list and saves the native draft
   const atoms = dialog.getByLabel('原子列表', { exact: true });
   await test.step('Add the first atom and apply its target valence', async () => {
     await expect(builder.getByLabel('元素', { exact: true })).toHaveValue('C');
-    await builder.getByRole('button', { name: '添加原子', exact: true }).click();
+    await activate(builder.getByRole('button', { name: '添加原子', exact: true }));
     await expect(atoms.getByRole('button', { name: 'C1', exact: true })).toBeVisible();
     await builder.getByLabel('形式电荷').fill('1');
     await builder.getByLabel('目标价数').fill('3');
-    await builder.getByRole('button', { name: '应用价态' }).click();
+    await activate(builder.getByRole('button', { name: '应用价态' }));
     await expect(builder.getByRole('button', { name: '补氢至目标价数' })).toBeEnabled();
   });
   await test.step('Attach an atom and change the bond through the atom list', async () => {
     await builder.getByLabel('元素', { exact: true }).fill('O');
-    await builder.getByRole('button', { name: '添加原子', exact: true }).click();
+    await activate(builder.getByRole('button', { name: '添加原子', exact: true }));
     await expect(atoms.getByRole('button', { name: 'O2', exact: true })).toBeVisible();
-    await atoms.getByRole('button', { name: 'C1', exact: true }).click();
+    await activate(atoms.getByRole('button', { name: 'C1', exact: true }));
     const order = builder.getByLabel('键级');
     await expect(order).toBeEnabled();
     await order.selectOption('2');
-    await builder.getByRole('button', { name: '设置键', exact: true }).click();
+    await activate(builder.getByRole('button', { name: '设置键', exact: true }));
     await expect(builder).toContainText('当前双键');
-    await builder.getByRole('button', { name: '断开键', exact: true }).click();
+    await activate(builder.getByRole('button', { name: '断开键', exact: true }));
     await expect(builder).toContainText('两原子未成键');
   });
   await test.step('Remove the selected atom, save and start another blank draft', async () => {
-    await atoms.getByRole('button', { name: 'C1', exact: true }).click();
-    await builder.getByRole('button', { name: '删除所选原子' }).click();
+    await activate(atoms.getByRole('button', { name: 'C1', exact: true }));
+    await activate(builder.getByRole('button', { name: '删除所选原子' }));
     await expect(atoms.getByRole('button', { name: 'O2', exact: true })).toHaveCount(0);
-    await dialog.getByRole('button', { name: '保存编辑稿到项目' }).click();
+    await activate(dialog.getByRole('button', { name: '保存编辑稿到项目' }));
     await expect.poll(() => saved).toMatchObject([{ molecule: 'final-c', generate_input: false }]);
     await expect(dialog.locator('.wb-message')).toContainText('已保存');
-    await dialog.getByRole('button', { name: '新建空白分子', exact: true }).click();
+    await activate(dialog.getByRole('button', { name: '新建空白分子', exact: true }));
     await expect(dialog.locator('.wb-empty')).toBeVisible();
     await expect(dialog.getByRole('button', { name: '撤销', exact: true })).toBeDisabled();
   });
