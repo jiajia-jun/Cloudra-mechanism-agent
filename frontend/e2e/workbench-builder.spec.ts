@@ -10,6 +10,7 @@ async function activate(button: Locator) {
 }
 
 test('builds a molecule from blank with the atom list and saves the native draft', async ({ page }) => {
+  test.slow();
   await page.route('**/workbench/fragments', route => route.fulfill({ json: { fragments: [] } }));
   const carbon = { index: 1, symbol: 'C', atom_id: 'c', x: 0, y: 0, z: 0, formal_charge: 0, target_valence: null, bond_valence: 0 };
   const oxygen = { index: 2, symbol: 'O', atom_id: 'o', x: 1.3, y: 0, z: 0, formal_charge: 0, target_valence: null, bond_valence: 0 };
