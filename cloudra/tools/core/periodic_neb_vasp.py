@@ -1,6 +1,5 @@
 """Native VASP elastic-band input and evidence for a prepared fixed-cell path."""
 
-import re
 from collections import defaultdict
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -38,8 +37,6 @@ _FORCE_ROUNDING_EV_PER_ANGSTROM = 0.5e-6 * 3**0.5
 _IONIC_STOP = 'reached required accuracy - stopping structural energy minimisation'
 _TIMING = 'General timing and accounting informations for this job:'
 _VTST_NEB_FORCES = 'NEB: forces: par spring, perp REAL, dneb'
-_ITERATION = re.compile(r'\s*-+\s+Iteration\s+(\d+)\(\s*\d+\)\s+-+')
-_STDOUT_STEP = re.compile(r'\s*(\d+)\s+F=\s*\S+\s+E0=\s*(\S+)')
 _PARSE_ERRORS = (OSError, ParseError, ValueError, KeyError, IndexError, StopIteration)
 _BAND_TAGS = {'EDIFFG', 'SPRING', 'IMAGES', 'NSW'}
 _ENERGY_ARRAY_TAGS = {'LDAUL', 'LDAUU', 'LDAUJ'}
@@ -190,6 +187,18 @@ def _has_vtst_neb_summary(lines: list[str]) -> bool:
     return False
 
 
+def _iteration_step(line: str) -> int | None:
+    fields = line.split(maxsplit=2)
+    if len(fields) != 3 or fields[1] != 'Iteration' or fields[0].strip('-'):
+        return None
+    ion, opening, tail = fields[2].partition('(')
+    electronic, closing, delimiter = tail.partition(')')
+    delimiter = delimiter.strip()
+    if opening and closing and delimiter and not delimiter.strip('-') and ion.strip().isdecimal() and electronic.strip().isdecimal():
+        return int(ion)
+    return None
+
+
 def _read_outcar(path: Path, native: Atoms) -> tuple[Atoms, Atoms, _IonicEvidence]:
     pending: list[str] = []
     first = final = None
@@ -223,13 +232,14 @@ def _read_outcar(path: Path, native: Atoms) -> tuple[Atoms, Atoms, _IonicEvidenc
                     raise
                 incomplete = True
                 break
-            iterations = [(i, int(match[1])) for i, line in enumerate(chunk) if (match := _ITERATION.match(line))]
-            if iterations:
-                step_start, ionic_step = iterations[0]
+            iteration = next(((i, value) for i, line in enumerate(chunk)
+                              if (value := _iteration_step(line)) is not None), None)
+            if iteration is not None:
+                step_start, ionic_step = iteration
             else:
                 # ASE includes the first iteration delimiter in the OUTCAR header.
-                initial = _ITERATION.match(header[-1])
-                step_start, ionic_step = 0, int(initial[1]) if initial and final is None else 0
+                initial = _iteration_step(header[-1]) if final is None else None
+                step_start, ionic_step = 0, initial or 0
             incomplete |= ionic_step <= step
             step = ionic_step
             if first is None:
@@ -241,7 +251,7 @@ def _read_outcar(path: Path, native: Atoms) -> tuple[Atoms, Atoms, _IonicEvidenc
         raise ValueError('no complete evaluated ionic frame in OUTCAR')
 
     for line in pending:
-        if _ITERATION.match(line):
+        if _iteration_step(line) is not None:
             incomplete = True
             break
         final_lines.append(line)
@@ -262,20 +272,29 @@ def _read_outcar(path: Path, native: Atoms) -> tuple[Atoms, Atoms, _IonicEvidenc
     )
 
 
+def _stdout_step_energy(line: str) -> tuple[int, str] | None:
+    step, free_tag, tail = line.partition('F=')
+    free, energy_tag, value = tail.partition('E0=')
+    fields = value.split(maxsplit=1)
+    if free_tag and energy_tag and step.strip().isdecimal() and len(free.split()) == 1 and fields:
+        return int(step), fields[0]
+    return None
+
+
 def _stdout_confirms(path: Path, step: int, energy: float) -> bool:
     summary = None
     stopped = False
     with path.open(encoding='utf-8', errors='replace') as stream:
         for line in stream:
-            if match := _STDOUT_STEP.match(line):
+            if match := _stdout_step_energy(line):
                 summary = match
                 stopped = False
             elif line.strip() == _IONIC_STOP:
                 stopped = True
-    if not stopped or summary is None or int(summary[1]) != step:
+    if not stopped or summary is None or summary[0] != step:
         return False
     try:
-        reported = Decimal(summary[2])
+        reported = Decimal(summary[1])
     except InvalidOperation:
         return False
     if not reported.is_finite() or not np.isfinite(float(reported)):
