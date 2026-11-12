@@ -396,6 +396,12 @@ TOOL_PATH_FIELDS: dict[str, dict[str, str]] = {
         "input_path": "workspace_input", "output_path": "workspace_output",
         "operation.adsorbate.path": "workspace_input",
     },
+    "periodic_ts": {
+        "operation.initial_path": "workspace_input", "operation.final_path": "workspace_input",
+        "operation.waypoint_path": "workspace_input", "operation.output_dir": "workspace_dir",
+        "operation.run_dir": "workspace_dir", "operation.output_log": "workspace_input",
+        "operation.candidate_path": "workspace_output", "operation.dimer_dir": "workspace_dir",
+    },
     "pdb_inspect": {"input_path": "workspace_input"},
     "pdb_clean": {"input_path": "workspace_input", "output_path": "workspace_output"},
     "md_box": {"components.structure_path": "workspace_input", "output_dir": "workspace_dir"},

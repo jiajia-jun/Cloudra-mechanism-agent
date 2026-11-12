@@ -183,6 +183,12 @@ def _cp2k_geometry(atoms: Atoms) -> str:
     return '\n'.join(['&CELL', *vectors, f'  PERIODIC {periodic}', '&END CELL', '&COORD', *coordinates, '&END COORD', ''])
 
 
+def vasp_atom_order(atoms: Atoms) -> list[int]:
+    """Return the stable POSCAR grouping by first occurrence of each element."""
+    species = {number: rank for rank, number in enumerate(dict.fromkeys(atoms.numbers))}
+    return sorted(range(len(atoms)), key=lambda index: species[atoms.numbers[index]])
+
+
 def write_periodic_geometry(path: Path, atoms: Atoms, fmt: str, *, exclusive: bool = False) -> list[str]:
     """Serialize cell and coordinates before publishing, with format-specific loss reported."""
     validate_cell_geometry(atoms)
@@ -218,8 +224,7 @@ def write_periodic_geometry(path: Path, atoms: Atoms, fmt: str, *, exclusive: bo
         if not np.allclose(rotation, np.eye(3)):
             warnings.append('The target stores cell lengths and angles; the Cartesian frame rotates on conversion.')
     if fmt == 'vasp':
-        species = {number: rank for rank, number in enumerate(dict.fromkeys(atoms.numbers))}
-        order = sorted(range(len(atoms)), key=lambda index: species[atoms.numbers[index]])
+        order = vasp_atom_order(atoms)
         if order != list(range(len(atoms))):
             atoms = atoms[order]
             warnings.append('POSCAR groups atoms by element. Inspect the output to obtain its atom numbers.')
