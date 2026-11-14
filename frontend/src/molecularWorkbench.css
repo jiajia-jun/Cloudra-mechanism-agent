@@ -209,6 +209,15 @@
   padding: 16px 0;
   border-bottom: 1px solid var(--border);
 }
+.wb-section summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+}
+.wb-section details[open] > summary,
+details.wb-section[open] > summary {
+  margin-bottom: 10px;
+}
 .wb-section h3 {
   font-size: 13px;
   font-weight: 600;

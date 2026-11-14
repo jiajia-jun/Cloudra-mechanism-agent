@@ -2771,6 +2771,8 @@ export default function App() {
               activeAgent={activeAgent}
               sidebarJobs={sidebarJobs}
               onNavigate={(tab) => setConsoleTab(tab)}
+              onContinueDialogue={() => setViewMode('dialogue')}
+              onOpenWorkbench={() => openWorkbench(null)}
               onOpenProjectSettings={() => setProjectSettingsOpen(true)}
               onSelectAgent={(agentId) => selectAgent(agentId)}
               onOpenDialogue={(agentId) => {
@@ -2836,7 +2838,12 @@ export default function App() {
           onRespond={handleAttentionRespond}
         />
       </div>
-        {workbench && activeProject && workbench.projectId===activeProject.id && <MolecularWorkbench key={activeProject.id} project={activeProject} source={workbench.source} onClose={()=>setWorkbench(null)} onError={reportError} onSaved={(result)=>{setResearchRefreshVersion(n=>n+1);pushToast('ok',`已保存结构：${result.path}`);}}/>}
+        {workbench && activeProject && workbench.projectId===activeProject.id && <MolecularWorkbench key={activeProject.id} project={activeProject} source={workbench.source} onClose={()=>setWorkbench(null)} onError={reportError} onSaved={(result)=>{setResearchRefreshVersion(n=>n+1);pushToast('ok',`已保存结构：${result.path}`);}} onContinueInChat={(result)=>{
+          setDraft(current => [current, lang === 'zh' ? `结构已保存至：${result.path}` : `Structure saved to: ${result.path}`].filter(Boolean).join('\n\n'));
+          setWorkbench(null);
+          setViewMode('dialogue');
+          requestAnimationFrame(() => composerTextareaRef.current?.focus());
+        }}/>}
         {projectSettingsOpen && activeProject && (
           <ProjectSettingsModal
             project={activeProject}

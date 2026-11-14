@@ -136,6 +136,8 @@ export interface ConsoleIndexPageProps {
   sidebarJobs: ComputeJob[] | null;
   onNavigate: (tab: ConsoleTab) => void;
   onOpenProjectSettings: () => void;
+  onContinueDialogue: () => void;
+  onOpenWorkbench: () => void;
   onSelectAgent?: (agentId: string) => void;
   onOpenDialogue?: (agentId: string) => void;
   onError: (err: unknown) => void;
@@ -149,6 +151,8 @@ export function ConsoleIndexPage({
   sidebarJobs,
   onNavigate,
   onOpenProjectSettings,
+  onContinueDialogue,
+  onOpenWorkbench,
   onSelectAgent,
   onOpenDialogue,
   onError,
@@ -375,6 +379,13 @@ export function ConsoleIndexPage({
           </div>
         </div>
 
+        <nav className="portal-task-actions" aria-label={lang === 'zh' ? '研究操作' : 'Research actions'}>
+          <button className="btn primary" onClick={onContinueDialogue}>{lang === 'zh' ? '继续研究对话' : 'Continue research conversation'}</button>
+          <button className="btn outline" onClick={onOpenWorkbench}>{lang === 'zh' ? '打开分子工作台' : 'Open molecular workbench'}</button>
+          <button className="btn outline" onClick={() => onNavigate('research')}>{lang === 'zh' ? '查看研究结果' : 'View research results'}</button>
+          <button className="btn outline" onClick={() => onNavigate('compute')}>{lang === 'zh' ? '查看计算任务' : 'View compute jobs'}{activeJobs.length > 0 && (lang === 'zh' ? `（${activeJobs.length} 个进行中）` : ` (${activeJobs.length} active)`)}</button>
+        </nav>
+
         {/* Core Scientific Objective / Hypothesis Card */}
         <div className="portal-goal-container">
           <div className="portal-goal-head">
@@ -482,6 +493,8 @@ export function ConsoleIndexPage({
         </div>
       </section>
 
+      <details className="portal-details">
+        <summary>{lang === 'zh' ? '协作与运行详情' : 'Collaboration & runtime details'}</summary>
       {/* Middle Section: Agent Fleet & Collaboration Hierarchy */}
       <section className="portal-agent-section">
         <div className="portal-agent-header">
@@ -710,6 +723,7 @@ export function ConsoleIndexPage({
           </div>
         </div>
       </section>
+      </details>
     </div>
   );
 }
