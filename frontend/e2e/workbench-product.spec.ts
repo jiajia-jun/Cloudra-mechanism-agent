@@ -25,15 +25,15 @@ test('basic save needs no advanced tools or calculation settings', async ({ page
   const { dialog, saved } = await open(page);
   await expect(dialog.getByLabel('内坐标目标值')).toBeHidden();
   await expect(dialog.getByLabel('基团 SMILES', { exact: true })).toBeHidden();
-  await expect(dialog.getByLabel('引擎', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByLabel('引擎')).toHaveCount(0);
   const save = dialog.getByRole('button', { name: '保存编辑稿到项目' });
   await expect(save).toBeInViewport();
   await save.click();
   await expect.poll(() => saved).toMatchObject([{ molecule: 'frame-a', generate_input: false }]);
   await dialog.getByLabel('同时生成原生计算输入').check();
-  await expect(dialog.getByLabel('引擎', { exact: true })).toBeVisible();
+  await expect(dialog.getByLabel('引擎')).toBeVisible();
   await dialog.getByLabel('同时生成原生计算输入').uncheck();
-  await expect(dialog.getByLabel('引擎', { exact: true })).toHaveCount(0);
+  await expect(dialog.getByLabel('引擎')).toHaveCount(0);
 });
 test('source is read-only and save follows the explicit editing draft', async ({ page }) => {
   const { dialog, saved } = await open(page);
