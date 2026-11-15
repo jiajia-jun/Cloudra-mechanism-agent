@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
+import test from 'node:test';
 import { parseSync, transformSync } from 'rolldown/utils';
 import { resolveComposerSendTarget } from './composerSend.ts';
+import * as composerSend from './composerSend.ts';
+import { mergeProjectSnapshot } from './projectState.ts';
 
 const appSource = readFileSync(new URL('./App.tsx', import.meta.url), 'utf8');
 const appTree = parseSync('App.tsx', appSource, { lang: 'tsx' }).program;
@@ -23,8 +26,15 @@ const picker = nodes.find(node => node.type === 'ArrowFunctionExpression'
   && node.body.argument.callee.name === 'changeWorkspace')!;
 const pickerCallback = appSource.slice(picker.start, picker.end);
 function actions(globals: Record<string, unknown>) {
-  const code = `${action('changeWorkspace')}\n${action('createProject')}\n${action('sendMessage')}\n({ changeWorkspace, createProject, sendMessage, picked: ${pickerCallback} });`;
-  return vm.runInNewContext(transformSync('actions.ts', code, { lang: 'ts' }).code, { resolveComposerSendTarget, ...globals });
+  const code = `${action('changeWorkspace')}\n${action('createProject')}\n${action('sendMessage')}\n${action('spawnRole')}\n${action('onPickImages')}\n({ changeWorkspace, createProject, sendMessage, spawnRole, onPickImages, picked: ${pickerCallback} });`;
+  return vm.runInNewContext(transformSync('actions.ts', code, { lang: 'ts' }).code, {
+    resolveComposerSendTarget,
+    mergeProjectSnapshot,
+    activeProjectIdRef: { current: (globals.activeProject as { id?: string } | null)?.id },
+    agentSelectionVersionRef: { current: 0 },
+    setAgents() {},
+    ...globals,
+  });
 }
 
 // Exercise the actual sidebar callback while a different project is selected.
@@ -145,5 +155,165 @@ function actions(globals: Record<string, unknown>) {
   }]);
   assert.equal(draft, 'Next question');
 }
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+function composerState(activeAgent: { id: string } | null = null) {
+  const state = { draft: 'Original question', images: [] as Array<{ path: string; artifactId: string }>,
+    messages: [] as object[], agents: [] as Array<{ id: string }>, selected: activeAgent?.id ?? null, errors: [] as string[] };
+  const projectRef = { current: 'P' };
+  const selectionRef = { current: 1 };
+  const globals = {
+    activeProject: { id: 'P', settings: { orchestration_mode: 'standard', defaults: {} } }, activeAgent,
+    activeProjectIdRef: projectRef, agentSelectionVersionRef: selectionRef,
+    draft: state.draft, sending: false, interactions: [], pendingImages: state.images,
+    pendingMessageSeqRef: { current: 0 }, lang: 'en',
+    setDraft: (update: string | ((prev: string) => string)) => { state.draft = typeof update === 'function' ? update(state.draft) : update; },
+    setPendingImages: (update: typeof state.images | ((prev: typeof state.images) => typeof state.images)) => { state.images = typeof update === 'function' ? update(state.images) : update; },
+    setPendingMessages: (update: (prev: object[]) => object[]) => { state.messages = update(state.messages); },
+    setAgents: (update: (prev: typeof state.agents) => typeof state.agents) => { state.agents = update(state.agents); },
+    setSending() {}, setUploading() {}, pushToast() {},
+    selectAgent: async (id: string) => { state.selected = id; selectionRef.current++; },
+    reportError: (error: Error) => state.errors.push(error.message),
+    uploadedArtifactsRef: { current: new Map() }, fileInputRef: { current: null },
+  };
+  return { state, projectRef, selectionRef, globals };
+}
+
+for (const entry of ['sendMessage', 'spawnRole'] as const) {
+  for (const switchTo of ['project', 'agent'] as const) {
+    await test(`${entry} does not select its created agent after switching ${switchTo}`, async () => {
+      const { state, projectRef, selectionRef, globals } = composerState();
+      const response = deferred<{ data: { id: string } }>();
+      const calls = actions({ ...globals, api: { spawnAgent: () => response.promise } });
+      const pending = entry === 'sendMessage' ? calls.sendMessage() : calls.spawnRole('small_mol');
+      if (switchTo === 'project') projectRef.current = 'Q';
+      selectionRef.current++;
+      state.selected = 'new-selection';
+      state.draft = 'Original question';
+      response.resolve({ data: { id: 'old-created-agent' } });
+      await pending;
+      assert.deepEqual(state.errors, []);
+      assert.equal(state.selected, 'new-selection');
+      assert.equal(state.draft, 'Original question', 'a late send must not clear another selection’s draft');
+    });
+  }
+}
+
+await test('a late upload never adds the previous project’s attachments to the current composer', async () => {
+  const { state, projectRef, selectionRef, globals } = composerState();
+  const response = deferred<{ path: string; artifact_id: string }>();
+  const calls = actions({ ...globals, api: { uploadFile: () => response.promise } });
+  const pending = calls.onPickImages([{ name: 'original.png', size: 32 }]);
+  projectRef.current = 'Q';
+  selectionRef.current++;
+  state.images = [{ path: '/Q/new.png', artifactId: 'new-image' }];
+  response.resolve({ path: '/P/original.png', artifact_id: 'old-image' });
+  await pending;
+  assert.deepEqual(state.images, [{ path: '/Q/new.png', artifactId: 'new-image' }]);
+});
+
+for (const whileWaiting of ['unchanged', 'new-draft', 'other-project'] as const) {
+  await test(`a failed send preserves text and attachments (${whileWaiting})`, async () => {
+    const { state, projectRef, selectionRef, globals } = composerState({ id: 'agent-P' });
+    state.images.push({ path: '/P/original.png', artifactId: 'old-image' });
+    const response = deferred<never>();
+    const calls = actions({ ...globals, api: { sendMessage: () => response.promise } });
+    const pending = calls.sendMessage();
+    if (whileWaiting === 'new-draft') state.draft = 'Next question';
+    if (whileWaiting === 'other-project') {
+      projectRef.current = 'Q'; selectionRef.current++; state.draft = 'Question for Q'; state.images = [];
+    }
+    response.reject(new Error('offline'));
+    await pending;
+    assert.deepEqual(state.errors, ['offline']);
+    assert.equal(state.draft, whileWaiting === 'new-draft' ? 'Next question' : whileWaiting === 'other-project' ? 'Question for Q' : 'Original question');
+    assert.deepEqual(state.images, whileWaiting === 'other-project' ? [] : [{ path: '/P/original.png', artifactId: 'old-image' }]);
+    assert.equal(state.messages.length, 0);
+  });
+}
+
+await test('retrying the first image message reuses the agent already created before delivery failed', async () => {
+  const { state, globals } = composerState();
+  state.images.push({ path: '/P/original.png', artifactId: 'image-P' });
+  let spawns = 0;
+  const recipients: string[] = [];
+  const api = {
+    spawnAgent: async () => ({ data: { id: `created-${++spawns}`, project_id: 'P' } }),
+    sendMessage: async (id: string) => {
+      recipients.push(id);
+      if (recipients.length === 1) throw new Error('first delivery failed');
+      return { event_id: 'delivered-message' };
+    },
+    eventDetail: async () => ({ session_seq: 1 }),
+  };
+  await actions({ ...globals, api }).sendMessage();
+  assert.equal(state.draft, 'Original question');
+  assert.equal(state.images.length, 1);
+  await actions({ ...globals, api, activeAgent: state.agents.find(agent => agent.id === state.selected) ?? null,
+    draft: state.draft, pendingImages: state.images, setEvents() {}, maxSeqRef: { current: 0 },
+  }).sendMessage();
+  assert.equal(spawns, 1, 'retry must use the accepted creation instead of spawning a second coordinator');
+  assert.deepEqual(recipients, ['created-1', 'created-1']);
+  assert.equal(state.selected, 'created-1');
+  assert.equal(state.draft, '');
+  assert.equal(state.images.length, 0);
+  assert.deepEqual(state.errors, ['first delivery failed']);
+});
+
+await test('changing agent while the accepted spawn selection loads does not clear the new composer', async () => {
+  const { state, selectionRef, globals } = composerState();
+  state.images.push({ path: '/P/original.png', artifactId: 'image-P' });
+  const selecting = deferred<void>();
+  const selected = deferred<void>();
+  const calls = actions({ ...globals,
+    api: { spawnAgent: async () => ({ data: { id: 'created-agent', project_id: 'P' } }), sendMessage: async () => ({ event_id: 'message' }) },
+    selectAgent: (id: string) => {
+      state.selected = id; selectionRef.current++; selected.resolve(); return selecting.promise;
+    },
+  });
+  const sending = calls.sendMessage();
+  await selected.promise;
+  selectionRef.current++;
+  state.selected = 'other-agent';
+  state.draft = 'Original question';
+  state.images = [{ path: '/P/next.png', artifactId: 'next-image' }];
+  selecting.resolve();
+  await sending;
+  assert.equal(state.selected, 'other-agent');
+  assert.equal(state.draft, 'Original question');
+  assert.deepEqual(state.images, [{ path: '/P/next.png', artifactId: 'next-image' }]);
+});
+
+await test('same-role siblings do not share pending interaction or approval UI state', () => {
+  const activeAgent = { id: 'B', role_id: 'small_mol', display_name: 'Worker B' };
+  const appPredicate = nodes.find(node => node.type === 'VariableDeclarator' && node.id?.name === 'hasActiveAgentDecision').init;
+  const promptSource = readFileSync(new URL('./InteractionPrompt.tsx', import.meta.url), 'utf8');
+  const promptTree = parseSync('InteractionPrompt.tsx', promptSource, { lang: 'tsx' }).program;
+  const promptNodes: any[] = [];
+  function collect(node: any) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(collect); return; }
+    promptNodes.push(node); Object.values(node).forEach(collect);
+  }
+  collect(promptTree);
+  const currentPredicate = promptNodes.find(node => node.type === 'VariableDeclarator' && node.id?.name === 'isCurrentAgent').init;
+  for (const kind of ['interaction', 'approval'] as const) {
+    for (const [sessionId, belongs] of [['A', false], ['B', true], [undefined, false]] as const) {
+      const item = { session_id: sessionId, agent_id: 'small_mol', agent_name: 'small_mol', id: 'pending' };
+      const hidden = vm.runInNewContext(transformSync('predicate.ts', appSource.slice(appPredicate.start, appPredicate.end), { lang: 'ts' }).code,
+        { ...composerSend, activeAgent, interactions: kind === 'interaction' ? [item] : [], approvals: kind === 'approval' ? [item] : [] });
+      const claimsCurrent = vm.runInNewContext(transformSync('predicate.ts', promptSource.slice(currentPredicate.start, currentPredicate.end), { lang: 'ts' }).code,
+        { ...composerSend, activeAgent, sessionId, rawAgentId: 'small_mol', currentItem: { kind, data: item } });
+      assert.equal(hidden, belongs, `${kind} for ${sessionId} must gate only its owning session’s composer`);
+      assert.equal(claimsCurrent, belongs, `${kind} for ${sessionId} must use the same instance identity in its banner`);
+    }
+  }
+});
 
 console.log('App.actions.test.ts: ok');

@@ -161,6 +161,7 @@ export default function HubPanel({
   const cursorRef = useRef(0);
   const latestPostSeqRef = useRef(0);
   const loadVersionRef = useRef(0);
+  const projectScopeRef = useRef(0);
 
   // Sync if initialProjectId changes
   useEffect(() => {
@@ -186,7 +187,7 @@ export default function HubPanel({
         setAgents(view.agents);
         setLoadedPid(pid);
       } catch (e) {
-        onToast('error', e instanceof Error ? e.message : String(e));
+        if (version === loadVersionRef.current) onToast('error', e instanceof Error ? e.message : String(e));
       } finally {
         if (version === loadVersionRef.current) setLoading(false);
       }
@@ -195,17 +196,19 @@ export default function HubPanel({
   );
 
   useEffect(() => {
+    ++projectScopeRef.current;
     ++loadVersionRef.current;
     setPosts([]);
     setAgents([]);
     setLoadedPid(null);
     setSelectedTopic(null);
     setReplyTo(null);
+    setSending(false);
     cursorRef.current = 0;
     latestPostSeqRef.current = 0;
     setPendingPosts(0);
     if (projectId) void load(projectId);
-    return () => { ++loadVersionRef.current; };
+    return () => { ++projectScopeRef.current; ++loadVersionRef.current; };
   }, [projectId, load]);
 
   // Keep the browsed forum page stable. New posts are a refresh indicator,
@@ -316,6 +319,7 @@ export default function HubPanel({
       onToast('error', t.hubPostEmpty);
       return;
     }
+    const projectScope = projectScopeRef.current;
     setSending(true);
     try {
       const res = await api.hubPost(projectId, {
@@ -325,16 +329,18 @@ export default function HubPanel({
         ...(toAgent.trim() ? { to_agent: toAgent.trim() } : {}),
         ...(replyTo ? { parent_id: replyTo.id } : {}),
       });
+      if (projectScope !== projectScopeRef.current) return;
       await load(projectId);
+      if (projectScope !== projectScopeRef.current) return;
       setSelectedTopic(res.post.topic);
-      setContent('');
-      setToAgent('');
-      setReplyTo(null);
+      setContent((current) => current === content ? '' : current);
+      setToAgent((current) => current === toAgent ? '' : current);
+      setReplyTo((current) => current?.id === replyTo?.id ? null : current);
       onToast('ok', t.hubPostedToast(res.notified_count));
     } catch (e) {
-      onToast('error', e instanceof Error ? e.message : String(e));
+      if (projectScope === projectScopeRef.current) onToast('error', e instanceof Error ? e.message : String(e));
     } finally {
-      setSending(false);
+      if (projectScope === projectScopeRef.current) setSending(false);
     }
   };
 

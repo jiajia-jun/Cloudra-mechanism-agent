@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from './api';
 import type { Project, Agent, ComputeJob } from './types';
 import { useI18n, type Translations } from './i18n';
@@ -172,21 +172,21 @@ export function ConsoleIndexPage({
     current_focus: '',
   });
   const [savingGoal, setSavingGoal] = useState(false);
+  const goalRequestRef = useRef(0);
+  const goalEditRef = useRef(0);
+  const changeGoalDraft = (next: typeof goalDraft) => {
+    ++goalEditRef.current;
+    setGoalDraft(next);
+  };
   const [hubPostsCount, setHubPostsCount] = useState<number | null>(null);
   const [dagSummary, setDagSummary] = useState<{
-    mode: string;
     nodeCount: number;
     edgeCount: number;
-    accepted: boolean;
   } | null>(null);
 
   const activeJobs = sidebarJobs ? sidebarJobs.filter((j) => ['running', 'queued', 'ready', 'cancel_requested'].includes(j.state)) : [];
   const stoppingJobs = activeJobs.filter((j) => j.state === 'cancel_requested');
-  const dagModeActive =
-    project.settings.orchestration_mode === 'dag_guided' ||
-    project.settings.defaults?.orchestration_mode === 'dag_guided' ||
-    dagSummary?.mode === 'dag_guided' ||
-    dagSummary?.mode === 'dag_record';
+  const dagModeActive = project.settings.orchestration_mode !== 'standard';
 
   const childrenOf = useMemo(() => {
     const m = new Map<string, Agent[]>();
@@ -286,58 +286,70 @@ export function ConsoleIndexPage({
 
   // Load Goal
   useEffect(() => {
-    if (!activeAgent) {
-      setGoal(null);
-      return;
-    }
-    api.getGoal(activeAgent.id)
-      .then((res) => {
-        if (res.goal) {
+    const requestVersion = ++goalRequestRef.current;
+    const editVersion = goalEditRef.current;
+    setGoal(null);
+    setGoalDraft({ objective: '', completion_criteria: '', current_focus: '' });
+    setEditingGoal(false);
+    setSavingGoal(false);
+    if (activeAgent) {
+      api.getGoal(activeAgent.id)
+        .then((res) => {
+          if (requestVersion !== goalRequestRef.current) return;
           setGoal(res.goal);
-          setGoalDraft(res.goal);
-        } else {
-          setGoal(null);
-        }
-      })
-      .catch(() => setGoal(null));
+          if (res.goal && editVersion === goalEditRef.current) setGoalDraft(res.goal);
+        })
+        .catch(() => {
+          if (requestVersion === goalRequestRef.current) setGoal(null);
+        });
+    }
+    return () => { ++goalRequestRef.current; };
   }, [activeAgent?.id]);
 
   // Load Hub Posts Count
   useEffect(() => {
+    let cancelled = false;
+    setHubPostsCount(null);
     api.hubPosts(project.id)
       .then((res) => {
-        setHubPostsCount(Array.isArray(res.posts) ? res.posts.length : 0);
+        if (!cancelled) setHubPostsCount(Array.isArray(res.posts) ? res.posts.length : 0);
       })
-      .catch(() => setHubPostsCount(null));
+      .catch(() => { if (!cancelled) setHubPostsCount(null); });
+    return () => { cancelled = true; };
   }, [project.id]);
 
   // Load DAG Summary
   useEffect(() => {
+    let cancelled = false;
+    setDagSummary(null);
     api.dagDelivery(project.id)
       .then((res) => {
+        if (cancelled) return;
         const g = res.graph as { nodes?: unknown[]; edges?: unknown[] } | null;
         setDagSummary({
-          mode: res.mode || 'standard',
           nodeCount: g?.nodes?.length ?? 0,
           edgeCount: g?.edges?.length ?? 0,
-          accepted: Boolean(g),
         });
       })
-      .catch(() => setDagSummary(null));
-  }, [project.id]);
+      .catch(() => { if (!cancelled) setDagSummary(null); });
+    return () => { cancelled = true; };
+  }, [project.id, project.settings.orchestration_mode]);
 
   const handleSaveGoal = async () => {
     if (!activeAgent) return;
+    const requestVersion = ++goalRequestRef.current;
+    const editVersion = goalEditRef.current;
     setSavingGoal(true);
     try {
       const res = await api.setGoal(activeAgent.id, goalDraft);
+      if (requestVersion !== goalRequestRef.current) return;
       setGoal(res.goal);
-      setEditingGoal(false);
+      if (editVersion === goalEditRef.current) setEditingGoal(false);
       onToast(t.goalSavedToast, 'info');
     } catch (err) {
-      onError(err);
+      if (requestVersion === goalRequestRef.current) onError(err);
     } finally {
-      setSavingGoal(false);
+      if (requestVersion === goalRequestRef.current) setSavingGoal(false);
     }
   };
 
@@ -360,7 +372,7 @@ export function ConsoleIndexPage({
           <div className="portal-tags-group">
             <span className={`portal-tag ${dagModeActive ? 'active' : 'neutral'}`}>
               <span className="tag-dot" />
-              {dagModeActive ? t.dagModeActive : t.dagModeInactive}
+              {project.settings.orchestration_mode === 'dag_record' ? t.dagModeRecord : dagModeActive ? t.dagModeActive : t.dagModeInactive}
             </span>
             <span className={`portal-tag ${project.settings.defaults?.yolo ? 'yolo' : 'safe'}`}>
               {project.settings.defaults?.yolo ? t.yoloActive : t.safeActive}
@@ -398,7 +410,7 @@ export function ConsoleIndexPage({
                 type="button"
                 className="btn ghost sm"
                 onClick={() => {
-                  setGoalDraft(goal || { objective: '', completion_criteria: '', current_focus: '' });
+                  changeGoalDraft(goal || { objective: '', completion_criteria: '', current_focus: '' });
                   setEditingGoal(true);
                 }}
               >
@@ -435,7 +447,7 @@ export function ConsoleIndexPage({
                   rows={2}
                   placeholder={t.objectivePlaceholder}
                   value={goalDraft.objective}
-                  onChange={(e) => setGoalDraft({ ...goalDraft, objective: e.target.value })}
+                  onChange={(e) => changeGoalDraft({ ...goalDraft, objective: e.target.value })}
                 />
               </div>
               <div className="goal-row-2col">
@@ -446,7 +458,7 @@ export function ConsoleIndexPage({
                     className="input sm"
                     placeholder={t.completionCriteriaPlaceholder}
                     value={goalDraft.completion_criteria}
-                    onChange={(e) => setGoalDraft({ ...goalDraft, completion_criteria: e.target.value })}
+                    onChange={(e) => changeGoalDraft({ ...goalDraft, completion_criteria: e.target.value })}
                   />
                 </div>
                 <div className="goal-field">
@@ -456,7 +468,7 @@ export function ConsoleIndexPage({
                     className="input sm"
                     placeholder={t.currentFocusPlaceholder}
                     value={goalDraft.current_focus}
-                    onChange={(e) => setGoalDraft({ ...goalDraft, current_focus: e.target.value })}
+                    onChange={(e) => changeGoalDraft({ ...goalDraft, current_focus: e.target.value })}
                   />
                 </div>
               </div>

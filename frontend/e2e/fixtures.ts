@@ -83,7 +83,8 @@ export async function installApiMocks(page: Page, opts: MockOpts = {}) {
       return json(route, rows);
     }
     if (method === 'GET' && path.endsWith('/view')) {
-      return json(route, { agents, cursor: 0 });
+      const project = projects.find((item) => (item as { id: string }).id === path.split('/')[4]);
+      return json(route, { project, agents, cursor: 0 });
     }
     if (method === 'GET' && path === '/api/v2/roles') {
       return json(route, [{ role_id: 'coordinator', display_name: 'Coordinator' }]);

@@ -49,68 +49,74 @@ function initAgentDraft(agent: Agent): AgentEditDraft {
   };
 }
 
+function remainingEdits<T extends object>(current: Partial<T>, submitted: Partial<T>): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(current).filter(([field, value]) => value !== submitted[field as keyof T]),
+  ) as Partial<T>;
+}
+
+function contextWindowValue(raw: string): number {
+  const value = raw.trim() === '' ? 0 : Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error('上下文窗口须为非负整数，0 或留空可恢复全局继承');
+  }
+  return value;
+}
+
 function AgentStrip({
   agent,
-  projectDefaultModel,
   isExpanded,
   onToggleExpand,
   onSave,
 }: {
   agent: Agent;
-  projectDefaultModel: string;
   isExpanded: boolean;
   onToggleExpand: () => void;
   onSave: (agentId: string, patch: Record<string, unknown>) => Promise<void>;
 }) {
-  const [draft, setDraft] = useState<AgentEditDraft>(() => initAgentDraft(agent));
+  const [edits, setEdits] = useState<Partial<AgentEditDraft>>({});
+  const draft = { ...initAgentDraft(agent), ...edits };
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleFieldChange = (field: keyof AgentEditDraft, val: unknown) => {
-    setDraft((prev) => ({ ...prev, [field]: val }));
+    setEdits((prev) => ({ ...prev, [field]: val }));
     setSaveSuccess(false);
     setErrorMsg(null);
   };
 
   const handleSave = async () => {
+    if (saving) return;
+    const submitted = edits;
     setSaving(true);
     setErrorMsg(null);
     try {
-      const patch: Record<string, unknown> = {
-        model: draft.model.trim() || null,
-        orchestration_mode: draft.orchestration_mode,
-        invocation_protocol: draft.invocation_protocol,
-        yolo: draft.yolo,
-        visual_mode: draft.visual_mode,
-        unattended: draft.unattended,
-        clean_context: draft.clean_context,
-      };
-      const contextWindow = draft.context_window.trim() === '' ? 0 : Number(draft.context_window);
-      if (!Number.isInteger(contextWindow) || contextWindow < 0) {
-        throw new Error('上下文窗口须为非负整数，0 或留空可恢复全局继承');
-      }
-      patch.context_window = contextWindow;
-
-      if (draft.temperature !== '') {
-        const t = parseFloat(draft.temperature);
-        if (!isNaN(t) && t >= 0 && t <= 2) patch.temperature = t;
-      }
-      if (draft.reasoning_effort) {
-        patch.reasoning_effort = draft.reasoning_effort;
-      } else {
-        patch.reasoning_effort = null;
-      }
-      if (draft.max_tokens !== '') {
-        const m = parseInt(draft.max_tokens, 10);
-        if (!isNaN(m) && m > 0) patch.max_tokens = m;
-      }
-      if (draft.timeout !== '') {
-        const to = parseInt(draft.timeout, 10);
-        if (!isNaN(to) && to > 0) patch.timeout = to;
+      const patch: Record<string, unknown> = {};
+      for (const [field, value] of Object.entries(submitted)) {
+        if (field === 'model') {
+          patch.model = String(value).trim();
+        } else if (field === 'context_window') {
+          patch.context_window = contextWindowValue(String(value));
+        } else if (field === 'temperature') {
+          const temperature = Number(value);
+          if (value === '' || !Number.isFinite(temperature) || temperature < 0 || temperature > 2) {
+            throw new Error('温度须为 0 到 2 之间的数字');
+          }
+          patch.temperature = temperature;
+        } else if (field === 'max_tokens' || field === 'timeout') {
+          const number = Number(value);
+          if (!Number.isInteger(number) || number <= 0) {
+            throw new Error(field === 'max_tokens' ? '最大输出 Token 须为正整数' : '超时须为正整数');
+          }
+          patch[field] = number;
+        } else {
+          patch[field] = value;
+        }
       }
 
       await onSave(agent.id, patch);
+      setEdits((current) => remainingEdits(current, submitted));
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (e) {
@@ -120,8 +126,7 @@ function AgentStrip({
     }
   };
 
-  const effectiveModel =
-    agent.settings.model || (projectDefaultModel ? `${projectDefaultModel} (继承)` : '(继承全局备用)');
+  const effectiveModel = agent.settings.model || '(继承全局角色配置)';
 
   return (
     <div className={`agent-strip ${isExpanded ? 'expanded' : ''}`}>
@@ -154,7 +159,7 @@ function AgentStrip({
             <div className="setting-row">
               <div className="setting-info">
                 <span className="setting-title">独立模型覆盖</span>
-                <span className="setting-desc">为此智能体指定专属模型，留空则继承全局方案</span>
+                <span className="setting-desc">为此智能体指定专属模型，留空则继承全局角色配置</span>
               </div>
               <div className="setting-control">
                 <input
@@ -162,7 +167,7 @@ function AgentStrip({
                   className="input"
                   value={draft.model}
                   onChange={(e) => handleFieldChange('model', e.target.value)}
-                  placeholder="留空继承项目默认…"
+                  placeholder="留空继承全局角色配置…"
                 />
               </div>
             </div>
@@ -332,13 +337,13 @@ function AgentStrip({
 
           <div className="agent-strip-foot">
             {errorMsg && <span className="agent-msg-error">{errorMsg}</span>}
-            {saveSuccess && <span className="agent-msg-success">✓ 设置已保存生效</span>}
+            {saveSuccess && Object.keys(edits).length === 0 && <span className="agent-msg-success">✓ 设置已保存生效</span>}
             <div className="agent-strip-actions">
               <button
                 type="button"
                 className="btn ghost sm"
                 onClick={() => {
-                  setDraft(initAgentDraft(agent));
+                  setEdits({});
                   setSaveSuccess(false);
                   setErrorMsg(null);
                 }}
@@ -350,7 +355,7 @@ function AgentStrip({
                 type="button"
                 className="btn primary sm"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || Object.keys(edits).length === 0}
               >
                 {saving ? '保存中…' : '保存此智能体配置'}
               </button>
@@ -362,6 +367,15 @@ function AgentStrip({
   );
 }
 
+interface ProjectEditDraft {
+  name: string;
+  orchestration_mode: Project['settings']['orchestration_mode'];
+  invocation_protocol: string;
+  model: string;
+  reasoning_effort: string;
+  context_window: string;
+}
+
 export default function ProjectSettingsModal({
   project,
   agents,
@@ -371,25 +385,30 @@ export default function ProjectSettingsModal({
   onSaveAgentSettings,
   onToast,
 }: ProjectSettingsModalProps) {
-  // Global Project settings state
-  const [projectName, setProjectName] = useState(project.name);
-  const [orchestrationMode, setOrchestrationMode] = useState<'standard' | 'dag_record' | 'dag_guided'>(
-    project.settings.orchestration_mode || 'standard',
-  );
-  const [protocol, setProtocol] = useState<string>(
-    project.settings.defaults?.invocation_protocol ?? 'javascript',
-  );
-  const [defaultModel, setDefaultModel] = useState<string>(
-    project.settings.defaults?.model ?? '',
-  );
-  const [defaultReasoningEffort, setDefaultReasoningEffort] = useState<string>(
-    project.settings.defaults?.reasoning_effort ?? '',
-  );
-  const [defaultContextWindow, setDefaultContextWindow] = useState<string>(
-    project.settings.defaults?.context_window ? String(project.settings.defaults.context_window) : '',
-  );
+  const [projectEdits, setProjectEdits] = useState<Partial<ProjectEditDraft>>({});
+  const {
+    name: projectName,
+    orchestration_mode: orchestrationMode,
+    invocation_protocol: protocol,
+    model: defaultModel,
+    reasoning_effort: defaultReasoningEffort,
+    context_window: defaultContextWindow,
+  } = {
+    name: project.name,
+    orchestration_mode: project.settings.orchestration_mode,
+    invocation_protocol: project.settings.defaults?.invocation_protocol ?? 'javascript',
+    model: project.settings.defaults?.model ?? '',
+    reasoning_effort: project.settings.defaults?.reasoning_effort ?? '',
+    context_window: project.settings.defaults?.context_window ? String(project.settings.defaults.context_window) : '',
+    ...projectEdits,
+  };
   const [savingProject, setSavingProject] = useState(false);
   const [projectSavedOk, setProjectSavedOk] = useState(false);
+
+  function editProject<K extends keyof ProjectEditDraft>(field: K, value: ProjectEditDraft[K]) {
+    setProjectEdits((current) => ({ ...current, [field]: value }));
+    setProjectSavedOk(false);
+  }
 
   // Agent expansion state
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
@@ -415,28 +434,22 @@ export default function ProjectSettingsModal({
   };
 
   const handleSaveProject = async () => {
+    if (savingProject) return;
+    const submitted = projectEdits;
     setSavingProject(true);
     try {
-      const defaultsPatch: Record<string, unknown> = {
-        invocation_protocol: protocol,
-      };
-      const contextWindow = defaultContextWindow.trim() === '' ? 0 : Number(defaultContextWindow);
-      if (!Number.isInteger(contextWindow) || contextWindow < 0) {
-        throw new Error('上下文窗口须为非负整数，0 或留空可继承全局配置');
-      }
-      defaultsPatch.context_window = contextWindow;
-      if (defaultModel.trim()) {
-        defaultsPatch.model = defaultModel.trim();
-      }
-      if (defaultReasoningEffort) {
-        defaultsPatch.reasoning_effort = defaultReasoningEffort;
-      }
+      const defaultsPatch: Record<string, unknown> = {};
+      if (submitted.invocation_protocol !== undefined) defaultsPatch.invocation_protocol = protocol;
+      if (submitted.model !== undefined) defaultsPatch.model = defaultModel.trim();
+      if (submitted.reasoning_effort !== undefined) defaultsPatch.reasoning_effort = defaultReasoningEffort;
+      if (submitted.context_window !== undefined) defaultsPatch.context_window = contextWindowValue(defaultContextWindow);
 
       await onSaveProjectSettings({
-        name: projectName.trim() || project.name,
-        orchestration_mode: orchestrationMode,
-        defaults: defaultsPatch,
+        ...(submitted.name !== undefined ? { name: projectName.trim() || project.name } : {}),
+        ...(submitted.orchestration_mode !== undefined ? { orchestration_mode: orchestrationMode } : {}),
+        ...(Object.keys(defaultsPatch).length ? { defaults: defaultsPatch } : {}),
       });
+      setProjectEdits((current) => remainingEdits(current, submitted));
       setProjectSavedOk(true);
       setTimeout(() => setProjectSavedOk(false), 2500);
     } catch (e) {
@@ -494,7 +507,7 @@ export default function ProjectSettingsModal({
                     type="text"
                     className="input"
                     value={projectName}
-                    onChange={(e) => setProjectName(e.target.value)}
+                    onChange={(e) => editProject('name', e.target.value)}
                     placeholder="项目名称…"
                   />
                 </div>
@@ -516,7 +529,7 @@ export default function ProjectSettingsModal({
                     className="select"
                     value={orchestrationMode}
                     onChange={(e) =>
-                      setOrchestrationMode(e.target.value as 'standard' | 'dag_record' | 'dag_guided')
+                      editProject('orchestration_mode', e.target.value as 'standard' | 'dag_record' | 'dag_guided')
                     }
                   >
                     <option value="standard">standard (标准直接推导)</option>
@@ -535,7 +548,7 @@ export default function ProjectSettingsModal({
                   <select
                     className="select"
                     value={protocol}
-                    onChange={(e) => setProtocol(e.target.value)}
+                    onChange={(e) => editProject('invocation_protocol', e.target.value)}
                   >
                     <option value="javascript">javascript (QuickJS 宿主程序化)</option>
                     <option value="traditional">traditional (单步标准调用)</option>
@@ -553,7 +566,7 @@ export default function ProjectSettingsModal({
                     type="text"
                     className="input"
                     value={defaultModel}
-                    onChange={(e) => setDefaultModel(e.target.value)}
+                    onChange={(e) => editProject('model', e.target.value)}
                     placeholder="例如: anthropic/claude-3-5-sonnet"
                   />
                 </div>
@@ -568,7 +581,7 @@ export default function ProjectSettingsModal({
                   <select
                     className="select"
                     value={defaultReasoningEffort}
-                    onChange={(e) => setDefaultReasoningEffort(e.target.value)}
+                    onChange={(e) => editProject('reasoning_effort', e.target.value)}
                   >
                     <option value="">未指定 (继承全局系统配置)</option>
                     <option value="minimal">minimal (微弱)</option>
@@ -593,7 +606,7 @@ export default function ProjectSettingsModal({
                     step="1"
                     className="input"
                     value={defaultContextWindow}
-                    onChange={(e) => setDefaultContextWindow(e.target.value)}
+                    onChange={(e) => editProject('context_window', e.target.value)}
                     placeholder="继承全局窗口"
                     aria-label="项目默认上下文窗口"
                   />
@@ -602,7 +615,7 @@ export default function ProjectSettingsModal({
             </div>
 
             <div className="section-foot">
-              {projectSavedOk && <span className="agent-msg-success">✓ 全局基准已保存</span>}
+              {projectSavedOk && Object.keys(projectEdits).length === 0 && <span className="agent-msg-success">✓ 全局基准已保存</span>}
               <button
                 type="button"
                 className="btn primary sm"
@@ -638,7 +651,6 @@ export default function ProjectSettingsModal({
                   <AgentStrip
                     key={agent.id}
                     agent={agent}
-                    projectDefaultModel={defaultModel}
                     isExpanded={expandedIds.has(agent.id)}
                     onToggleExpand={() => toggleExpand(agent.id)}
                     onSave={onSaveAgentSettings}

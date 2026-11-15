@@ -6,8 +6,12 @@ export type PendingInteraction = {
   session_id?: unknown;
 };
 
+export function pendingBelongsToAgent(pending: PendingInteraction, agentId: string | null): boolean {
+  return Boolean(agentId && pending.session_id === agentId);
+}
+
 export function composerInteractionFor<T extends PendingInteraction>(interactions: T[], agentId: string | null): T | undefined {
-  return agentId ? interactions.find(interaction => interaction.session_id === agentId) : undefined;
+  return interactions.find(interaction => pendingBelongsToAgent(interaction, agentId));
 }
 
 export type ComposerSendTarget =

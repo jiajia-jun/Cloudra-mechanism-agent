@@ -99,6 +99,7 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
   const jobsRequestRef = useRef(0);
   const [nodes, setNodes] = useState<ComputeNode[] | null>(null);
   const [reminders, setReminders] = useState<PendingReminder[] | null>(null);
+  const remindersRequestRef = useRef(0);
 
   const agentName = useMemo(() => {
     const m = new Map<string, string>();
@@ -134,13 +135,14 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
   }, [onError]);
 
   const loadReminders = useCallback(async () => {
+    const requestVersion = ++remindersRequestRef.current;
     try {
       const data = await api.listPendingReminders(project.id);
-      setReminders(data);
+      if (requestVersion === remindersRequestRef.current) setReminders(data);
     } catch (e) {
-      onError(e);
+      if (requestVersion === remindersRequestRef.current) throw e;
     }
-  }, [project.id, onError]);
+  }, [project.id]);
 
   useEffect(() => {
     void loadJobs();
@@ -165,12 +167,16 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
   }, [loadNodes, refreshVersion]);
 
   useEffect(() => {
-    void loadReminders();
+    setReminders(null);
+    void loadReminders().catch(onError);
     const timer = setInterval(() => {
-      api.listPendingReminders(project.id).then(setReminders).catch(() => undefined);
+      void loadReminders().catch(() => undefined);
     }, 8000);
-    return () => clearInterval(timer);
-  }, [loadReminders, project.id]);
+    return () => {
+      ++remindersRequestRef.current;
+      clearInterval(timer);
+    };
+  }, [loadReminders, onError]);
 
   // Overall KPI compute metrics
   const kpis = useMemo(() => {

@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from cloudra.dag.evidence_ingest import FileEvidenceSnapshot
+from cloudra.dag.models import GraphRef
+from cloudra.dag.store import DagStore
 from cloudra.persistence.artifacts import ArtifactService, _sha256_file
 from cloudra.persistence.database import ComputeDB, ConversationDB
 from cloudra.persistence.paths import project_workspace_dir
@@ -42,12 +45,35 @@ class WorkbenchService:
         change = workspace.prepare_write(str(path.relative_to(self.root)), text, 'missing')
         workspace.apply(change)
 
+    def _file_evidence(self, ref: GraphRef, store: DagStore | None = None) -> FileEvidenceSnapshot:
+        if ref.ref_type != 'file':
+            raise ValueError('需要已登记的 file 证据引用')
+        if store is None:
+            db = ConversationDB(self.project.id)
+            if not Path(db.path).is_file():
+                raise FileNotFoundError('当前项目中不存在该文件证据')
+            store = DagStore(db)
+        return FileEvidenceSnapshot.model_validate(store.resolve_evidence(ref))
+
     def open(self, request) -> dict[str, Any]:
         from cloudra.tools.core.workbench_geometry import create_geometry
         from cloudra.tools.core.workbench_results import open_document
 
         if request.path:
             source = self.source_path(request.path)
+        elif request.file_evidence:
+            evidence = self._file_evidence(request.file_evidence)
+            original = Path(evidence.snapshot_path)
+            if not original.is_file():
+                raise FileNotFoundError('已登记的文件证据快照不存在')
+            if _sha256_file(original) != evidence.sha256:
+                raise ValueError('文件证据快照的内容已改变，不能作为原绑定来源打开')
+            source = self.cache_root / 'imports' / evidence.sha256 / Path(evidence.original_path).name
+            source.parent.mkdir(parents=True, exist_ok=True)
+            if not source.is_file() or _sha256_file(source) != evidence.sha256:
+                shutil.copyfile(original, source)
+            if _sha256_file(source) != evidence.sha256:
+                raise ValueError('复制期间文件证据快照的内容已改变')
         elif request.artifact_id:
             service = ArtifactService()
             token, _ = service.issue_download_token(self.project.id, request.artifact_id)
@@ -163,9 +189,7 @@ class WorkbenchService:
                 'message': '已保存完整结构、连接关系与计算设置。', 'notification_content': message}
 
     def _graph_context(self) -> tuple[dict[tuple[str, str], list[dict]], list[dict]]:
-        from cloudra.dag.evidence_ingest import FileEvidenceSnapshot
-        from cloudra.dag.models import GraphRef
-        from cloudra.dag.store import DagStore, GraphBundleNotFound
+        from cloudra.dag.store import GraphBundleNotFound
 
         db = ConversationDB(self.project.id)
         if not Path(db.path).is_file():
@@ -193,10 +217,7 @@ class WorkbenchService:
                     if ref['ref_type'] == 'file':
                         # "file" points to a canonical evidence record, never
                         # a pathname. Resolve its actual immutable snapshot.
-                        payload = store.resolve_evidence(GraphRef.model_validate(ref))
-                        if not isinstance(payload, dict) or not {'snapshot_path', 'original_path', 'sha256'} <= payload.keys():
-                            continue
-                        evidence = FileEvidenceSnapshot.model_validate(payload)
+                        evidence = self._file_evidence(GraphRef.model_validate(ref), store)
                         for value in (evidence.snapshot_path, evidence.original_path):
                             file = Path(value).resolve()
                             if file.is_relative_to(self.root) and file.is_file() and _sha256_file(file) == evidence.sha256:

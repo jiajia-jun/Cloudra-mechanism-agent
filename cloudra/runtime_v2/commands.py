@@ -222,7 +222,7 @@ def _decide_update_project(core: RuntimeCore, command: Command) -> Decision:
                 "project.settings_changed",
                 stream="project",
                 project_id=project.id,
-                data={"changes": settings_changes, "actor": command.actor},
+                data={"changes": new_settings.model_dump(mode="json"), "actor": command.actor},
             )
         )
         # 事件驱动督导（Task 4）：切回 dag_guided 沿补一次待办通知——退出

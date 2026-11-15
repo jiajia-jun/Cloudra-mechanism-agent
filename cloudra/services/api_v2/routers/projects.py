@@ -107,6 +107,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         # Commands and background agent-state writes use these existing locks.
         # Completion history is read later, off-loop, through the same prefix.
         async with ctx.core.command_lock, ctx.core.event_writer._lock:
+            project = ctx.core.require_project(project_id).model_copy(deep=True)
             agents = [
                 agent.model_copy(deep=True)
                 for agent in ctx.core.list_project_agents(project_id)
@@ -127,7 +128,11 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 for agent in agents
             ]
 
-        return {"agents": await asyncio.to_thread(serialize_agents), "cursor": cursor}
+        return {
+            "project": project.model_dump(mode="json"),
+            "agents": await asyncio.to_thread(serialize_agents),
+            "cursor": cursor,
+        }
 
     @router.get("/api/v2/projects/{project_id}/agents", dependencies=ctx.protected)
     async def list_agents(project_id: str) -> list[dict[str, Any]]:
