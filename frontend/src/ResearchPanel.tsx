@@ -69,12 +69,13 @@ export function ResearchPanel({project,onOpenMolecule,onError,onToast,refreshVer
   const [selected,setSelected]=useState<ChemicalObject|null>(null);
   const [kind,setKind]=useState<'all'|'structure'|'calculation'|'artifact'>('all');
   const [refresh,setRefresh]=useState(0);
+  const refreshAll=useCallback(()=>setRefresh(value=>value+1),[]);
   const dagMode=project.settings.orchestration_mode!=='standard';
   const onErrorRef=useRef(onError);onErrorRef.current=onError;
   useEffect(()=>{setSelected(null);setSearch('');setKind('all');},[project.id]);
   useEffect(()=>{
     let cancelled=false;setLoading(true);setError('');
-    workbenchApi.products(project.id).then(result=>{if(!cancelled){setProducts(result.products);setObjects(result.objects??[]);}}).catch(e=>{if(!cancelled){const text=e instanceof Error?e.message:String(e);setError(text);onErrorRef.current(e);}}).finally(()=>{if(!cancelled)setLoading(false);});
+    workbenchApi.products(project.id).then(result=>{if(!cancelled){setProducts(result.products);setObjects(result.objects??[]);setSelected(current=>current && !(result.objects??[]).some(object=>object.kind===current.kind && object.id===current.id)?null:current);}}).catch(e=>{if(!cancelled){const text=e instanceof Error?e.message:String(e);setError(text);onErrorRef.current(e);}}).finally(()=>{if(!cancelled)setLoading(false);});
     return ()=>{cancelled=true;};
   },[project.id,refresh,refreshVersion]);
   const selectObject=useCallback((object:ChemicalObject|null)=>setSelected(object),[]);
@@ -84,12 +85,12 @@ export function ResearchPanel({project,onOpenMolecule,onError,onToast,refreshVer
     const result=await api.dagMutations(project.id,[associationOperation(product,object)],revisions,reason.trim() || `人工关联来源到 ${object.label || object.id}`);
     if(result.accepted===false) throw new Error(String(result.rejection_reason??result.rejection_code??'关联未被接受'));
     onToast('ok','已记录文件与化学对象的关联。');
-    setRefresh(value=>value+1);
+    refreshAll();
   };
   const filtered=filterProducts(products,selected,search).filter(p=>kind==='all'||p.kind===kind);
   const groups=groupProducts(filtered);
-  return <div className="research-panel"><div className="research-header"><div><strong>结构、计算与机理</strong><span className="dim">{products.length} 项记录</span></div><div className="research-actions"><button className="btn outline sm" onClick={()=>onOpenMolecule(null)}>新建／导入分子</button><button className="btn ghost sm" onClick={()=>setRefresh(n=>n+1)} disabled={loading}>刷新</button></div></div>
-    {dagMode && <div className="research-dag"><DagPanel project={project} onError={onError} onToast={onToast} onOpenMolecule={onOpenMolecule} onSelectObject={selectObject} selectedObject={selected} refreshVersion={refresh+refreshVersion}/></div>}
+  return <div className="research-panel"><div className="research-header"><div><strong>结构、计算与机理</strong><span className="dim">{products.length} 项记录</span></div><div className="research-actions"><button className="btn outline sm" onClick={()=>onOpenMolecule(null)}>新建／导入分子</button><button className="btn ghost sm" onClick={refreshAll} disabled={loading}>刷新</button></div></div>
+    {dagMode && <div className="research-dag"><DagPanel project={project} onError={onError} onToast={onToast} onOpenMolecule={onOpenMolecule} onSelectObject={selectObject} selectedObject={selected} refreshVersion={refresh+refreshVersion} onChanged={refreshAll}/></div>}
     <section className="research-products"><div className="research-filters"><input className="input sm" aria-label="搜索结构与计算" placeholder="搜索结构、计算、来源文件" value={search} onChange={e=>setSearch(e.target.value)}/><select className="select sm" aria-label="结果类型" value={kind} onChange={e=>setKind(e.target.value as typeof kind)}><option value="all">全部结果</option><option value="structure">保存结构</option><option value="calculation">计算记录</option><option value="artifact">文件产物</option></select>{selected && <button className="btn outline sm" onClick={()=>setSelected(null)}>显示全部（已筛选 {selected.kind==='node'?'物种':'反应步'} {selected.id}）×</button>}</div>
       {error && <p role="alert">{error}</p>}{loading ? <div className="chat-empty">正在读取项目结构与计算记录…</div> : !groups.length ? <div className="chat-empty">{products.length ? '当前筛选下没有明确关联的记录。' : '尚无保存结构或计算产物，可直接新建或导入分子。'}</div> : groups.map(group=><section key={group.key} className="research-group"><h3>{group.label}</h3><div className="research-cards">{group.products.map(product=><ProductCard key={product.id} project={project} product={product} objects={objects} onOpen={onOpenMolecule} onSelect={selectObject} onAssociate={associate}/>)}</div></section>)}
     </section>

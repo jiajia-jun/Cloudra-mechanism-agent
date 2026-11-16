@@ -1,5 +1,5 @@
 export type WorkbenchInputFormat = 'smiles'|'xyz'|'mol'|'sdf'|'log'|'out'|'gjf'|'com'|'inp'|'pdb'|'cif';
-export interface WorkbenchSource { frame_index?: number; path?: string; artifact_id?: string; input_text?: string; input_format?: string; smiles?: string }
+export interface WorkbenchSource { frame_index?: number; path?: string; artifact_id?: string; file_evidence?: {ref_type: 'file'; ref_id: string; content_hash?: string | null; revision?: number | null}; input_text?: string; input_format?: string; smiles?: string }
 export interface WorkbenchAtom {
   index: number; symbol: string; x: number; y: number; z: number; atom_id?: string;
   formal_charge?: number; target_valence?: number | null; bond_valence?: number;

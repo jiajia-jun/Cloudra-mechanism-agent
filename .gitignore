@@ -47,6 +47,7 @@ env/
 /sessions/
 /tasks/
 /contexts/
+/.dsh-memery/
 
 # OS
 .DS_Store

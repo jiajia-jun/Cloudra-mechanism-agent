@@ -31,6 +31,7 @@ import { boundEventPage, boundStreamView, LiveEventBuffer, mergeAndTrimLiveEvent
 import { composerInteractionFor, resolveComposerSendTarget } from './composerSend';
 import { planSseReconnect } from './sseReconnect';
 import { mergeAgentSnapshot, mergeProjectAgentSnapshot } from './agentState';
+import { mergeProjectSnapshot } from './projectState';
 import {
   archiveProjectConfirm,
   cancelAllComputeConfirm,
@@ -300,19 +301,9 @@ export default function App() {
     ? (activeAgent?.settings.visual_mode ?? activeProject.settings.defaults?.visual_mode ?? true) !== false
     : false;
 
-  const hasActiveAgentDecision = Boolean(
-    interactions.find(
-      (ixn) =>
-        (activeAgent?.id && String(ixn.session_id) === String(activeAgent.id)) ||
-        (activeAgent?.role_id && String(ixn.agent_id) === String(activeAgent.role_id))
-    ) ||
-    approvals.find(
-      (appr) =>
-        (activeAgent?.id && String(appr.session_id) === String(activeAgent.id)) ||
-        (activeAgent?.role_id && (String(appr.agent_name) === String(activeAgent.role_id) || String(appr.agent_name) === String(activeAgent.display_name)))
-    ) ||
-    ((interactions.length > 0 || approvals.length > 0) && !activeAgent)
-  );
+  const hasActiveAgentDecision = Boolean(activeAgent
+    ? composerInteractionFor([...interactions, ...approvals], activeAgent.id)
+    : interactions.length || approvals.length);
 
   // Slash commands autocomplete calculation
   const isSlashPrompt = draft.startsWith('/') && !draft.includes('\n');
@@ -414,6 +405,7 @@ export default function App() {
   const activeAgentIdRef = useRef(activeAgentId);
   const agentSelectionVersionRef = useRef(0);
   const agentStateThroughRef = useRef(new Map<string, number>());
+  const projectStateThroughRef = useRef(new Map<string, number>());
   const maxSeqRef = useRef(0);
 
   const projectsRef = useRef(projects);
@@ -532,7 +524,9 @@ export default function App() {
   /* ------------------------------------------------------- initial loading */
 
   useEffect(() => {
-    api.listProjects(true).then(setProjects).catch(reportError);
+    api.listProjects(true).then((list) => setProjects((prev) =>
+      list.map((project) => mergeProjectSnapshot(prev.find((p) => p.id === project.id), project)),
+    )).catch(reportError);
     api.listRoles().then(setRoles).catch(reportError);
   }, [reportError]);
 
@@ -544,7 +538,7 @@ export default function App() {
       // 批次运行期间新项目可能尚未进入侧边栏缓存：先刷新再定位。
       api.listProjects(true)
         .then((list) => {
-          setProjects(list);
+          setProjects((prev) => list.map((project) => mergeProjectSnapshot(prev.find((p) => p.id === project.id), project)));
           setActiveProjectId(projectId);
         })
         .catch(reportError);
@@ -554,15 +548,22 @@ export default function App() {
 
   /* ---------------------------------------------------- project switching */
 
+  const updateProjectView = useCallback((view: { project: Project; cursor: number }) => {
+    if ((projectStateThroughRef.current.get(view.project.id) ?? 0) > view.cursor) return;
+    projectStateThroughRef.current.set(view.project.id, view.cursor);
+    setProjects((prev) => prev.map((project) => project.id === view.project.id ? mergeProjectSnapshot(project, view.project) : project));
+  }, []);
+
   const refreshAgentStates = useCallback(async (projectId: string) => {
     const view = await api.projectView(projectId);
     if (activeProjectIdRef.current !== projectId) return;
+    updateProjectView(view);
     const latestSeq = new Map(agentStateThroughRef.current);
     for (const agent of view.agents) {
       agentStateThroughRef.current.set(agent.id, Math.max(latestSeq.get(agent.id) ?? 0, view.cursor));
     }
     setAgents((prev) => mergeProjectAgentSnapshot(prev, view.agents, view.cursor, latestSeq));
-  }, []);
+  }, [updateProjectView]);
 
   const selectProject = useCallback((projectId: string) => {
     setActiveProjectId(projectId);
@@ -656,6 +657,7 @@ export default function App() {
       .projectView(activeProjectId)
       .then((view) => {
         if (cancelled) return;
+        updateProjectView(view);
         const agents = dedupeAgents(view.agents);
         for (const agent of agents) agentStateThroughRef.current.set(agent.id, view.cursor);
         setAgents(agents);
@@ -680,7 +682,7 @@ export default function App() {
         flushRafRef.current = null;
       }
     };
-  }, [activeProjectId, selectAgent, reportError]);
+  }, [activeProjectId, selectAgent, reportError, updateProjectView]);
 
   /* ------------------------------------------------------------ SSE stream */
 
@@ -745,12 +747,33 @@ export default function App() {
             return;
           }
           cursor = Math.max(cursor, event.seq);
+        if ((event.type === 'project.settings_changed' || event.type === 'project.updated')
+          && event.seq > (projectStateThroughRef.current.get(event.project_id) ?? 0)) {
+          projectStateThroughRef.current.set(event.project_id, event.seq);
+          setProjects((prev) => prev.map((project) => {
+            if (project.id !== event.project_id) return project;
+            const changes = event.data.changes as Record<string, unknown>;
+            return mergeProjectSnapshot(project, event.type === 'project.settings_changed'
+              ? { ...project, settings: changes as unknown as Project['settings'], updated_at: event.created_at }
+              : { ...project, ...changes, updated_at: event.created_at });
+          }));
+        }
         const sessionId = event.session_id;
         const updateAgent = Boolean(sessionId && event.seq > (agentStateThroughRef.current.get(sessionId) ?? 0));
         if (sessionId && event.seq > 0) {
           agentStateThroughRef.current.set(sessionId, Math.max(agentStateThroughRef.current.get(sessionId) ?? 0, event.seq));
         }
         // Agent list / chip state updates, regardless of selection.
+        if (event.type === 'agent.settings_changed' && sessionId && updateAgent) {
+          const revision = Number(event.data.settings_revision);
+          // RuntimeSettings.apply treats null as absent. Empty strings and
+          // false are deliberate resets and must survive this projection.
+          const changes = Object.fromEntries(Object.entries(event.data.changes as Record<string, unknown>)
+            .filter(([, value]) => value !== null && value !== undefined));
+          setAgents((prev) => prev.map((agent) => agent.id === sessionId && revision > agent.settings_revision
+            ? { ...agent, settings: { ...agent.settings, ...changes }, settings_revision: revision, updated_at: event.created_at }
+            : agent));
+        }
         if (event.type === 'agent.spawned' && activeProjectId && updateAgent) {
           const spawned = { ...event.data, completion: null } as unknown as Agent;
           setAgents((prev) => prev.some((agent) => agent.id === spawned.id) ? prev : [...prev, spawned]);
@@ -917,9 +940,11 @@ export default function App() {
   }, []);
 
   // One fallback supplies both the active Inspector and cross-project attention.
+  // Metadata snapshots must not restart the timer and trigger extra reads.
+  const pendingProjectIds = JSON.stringify(projects.filter((p) => !p.archived).map((p) => p.id));
   // Three project workers bound fan-out; slow rounds never overlap themselves.
   useEffect(() => {
-    const targets = projects.filter((p) => !p.archived);
+    const targets: string[] = JSON.parse(pendingProjectIds);
     if (targets.length === 0) return;
     let cancelled = false;
     let running = false;
@@ -931,9 +956,9 @@ export default function App() {
         let index = 0;
         const worker = async () => {
           while (!cancelled && index < targets.length) {
-            const project = targets[index++];
-            const pending = await refreshProjectPending(project.id);
-            if (pending) next.set(project.id, pending);
+            const projectId = targets[index++];
+            const pending = await refreshProjectPending(projectId);
+            if (pending) next.set(projectId, pending);
           }
         };
         await Promise.all(Array.from({ length: Math.min(3, targets.length) }, worker));
@@ -957,7 +982,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [projects, notifyAttention, refreshProjectPending]);
+  }, [pendingProjectIds, notifyAttention, refreshProjectPending]);
 
   const handleAttentionDecide = useCallback(
     async (item: PendingAttention, decision: 'approve' | 'deny') => {
@@ -994,7 +1019,7 @@ export default function App() {
   async function createProject(name: string, workspaceDir?: string) {
     const resp = await api.createProject(name, workspaceDir);
     setProjects((prev) => prev.some((p) => p.id === resp.data.id)
-      ? prev.map((p) => (p.id === resp.data.id ? resp.data : p))
+      ? prev.map((p) => (p.id === resp.data.id ? mergeProjectSnapshot(p, resp.data) : p))
       : [...prev, resp.data]);
     setActiveProjectId(resp.data.id);
     pushToast('ok', `Project "${name}" created`);
@@ -1025,8 +1050,8 @@ export default function App() {
 
   async function unarchiveProject(p: Project) {
     try {
-      await api.unarchiveProject(p.id);
-      setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, archived: false } : x)));
+      const resp = await api.unarchiveProject(p.id);
+      setProjects((prev) => prev.map((x) => (x.id === p.id ? mergeProjectSnapshot(x, resp.data) : x)));
       pushToast('ok', `Project "${p.name}" restored`);
     } catch (e) {
       reportError(e);
@@ -1040,7 +1065,7 @@ export default function App() {
     if (value === (project.workspace_dir ?? null)) return;
     try {
       const resp = await api.patchProject(project.id, { workspace_dir: value });
-      setProjects((prev) => prev.map((p) => (p.id === project.id ? resp.data : p)));
+      setProjects((prev) => prev.map((p) => (p.id === project.id ? mergeProjectSnapshot(p, resp.data) : p)));
       pushToast('ok', value ? `Workspace → ${value}` : 'Workspace cleared');
     } catch (e) {
       reportError(e);
@@ -1052,8 +1077,8 @@ export default function App() {
       return;
     }
     try {
-      await api.archiveProject(p.id);
-      setProjects((prev) => prev.map((x) => (x.id === p.id ? { ...x, archived: true } : x)));
+      const resp = await api.archiveProject(p.id);
+      setProjects((prev) => prev.map((x) => (x.id === p.id ? mergeProjectSnapshot(x, resp.data) : x)));
       if (activeProjectId === p.id) setActiveProjectId(null);
       pushToast('ok', `Project "${p.name}" archived`);
     } catch (e) {
@@ -1157,6 +1182,10 @@ export default function App() {
       interactions,
     });
     if (target.kind === 'noop' || !activeProject) return;
+    const projectId = activeProject.id;
+    const selectionVersion = agentSelectionVersionRef.current;
+    const ownsComposer = () => activeProjectIdRef.current === projectId
+      && agentSelectionVersionRef.current === selectionVersion;
     const content = draft.trim();
     const pendingId = `pending-${++pendingMessageSeqRef.current}`;
     const images = pendingImages.map((p) => p.path);
@@ -1250,11 +1279,10 @@ export default function App() {
       }
       if (target.kind === 'respond') {
         if (await handleRespondInteraction(target.interactionId, content)) {
-          if (activeProjectIdRef.current === activeProject.id) setDraft((current) => current === draft ? '' : current);
+          if (ownsComposer()) setDraft((current) => current === draft ? '' : current);
         }
         return;
       }
-      setPendingImages([]);
       if (!activeAgent) {
         // With images attached the spawn `query` cannot carry them, so spawn
         // idle and deliver text + images as the first message instead.
@@ -1267,11 +1295,23 @@ export default function App() {
             orchestration_mode: activeProject.settings.orchestration_mode,
           },
         });
-        setDraft((current) => current === draft ? '' : current);
-        if (images.length > 0) {
-          await api.sendMessage(resp.data.id, content, images, imageArtifactIds, lang);
+        if (ownsComposer()) {
+          // Creation already succeeded even if the first image message fails.
+          setAgents((current) => current.some((agent) => agent.id === resp.data.id) ? current : [...current, resp.data]);
         }
-        await selectAgent(resp.data.id);
+        try {
+          if (images.length > 0) {
+            await api.sendMessage(resp.data.id, content, images, imageArtifactIds, lang);
+          }
+          if (ownsComposer()) {
+            setDraft((current) => current === draft ? '' : current);
+            setPendingImages((current) => current.filter((image) => !images.includes(image.path)));
+          }
+        } finally {
+          // Keep the accepted agent as the retry target, and load its history
+          // after delivery so a successful first message is visible without SSE.
+          if (ownsComposer()) await selectAgent(resp.data.id);
+        }
       } else {
         // The command receipt confirms this exact local send; SSE may arrive independently.
         setPendingMessages((prev) => [
@@ -1288,10 +1328,13 @@ export default function App() {
             imageArtifactIds: imageArtifactIds.length > 0 ? imageArtifactIds : undefined,
           },
         ]);
-        setDraft('');
         const agentId = activeAgent.id;
         const version = agentSelectionVersionRef.current;
         const receipt = await api.sendMessage(agentId, content, images, imageArtifactIds, lang);
+        if (ownsComposer()) {
+          setDraft((current) => current === draft ? '' : current);
+          setPendingImages((current) => current.filter((image) => !images.includes(image.path)));
+        }
         setPendingMessages((prev) => prev.filter((message) => message.id !== pendingId));
         void api.eventDetail(agentId, receipt.event_id).then((message) => {
           if (version !== agentSelectionVersionRef.current) return;
@@ -1301,7 +1344,6 @@ export default function App() {
       }
     } catch (e) {
       setPendingMessages((prev) => prev.filter((message) => message.id !== pendingId));
-      setPendingImages((prev) => (prev.length === 0 ? pendingImages : prev));
       reportError(e);
     } finally {
       setSending(false);
@@ -1310,6 +1352,8 @@ export default function App() {
 
   async function spawnRole(roleId: string) {
     if (!activeProject || !roleId) return;
+    const projectId = activeProject.id;
+    const selectionVersion = agentSelectionVersionRef.current;
     try {
       const resp = await api.spawnAgent(activeProject.id, {
         role_id: roleId,
@@ -1321,7 +1365,9 @@ export default function App() {
           invocation_protocol: activeProject.settings.defaults?.invocation_protocol ?? 'javascript',
         },
       });
-      await selectAgent(resp.data.id);
+      if (activeProjectIdRef.current === projectId && agentSelectionVersionRef.current === selectionVersion) {
+        await selectAgent(resp.data.id);
+      }
       pushToast('ok', `Spawned ${roleId}`);
     } catch (e) {
       reportError(e);
@@ -1335,6 +1381,17 @@ export default function App() {
       const fresh = byId.get(agent.id);
       return fresh ? mergeAgentSnapshot(agent, fresh, true) : agent;
     }));
+  }
+
+  async function syncProjectAgentSettings(projectId: string, patch: Record<string, unknown>) {
+    const current = await api.listAgents(projectId);
+    const targets = dedupeAgents(current.filter((agent) => Object.entries(patch)
+      .some(([field, value]) => agent.settings[field as keyof Agent['settings']] !== value)));
+    const results = await Promise.allSettled(targets.map((agent) => api.patchSettings(agent.id, patch)));
+    updateAgentSettings(results.flatMap((result) => result.status === 'fulfilled' ? [result.value.data] : []));
+    const failures = results.flatMap((result, index) => result.status === 'rejected'
+      ? [`${targets[index].display_name}: ${String(result.reason)}`] : []);
+    if (failures.length) throw new Error(`项目默认值已保存，以下智能体未同步；可重试保存：${failures.join('；')}`);
   }
 
   async function handleSaveProjectSettings(patch: {
@@ -1365,19 +1422,10 @@ export default function App() {
       }
 
       const resp = await api.patchProject(activeProject.id, payload);
-      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? mergeProjectSnapshot(p, resp.data) : p)));
 
-      // If orchestration_mode changed, cascade to existing agents in project
-      if (patch.orchestration_mode && patch.orchestration_mode !== activeProject.settings.orchestration_mode) {
-        const targets = dedupeAgents(
-          agents.filter((a) => a.project_id === activeProject.id && a.settings.orchestration_mode !== patch.orchestration_mode),
-        );
-        if (targets.length > 0) {
-          const updated = await Promise.all(
-            targets.map((a) => api.patchSettings(a.id, { orchestration_mode: patch.orchestration_mode })),
-          );
-          updateAgentSettings(updated.map((result) => result.data));
-        }
+      if (patch.orchestration_mode) {
+        await syncProjectAgentSettings(activeProject.id, { orchestration_mode: patch.orchestration_mode });
       }
 
       pushToast('ok', '项目全局设置已更新');
@@ -1425,14 +1473,8 @@ export default function App() {
           ),
         },
       });
-      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
-      const targets = dedupeAgents(
-        agents.filter((a) => a.project_id === activeProject.id && a.settings.schedule_mode !== checked),
-      );
-      const updated = await Promise.all(targets.map((a) => api.patchSettings(a.id, { schedule_mode: checked })));
-      if (updated.length > 0) {
-        updateAgentSettings(updated.map((result) => result.data));
-      }
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? mergeProjectSnapshot(p, resp.data) : p)));
+      await syncProjectAgentSettings(activeProject.id, { schedule_mode: checked });
       pushToast('ok', `Schedule mode ${checked ? 'on' : 'off'} (project-wide)`);
     } catch (e) {
       reportError(e);
@@ -1455,14 +1497,8 @@ export default function App() {
           ),
         },
       });
-      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
-      const targets = dedupeAgents(
-        agents.filter((a) => a.project_id === activeProject.id && a.settings.yolo !== checked),
-      );
-      const updated = await Promise.all(targets.map((a) => api.patchSettings(a.id, { yolo: checked })));
-      if (updated.length > 0) {
-        updateAgentSettings(updated.map((result) => result.data));
-      }
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? mergeProjectSnapshot(p, resp.data) : p)));
+      await syncProjectAgentSettings(activeProject.id, { yolo: checked });
       pushToast('ok', `YOLO ${checked ? 'on' : 'off'} (project-wide)`);
     } catch (e) {
       reportError(e);
@@ -1485,20 +1521,8 @@ export default function App() {
           ),
         },
       });
-      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
-      const targets = dedupeAgents(
-        agents.filter(
-          (a) =>
-            a.project_id === activeProject.id &&
-            (a.settings.invocation_protocol ?? 'javascript') !== protocol,
-        ),
-      );
-      const updated = await Promise.all(
-        targets.map((a) => api.patchSettings(a.id, { invocation_protocol: protocol })),
-      );
-      if (updated.length > 0) {
-        updateAgentSettings(updated.map((result) => result.data));
-      }
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? mergeProjectSnapshot(p, resp.data) : p)));
+      await syncProjectAgentSettings(activeProject.id, { invocation_protocol: protocol });
       pushToast('ok', `Invocation protocol → ${protocol} (project-wide; next run)`);
     } catch (e) {
       reportError(e);
@@ -1521,14 +1545,8 @@ export default function App() {
           ),
         },
       });
-      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? resp.data : p)));
-      const targets = dedupeAgents(
-        agents.filter((a) => a.project_id === activeProject.id && (a.settings.visual_mode ?? true) !== checked),
-      );
-      const updated = await Promise.all(targets.map((a) => api.patchSettings(a.id, { visual_mode: checked })));
-      if (updated.length > 0) {
-        updateAgentSettings(updated.map((result) => result.data));
-      }
+      setProjects((prev) => prev.map((p) => (p.id === activeProject.id ? mergeProjectSnapshot(p, resp.data) : p)));
+      await syncProjectAgentSettings(activeProject.id, { visual_mode: checked });
       pushToast('ok', `Visual mode ${checked ? 'on' : 'off'} (project-wide)`);
     } catch (e) {
       reportError(e);
@@ -1539,10 +1557,13 @@ export default function App() {
 
   async function onPickImages(files: FileList | null) {
     if (!files || files.length === 0 || !activeProject) return;
+    const projectId = activeProject.id;
+    const selectionVersion = agentSelectionVersionRef.current;
     setUploading(true);
     try {
       for (const file of Array.from(files)) {
         const resp = await api.uploadFile(activeProject.id, file);
+        if (activeProjectIdRef.current !== projectId || agentSelectionVersionRef.current !== selectionVersion) return;
         uploadedArtifactsRef.current.set(resp.path, resp.artifact_id);
         setPendingImages((prev) => [...prev, { path: resp.path, artifactId: resp.artifact_id, name: file.name, size: file.size }]);
       }
@@ -2665,8 +2686,8 @@ export default function App() {
               {activeProject && (
                 <ComposerModelPicker
                   key={`${activeAgent?.id ?? activeProject.id}:${globalOpen}`}
-                  currentModel={activeAgent?.settings.model || activeProject.settings.defaults?.model}
-                  reasoningEffort={activeAgent?.settings.reasoning_effort ?? activeProject.settings.defaults?.reasoning_effort}
+                  currentModel={activeAgent ? activeAgent.settings.model : activeProject.settings.defaults?.model}
+                  reasoningEffort={activeAgent ? activeAgent.settings.reasoning_effort : activeProject.settings.defaults?.reasoning_effort}
                   slot={activeAgent && activeAgent.role_id !== 'coordinator' ? 'follower' : 'coordinator'}
                   onConfigure={() => setGlobalOpen(true)}
                   onChoose={async (model, effort) => {
@@ -2680,7 +2701,7 @@ export default function App() {
                           defaults: { ...activeProject.settings.defaults, ...changes },
                         },
                       });
-                      setProjects((prev) => prev.map((project) => project.id === activeProject.id ? response.data : project));
+                      setProjects((prev) => prev.map((project) => project.id === activeProject.id ? mergeProjectSnapshot(project, response.data) : project));
                     }
                   }}
                 />
@@ -2711,8 +2732,7 @@ export default function App() {
               onClick={() => setConsoleTab('research')}
             >
               <span>{lang === 'zh' ? '结构、计算与机理' : 'Research results'}</span>
-              {(activeProject?.settings.orchestration_mode === 'dag_guided' ||
-                activeProject?.settings.defaults?.orchestration_mode === 'dag_guided') && (
+              {activeProject && activeProject.settings.orchestration_mode !== 'standard' && (
                 <span className="subnav-dot-active" />
               )}
             </button>
@@ -2846,6 +2866,7 @@ export default function App() {
         }}/>}
         {projectSettingsOpen && activeProject && (
           <ProjectSettingsModal
+            key={activeProject.id}
             project={activeProject}
             agents={agents.filter((a) => a.project_id === activeProject.id)}
             activeAgentId={activeAgentId}

@@ -12,6 +12,7 @@ test('DAG keeps complexes distinct from separated products and preserves compone
   });
   await page.route('**/api/v2/projects/*/dag/delivery', route => route.fulfill({
     json: { mode: 'dag_guided', graph: {
+      revision: 1,
       nodes: [
         { node_id: 'complex', label: 'Bound pair', smiles: ['[Na+].[Cl-]'] },
         { node_id: 'separated', label: 'Released pair', smiles: ['[Na+]', '[Cl-]'] },

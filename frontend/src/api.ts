@@ -172,7 +172,7 @@ export const api = {
     ),
   listAgents: (projectId: string) => request<Agent[]>(`/api/v2/projects/${projectId}/agents`),
   projectView: (projectId: string) =>
-    request<{ agents: Agent[]; cursor: number }>(`/api/v2/projects/${projectId}/view`),
+    request<{ project: Project; agents: Agent[]; cursor: number }>(`/api/v2/projects/${projectId}/view`),
   // Read-only ops queries: project compute queue (active states by default)
   // and pending reminders. Rows carry session_id = owning agent.
   listComputeJobs: (projectId: string, activeOnly = true) =>

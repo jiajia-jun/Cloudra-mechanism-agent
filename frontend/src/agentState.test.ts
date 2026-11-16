@@ -22,4 +22,13 @@ const merged = mergeProjectAgentSnapshot([running, worker, spawned], [stopped, {
 assert.equal(merged.find(a => a.id === 'a')?.state, 'cancelled');
 assert.equal(merged.find(a => a.id === 'worker')?.state, 'running', 'newer background-agent SSE must win');
 assert.ok(merged.some(a => a.id === spawned.id), 'a late snapshot must retain a newly spawned agent');
+
+// A slow settings response must not undo a newer setting already received by SSE.
+const configured = { ...running, settings_revision: 7, settings: { orchestration_mode: 'dag_guided' } } as Agent;
+const staleSettings = { ...stopped, settings_revision: 6, settings: { orchestration_mode: 'standard' } } as Agent;
+for (const preserveRuntime of [false, true]) {
+  const result = mergeAgentSnapshot(configured, staleSettings, preserveRuntime);
+  assert.equal(result.settings.orchestration_mode, 'dag_guided');
+  assert.equal(result.settings_revision, 7);
+}
 console.log('agentState snapshots ok');

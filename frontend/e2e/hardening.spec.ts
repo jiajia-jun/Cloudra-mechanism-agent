@@ -82,8 +82,8 @@ test('late project view cannot replace the selected project', async ({ page }) =
   let release!: () => void;
   const held = new Promise<void>(resolve => { release = resolve; });
   let started = false;
-  await page.route(`**/projects/${PROJECT_ACTIVE.id}/view`, async route => { started = true; await held; await route.fulfill({ json: { agents: [AGENT], cursor: 0 } }); });
-  await page.route(`**/projects/${other.id}/view`, route => route.fulfill({ json: { agents: [otherAgent], cursor: 0 } }));
+  await page.route(`**/projects/${PROJECT_ACTIVE.id}/view`, async route => { started = true; await held; await route.fulfill({ json: { project: PROJECT_ACTIVE, agents: [AGENT], cursor: 0 } }); });
+  await page.route(`**/projects/${other.id}/view`, route => route.fulfill({ json: { project: other, agents: [otherAgent], cursor: 0 } }));
   await page.route(`**/agents/${otherAgent.id}`, route => route.fulfill({ json: otherAgent }));
   await openSpa(page);
   await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();

@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
+from cloudra.dag.models import GraphRef
 from cloudra.persistence.artifacts import ArtifactDownloadDenied, ArtifactNotFound
 from cloudra.persistence.fragment_library import FragmentLibrary
 from cloudra.runtime_v2.hub_bridge import post_user_post
@@ -25,6 +26,7 @@ class OpenRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     path: str | None = None
     artifact_id: str | None = None
+    file_evidence: GraphRef | None = None
     input_text: str | None = None
     input_format: str = 'xyz'
     smiles: str | None = None
@@ -32,7 +34,13 @@ class OpenRequest(BaseModel):
 
     @model_validator(mode='after')
     def one_source(self):
-        if sum(bool(value and value.strip()) for value in (self.path, self.artifact_id, self.input_text, self.smiles)) != 1:
+        if self.file_evidence is not None and self.file_evidence.ref_type != 'file':
+            raise ValueError('file_evidence 必须是已登记的 file 证据引用')
+        sources = {'path': self.path, 'artifact_id': self.artifact_id, 'input_text': self.input_text, 'smiles': self.smiles}
+        for name, value in sources.items():
+            if value is not None and not value.strip():
+                raise ValueError(f'{name} 不能是空字符串或仅含空白')
+        if sum(value is not None for value in sources.values()) + (self.file_evidence is not None) != 1:
             raise ValueError('请选择一个文件，或提供结构文本／SMILES')
         return self
 

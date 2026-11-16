@@ -39,6 +39,10 @@ async def _finish(core, agent, basis):
 @pytest.mark.asyncio
 async def test_project_view_returns_current_agents_and_project_cursor():
     core, project, agent = await _project_with_agent()
+    await CommandBus(core).execute(Command(
+        type="project.update", target={"project_id": project.id},
+        payload={"settings": {"orchestration_mode": "dag_record"}},
+    ))
     other = (await CommandBus(core).execute(Command(type="project.create", payload={"name": "other"}))).data
     for _ in range(10):
         core.record("agent.warning", stream="project", project_id=other.id, data={})
@@ -46,9 +50,24 @@ async def test_project_view_returns_current_agents_and_project_cursor():
         response = await client.get(f"/api/v2/projects/{project.id}/view")
     assert response.status_code == 200
     body = response.json()
+    assert "project" in body, "the cursor snapshot must include project settings for reconnects"
+    assert body["project"]["settings"]["orchestration_mode"] == "dag_record"
     assert body["cursor"] == core.event_log.high_watermarks[project.id]
     assert [row["id"] for row in body["agents"]] == [agent.id]
     assert body["agents"][0]["completion"] is None
+
+
+@pytest.mark.asyncio
+async def test_project_settings_event_contains_the_normalized_snapshot():
+    core, project, _ = await _project_with_agent()
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app(core)), base_url="http://testserver") as client:
+        response = await client.patch(f"/api/v2/projects/{project.id}", json={
+            "settings": {"defaults": {"model": "selected-model"}},
+        })
+    assert response.status_code == 200
+    expected = response.json()["data"]["settings"]
+    event = core.event_log.query_project(project.id, types={"project.settings_changed"})[-1]
+    assert event.data["changes"] == expected
 
 
 @pytest.mark.asyncio
@@ -102,6 +121,7 @@ async def test_project_view_freezes_agents_and_bounds_completion_to_captured_pre
     boundary = core.event_log.high_watermarks[project.id]
     session_boundary = core.event_log.high_session_watermarks[agent.id]
     frozen_updated_at = agent.model_dump(mode="json")["updated_at"]
+    frozen_project = project.model_dump(mode="json")
     entered = threading.Event()
     release = threading.Event()
     original_query = core.event_log.query_session
@@ -133,12 +153,17 @@ async def test_project_view_freezes_agents_and_bounds_completion_to_captured_pre
             # lock is released after freezing the small in-memory snapshot.
             second_run = await asyncio.wait_for(_finish(core, agent, "scope_completed"), 2)
             assert second_run != first_run
+            await CommandBus(core).execute(Command(
+                type="project.update", target={"project_id": project.id},
+                payload={"name": "changed after snapshot", "settings": {"orchestration_mode": "dag_record"}},
+            ))
         finally:
             release.set()
             response = await request
     assert response.status_code == 200
     body = response.json()
     assert body["cursor"] == boundary
+    assert body["project"] == frozen_project
     row = body["agents"][0]
     assert row["current_run"] is None
     assert row["updated_at"] == frozen_updated_at

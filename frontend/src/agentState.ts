@@ -2,9 +2,12 @@ import type { Agent } from './types';
 
 /** 快照可以纠正缓存；只有请求期间收到更新事件时，才保留实时运行投影。 */
 export function mergeAgentSnapshot(current: Agent, fresh: Agent, preserveRuntime: boolean): Agent {
-  if (!preserveRuntime) return fresh;
+  const snapshot = current.settings_revision > fresh.settings_revision
+    ? { ...fresh, settings: current.settings, settings_revision: current.settings_revision }
+    : fresh;
+  if (!preserveRuntime) return snapshot;
   return {
-    ...fresh,
+    ...snapshot,
     state: current.state,
     current_run: current.current_run,
     current_task: current.current_task,

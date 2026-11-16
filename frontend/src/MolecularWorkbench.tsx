@@ -64,6 +64,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
   const [scanAxis, setScanAxis] = useState(0);
   const [scanSlice, setScanSlice] = useState<Record<string,string>>({});
   const requestVersion = useRef(0);
+  const fragmentPreviewVersion = useRef(0);
   const frameCache = useRef(new Map<number, GeometryView>());
   const closed = useRef(false);
   const loadedProject = useRef<string | null>(null);
@@ -77,6 +78,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
   const installDocument = (result: DocumentView) => {
     frameCache.current = new Map(result.geometry ? [[result.selected_frame, result.geometry]] : []);
     setDoc(result); setDraft(fromDocument(result)); setFrame(result.selected_frame); setFrameGeometry(result.geometry); setTitle(result.title); setView('draft'); setMirrorAtoms('');
+    setScanAxis(0); setScanSlice({});
   };
 
   useEffect(() => {
@@ -105,7 +107,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
   }, [project.id, source]);
 
   const originalGeometry = view === 'source' ? frameGeometry : draft?.geometry;
-  const mode = modeIndex >= 0 ? doc?.modes[modeIndex] : null;
+  const mode = !preview && modeIndex >= 0 ? doc?.modes[modeIndex] : null;
   const geometry = preview?.geometry ?? (mode ? doc?.modes_reference_geometry : originalGeometry) ?? originalGeometry;
   const visibleSelection = preview ? selectionAfterEdit(selection, preview.geometry.changes) : selection;
   const visibleDraft = view === 'draft' ? (preview ? applyGeometry(preview.base, preview.geometry).draft : draft) : null;
@@ -269,10 +271,26 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
     if (!doc) return;
     try { const data = await workbenchApi.csv(project.id,doc.document_id); const url = URL.createObjectURL(new Blob([data],{type:'text/csv;charset=utf-8'})); const a = document.createElement('a'); a.href=url; a.download=`${doc.title || 'calculation'}.csv`; a.click(); window.setTimeout(() => URL.revokeObjectURL(url),1000); } catch(e) { fail(e); }
   };
+  const selectFragment = (value: string | FragmentEntry) => {
+    ++fragmentPreviewVersion.current;
+    const entry = typeof value === 'string' ? null : value;
+    setFragmentSmiles(typeof value === 'string' ? value : value.smiles);
+    setFragmentPreview(entry?.geometry ?? null);
+    setAttachment(entry?.attachment_atom ? String(entry.attachment_atom) : '');
+    if (entry) setFragmentName(entry.name);
+  };
   const previewFragment = async () => {
     setBusy(true); setError('');
     const version=requestVersion.current;
-    try { const result=await workbenchApi.previewFragment(project.id,fragmentSmiles,fragmentName); if(version === requestVersion.current && !closed.current) setFragmentPreview(result); } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); } finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
+    const fragmentVersion=++fragmentPreviewVersion.current;
+    try {
+      const result=await workbenchApi.previewFragment(project.id,fragmentSmiles,fragmentName);
+      if(version === requestVersion.current && fragmentVersion === fragmentPreviewVersion.current && !closed.current) setFragmentPreview(result);
+    } catch(e) {
+      if(version === requestVersion.current && fragmentVersion === fragmentPreviewVersion.current && !closed.current) fail(e);
+    } finally {
+      if(version === requestVersion.current && !closed.current) setBusy(false);
+    }
   };
   const frameFacts = doc?.frames[frame];
   const scanDimensions = Math.max(0,...(doc?.frames.map(f => f.scan_coordinates?.length ?? 0) ?? []));
@@ -341,7 +359,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
         <p className="wb-facts">步 {frameFacts?.step ?? '未知'} · 能量 {frameFacts?.energy_hartree ?? '未知'} Hartree · RMS 力 {frameFacts?.rms_force ?? '未知'} {frameFacts?.force_unit ?? ''} · 最大力 {frameFacts?.max_force ?? '未知'} {frameFacts?.force_unit ?? ''} · {frameFacts?.converged === true ? '原生记录已收敛' : frameFacts?.converged === false ? '原生记录未收敛' : '收敛状态未知'}{frameFacts?.path_number != null && ` · 路径 ${frameFacts.path_number}`}</p>
         <select aria-label="曲线指标" value={metric} onChange={e=>setMetric(e.target.value as Metric)}>{Object.entries(metricLabel).map(([key,value])=><option key={key} value={key}>{value}</option>)}</select><Curve frames={doc.frames} metric={metric} selected={frame} onSelect={i=>{setPlaying(false);void selectFrame(i);}}/>
         {scanDimensions>0 && <details open><summary>扫描／势能面采样点（{scanDimensions} 维）</summary><div className="wb-toolbar"><label>横轴<select value={scanAxis} onChange={e=>setScanAxis(Number(e.target.value))}>{Array.from({length:scanDimensions},(_,i)=><option key={i} value={i}>坐标 {i+1}</option>)}</select></label>{Array.from({length:scanDimensions},(_,i)=>i===scanAxis?null:<label key={i}>固定坐标 {i+1}<select value={scanSlice[String(i)]??''} onChange={e=>setScanSlice(s=>({...s,[String(i)]:e.target.value}))}><option value="">所有采样</option>{[...new Set(doc.frames.flatMap(f=>f.scan_coordinates?.[i] == null?[]:[f.scan_coordinates[i]]))].sort((a,b)=>a-b).map(v=><option key={v} value={v}>{v}</option>)}</select></label>)}</div><Curve frames={scanFrames.map(f=>({...f,reaction_coordinate:f.scan_coordinates?.[scanAxis]}))} metric="energy_hartree" selected={frame} onSelect={i=>void selectFrame(i)}/><div className="wb-scan-points">{scanFrames.map(f=><button key={f.index} className={`btn outline sm ${frame===f.index?'active':''}`} onClick={()=>void selectFrame(doc.frames.indexOf(f))}>帧 {doc.frames.indexOf(f)+1}: ({f.scan_coordinates?.join(', ')}) · {f.energy_hartree ?? '?'} Eh</button>)}</div></details>}
-        <div className="wb-toolbar"><label>实际频率<select aria-label="实际简正模" value={modeIndex} onChange={e=>{setModeIndex(Number(e.target.value));setModePlaying(false);setPlaying(false);setSelection([]);}}><option value={-1}>显示当前结构</option>{doc.modes.map((m,i)=><option key={i} value={i} disabled={!doc.modes_reference_geometry}>模式 {i+1}: {m.frequency_cm} cm⁻¹{m.frequency_cm<0?'（虚频）':''}</option>)}</select></label><button className={`btn ${modePlaying ? 'yellow' : 'outline'} sm`} disabled={!mode || !doc.modes_reference_geometry} onClick={()=>setModePlaying(!modePlaying)}>{modePlaying?'暂停模式':'播放真实位移'}</button>{!doc.modes.length && <span className="wb-muted">未取得配对的频率与位移。</span>}</div>
+        <div className="wb-toolbar"><label>实际频率<select aria-label="实际简正模" value={modeIndex} disabled={busy || !!preview} onChange={e=>{setModeIndex(Number(e.target.value));setModePlaying(false);setPlaying(false);setSelection([]);}}><option value={-1}>显示当前结构</option>{doc.modes.map((m,i)=><option key={i} value={i} disabled={!doc.modes_reference_geometry}>模式 {i+1}: {m.frequency_cm} cm⁻¹{m.frequency_cm<0?'（虚频）':''}</option>)}</select></label><button className={`btn ${modePlaying ? 'yellow' : 'outline'} sm`} disabled={!mode || !doc.modes_reference_geometry} onClick={()=>setModePlaying(!modePlaying)}>{modePlaying?'暂停模式':'播放真实位移'}</button>{!doc.modes.length && <span className="wb-muted">未取得配对的频率与位移。</span>}</div>
         {doc.warnings.map((w,i)=><p className="wb-muted" key={i}>{w}</p>)}
       </section>}
     </main><aside className="wb-sidebar">
@@ -376,10 +394,10 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
         <label>镜像原子（逗号分隔，留空为整分子）<input value={mirrorAtoms} onChange={e=>setMirrorAtoms(e.target.value)}/></label>
         <div className="wb-input-with-action"><label className="wb-compact-label">镜面<select value={plane} onChange={e=>setPlane(e.target.value as typeof plane)}><option value="xy">XY</option><option value="xz">XZ</option><option value="yz">YZ</option></select></label><button className="btn outline sm" disabled={!editable} onClick={()=>void perform({action:'mirror',plane,...(mirrorAtoms.trim()?{moving_atoms:atomList(mirrorAtoms)}:{})})}>预览{mirrorAtoms.trim()?'指定原子':'整分子'}镜像</button></div>
       </details>
-      <details className="wb-section"><summary>基团替换与共享历史</summary><p>依次选择保留侧、被替换侧原子。预览后确认才记录使用次数。</p><label>基团 SMILES<input value={fragmentSmiles} onChange={e=>{setFragmentSmiles(e.target.value);setFragmentPreview(null);}} placeholder="带 [*:1] 连接点，或在预览中点选"/></label><label>名称（可选）<input value={fragmentName} onChange={e=>setFragmentName(e.target.value)}/></label><button className="btn outline sm wb-btn-full" disabled={busy || !fragmentSmiles.trim()} onClick={()=>void previewFragment()}>预览基团／选择连接原子</button>
+      <details className="wb-section"><summary>基团替换与共享历史</summary><p>依次选择保留侧、被替换侧原子。预览后确认才记录使用次数。</p><label>基团 SMILES<input value={fragmentSmiles} onChange={e=>selectFragment(e.target.value)} placeholder="带 [*:1] 连接点，或在预览中点选"/></label><label>名称（可选）<input value={fragmentName} onChange={e=>setFragmentName(e.target.value)}/></label><button className="btn outline sm wb-btn-full" disabled={busy || !fragmentSmiles.trim()} onClick={()=>void previewFragment()}>预览基团／选择连接原子</button>
         {fragmentPreview && <div className="wb-fragment-preview"><Molecule3DViewer key={fragmentPreview.molecule} geometry={fragmentPreview} selectedAtoms={attachment?[Number(attachment)]:[]} onAtomPick={i=>setAttachment(String(i))} title="基团连接位置"/></div>}
         <label>基团连接原子编号（有标记时可空）<input type="number" min={1} value={attachment} onChange={e=>setAttachment(e.target.value)}/></label><button className="btn green sm wb-btn-full" disabled={!editable || selection.length!==2 || !fragmentSmiles.trim()} onClick={()=>void perform({action:'replace_group',atoms:selection,smiles:fragmentSmiles,...(attachment?{attachment_atom:Number(attachment)}:{})},{fragment:fragmentSmiles})}>预览替换结果</button>
-        <input aria-label="搜索基团历史" placeholder="搜索名称或 SMILES" value={fragmentSearch} onChange={e=>setFragmentSearch(e.target.value)}/><div className="wb-fragments">{fragments.filter(f=>`${f.name} ${f.smiles}`.toLowerCase().includes(fragmentSearch.toLowerCase())).map(f=><div key={f.id} className="wb-fragment-row"><button className="wb-fragment-entry" onClick={()=>{setFragmentSmiles(f.smiles);setFragmentName(f.name);setFragmentPreview(f.geometry??null);setAttachment(f.attachment_atom?String(f.attachment_atom):'');}}><span className="wb-fragment-title">{f.name || f.smiles}</span><small>{f.project_use_count?'本项目用过 · ':''}累计 {f.use_count} 次 · {f.smiles}</small></button><button className="wb-fragment-del" aria-label={`删除基团 ${f.name || f.smiles}`} onClick={()=>{void workbenchApi.deleteFragment(project.id,f.id).then(refreshFragments).catch(fail);}}>×</button></div>)}</div>
+        <input aria-label="搜索基团历史" placeholder="搜索名称或 SMILES" value={fragmentSearch} onChange={e=>setFragmentSearch(e.target.value)}/><div className="wb-fragments">{fragments.filter(f=>`${f.name} ${f.smiles}`.toLowerCase().includes(fragmentSearch.toLowerCase())).map(f=><div key={f.id} className="wb-fragment-row"><button className="wb-fragment-entry" onClick={()=>selectFragment(f)}><span className="wb-fragment-title">{f.name || f.smiles}</span><small>{f.project_use_count?'本项目用过 · ':''}累计 {f.use_count} 次 · {f.smiles}</small></button><button className="wb-fragment-del" aria-label={`删除基团 ${f.name || f.smiles}`} onClick={()=>{void workbenchApi.deleteFragment(project.id,f.id).then(refreshFragments).catch(fail);}}>×</button></div>)}</div>
       </details>
     </aside></div>
     {coordinateDialog && originalGeometry && (() => {

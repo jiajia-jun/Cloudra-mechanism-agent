@@ -13,7 +13,7 @@ async function setup(page: Page, agents = [AGENT]) {
   const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
   await installApiMocks(page, { agents, jobs: [] });
-  await page.route('**/api/v2/projects/*/view', (route) => route.fulfill({ json: { agents, cursor: 100 } }));
+  await page.route('**/api/v2/projects/*/view', (route) => route.fulfill({ json: { project: PROJECT_ACTIVE, agents, cursor: 100 } }));
   await page.route('**/api/v2/projects/*/hub/posts', (route) => route.fulfill({ json: { posts: [] } }));
   await page.addInitScript(() => {
     class ControlledSource {
@@ -399,7 +399,7 @@ test('reconnect reconciles stopped agents across the whole project without requi
   let viewReads = 0;
   await page.route('**/api/v2/projects/*/view', (route) => {
     viewReads++;
-    return route.fulfill({ json: { agents: disconnected
+    return route.fulfill({ json: { project: PROJECT_ACTIVE, agents: disconnected
       ? runningAgents.map((agent) => ({ ...agent, state: 'cancelled', current_run: null }))
       : runningAgents, cursor: disconnected ? 150 : 100 } });
   });
@@ -435,7 +435,7 @@ test('reconnect snapshot keeps newer stream state beyond its cursor while reconc
   await page.route('**/api/v2/projects/*/view', async (route) => {
     const reconnect = ++reads === 2;
     if (reconnect) await new Promise<void>((resolve) => { release = resolve; });
-    await route.fulfill({ json: { agents: reconnect
+    await route.fulfill({ json: { project: PROJECT_ACTIVE, agents: reconnect
       ? runningAgents.map((agent) => ({ ...agent, state: 'cancelled', current_run: null }))
       : runningAgents, cursor: reconnect ? 150 : 100 } });
   });
