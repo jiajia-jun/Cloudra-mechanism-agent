@@ -940,9 +940,11 @@ export default function App() {
   }, []);
 
   // One fallback supplies both the active Inspector and cross-project attention.
+  // Metadata snapshots must not restart the timer and trigger extra reads.
+  const pendingProjectIds = JSON.stringify(projects.filter((p) => !p.archived).map((p) => p.id));
   // Three project workers bound fan-out; slow rounds never overlap themselves.
   useEffect(() => {
-    const targets = projects.filter((p) => !p.archived);
+    const targets: string[] = JSON.parse(pendingProjectIds);
     if (targets.length === 0) return;
     let cancelled = false;
     let running = false;
@@ -954,9 +956,9 @@ export default function App() {
         let index = 0;
         const worker = async () => {
           while (!cancelled && index < targets.length) {
-            const project = targets[index++];
-            const pending = await refreshProjectPending(project.id);
-            if (pending) next.set(project.id, pending);
+            const projectId = targets[index++];
+            const pending = await refreshProjectPending(projectId);
+            if (pending) next.set(projectId, pending);
           }
         };
         await Promise.all(Array.from({ length: Math.min(3, targets.length) }, worker));
@@ -980,7 +982,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [projects, notifyAttention, refreshProjectPending]);
+  }, [pendingProjectIds, notifyAttention, refreshProjectPending]);
 
   const handleAttentionDecide = useCallback(
     async (item: PendingAttention, decision: 'approve' | 'deny') => {

@@ -46,7 +46,19 @@ test('active project and attention share one pending read per fallback poll', as
   await expect.poll(() => approvals).toBeGreaterThan(0);
   expect(approvals).toBe(1);
   expect(interactions).toBe(1);
-  await page.clock.runFor(5_100);
+  // A settings/name snapshot changes project metadata, not the polling targets.
+  await page.clock.runFor(2_000);
+  await page.evaluate(({ projectId }) => {
+    (window as unknown as { pendingSources: Source[] }).pendingSources.at(-1)!.emit('project.updated', {
+      type: 'project.updated', seq: 1, project_id: projectId,
+      created_at: '2030-01-01T00:00:00Z', data: { changes: { name: 'Renamed project' } },
+    });
+  }, { projectId: PROJECT_ACTIVE.id });
+  await expect(page.getByTitle('选择项目: Renamed project', { exact: true })).toBeVisible();
+  expect(approvals).toBe(1);
+  expect(interactions).toBe(1);
+  // The original five-second deadline must survive the metadata update.
+  await page.clock.runFor(3_100);
   await expect.poll(() => approvals).toBe(2);
   await expect.poll(() => interactions).toBe(2);
 });
