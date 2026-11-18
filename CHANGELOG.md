@@ -3,6 +3,13 @@
 All notable changes to the Cloudra project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [0.1.1] - 2026-11-19
+
+- 分子工作台支持从空白画布建模。编辑模式可直接在画布上放置原子和基团，点击已有原子可通过单键接入所选片段。选择模式支持替换、测量和调整内坐标。
+- MMFF94 和 UFF 预优化直接更新编辑稿，可继续编辑、撤销或按需保存。轨迹播放、DAG 状态同步和长文本输入体验也已改进。
+- 调度界面集中展示作业与取消操作。新增 PDB 检查与清理、混合溶剂盒构建及 GROMACS 能量和轨迹分析工具。
+- 周期性建模支持表面、吸附构型和固定晶胞过渡态工具。桌面安装包覆盖 Apple Silicon、Intel Mac 和 Linux x86_64。
+
 ## [0.1.0] - 2026-11-01
 
 ### 修复
