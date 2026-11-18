@@ -3,7 +3,12 @@ export interface ChemicalObject { kind: 'node'|'edge'; id: string }
 export interface ProductAssociation extends ChemicalObject { label: string; stage?: string; ref_type: string; ref_id: string }
 export interface AssociationReference { ref_type: 'artifact'|'file'|'compute_job'|'tool_result'|'species'; ref_id: string; content_hash?: string; revision?: number }
 export interface ResearchProduct { association_ref?: AssociationReference; id: string; kind: 'structure'|'calculation'|'artifact'; title: string; path: string; artifact_id?: string; created_at?: string; state: string; job_type?: string; job_id?: string; source_path?: string; source_frame?: number; can_open: boolean; associations: ProductAssociation[]; files: {path:string;role:string}[]; preview_xyz?: string }
-export function productSource(product: ResearchProduct): WorkbenchSource { return product.artifact_id ? {artifact_id:product.artifact_id} : {path:product.path}; }
+export function productSource(product: ResearchProduct): WorkbenchSource {
+  if (product.artifact_id) return {artifact_id:product.artifact_id};
+  const ref = product.association_ref;
+  if (ref?.ref_type === 'file') return {file_evidence:{...ref,ref_type:'file'}};
+  return {path:product.path};
+}
 export function filterProducts(products: ResearchProduct[], selected: ChemicalObject | null, search: string) {
   const query=search.trim().toLowerCase();
   return products.filter(p=>(!selected || p.associations.some(a=>a.kind===selected.kind && a.id===selected.id)) && (!query || [p.title,p.path,p.job_type,p.state,...p.associations.map(a=>a.label)].filter(Boolean).join(' ').toLowerCase().includes(query)));

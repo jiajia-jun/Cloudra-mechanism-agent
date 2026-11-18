@@ -807,3 +807,10 @@ details.wb-section[open] > summary {
 
 .wb-drawing .viewer-webgl-host canvas { cursor: crosshair; }
 .wb-builder-controls input[placeholder^="例如"] { width: 12em; }
+
+.wb-dispatch { padding: .65rem 1rem; border-top: 1px solid var(--border); }
+.wb-dispatch-row, .wb-markers { display: flex; gap: .5rem; align-items: center; }
+.wb-markers { flex-wrap: wrap; margin-bottom: .45rem; }
+.wb-dispatch textarea { flex: 1; min-width: 0; resize: vertical; padding: .5rem; }
+.wb-dispatch details { margin-top: .5rem; max-height: 14rem; overflow: auto; }
+.wb-structure-link { display: inline; font: inherit; color: var(--green); text-decoration: underline; cursor: pointer; padding: 0; background: none; border: 0; }

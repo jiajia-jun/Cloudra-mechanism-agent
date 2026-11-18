@@ -14,6 +14,7 @@ from cloudra.persistence.artifacts import ArtifactDownloadDenied, ArtifactNotFou
 from cloudra.persistence.fragment_library import FragmentLibrary
 from cloudra.runtime_v2.hub_bridge import post_user_post
 from cloudra.services.workbench import WorkbenchService
+from cloudra.services.workbench_snapshot import SnapshotRequest, freeze_snapshot
 from cloudra.tools.core.geometry_inputs import FrozenCoordinateInput, ScanCoordinateInput
 from cloudra.tools.core.molecule import Molecule
 from cloudra.tools.core.workbench_geometry import EditRequest, edit_geometry
@@ -88,6 +89,11 @@ def build_router(ctx: ApiContext) -> APIRouter:
     async def open_source(project_id: str, body: OpenRequest) -> dict:
         workspace = await _work(service, project_id)
         return await _work(workspace.open, body)
+
+    @router.post('/snapshots')
+    async def snapshot(project_id: str, body: SnapshotRequest) -> dict:
+        workspace = await _work(service, project_id)
+        return await _work(freeze_snapshot, workspace, body)
 
     @router.post('/preview')
     async def preview(project_id: str, body: OpenRequest) -> dict:

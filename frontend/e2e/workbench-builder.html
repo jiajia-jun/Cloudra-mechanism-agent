@@ -15,8 +15,26 @@
       import '/src/styles.css';
       import '/src/appearance.css';
 
+      const probe = {};
+      if (location.search === '?capture') {
+        const { GLViewer } = await import('3dmol/build/3Dmol.es6-min.js');
+        const render = GLViewer.prototype.render;
+        GLViewer.prototype.render = function(...args) {
+          window.testViewer = this;
+          return render.apply(this,args);
+        };
+        probe.onLaunch = async shot => {
+          const { image } = await shot.capture;
+          const bitmap = await createImageBitmap(image);
+          const canvas = document.createElement('canvas');
+          canvas.width=bitmap.width; canvas.height=bitmap.height;
+          const ctx=canvas.getContext('2d');
+          ctx.drawImage(bitmap,0,0); bitmap.close();
+          (window.testShots ??= []).push({snapshot:shot.snapshot, pixels:ctx.getImageData(0,0,canvas.width,canvas.height).data});
+        };
+      }
       createRoot(document.getElementById('root')).render(createElement(MolecularWorkbench, {
-        project: PROJECT_ACTIVE,
+        ...probe, project: PROJECT_ACTIVE,
         source: null,
         onClose() {},
         onSaved() {},

@@ -90,25 +90,3 @@ test('overview offers research actions before optional runtime details', async (
   await actions.getByRole('button', { name: '查看研究结果' }).click();
   await expect(page.locator('.portal-task-actions')).toHaveCount(0);
 });
-
-test('save and return appends the saved path without sending or replacing the conversation draft', async ({ page }) => {
-  await installApiMocks(page);
-  await page.route('**/workbench/open', route => route.fulfill({ json: document }));
-  await page.route('**/workbench/save', route => route.fulfill({ json: { path: 'structures/saved.json', files: [], geometry: a, message: '已保存' } }));
-  const sent: string[] = [];
-  page.on('request', request => {
-    if (request.method() === 'POST' && /\/(messages|agents|response|submit)$/.test(new URL(request.url()).pathname)) sent.push(request.url());
-  });
-  await openSpa(page);
-  await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
-  await page.getByTestId('composer-input').fill('保留我的问题');
-  await page.getByRole('button', { name: '分子工作台', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: '分子工作台' });
-  await dialog.getByLabel('结构来源').fill('[H][H]');
-  await dialog.getByRole('button', { name: '新建／打开', exact: true }).click();
-  await dialog.getByRole('button', { name: '保存并带回当前对话' }).click();
-  await expect(dialog).toHaveCount(0);
-  await expect(page.getByTestId('composer-input')).toHaveValue('保留我的问题\n\n结构已保存至：structures/saved.json');
-  await expect(page.getByTestId('composer-input')).toBeFocused();
-  expect(sent).toEqual([]);
-});

@@ -1,6 +1,7 @@
 """Structure I/O shared by periodic modeling and format conversion."""
 
 import os
+from collections.abc import Iterator
 from io import BytesIO, StringIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -128,6 +129,11 @@ def _espresso_output(path: Path) -> StringIO:
     return StringIO(''.join(lines))
 
 
+def iter_ase_geometry(source: Path | StringIO, fmt: str) -> Iterator[Atoms]:
+    """Read ASE-native frames using the shared structure format aliases."""
+    yield from iread(source, format=ase_geometry_format(fmt), do_not_split_by_at_sign=True)
+
+
 def read_geometry(path: Path, fmt: str) -> tuple[Atoms, int, list[str]]:
     """Read one geometry with the format's frame convention and report omitted frames."""
     notes = [_SOURCE_NOTES[fmt]] if fmt in _SOURCE_NOTES else []
@@ -137,9 +143,9 @@ def read_geometry(path: Path, fmt: str) -> tuple[Atoms, int, list[str]]:
     atoms = None
     count = 0
     last = fmt == 'espresso-out'
-    source = _espresso_output(path) if last else str(path)
+    source = _espresso_output(path) if last else path
     try:
-        for frame in iread(source, format=ase_geometry_format(fmt), do_not_split_by_at_sign=True):
+        for frame in iter_ase_geometry(source, fmt):
             count += 1
             if atoms is None or last:
                 atoms = frame

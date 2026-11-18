@@ -1,6 +1,7 @@
 """Native molecular drafts; all edits delegate to the Agent geometry authority."""
 from __future__ import annotations
 
+from io import StringIO
 from tempfile import TemporaryDirectory
 from typing import Literal
 from uuid import uuid4
@@ -195,6 +196,54 @@ def geometry_view(mol) -> dict:
         ],
         'graph_status': _graph_status(mol),
         'manual_bonds': bool(mol.HasProp('cloudra_manual_bonds')) and mol.GetBoolProp('cloudra_manual_bonds'),
+    }
+
+
+def validate_workbench_cell(atoms) -> None:
+    """Check displayable Cartesian geometry, including partial-periodic cells."""
+    import numpy as np
+
+    from cloudra.tools.core.periodic_io import validate_atomic_geometry
+
+    validate_atomic_geometry(atoms)
+    if not atoms.cell.any() or not np.isfinite(atoms.cell).all():
+        raise ValueError('A periodic frame requires finite cell vectors')
+
+
+def periodic_geometry_view(atoms, *, extxyz: str | None = None) -> dict:
+    """Render a read-only periodic frame while keeping its Cartesian positions."""
+    from ase.constraints import FixAtoms, FixCartesian
+    from ase.io import write
+    from ase.io.xyz import write_xyz
+
+    validate_workbench_cell(atoms)
+    plain = StringIO()
+    write_xyz(plain, [atoms], fmt='%.17g')
+    xyz = plain.getvalue()
+    warnings = []
+    if extxyz is None:
+        buffer = StringIO()
+        write(buffer, atoms, format='extxyz', write_info=False, write_results=False)
+        count, header, *rows = buffer.getvalue().splitlines()
+        # ASE writes the species and position columns first, with eight decimal
+        # places. Keep its header and optional columns and use round-trip precision.
+        extxyz_rows = []
+        for coordinates, row in zip(xyz.splitlines()[2:], rows, strict=True):
+            fields = row.split(maxsplit=4)
+            extxyz_rows.append(f'{coordinates} {fields[4]}' if len(fields) == 5 else coordinates)
+        extxyz = '\n'.join([count, header, *extxyz_rows, ''])
+        if any(not isinstance(constraint, (FixAtoms, FixCartesian)) for constraint in atoms.constraints):
+            warnings.append('The EXTXYZ frame export omits some native atom constraints. See the original source file for these constraints.')
+    return {
+        'molecule': '', 'xyz': xyz, 'extxyz': extxyz,
+        'atoms': [
+            {'index': index, 'symbol': symbol, 'x': x, 'y': y, 'z': z}
+            for index, (symbol, (x, y, z)) in enumerate(zip(
+                atoms.get_chemical_symbols(), atoms.positions.tolist(), strict=True,
+            ), 1)
+        ],
+        'bonds': [], 'graph_status': 'periodic', 'manual_bonds': False,
+        'cell': atoms.cell.tolist(), 'pbc': atoms.pbc.tolist(), 'warnings': warnings,
     }
 
 

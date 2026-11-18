@@ -3,7 +3,8 @@ import { api, EVENTS_WINDOW, HISTORY_PAGE_SIZE, streamProject } from './api';
 import Markdown from './Markdown';
 import { ResearchPanel } from './ResearchPanel';
 import { MolecularWorkbench } from './MolecularWorkbench.tsx';
-import type { WorkbenchSource } from './workbenchTypes';
+import { workbenchApi } from './workbenchApi';
+import type { WorkbenchShot, WorkbenchSource } from './workbenchTypes';
 import { LongTextControls, handleLongTextKey } from './LongTextControls';
 import OpsPanel from './OpsPanel';
 import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, Project } from './types';
@@ -222,6 +223,7 @@ export default function App() {
   const sidebarJobsRequestRef = useRef(0);
   const [viewMode, setViewMode] = useState<'dialogue' | 'console'>('dialogue');
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>('overview');
+  const [workbenchDelivery,setWorkbenchDelivery] = useState<{agentId:string; eventId:string} | null>(null);
   const [workbench, setWorkbench] = useState<{projectId:string;source:WorkbenchSource|null}|null>(null);
   const [researchRefreshVersion,setResearchRefreshVersion] = useState(0);
   const openWorkbench = (source:WorkbenchSource|null) => { if(activeProjectId) setWorkbench({projectId:activeProjectId,source}); };
@@ -1186,25 +1188,43 @@ export default function App() {
     }
   }
 
-  async function sendMessage() {
-    const target = resolveComposerSendTarget({
+  async function sendMessage(shot?: WorkbenchShot) {
+    const target = shot ? { kind:'message' as const } : resolveComposerSendTarget({
       draft,
       sending,
       hasProject: Boolean(activeProject),
       activeAgentId: activeAgent?.id ?? null,
       interactions,
     });
+    if (shot && (sending || !activeProject)) {
+      await shot.capture;
+      throw new Error('请等待当前消息发送完毕后重试。');
+    }
     if (target.kind === 'noop' || !activeProject) return;
     const projectId = activeProject.id;
     const selectionVersion = agentSelectionVersionRef.current;
     const ownsComposer = () => activeProjectIdRef.current === projectId
       && agentSelectionVersionRef.current === selectionVersion;
-    const content = draft.trim();
+    let content = draft.trim();
     const pendingId = `pending-${++pendingMessageSeqRef.current}`;
-    const images = pendingImages.map((p) => p.path);
-    const imageArtifactIds = pendingImages.map((p) => p.artifactId);
+    const images = shot ? [] : pendingImages.map((p) => p.path);
+    const imageArtifactIds = shot ? [] : pendingImages.map((p) => p.artifactId);
     setSending(true);
     try {
+      if (shot) {
+        const {image, camera} = await shot.capture;
+        const snapshot = await workbenchApi.snapshot(projectId, {...shot.snapshot, camera});
+        const upload = await api.uploadFile(projectId, new File([image], 'workbench.png', {type:'image/png'}), 'workbench');
+        if (!ownsComposer()) throw new Error('当前对话已切换，请重新选择接收 Agent。');
+        const marks = snapshot.markers.map(mark => {
+          const atoms = mark.atoms.map(atom => atom.element + atom.index + (atom.image.some(Boolean) ? '[' + atom.image.join(',') + ']' : ''));
+          const point = mark.xyz_angstrom ? '；中心 (' + mark.xyz_angstrom.join(', ') + ') Å' : '';
+          return mark.label + ' = ' + atoms.join('、') + point;
+        });
+        content = [shot.text, '', '［分子工作台附件］', ...marks,
+          '结构：' + snapshot.structure_path, '标记、视角与来源：' + snapshot.annotations_path, ...(shot.snapshot.warnings ?? [])].join('\n');
+        images.push(upload.path); imageArtifactIds.push(upload.artifact_id);
+      }
       if (target.kind === 'slash') {
         const lower = content.toLowerCase();
         if (lower.startsWith('/schedule')) {
@@ -1314,9 +1334,10 @@ export default function App() {
         }
         try {
           if (images.length > 0) {
-            await api.sendMessage(resp.data.id, content, images, imageArtifactIds, lang);
+            const receipt = await api.sendMessage(resp.data.id, content, images, imageArtifactIds, lang);
+            if (shot && ownsComposer()) setWorkbenchDelivery({agentId:resp.data.id,eventId:receipt.event_id});
           }
-          if (ownsComposer()) {
+          if (!shot && ownsComposer()) {
             setDraft((current) => current === draft ? '' : current);
             setPendingImages((current) => current.filter((image) => !images.includes(image.path)));
           }
@@ -1344,7 +1365,8 @@ export default function App() {
         const agentId = activeAgent.id;
         const version = agentSelectionVersionRef.current;
         const receipt = await api.sendMessage(agentId, content, images, imageArtifactIds, lang);
-        if (ownsComposer()) {
+        if (shot && ownsComposer()) setWorkbenchDelivery({agentId,eventId:receipt.event_id});
+        if (!shot && ownsComposer()) {
           setDraft((current) => current === draft ? '' : current);
           setPendingImages((current) => current.filter((image) => !images.includes(image.path)));
         }
@@ -1357,6 +1379,7 @@ export default function App() {
       }
     } catch (e) {
       setPendingMessages((prev) => prev.filter((message) => message.id !== pendingId));
+      if (shot) throw e;
       reportError(e);
     } finally {
       setSending(false);
@@ -1681,6 +1704,13 @@ export default function App() {
     agentRunning,
     olderEvents.length,
   ]);
+  const workbenchReply = useMemo(() => {
+    if (!workbenchDelivery || activeAgentId !== workbenchDelivery.agentId) return;
+    const sent = sessionEvents.find(event => event.event_id === workbenchDelivery.eventId);
+    if (sent?.session_seq == null) return;
+    const emitted = sessionEvents.filter(event => event.type === 'agent.message_emitted' && (event.session_seq ?? 0) > sent.session_seq!).at(-1);
+    return emitted && persistedTimeline.find((item): item is MessageItem => item.kind === 'message' && item.id === emitted.event_id && !item.incomplete);
+  }, [workbenchDelivery,activeAgentId,sessionEvents,persistedTimeline]);
   const runningTool = useMemo(
     () => {
       for (const item of timeline) {
@@ -2461,7 +2491,7 @@ export default function App() {
                       {/* Streaming text renders as plain text to avoid a full
                           remark/KaTeX parse on every token; committed messages
                           get markdown. */}
-                      {item.streaming ? item.content : <Markdown text={item.content} />}
+                      {item.streaming ? item.content : <Markdown text={item.content} onOpenStructure={path=>openWorkbench({path})} />}
                     </div>
                   )}
                 </div>
@@ -2710,7 +2740,7 @@ export default function App() {
                   }}
                 />
               )}
-              <button className="btn primary sm composer-send-btn" onClick={sendMessage} disabled={!draft.trim() || !activeProject || sending}>
+              <button className="btn primary sm composer-send-btn" onClick={()=>void sendMessage()} disabled={!draft.trim() || !activeProject || sending}>
                 {sending ? 'Sending…' : 'Send'}
               </button>
             </div>
@@ -2862,12 +2892,9 @@ export default function App() {
           onRespond={handleAttentionRespond}
         />
       </div>
-        {workbench && activeProject && workbench.projectId===activeProject.id && <MolecularWorkbench key={activeProject.id} project={activeProject} source={workbench.source} onClose={()=>setWorkbench(null)} onError={reportError} onSaved={(result)=>{setResearchRefreshVersion(n=>n+1);pushToast('ok',`已保存结构：${result.path}`);}} onContinueInChat={(result)=>{
-          setDraft(current => [current, lang === 'zh' ? `结构已保存至：${result.path}` : `Structure saved to: ${result.path}`].filter(Boolean).join('\n\n'));
-          setWorkbench(null);
-          setViewMode('dialogue');
-          requestAnimationFrame(() => composerTextareaRef.current?.focus());
-        }}/>}
+        {workbench && activeProject && workbench.projectId===activeProject.id && <MolecularWorkbench key={activeProject.id} project={activeProject} source={workbench.source} onClose={()=>setWorkbench(null)} onError={reportError} onSaved={(result)=>{setResearchRefreshVersion(n=>n+1);pushToast('ok',`已保存结构：${result.path}`);}} onLaunch={sendMessage}
+          recipient={activeAgent?.display_name} reply={workbenchReply}
+          onOpenStructure={path=>openWorkbench({path})}/>}
         {projectSettingsOpen && activeProject && (
           <ProjectSettingsModal
             key={activeProject.id}

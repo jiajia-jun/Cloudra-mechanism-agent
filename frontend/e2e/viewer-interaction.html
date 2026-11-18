@@ -8,6 +8,7 @@
       import { createRoot } from 'react-dom/client';
       import { GLViewer } from '3dmol/build/3Dmol.es6-min.js';
       import { Molecule3DViewer } from '/src/Molecule3DViewer.tsx';
+      import { cellEdges } from '/src/workbenchAnnotations.ts';
       import { applyAppearance } from '/src/appearance.ts';
       import '/src/styles.css';
       import '/src/appearance.css';
@@ -34,6 +35,7 @@
         };
       }
       function App() {
+        const [cell, setCell] = useState(undefined);
         const [selected, setSelected] = useState([]);
         const [title, setTitle] = useState('Interaction');
         const [highlight, setHighlight] = useState(false);
@@ -42,6 +44,11 @@
         const [preserveView, setPreserveView] = useState(false);
         const [nextFrame, setNextFrame] = useState(false);
         return h('main', { style: { width: '900px', margin: '20px auto' } },
+          h('button', { onClick: () => {
+            const lattice = [[19,2,0],[0,8,0],[1,0,12]];
+            observed.cellPoints = cellEdges(lattice).flat().map(([x,y,z]) => ({x,y,z}));
+            setCell(lattice);
+          } }, '显示测试晶胞'),
           h('label', null, '标题', h('input', { value: title, onChange: event => setTitle(event.target.value) })),
           h('button', { onClick: () => setHighlight(value => !value) }, '高亮坐标'),
           h('button', { onClick: () => setMode(value => !value) }, '振动模式'),
@@ -53,7 +60,7 @@
           // Like the workbench viewport, the viewer needs a parent with an
           // explicit height: its canvas is absolutely positioned in a flex item.
           h('section', { style: { height: '460px', marginTop: '16px' } }, h(Molecule3DViewer, {
-            geometry: nextFrame ? nextGeometry : geometry, title, selectedAtoms: selected, preserveView,
+            geometry: cell ? {atoms:[{index:1,symbol:'Ag',x:0,y:0,z:0}],bonds:[]} : nextFrame ? nextGeometry : geometry, cell, title, selectedAtoms: selected, preserveView,
             onAtomPick: index => setSelected(current => current.includes(index) ? current.filter(value => value !== index) : [...current, index]),
             onBackgroundClick: () => { observed.backgrounds++; setSelected([]); },
             coordinateHighlights: highlight ? [[1, 2]] : [],

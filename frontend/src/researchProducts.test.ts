@@ -25,3 +25,6 @@ assert.deepEqual(associationOperation({...base,job_id:'parent-job',association_r
 const canonicalFileRef={ref_type:'file' as const,ref_id:'registered-file-evidence-id',content_hash:'registered-file-sha'};
 assert.equal(associationOperation({...base,association_ref:canonicalFileRef},{kind:'node',id:'n2'}).ref,canonicalFileRef);
 assert.throws(()=>associationOperation(base,{kind:'node',id:'n2'}));
+
+assert.deepEqual(productSource({...base, association_ref:{ref_type:'file', ref_id:'archived-poscar'}}),
+  {file_evidence:{ref_type:'file',ref_id:'archived-poscar'}});

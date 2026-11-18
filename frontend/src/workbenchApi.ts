@@ -1,5 +1,5 @@
 import { request, requestText } from './api';
-import type { DocumentView, EditRequest, FragmentEntry, GeometryView, GeometryPreview, SaveRequest, SaveResult, WorkbenchSource } from './workbenchTypes';
+import type { DocumentView, EditRequest, FragmentEntry, GeometryView, GeometryPreview, SaveRequest, SaveResult, SnapshotRequest, WorkbenchSource } from './workbenchTypes';
 export type * from './workbenchTypes';
 const base = (project: string) => `/api/v2/projects/${encodeURIComponent(project)}/workbench`;
 const post = (body: unknown): RequestInit => ({ method: 'POST', body: JSON.stringify(body) });
@@ -10,6 +10,9 @@ export const workbenchApi = {
   frame: (project: string, document: string, index: number) => request<GeometryView>(`${base(project)}/documents/${encodeURIComponent(document)}/frames/${index}`),
   csv: (project: string, document: string) => requestText(`${base(project)}/documents/${encodeURIComponent(document)}/csv`),
   edit: (project: string, edit: EditRequest) => request<GeometryView>(`${base(project)}/edit`, post(edit)),
+  snapshot: (project: string, body: SnapshotRequest & {camera:number[]}) =>
+    request<{structure_path:string; annotations_path:string; markers: {label:string; kind:'atoms'|'site'; atoms:{element:string;index:number;image:number[]}[]; xyz_angstrom?:number[]}[]}>
+      (`${base(project)}/snapshots`, post(body)),
   fragments: (project: string) => request<{ fragments: FragmentEntry[] }>(`${base(project)}/fragments`),
   previewFragment: (project: string, smiles: string, name = '') => request<GeometryView>(`${base(project)}/fragments/preview`, post({ smiles, name })),
   useFragment: (project: string, smiles: string, name = '') => request<FragmentEntry>(`${base(project)}/fragments`, post({ smiles, name })),

@@ -165,3 +165,14 @@ test('drawing on the blank workbench anchors the atom at the click and the next 
   await expect(page.getByRole('button',{name:'替换元素'})).toBeEnabled();
   expect(edits).toHaveLength(2);
 });
+
+test('the full skew cell fits even when an atom occupies only one corner', async ({page}) => {
+  await openViewer(page);
+  await page.getByRole('button',{name:'显示测试晶胞'}).click();
+  await expect.poll(() => page.evaluate(() => {
+    const {viewer,cellPoints} = (window as any).observed;
+    const box = viewer.getCanvas().getBoundingClientRect();
+    return viewer.modelToScreen(cellPoints).every((p:{x:number;y:number}) =>
+      p.x >= box.left + scrollX && p.x <= box.right + scrollX && p.y >= box.top + scrollY && p.y <= box.bottom + scrollY);
+  })).toBe(true);
+});
