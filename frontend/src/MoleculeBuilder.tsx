@@ -110,7 +110,7 @@ export function MoleculeBuilder({ geometry, selection, disabled, hasFrozenCoordi
       <label>预优化力场<select aria-label="预优化力场" value={forceField} disabled={disabled} onChange={event => setForceField(event.target.value as typeof forceField)}><option value="MMFF94">MMFF94</option><option value="UFF">UFF</option></select></label>
       <button className="btn outline sm" type="button" disabled={disabled || !geometry?.atoms.length || hasFrozenCoordinates}
         onClick={() => onEdit({ action: 'preoptimize', force_field: forceField })}>力场预优化</button>
-      <span className="wb-muted">{hasFrozenCoordinates ? '预优化暂不支持冻结坐标，请先移除冻结定义。' : '优化全部原子，预览后确认；缺参数时提示，不自动更换力场。'}</span>
+      <span className="wb-muted">{hasFrozenCoordinates ? '预优化暂不支持冻结坐标，请先移除冻结定义。' : '结果直接用于当前编辑稿，可继续编辑或撤销。'}</span>
     </div>
   </section>;
 }

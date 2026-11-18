@@ -50,7 +50,7 @@ export function applyGeometry(draft: Draft, geometry: GeometryView) {
     || !!changes && Object.entries(changes.index_map).some(([oldIndex, newIndex]) => Number(oldIndex) !== newIndex);
   return { draft: { ...draft, atomMappingChanged: draft.atomMappingChanged || mappingChanged, geometry, frozen: remap(draft.frozen), scans: remap(draft.scans) }, invalidated };
 }
-export function undoDraft<T extends Draft | null>(history: T[], draft: T) {
+export function undoDraft<T>(history: T[], draft: T) {
   return history.length ? { draft: history[history.length - 1], history: history.slice(0,-1) } : { draft, history };
 }
 

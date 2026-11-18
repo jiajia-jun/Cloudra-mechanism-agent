@@ -14,6 +14,10 @@ const atomList = (value: string): number[] => value.split(',').flatMap(s => s.tr
 const metricLabel = { energy_hartree: '能量 / Hartree', rms_force: 'RMS 力', reaction_coordinate: '反应坐标' };
 type Metric = keyof typeof metricLabel;
 const emptyGeometry = { atoms: [], bonds: [] };
+// Preoptimization changes coordinates while retaining the last hand-edited draft.
+// Undo restores both so a temporary optimization never hides earlier edits.
+type DraftSnapshot = { draft: Draft | null; manualDraft: Draft | null };
+const blankSnapshot: DraftSnapshot = { draft: null, manualDraft: null };
 
 function Curve({ frames, metric, selected, onSelect }: { frames: FrameSummary[]; metric: Metric; selected: number; onSelect: (i: number) => void }) {
   const points = curvePoints(frames, metric);
@@ -32,8 +36,9 @@ function Curve({ frames, metric, selected, onSelect }: { frames: FrameSummary[];
 
 export function MolecularWorkbench({ project, source, onClose, onSaved, onContinueInChat, onError }: MolecularWorkbenchProps) {
   const [doc, setDoc] = useState<DocumentView | null>(null);
-  const [draft, setDraft] = useState<Draft | null>(null);
-  const [history, setHistory] = useState<(Draft | null)[]>([]);
+  const [current, setCurrent] = useState(blankSnapshot);
+  const { draft } = current;
+  const [history, setHistory] = useState<DraftSnapshot[]>([]);
   const [frame, setFrame] = useState(0);
   const [frameGeometry, setFrameGeometry] = useState<GeometryView | null>(null);
   const [view, setView] = useState<'draft'|'source'>('draft');
@@ -45,11 +50,13 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [dirty, setDirty] = useState(false);
   const [discardAction, setDiscardAction] = useState<{kind:'close'|'import'|'source'|'blank'; source?:WorkbenchSource|null} | null>(null);
   const [inputKind, setInputKind] = useState<WorkbenchInputFormat|'path'>('smiles');
   const [input, setInput] = useState('');
   const [title, setTitle] = useState('');
+  const baseline = useRef({ snapshot: blankSnapshot, title: '' });
+  const manualChanges = !!draft && (current.manualDraft !== baseline.current.snapshot.manualDraft || title !== baseline.current.title);
+  const dirty = !!draft && (manualChanges || draft !== baseline.current.snapshot.draft);
   const [coordinateDialog, setCoordinateDialog] = useState<CoordinateDialogSelection | null>(null);
   const [showCoordinates, setShowCoordinates] = useState(true);
   const [mirrorAtoms, setMirrorAtoms] = useState('');
@@ -80,9 +87,13 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
     const result = await workbenchApi.fragments(project.id);
     if (!closed.current && version === requestVersion.current) setFragments(result.fragments);
   };
-  const installDocument = (result: DocumentView) => {
+  const installDocument = (result: DocumentView, source: WorkbenchSource) => {
+    const opened = fromDocument(result);
+    const snapshot = { draft: opened, manualDraft: opened };
+    baseline.current = { snapshot: source.smiles || source.input_text ? blankSnapshot : snapshot, title: result.title };
+    setCurrent(snapshot);
     frameCache.current = new Map(result.geometry ? [[result.selected_frame, result.geometry]] : []);
-    setDoc(result); setDraft(fromDocument(result)); setFrame(result.selected_frame); setFrameGeometry(result.geometry); setTitle(result.title); setView('draft'); setMirrorAtoms('');
+    setDoc(result); setFrame(result.selected_frame); setFrameGeometry(result.geometry); setTitle(result.title); setView('draft'); setMirrorAtoms('');
     setScanAxis(0); setScanSlice({}); setCanvasMode('select');
   };
 
@@ -96,19 +107,20 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
     setCanvasMode(nextSource ? 'select' : 'edit');
     const version = ++requestVersion.current;
     frameCache.current.clear();
-    setDoc(null); setDraft(null); setHistory([]); setSelection([]); setPreview(null); setDirty(false); setPlaying(false); setModeIndex(-1); setModePlaying(false); setError(''); setMessage(''); setFragmentPreview(null);
+    baseline.current = { snapshot: blankSnapshot, title: '' };
+    setDoc(null); setCurrent(blankSnapshot); setHistory([]); setSelection([]); setPreview(null); setPlaying(false); setModeIndex(-1); setModePlaying(false); setError(''); setMessage(''); setFragmentPreview(null);
     setFrame(0); setFrameGeometry(null); setView('draft'); setTitle(''); setGenerateInput(false); setMirrorAtoms('');
     if (nextSource) {
       setBusy(true);
       workbenchApi.open(project.id, nextSource).then(result => {
         if (version !== requestVersion.current || closed.current) return;
-        installDocument(result); setDirty(!!nextSource.smiles || !!nextSource.input_text);
+        installDocument(result, nextSource);
       }).catch(e => { if (version === requestVersion.current) fail(e); }).finally(() => { if (version === requestVersion.current) setBusy(false); });
     } else setBusy(false);
     workbenchApi.fragments(project.id).then(r => { if (version === requestVersion.current) setFragments(r.fragments); }).catch(e => { if (version === requestVersion.current) fail(e); });
   };
   useEffect(() => {
-    if (loadedProject.current === project.id && dirty) { setDiscardAction({kind:'source',source}); return; }
+    if (loadedProject.current === project.id && manualChanges) { setDiscardAction({kind:'source',source}); return; }
     loadSource(source);
   }, [project.id, source]);
 
@@ -129,13 +141,17 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
     if (draft.atomMappingChanged && (draft.frozen.length || draft.scans.length)) setMessage('已从原始帧建立新稿；之前拓扑编辑中的冻结／扫描定义保留在撤销记录中，请为此帧重新定义。');
     return draftFromFrame(draft,originalGeometry,doc?.source_path,frame);
   };
-  const commit = (next: Draft, nextSelection: number[] = []) => {
-    setHistory(h => [...h,draft]);
-    setDraft(next); setView('draft'); setDirty(true); setPreview(null); setModeIndex(-1); setModePlaying(false); setPlaying(false); setSelection(nextSelection);
+  const rememberDraft = (next: Draft, preoptimized = false) => {
+    setHistory(h => [...h, current]);
+    setCurrent({ draft: next, manualDraft: preoptimized ? current.manualDraft : next });
+  };
+  const commit = (next: Draft, nextSelection: number[] = [], preoptimized = false) => {
+    rememberDraft(next, preoptimized);
+    setView('draft'); setPreview(null); setModeIndex(-1); setModePlaying(false); setPlaying(false); setSelection(nextSelection);
   };
   const updateSettings = (settings: Draft['settings']) => {
     if (!draft) return;
-    setHistory(h => [...h,draft]); setDraft({...draft,settings}); setDirty(true);
+    rememberDraft({...draft,settings});
   };
   const perform = async (action: Omit<EditRequest,'molecule'>, { fragment, immediate }: { fragment?: string; immediate?: boolean } = {}) => {
     if (editInFlight.current) return false;
@@ -153,7 +169,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
       const result = base ? applyGeometry(base, edited) : {
         draft: { geometry: edited, settings: {}, frozen: [], scans: [] }, invalidated: 0,
       };
-      commit(result.draft, selectionAfterEdit(selection, edited.changes));
+      commit(result.draft, selectionAfterEdit(selection, edited.changes), action.action === 'preoptimize');
       setCoordinateDialog(null);
       const notes = [...(edited.warnings ?? [])];
       if (result.invalidated) notes.push(`已移除 ${result.invalidated} 条引用被删除原子的冻结／扫描定义。`);
@@ -250,24 +266,25 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
     },100);
     return () => window.clearInterval(timer);
   },[playing,busy,doc]);
-  const close = () => { if (dirty) setDiscardAction({kind:'close'}); else onClose(); };
+  const close = () => { if (manualChanges) setDiscardAction({kind:'close'}); else onClose(); };
   const switchView = (next: 'draft' | 'source') => {
     setPlaying(false); setView(next); setModeIndex(-1); setModePlaying(false); setSelection([]); setCoordinateDialog(null);
   };
   const startBlank = (confirmed = false) => {
-    if (dirty && !confirmed) { setDiscardAction({ kind: 'blank' }); return; }
+    if (manualChanges && !confirmed) { setDiscardAction({ kind: 'blank' }); return; }
     loadSource(null);
   };
   const importSource = async (confirmed = false) => {
     if (!input.trim()) return;
-    if (dirty && !confirmed) { setDiscardAction({kind:'import'}); return; }
+    if (manualChanges && !confirmed) { setDiscardAction({kind:'import'}); return; }
     setDiscardAction(null);
     setBusy(true); setError(''); setPlaying(false);
     const version = ++requestVersion.current;
     try {
-      const result = await workbenchApi.open(project.id,inputKind === 'path' ? {path:input.trim()} : inputKind === 'smiles' ? {smiles:input.trim()} : {input_text:input,input_format:inputKind});
+      const source = inputKind === 'path' ? {path:input.trim()} : inputKind === 'smiles' ? {smiles:input.trim()} : {input_text:input,input_format:inputKind};
+      const result = await workbenchApi.open(project.id, source);
       if(version !== requestVersion.current || closed.current) return;
-      installDocument(result); setHistory([]); setSelection([]); setPreview(null); setDirty(true); setModeIndex(-1); setModePlaying(false);
+      installDocument(result, source); setHistory([]); setSelection([]); setPreview(null); setModeIndex(-1); setModePlaying(false);
     } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); } finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
   };
   const openCoordinateDialog = (next: CoordinateDialogSelection = { atoms: selection }) => {
@@ -292,7 +309,9 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
     try {
       const result = await workbenchApi.save(project.id,{title:title || 'molecule',molecule:draft.geometry.molecule,source_path:draft.sourcePath,source_frame:draft.sourceFrame,settings:draft.settings,frozen_coordinates:draft.frozen,scan_coordinates:draft.scans,generate_input:generateInput});
       if(version !== requestVersion.current || closed.current) return;
-      setDraft({...draft,geometry:result.geometry}); setDirty(false); setMessage(`${result.message} ${result.path}`); onSaved(result);
+      const saved = { ...current, draft: { ...draft, geometry: result.geometry } };
+      baseline.current = { snapshot: saved, title };
+      setCurrent(saved); setMessage(`${result.message} ${result.path}`); onSaved(result);
       if (continueInChat) onContinueInChat?.(result);
     } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); } finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
   };
@@ -357,8 +376,8 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
         <button className="btn outline sm" disabled={busy} onClick={() => startBlank()}>新建空白分子</button>
         <button className="btn outline sm wb-undo-btn" disabled={!history.length || busy || !!preview} title="撤销上一次编辑"
           onClick={() => {
-            const restored = undoDraft(history, draft);
-            setDraft(restored.draft); setHistory(restored.history); setView('draft'); setDirty(!!restored.draft);
+            const restored = undoDraft(history, current);
+            setCurrent(restored.draft); setHistory(restored.history); setView('draft');
             setModeIndex(-1); setModePlaying(false); setPlaying(false); setSelection([]); setCoordinateDialog(null); setMessage(''); setError('');
           }}>撤销</button>
         {view === 'source' && <button className="btn green sm" disabled={!frameGeometry || busy || !!preview || !!mode || playing} onClick={() => { try { commit(operationBase()); } catch (e) { fail(e); } }}>以此帧建立编辑稿</button>}
@@ -372,7 +391,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
       <MoleculeBuilder editing={editingCanvas} onModeChange={changeCanvasMode} brush={brush} onBrushChange={setBrush}
         element={element} onElementChange={setElement} fragments={fragments} customSmiles={fragmentSmiles} onCustomSmilesChange={selectFragment}
         attachment={attachment} onAttachmentChange={setAttachment} onPlace={()=>place()} geometry={originalGeometry} selection={selection} disabled={builderDisabled} hasFrozenCoordinates={!!draft?.frozen.length}
-        onEdit={action => void perform(action, { immediate: action.action !== 'preoptimize' })} />
+        onEdit={action => void perform(action, { immediate: true })} />
       {!editingCanvas && <div className="wb-selection-bar" aria-label="选择与测量">
         <div className="wb-selected-chips">{visibleSelection.map((i,n)=><button disabled={busy || !!preview || !!mode} key={i} className="wb-atom-tag" onClick={()=>setSelection(s=>s.filter(a=>a!==i))} title="点击取消选择"><span className="wb-atom-order">{n+1}</span> {geometry?.atoms.find(a=>a.index===i)?.symbol}{i} <span className="wb-remove">×</span></button>)}</div>
         <span className="wb-selection-measure">{coordType ? `${{bond:'距离',angle:'键角',dihedral:'二面角'}[coordType]}：${measured == null ? '当前几何无法定义' : `${measured.toFixed(5)} ${unit}`}` : '依次选择 2／3／4 个原子以编辑距离／键角／二面角'}</span>
@@ -399,7 +418,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
         {doc.warnings.map((w,i)=><p className="wb-muted" key={i}>{w}</p>)}
       </section>}
     </main><aside className="wb-sidebar">
-      {draft && <fieldset disabled={!editable} className="wb-section wb-settings"><h3>编辑稿设置</h3><label>结构名称<input value={title} onChange={e=>{setTitle(e.target.value);setDirty(true);}}/></label>
+      {draft && <fieldset disabled={!editable} className="wb-section wb-settings"><h3>编辑稿设置</h3><label>结构名称<input value={title} onChange={e=>setTitle(e.target.value)}/></label>
         <p className="wb-muted">保存当前编辑稿到项目，保留来源与设置，并通知主 Agent。</p>
         <label className="wb-check"><input type="checkbox" checked={generateInput} onChange={e=>setGenerateInput(e.target.checked)}/>同时生成原生计算输入</label>
         {generateInput && <><label>引擎<select aria-label="引擎" value={draft.settings.engine ?? ''} onChange={e=>updateSettings({...draft.settings,engine:e.target.value as 'gaussian'|'orca'})}><option value="" disabled>请选择</option><option value="gaussian">Gaussian</option><option value="orca">ORCA</option></select></label>

@@ -129,7 +129,6 @@ test('reopening a source invalidates frame coordinates even when its document id
   await expect(slider).toHaveValue('1');
   expect(requests).toEqual([1]);
   await dialog.getByRole('button', { name: '新建／打开', exact: true }).click();
-  await dialog.getByRole('button', { name: '继续并放弃修改', exact: true }).click();
   await expect(slider).toHaveValue('0');
   await expect(slider).toBeEnabled();
   await slider.press('ArrowRight');
