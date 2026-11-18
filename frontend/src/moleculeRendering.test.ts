@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { toRenderAtoms, initializeRenderModel, fitProjectedScale, validModeDisplacements, parseXyz } from './moleculeRendering.ts';
+import { pointOnCanvasPlane, toRenderAtoms, initializeRenderModel, fitProjectedScale, validModeDisplacements, parseXyz } from './moleculeRendering.ts';
 const atoms=[{index:3,symbol:'C',x:0,y:0,z:0},{index:8,symbol:'O',x:1.2,y:0,z:0},{index:11,symbol:'H',x:1.7,y:1,z:0}];
 const rendered=toRenderAtoms(atoms,[{atom1:3,atom2:8,order:2}]);
 assert.deepEqual(rendered.map(a=>a.serial),[3,8,11]);
@@ -47,3 +47,8 @@ assert.deepEqual(emptyDeclaredModel.selectedAtoms({}).map(atom=>atom.bonds),[[],
 
 assert.equal(fitProjectedScale([{x:0,y:0},{x:200,y:130}],900,600,0.6),2.7);
 assert.equal(fitProjectedScale([{x:0,y:0},{x:1800,y:300}],900,600,0.6),0.3);
+
+// Rotated camera with non-zero model origin, page offset and unequal screen scales.
+const cursor = pointOnCanvasPlane([-2,3,-4,100,0,0,0,1],
+  points => points.map(p => ({x: 100 + 20*p.z, y: 80 - 10*p.y})), 220, 90);
+assert.deepEqual(cursor, [2,-1,6]);

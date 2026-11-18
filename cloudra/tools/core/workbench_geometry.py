@@ -5,12 +5,12 @@ from tempfile import TemporaryDirectory
 from typing import Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, model_validator
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictInt, StrictStr, model_validator
 
 from cloudra.tools.core.geometry import fibonacci_sphere_directions
 from cloudra.tools.core.molecule import Molecule, _copy_molecule, read_molecule, serialize_molecule, to_xyz
 
-_BUILDER_ACTIONS = {'add_atom', 'delete_atom', 'atom_state', 'fill_valence'}
+_BUILDER_ACTIONS = {'add_atom', 'add_group', 'delete_atom', 'atom_state', 'fill_valence'}
 _TARGET_VALENCE = 'cloudra_target_valence'
 _HYBRIDIZATION = 'cloudra_hybridization'
 
@@ -20,7 +20,7 @@ class EditRequest(BaseModel):
 
     molecule: Molecule | None = None
     action: Literal['coordinate', 'mirror', 'bond', 'replace_group', 'resolve_bonds',
-                    'add_atom', 'delete_atom', 'atom_state', 'fill_valence', 'preoptimize']
+                    'add_atom', 'add_group', 'delete_atom', 'atom_state', 'fill_valence', 'preoptimize']
     atoms: list[int] = Field(default_factory=list)
     value: float | None = Field(default=None, allow_inf_nan=False)
     fixed_side: Literal['first', 'last'] = 'first'
@@ -29,6 +29,7 @@ class EditRequest(BaseModel):
     order: Literal[0, 1, 1.5, 2, 3] = 1
     smiles: str | None = None
     attachment_atom: int | None = None
+    position: tuple[FiniteFloat, FiniteFloat, FiniteFloat] | None = None
     element: StrictStr | None = None
     # RDKit stores the native formal charge as a signed byte.
     formal_charge: StrictInt | None = Field(default=None, ge=-128, le=127)
@@ -39,19 +40,24 @@ class EditRequest(BaseModel):
 
     @model_validator(mode='after')
     def valid_edit(self):
-        if self.molecule is None and (self.action != 'add_atom' or self.atoms):
-            raise ValueError('molecule is required except when adding the first atom without an anchor')
-        if self.action == 'add_atom':
+        adding = self.action in {'add_atom', 'add_group'}
+        if self.molecule is None and (not adding or self.atoms):
+            raise ValueError('molecule is required except when placing the first atom or group')
+        if self.position is not None and (not adding or self.atoms):
+            raise ValueError('position is only valid when placing an unconnected atom or group')
+        if adding and (len(self.atoms) > 1 or self.order == 0):
+            raise ValueError('placement accepts at most one anchor and a positive order')
+        if self.action == 'add_group' and self.order != 1:
+            raise ValueError('canvas groups attach with one single bond')
+        if self.action == 'add_atom' or (self.action == 'atom_state' and self.element is not None):
             from ase.data import atomic_numbers
 
             element = self.element.strip().capitalize() if self.element else ''
             if not atomic_numbers.get(element):
-                raise ValueError('add_atom requires a chemical element symbol')
-            if len(self.atoms) > 1 or (self.atoms and self.order == 0):
-                raise ValueError('add_atom accepts one anchor with a positive bond order, or no anchor')
+                raise ValueError('A chemical element symbol is required')
             self.element = element
         elif self.element is not None:
-            raise ValueError('element is only valid for add_atom')
+            raise ValueError('element is only valid for adding or changing an atom')
         if self.action == 'delete_atom' and not self.atoms:
             raise ValueError('delete_atom requires at least one atom')
         if self.action in {'atom_state', 'fill_valence'} and len(self.atoms) != 1:
@@ -69,8 +75,8 @@ class EditRequest(BaseModel):
             raise ValueError('coordinate requires 2/3/4 ordered atoms and an absolute value')
         if self.action in {'bond', 'replace_group'} and len(self.atoms) != 2:
             raise ValueError(f'{self.action} requires exactly two ordered atoms')
-        if self.action == 'replace_group' and not self.smiles:
-            raise ValueError('replace_group requires smiles')
+        if self.action in {'replace_group', 'add_group'} and not self.smiles:
+            raise ValueError(f'{self.action} requires smiles')
         atom_count = self.molecule.GetNumAtoms() if self.molecule is not None else 0
         for values in (self.atoms, self.moving_atoms):
             if values is not None and (len(set(values)) != len(values) or any(not 1 <= i <= atom_count for i in values)):
@@ -333,39 +339,71 @@ def _initial_position(positions, symbols: list[str], element: str, anchor: int |
     return tuple(candidates[clearance.argmax()])
 
 
-def _append_atom(mol, element: str, anchor: int | None, order: float):
+def _append_piece(mol, piece, attachment: int, anchor: int | None, order: float, position=None, outward=None, bond_dir=None):
+    """Append an atom or a rigid fragment without moving any existing atoms."""
     from rdkit import Chem
 
     from cloudra.tools.Chemtool.internal_coordinates import InternalCoordinates
+    from cloudra.tools.core.geometry import rotation_matrix_between
 
-    rw = Chem.RWMol(mol)
+    first = mol.GetNumAtoms()
+    result = Chem.CombineMols(mol, piece)
+    element = piece.GetAtomWithIdx(attachment).GetSymbol()
     symbols = [atom.GetSymbol() for atom in mol.GetAtoms()]
-    neighbors = ([atom.GetIdx() for atom in mol.GetAtomWithIdx(anchor).GetNeighbors()]
-                 if anchor is not None else [])
+    neighbors = []
+    hybridization = None
+    if anchor is not None:
+        neighbors = [atom.GetIdx() for atom in mol.GetAtomWithIdx(anchor).GetNeighbors()]
+        result, _ = InternalCoordinates._op_bond(result, {'atoms': [anchor + 1, first + attachment + 1], 'order': order})
+        if bond_dir in (Chem.BondDir.ENDUPRIGHT, Chem.BondDir.ENDDOWNRIGHT):
+            result.GetBondBetweenAtoms(anchor, first + attachment).SetBondDir(bond_dir)
+            Chem.SetBondStereoFromDirections(result)
+        hybridization = _local_geometry(result, result.GetAtomWithIdx(anchor))['hybridization']
+    local = piece.GetConformer().GetPositions()
+    local = local - local[attachment]
+    for original, conf in zip(mol.GetConformers(), result.GetConformers(), strict=True):
+        coords = original.GetPositions()
+        target = position if position is not None else _initial_position(coords, symbols, element, anchor, order, neighbors, hybridization)
+        placed = local
+        if outward is not None and anchor is not None:
+            placed = local @ rotation_matrix_between(outward, coords[anchor] - target).T
+        for index, xyz in enumerate(placed + target, first):
+            conf.SetAtomPosition(index, xyz)
+    result.UpdatePropertyCache(strict=False)
+    return result
+
+
+def _append_atom(mol, element: str, anchor: int | None, order: float, position=None):
+    from rdkit import Chem
+
+    piece = Chem.RWMol()
     atom = Chem.Atom(element)
     atom.SetNoImplicit(True)
-    index = rw.AddAtom(atom)
-    result = rw.GetMol()
-    if anchor is not None:
-        result, _ = InternalCoordinates._op_bond(result, {'atoms': [anchor + 1, index + 1], 'order': order})
-        hybridization = _local_geometry(result, result.GetAtomWithIdx(anchor))['hybridization']
-    else:
-        result.UpdatePropertyCache(strict=False)
-        hybridization = None
-    for original, conf in zip(mol.GetConformers(), result.GetConformers(), strict=True):
-        position = _initial_position(original.GetPositions(), symbols, element, anchor, order, neighbors, hybridization)
-        conf.SetAtomPosition(index, position)
-    return result
+    piece.AddAtom(atom)
+    piece.AddConformer(Chem.Conformer(1))
+    return _append_piece(mol, piece, 0, anchor, order, position)
 
 
 def _edit_builder(mol, request: EditRequest):
     from rdkit import Chem
 
-    if request.action == 'add_atom':
+    if request.action in {'add_atom', 'add_group'}:
         if not mol.GetNumAtoms():
             mol = _empty_molecule()
         anchor = request.atoms[0] - 1 if request.atoms else None
-        return _append_atom(mol, request.element, anchor, request.order)
+        if request.action == 'add_atom':
+            return _append_atom(mol, request.element, anchor, request.order, request.position)
+        from cloudra.tools.Chemtool.internal_coordinates import InternalCoordinates
+
+        marked = connection_smiles(request.smiles, request.attachment_atom)
+        piece, index, _, order, outward, bond_dir = InternalCoordinates._embed_substituent_3d(marked)
+        if anchor is not None and order != 1:
+            raise ValueError('编辑模式添加一根单键，请选择带单键连接点的基团')
+        if anchor is None and piece.GetAtomWithIdx(index).GetDegree() == 1 and bond_dir in (
+            Chem.BondDir.ENDUPRIGHT, Chem.BondDir.ENDDOWNRIGHT,
+        ):
+            raise ValueError('此基团的双键立体构型依赖连接原子，请点击已有原子以保留构型')
+        return _append_piece(mol, piece, index, anchor, order, request.position, outward, bond_dir)
     if request.action == 'delete_atom':
         if len(request.atoms) == mol.GetNumAtoms():
             return _empty_molecule()
@@ -379,6 +417,9 @@ def _edit_builder(mol, request: EditRequest):
     anchor = request.atoms[0] - 1
     atom = mol.GetAtomWithIdx(anchor)
     if request.action == 'atom_state':
+        if request.element is not None and request.element != atom.GetSymbol():
+            atom.SetAtomicNum(Chem.GetPeriodicTable().GetAtomicNumber(request.element))
+            atom.SetIsotope(0)
         if request.formal_charge is not None:
             atom.SetFormalCharge(request.formal_charge)
         if 'valence' in request.model_fields_set:
@@ -478,7 +519,7 @@ def edit_geometry(request: EditRequest | dict) -> dict:
     if request.action in _BUILDER_ACTIONS:
         result = _edit_builder(mol, request)
         summary = {}
-        if request.atoms and request.action in {'add_atom', 'fill_valence', 'atom_state'}:
+        if request.atoms and request.action in {'add_atom', 'add_group', 'fill_valence', 'atom_state'}:
             state = _local_geometry(result, result.GetAtomWithIdx(request.atoms[0] - 1))
             label = state['hybridization']
             summary['warnings'] = [
@@ -487,7 +528,7 @@ def edit_geometry(request: EditRequest | dict) -> dict:
                 'Local geometry is unknown for this electronic state or graph; placement uses spatial clearance only. '
                 'Specify hybridization explicitly if a local geometry is intended.'
             ]
-        if (request.action in {'add_atom', 'delete_atom'} and result.GetNumAtoms()
+        if (request.action in {'add_atom', 'add_group', 'delete_atom'} and result.GetNumAtoms()
                 and _graph_status(result) not in {'unresolved', 'distance-inferred'}):
             result.SetProp('cloudra_graph_status', 'edited')
     elif request.action == 'preoptimize':
@@ -504,9 +545,10 @@ def edit_geometry(request: EditRequest | dict) -> dict:
         result, summary = InternalCoordinates._transform_molecule(mol, op)
     if request.action in _BUILDER_ACTIONS | {'bond', 'replace_group', 'resolve_bonds'}:
         _check_valence_targets(result)
-    if request.action == 'bond' or (request.action == 'add_atom' and request.atoms and _graph_status(result) == 'unresolved'):
+    placed_bonds = request.action == 'add_group' or (request.action == 'add_atom' and bool(request.atoms))
+    if request.action == 'bond' or (placed_bonds and _graph_status(result) == 'unresolved'):
         result.SetBoolProp('cloudra_manual_bonds', True)
-    if (request.action in {'atom_state', 'delete_atom', 'replace_group'}
+    if (request.action in {'atom_state', 'delete_atom', 'replace_group', 'add_group'}
             and _graph_status(mol) not in {'unresolved', 'distance-inferred'} and result.HasProp('cloudra_total_charge')):
         result.SetIntProp('cloudra_total_charge', Chem.GetFormalCharge(result))
     result = _identities(result)

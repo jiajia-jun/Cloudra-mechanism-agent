@@ -153,6 +153,10 @@ export const api = {
       '/api/v2/compute/cancel-all',
       { method: 'POST' },
     ),
+  cancelComputeJob: (projectId: string, jobId: number) =>
+    request<{ state: string; message: string }>(`/api/v2/projects/${projectId}/compute/jobs/${jobId}/cancel`, {
+      method: 'POST', body: JSON.stringify({ reason: 'Cancelled by user' }),
+    }),
   browseFs: (path?: string, showHidden = false) => {
     const params = new URLSearchParams();
     if (path) params.set('path', path);

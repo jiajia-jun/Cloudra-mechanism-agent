@@ -60,14 +60,16 @@ async function mount() {
   let effects: (() => void)[] = [];
   let tree: Element;
   const errors: string[] = [];
+  const calls = { closed: 0, saves: 0 };
   const api = {
     open: async (..._args: any[]) => document,
     fragments: async (..._args: any[]) => ({ fragments: [] as any[] }),
     edit: async (..._args: any[]) => edited,
+    save: async () => { calls.saves++; return { geometry: edited, path: 'saved.json', message: '已保存' }; },
     previewFragment: async (..._args: any[]) => geometry,
   };
   const props = { project: { id: 'project', name: 'Project' }, source: { path: '/first' },
-    onClose() {}, onSaved() {}, onError: (error: string) => errors.push(error) };
+    onClose() { calls.closed++; }, onSaved() {}, onError: (error: string) => errors.push(error) };
   const component = vm.runInNewContext(`${compiled}\nMolecularWorkbench`, {
     ...helpers, workbenchApi: api,
     React: { createElement: (type: Element['type'], props: object, ...children: unknown[]) => ({ type, props: { ...props, children } }) },
@@ -118,10 +120,58 @@ async function mount() {
     return descendants(field, node => node.type === 'input')[0];
   };
   await settle();
-  return { api, errors, settle, all, find, button, select, input,
+  return { api, calls, errors, settle, all, find, button, select, input,
     changeSource(path: string) { props.source = { path }; dirty = true; },
   };
 }
+
+test('preoptimization is immediately editable, undoable, and disposable on close', async () => {
+  const page = await mount();
+  const builder = () => page.find(node => node.type === 'MoleculeBuilder');
+  const viewer = () => page.find(node => node.type === 'Molecule3DViewer');
+  const optimize = () => builder().props.onEdit({ action: 'preoptimize', force_field: 'MMFF94' });
+  let inputMolecule = '';
+  page.api.edit = async (_id, body) => {
+    inputMolecule = body.molecule;
+    return { ...edited, molecule: body.action === 'preoptimize' ? 'optimized' : 'hand-edited' };
+  };
+  viewer().props.onAtomPick(2); await page.settle();
+  optimize(); await page.settle();
+  assert.equal(inputMolecule, 'original');
+  assert.equal(viewer().props.geometry.molecule, 'optimized');
+  assert.deepEqual(Array.from(builder().props.selection), [2]);
+  assert.equal(builder().props.disabled, false);
+  page.button('撤销').props.onClick(); await page.settle();
+  assert.equal(viewer().props.geometry.molecule, 'original');
+  optimize(); await page.settle();
+  builder().props.onModeChange('edit'); await page.settle();
+  viewer().props.onAtomPick(1); await page.settle();
+  assert.equal(inputMolecule, 'optimized');
+  assert.equal(viewer().props.geometry.molecule, 'hand-edited');
+  page.button('撤销').props.onClick(); await page.settle();
+  assert.equal(viewer().props.geometry.molecule, 'optimized');
+  page.button('关闭 ✕').props.onClick(); await page.settle();
+  assert.deepEqual(page.calls, { closed: 1, saves: 0 });
+});
+
+test('preoptimization preserves earlier unsaved edits and failed optimization preserves coordinates', async () => {
+  const page = await mount();
+  const builder = () => page.find(node => node.type === 'MoleculeBuilder');
+  const viewer = () => page.find(node => node.type === 'Molecule3DViewer');
+  const optimize = () => builder().props.onEdit({ action: 'preoptimize', force_field: 'UFF' });
+  builder().props.onModeChange('edit'); await page.settle();
+  viewer().props.onAtomPick(1); await page.settle();
+  page.api.edit = async () => { throw new Error('missing parameters'); };
+  optimize(); await page.settle();
+  assert.equal(viewer().props.geometry.molecule, 'edited');
+  assert.ok(page.errors.some(message => message.includes('missing parameters')));
+  page.api.edit = async () => ({ ...edited, molecule: 'optimized' });
+  optimize(); await page.settle();
+  page.button('关闭 ✕').props.onClick(); await page.settle();
+  assert.deepEqual(page.calls, { closed: 0, saves: 0 });
+  page.button('继续并放弃修改').props.onClick(); await page.settle();
+  assert.deepEqual(page.calls, { closed: 1, saves: 0 });
+});
 
 test('pending edits and previews cannot apply native normal modes to edited coordinates', async () => {
   const page = await mount();
@@ -211,3 +261,33 @@ for (const entry of ['source', 'import'] as const) {
     assert.deepEqual(structuredClone(curves[1].props.frames.map((frame: any) => [frame.index, frame.reaction_coordinate])), [[0, 300], [1, 301]]);
   });
 }
+
+test('canvas selection, growth, independent placement and undo follow the active tool', async () => {
+  const page = await mount();
+  const viewer = () => page.find(node => node.type === 'Molecule3DViewer');
+  const builder = () => page.find(node => node.type === 'MoleculeBuilder');
+  const requests: any[] = [];
+  page.api.edit = async (_id, body) => { requests.push(JSON.parse(JSON.stringify(body))); return edited; };
+  assert.equal(builder().props.editing, false);
+  viewer().props.onAtomPick(2); await page.settle();
+  assert.deepEqual(Array.from(builder().props.selection), [2]);
+  assert.equal(requests.length, 0);
+  builder().props.onModeChange('edit'); await page.settle();
+  builder().props.onBrushChange('[*]O'); await page.settle();
+  viewer().props.onAtomPick(1);
+  viewer().props.onAtomPick(1);
+  await page.settle();
+  assert.deepEqual(requests, [{ action: 'add_group', smiles: '[*]O', atoms: [1], molecule: 'original' }]);
+  assert.deepEqual(Array.from(builder().props.selection), []);
+  assert.equal(viewer().props.preserveView, true);
+  viewer().props.onBackgroundClick([1,2,3]); await page.settle();
+  assert.deepEqual(requests[1], { action: 'add_group', smiles: '[*]O', atoms: [], position:[1,2,3], molecule:'edited' });
+  page.button('撤销').props.onClick(); await page.settle();
+  page.button('撤销').props.onClick(); await page.settle();
+  assert.equal(viewer().props.geometry.molecule, 'original');
+  builder().props.onModeChange('select'); await page.settle();
+  viewer().props.onAtomPick(1); await page.settle();
+  viewer().props.onBackgroundClick([0,0,0]); await page.settle();
+  assert.deepEqual(Array.from(builder().props.selection), []);
+  assert.equal(requests.length, 2);
+});

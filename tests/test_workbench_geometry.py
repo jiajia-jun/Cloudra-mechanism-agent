@@ -693,3 +693,53 @@ def test_preoptimization_reports_iteration_limit_without_claiming_convergence(mo
     result = edit_geometry({'molecule': _explicit_ethanol(), 'action': 'preoptimize'})
     assert result['optimization']['converged'] is False
     assert any('without convergence' in warning for warning in result['warnings'])
+
+
+def test_canvas_placement_and_terminal_element_replacement_preserve_the_existing_structure():
+    seed = edit_geometry(dict(action='add_atom', element='C', position=(2.5, -1.5, 1)))
+    grown = edit_geometry(dict(action='add_group', molecule=seed['molecule'], atoms=[1], smiles='[*]O'))
+    assert [a['symbol'] for a in grown['atoms']] == ['C', 'O', 'H']
+    assert grown['atoms'][0]['atom_id'] == seed['atoms'][0]['atom_id']
+    assert [grown['atoms'][0][axis] for axis in 'xyz'] == [2.5, -1.5, 1]
+    assert sorted((b['atom1'], b['atom2'], b['order']) for b in grown['bonds']) == [(1, 2, 1), (2, 3, 1)]
+    replaced = edit_geometry(dict(action='atom_state', molecule=grown['molecule'], atoms=[3], element='F'))
+    assert [a['symbol'] for a in replaced['atoms']] == ['C', 'O', 'F']
+    assert replaced['bonds'] == grown['bonds']
+    assert [[a[k] for k in ('atom_id', 'x', 'y', 'z')] for a in replaced['atoms']] == [
+        [a[k] for k in ('atom_id', 'x', 'y', 'z')] for a in grown['atoms']]
+
+
+@pytest.mark.parametrize('fragment,expected', [('[*]C', ['C', 'H', 'H', 'H']), ('[*]N', ['N', 'H', 'H'])])
+def test_canvas_blank_places_a_whole_group_at_its_connection_atom(fragment, expected):
+    point = (3., -2., 0.5)
+    first = edit_geometry(dict(action='add_group', smiles=fragment, position=point))
+    assert [a['symbol'] for a in first['atoms']] == expected
+    assert tuple(first['atoms'][0][axis] for axis in 'xyz') == point
+    other = edit_geometry(dict(action='add_atom', molecule=first['molecule'], element='He', position=(-3, 2, 1)))
+    assert other['bonds'] == first['bonds']
+    assert [other['atoms'][-1][axis] for axis in 'xyz'] == [-3, 2, 1]
+
+
+def test_canvas_does_not_use_a_pointer_position_for_bonded_placement_or_attach_a_double_bond_group():
+    seed = edit_geometry(dict(action='add_atom', element='C'))['molecule']
+    with pytest.raises(ValueError, match='position'):
+        edit_geometry(dict(action='add_atom', molecule=seed, element='O', atoms=[1], position=(0, 0, 0)))
+    with pytest.raises(ValueError, match='单键'):
+        edit_geometry(dict(action='add_group', molecule=seed, smiles='[*]=O', atoms=[1]))
+
+
+@pytest.mark.parametrize('smiles', ['[*][C@](F)(Cl)Br', 'F[C@]([*])(Cl)Br', '[*]/C=C/F',
+                                    r'[*]/C=C\F', '[*]/N=C/F', '[*]C[C@H](Cl)F'])
+def test_attaching_a_group_preserves_declared_stereochemistry(smiles):
+    seed = edit_geometry(dict(action='add_atom', element='I'))
+    grown = edit_geometry(dict(action='add_group', smiles=smiles, molecule=seed['molecule'], atoms=[1]))
+    mol = Chem.RemoveHs(_copy_molecule(grown['molecule']))
+    expected = Chem.MolToSmiles(Chem.MolFromSmiles(smiles.replace('[*]', 'I')))
+    assert Chem.MolToSmiles(mol) == expected
+    Chem.AssignStereochemistryFrom3D(mol, replaceExistingTags=True)
+    assert Chem.MolToSmiles(mol) == expected
+
+
+def test_disconnected_imine_reports_when_its_declared_stereo_requires_the_anchor():
+    with pytest.raises(ValueError, match='点击已有原子'):
+        edit_geometry(dict(action='add_group', smiles='[*]/N=C/F'))

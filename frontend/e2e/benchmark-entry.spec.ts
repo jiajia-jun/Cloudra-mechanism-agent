@@ -1,9 +1,9 @@
 import { expect, test } from '@playwright/test';
-import { installApiMocks, openSpa } from './fixtures';
+import { PROJECT_ACTIVE, installApiMocks, openSpa } from './fixtures';
 
 for (const labels of [
-  { language: 'Chinese', more: '更多', benchmark: 'Benchmark 评测', settings: '全局设置', cancel: '取消全部计算' },
-  { language: 'English', more: 'More', benchmark: 'Benchmark', settings: 'Global Settings', cancel: 'Cancel All Compute' },
+  { language: 'Chinese', more: '更多', benchmark: 'Benchmark 评测', settings: '全局设置', console: '控制台', ops: '计算调度', cancel: '取消所有项目的计算' },
+  { language: 'English', more: 'More', benchmark: 'Benchmark', settings: 'Global Settings', console: 'Console', ops: 'Compute Ops', cancel: 'Cancel compute across all projects' },
 ]) {
   test(`${labels.language}: More opens Benchmark and preserves cancellation consent`, async ({ page }) => {
     const mocks = await installApiMocks(page, { jobs: [] });
@@ -30,13 +30,15 @@ for (const labels of [
     });
 
     await openSpa(page);
+    const sidebar = page.locator('aside.left-sidebar');
+    await sidebar.getByText(PROJECT_ACTIVE.name, { exact: true }).click();
+    await expect(page.getByTestId('composer-input')).toBeEnabled();
     if (labels.language === 'English') {
       await page.getByRole('button', { name: 'EN', exact: true }).click();
     }
-    const sidebar = page.locator('aside.left-sidebar');
     const more = sidebar.locator('summary').filter({ hasText: labels.more });
     const benchmark = sidebar.getByRole('button', { name: labels.benchmark, exact: true });
-    const cancel = sidebar.getByRole('button', { name: labels.cancel, exact: true });
+    const cancel = page.getByRole('button', { name: labels.cancel, exact: true });
 
     await expect(more).toBeVisible({ timeout: 1500 });
     await expect(sidebar.getByRole('button', { name: labels.settings, exact: true })).toBeVisible();
@@ -44,7 +46,7 @@ for (const labels of [
     await expect(cancel).toBeHidden();
     await more.click();
     await expect(benchmark).toBeVisible();
-    await expect(cancel).toBeVisible();
+    await expect(cancel).toHaveCount(0);
     expect(mocks.cancelAllHits).toHaveLength(0);
 
     await benchmark.click();
@@ -57,7 +59,9 @@ for (const labels of [
     await expect(more).toBeVisible();
     await expect(benchmark).toBeHidden();
 
-    await more.click();
+    await page.locator('.view-mode-btn').filter({hasText:labels.console}).click();
+    await page.getByRole('button',{name:labels.ops}).click();
+    await expect(cancel).toBeVisible();
     const pendingDialog = page.waitForEvent('dialog');
     const click = cancel.click();
     const dialog = await pendingDialog;

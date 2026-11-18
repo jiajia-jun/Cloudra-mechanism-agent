@@ -8,9 +8,12 @@ function basename(path: string): string {
   return parts[parts.length - 1] || path;
 }
 
-function elapsed(startTs: number | null): string {
-  if (!startTs || startTs <= 0) return '—';
-  const secs = Math.max(0, Math.floor(Date.now() / 1000 - startTs));
+function elapsed(job: ComputeJob): string {
+  const startTs = job.start_timestamp;
+  const active = job.state === 'running' || job.state === 'cancel_requested';
+  const endTs = active ? Date.now() / 1000 : job.end_timestamp;
+  if (!startTs || startTs <= 0 || !endTs || endTs < startTs) return '—';
+  const secs = Math.max(0, Math.floor(endTs - startTs));
   if (secs < 60) return `${secs}s`;
   if (secs < 3600) return `${Math.floor(secs / 60)}m${secs % 60}s`;
   return `${Math.floor(secs / 3600)}h${Math.floor((secs % 3600) / 60)}m`;
@@ -88,14 +91,18 @@ function RefreshSvg({ className = '' }: { className?: string }) {
   );
 }
 
-export default function OpsPanel({ project, agents, onError, refreshVersion }: {
+export default function OpsPanel({ project, agents, activeJobs, onCancel, cancelling, onError, refreshVersion }: {
   project: Project;
   agents: Agent[];
+  activeJobs: ComputeJob[] | null;
+  cancelling: boolean;
+  onCancel: (job?: ComputeJob) => void;
   onError: (e: unknown) => void;
   refreshVersion: number;
 }) {
   const { t, lang } = useI18n();
   const [jobs, setJobs] = useState<ComputeJob[] | null>(null);
+  const [activeOnly, setActiveOnly] = useState(true);
   const jobsRequestRef = useRef(0);
   const [nodes, setNodes] = useState<ComputeNode[] | null>(null);
   const [reminders, setReminders] = useState<PendingReminder[] | null>(null);
@@ -115,15 +122,15 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
     [agentName],
   );
 
-  const loadJobs = useCallback(async () => {
+  const loadJobs = useCallback(async (quiet = false) => {
     const requestVersion = ++jobsRequestRef.current;
     try {
-      const data = await api.listComputeJobs(project.id);
+      const data = await api.listComputeJobs(project.id, activeOnly);
       if (requestVersion === jobsRequestRef.current) setJobs(data);
     } catch (e) {
-      onError(e);
+      if (!quiet && requestVersion === jobsRequestRef.current) onError(e);
     }
-  }, [project.id, onError]);
+  }, [project.id, activeOnly, onError]);
 
   const loadNodes = useCallback(async () => {
     try {
@@ -146,12 +153,7 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
 
   useEffect(() => {
     void loadJobs();
-    const timer = setInterval(() => {
-      const requestVersion = ++jobsRequestRef.current;
-      api.listComputeJobs(project.id).then((data) => {
-        if (requestVersion === jobsRequestRef.current) setJobs(data);
-      }).catch(() => undefined);
-    }, 4000);
+    const timer = setInterval(() => { void loadJobs(true); }, 4000);
     return () => {
       ++jobsRequestRef.current;
       clearInterval(timer);
@@ -186,8 +188,8 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
     const usedSlots = (nodes ?? []).reduce((acc, n) => acc + (n.in_flight.slots || 0), 0);
     const totalCpus = (nodes ?? []).reduce((acc, n) => acc + (n.capacity.effective.cpus || 0), 0);
     const usedCpus = (nodes ?? []).reduce((acc, n) => acc + (n.in_flight.cpus || 0), 0);
-    const activeJobs = (jobs ?? []).length;
-    const runningJobs = (jobs ?? []).filter((j) => j.state === 'running').length;
+    const currentJobs = (activeOnly ? jobs : activeJobs) ?? [];
+    const runningJobs = currentJobs.filter((j) => j.state === 'running').length;
     const pendingReminders = (reminders ?? []).length;
     const slotUsagePercent = totalSlots > 0 ? Math.round((usedSlots / totalSlots) * 100) : 0;
     return {
@@ -197,12 +199,12 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
       usedSlots,
       totalCpus,
       usedCpus,
-      activeJobs,
+      activeJobs: currentJobs.length,
       runningJobs,
       pendingReminders,
       slotUsagePercent,
     };
-  }, [nodes, jobs, reminders]);
+  }, [nodes, jobs, activeJobs, activeOnly, reminders]);
 
   return (
     <div className="ops-dashboard-root">
@@ -404,6 +406,16 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
               <span className="header-title">{t.opsQueueTitle}</span>
               <span className="badge sm">{jobs ? t.opsQueueCount(jobs.length) : '…'}</span>
             </div>
+            <div className="btn-group" role="group" aria-label={lang === 'zh' ? '作业范围' : 'Job range'}>
+              {([true, false] as const).map(active => <button key={String(active)} type="button"
+                className={`btn outline sm ${activeOnly === active ? 'active' : ''}`} aria-pressed={activeOnly === active}
+                onClick={() => { if (active !== activeOnly) { ++jobsRequestRef.current; setJobs(null); setActiveOnly(active); } }}>
+                {active ? (lang === 'zh' ? '活动作业' : 'Active jobs') : (lang === 'zh' ? '最近 100 条' : 'Latest 100')}
+              </button>)}
+            </div>
+            <button type="button" className="btn ghost sm" data-testid="cancel-all-compute" disabled={cancelling} onClick={()=>onCancel()}>
+              {cancelling ? (lang === 'zh' ? '请求中…' : 'Requesting…') : (lang === 'zh' ? '取消所有项目的计算' : 'Cancel compute across all projects')}
+            </button>
             <button
               type="button"
               className="btn ghost sm refresh-btn"
@@ -421,8 +433,8 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
                 <span className="empty-svg-wrap large amber">
                   <LightningSvg />
                 </span>
-                <span className="empty-title">{t.opsQueueEmptyTitle}</span>
-                <span className="empty-desc">{t.opsQueueEmptyDesc}</span>
+                <span className="empty-title">{activeOnly ? t.opsQueueEmptyTitle : (lang === 'zh' ? '此项目暂无计算作业记录' : 'No recorded jobs for this project')}</span>
+                {activeOnly && <span className="empty-desc">{t.opsQueueEmptyDesc}</span>}
               </div>
             ) : (
               <div className="ops-table-wrap">
@@ -437,6 +449,7 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
                       <th>{t.opsTableOwner}</th>
                       <th>{t.opsTableScheduler}</th>
                       <th>{t.opsTableElapsed}</th>
+                      <th>{lang === 'zh' ? '操作' : 'Actions'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -453,14 +466,18 @@ export default function OpsPanel({ project, agents, onError, refreshVersion }: {
                           <span className="jobtype-pill">{j.jobtype}</span>
                         </td>
                         <td className="ops-mono">{j.node_id ?? '—'}</td>
-                        <td className="ops-mono filename" title={j.path}>{basename(j.path)}</td>
+                        <td className="ops-mono filename" title={j.path}>{basename(j.path)}{j.last_error && j.state === 'failed' && <div>{j.last_error}</div>}</td>
                         <td>
                           <span className="owner-tag">{ownerLabel(j.session_id)}</span>
                         </td>
                         <td>
                           <span className="badge role-badge">{j.scheduler}</span>
                         </td>
-                        <td className="ops-mono">{elapsed(j.start_timestamp)}</td>
+                        <td className="ops-mono">{elapsed(j)}</td>
+                        <td>{(j.state === 'ready' || j.state === 'running') && <button type="button" className="btn outline sm" disabled={cancelling}
+                          aria-label={lang === 'zh' ? `取消作业 #${j.id}` : `Cancel job #${j.id}`} onClick={()=>onCancel(j)}>
+                          {lang === 'zh' ? '取消' : 'Cancel'}
+                        </button>}</td>
                       </tr>
                     ))}
                   </tbody>

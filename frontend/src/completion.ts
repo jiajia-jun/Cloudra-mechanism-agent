@@ -71,6 +71,11 @@ export function completionChipFor(
  * 状态徽标文案：`succeeded` 只表示这一轮结束了，不表示目标已完成——按评审
  * 要求显示为 ended，验证等级交给完成依据标签表达。
  */
-export function stateBadgeText(state: string): string {
-  return state === 'succeeded' ? 'ended' : state;
+const stateLabels: Record<string, [string, string]> = {
+  queued: ['排队中', 'queued'], running: ['运行中', 'running'],
+  waiting_input: ['等待用户输入', 'Waiting for user input'], waiting_approval: ['等待审批', 'Waiting for approval'],
+  succeeded: ['本轮已结束', 'ended'], failed: ['运行失败', 'failed'], cancelled: ['已取消', 'cancelled'],
+};
+export function stateBadgeText(state: string, lang: 'en' | 'zh' = 'en'): string {
+  return stateLabels[state]?.[lang === 'zh' ? 0 : 1] ?? state;
 }

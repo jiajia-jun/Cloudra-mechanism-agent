@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { LongTextControls, handleLongTextKey } from './LongTextControls';
 import type { Agent } from './types';
 import type { Translations } from './i18n';
 import { pendingBelongsToAgent } from './composerSend';
@@ -54,6 +55,7 @@ export default function InteractionPrompt({
   const [answerDraft, setAnswerDraft] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [longText, setLongText] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Unify and prioritize decision items (matching active agent first)
@@ -555,6 +557,8 @@ export default function InteractionPrompt({
         <textarea
           ref={textareaRef}
           className="interaction-textarea"
+          id="interaction-answer-input"
+          data-expanded={longText}
           rows={2}
           placeholder={
             parsedInteraction.defaultAnswer
@@ -565,6 +569,10 @@ export default function InteractionPrompt({
           disabled={sending}
           onChange={(e) => setAnswerDraft(e.target.value)}
           onKeyDown={(e) => {
+            if (longText) {
+              handleLongTextKey(e, () => { void handleSendAnswer(); }, () => setLongText(false));
+              return;
+            }
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               void handleSendAnswer();
@@ -575,9 +583,7 @@ export default function InteractionPrompt({
 
         <div className="interaction-actions-footer">
           <div className="interaction-footer-left">
-            <span className="interaction-keyboard-hint">
-              Enter {t.interactionSubmit} · Shift+Enter 换行
-            </span>
+            <LongTextControls id="interaction-answer-input" expanded={longText} onExpand={setLongText} textarea={textareaRef} t={t} />
           </div>
           <div className="interaction-footer-right">
             {parsedInteraction.allowReject && !showRejectInput && (

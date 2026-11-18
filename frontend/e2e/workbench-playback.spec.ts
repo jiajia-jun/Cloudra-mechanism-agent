@@ -4,7 +4,9 @@ import { PROJECT_ACTIVE, installApiMocks, openSpa } from './fixtures';
 
 // These tests need real WebGL; keep software rendering local to this file.
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
-test.describe.configure({ mode: 'default' });
+// Real WebGL rendering on the hosted runner can consume the default 30 seconds
+// across playback, re-import and the final frame checks.
+test.describe.configure({ mode: 'default', timeout: 90_000 });
 
 const geometries: Record<number, GeometryView> = Object.fromEntries([0, 1, 3].map((index) => {
   const x = 1 + index * 0.1;
@@ -70,9 +72,9 @@ test('manual frame changes retain the canvas during a slow fetch and reuse loade
 
 test('playback prepares coordinates once then loops locally without blank frames or canvas replacement', async ({ page }) => {
   // Check playback ticks independently of the software WebGL rendering speed.
-  await page.clock.install();
+  await page.clock.install({ time: new Date('2026-01-01T09:00:00Z') });
   const { dialog, requests } = await openTrajectory(page);
-  await page.clock.pauseAt(Date.now() + 1000);
+  await page.clock.pauseAt(new Date('2026-01-01T10:00:00Z'));
   await dialog.getByRole('button', { name: '播放各帧', exact: true }).click();
   await expect.poll(() => requests.includes(1) && requests.includes(3)).toBe(true);
   await expect(dialog.getByRole('slider', { name: '来源帧' })).toBeEnabled();
@@ -127,7 +129,6 @@ test('reopening a source invalidates frame coordinates even when its document id
   await expect(slider).toHaveValue('1');
   expect(requests).toEqual([1]);
   await dialog.getByRole('button', { name: '新建／打开', exact: true }).click();
-  await dialog.getByRole('button', { name: '继续并放弃修改', exact: true }).click();
   await expect(slider).toHaveValue('0');
   await expect(slider).toBeEnabled();
   await slider.press('ArrowRight');

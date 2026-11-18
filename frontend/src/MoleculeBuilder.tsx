@@ -1,5 +1,7 @@
 import { useId, useState } from 'react';
-import type { EditRequest, GeometryView, WorkbenchAtom } from './workbenchTypes';
+import type { EditRequest, FragmentEntry, GeometryView, WorkbenchAtom } from './workbenchTypes';
+
+import { commonGroups } from './molecularWorkbench';
 
 type BuilderEdit = Omit<EditRequest, 'molecule'>;
 const commonElements = ['C', 'H', 'N', 'O', 'F', 'P', 'S', 'Cl', 'Br', 'I', 'Si', 'B', 'Li', 'Na', 'Mg', 'Fe', 'Cu', 'Ag', 'Pt'];
@@ -41,10 +43,15 @@ function AtomState({ atom, bondValence, unresolved, disabled, onEdit }: {
   </form>;
 }
 
-export function MoleculeBuilder({ geometry, selection, disabled, hasFrozenCoordinates = false, onEdit }: {
+export function MoleculeBuilder({ geometry, selection, disabled, hasFrozenCoordinates = false, onEdit,
+  editing, onModeChange, element, onElementChange, brush, onBrushChange, fragments, customSmiles, onCustomSmilesChange,
+  attachment, onAttachmentChange, onPlace }: {
+  editing: boolean; onModeChange: (mode: 'edit' | 'select') => void;
+  element: string; onElementChange: (s: string) => void; brush: string; onBrushChange: (s: string) => void;
+  fragments: FragmentEntry[]; customSmiles: string; onCustomSmilesChange: (s: string) => void;
+  attachment: string; onAttachmentChange: (s: string) => void; onPlace: () => void;
   geometry?: GeometryView | null; selection: number[]; disabled: boolean; hasFrozenCoordinates?: boolean; onEdit: (edit: BuilderEdit) => void;
 }) {
-  const [element, setElement] = useState('C');
   const [order, setOrder] = useState(1);
   const [forceField, setForceField] = useState<'MMFF94' | 'UFF'>('MMFF94');
   const elementsId = useId();
@@ -56,19 +63,35 @@ export function MoleculeBuilder({ geometry, selection, disabled, hasFrozenCoordi
   const bondValence = anchor?.bond_valence ?? geometry?.bonds.reduce(
     (total, bond) => total + (anchor && (bond.atom1 === anchor.index || bond.atom2 === anchor.index) ? bond.order : 0), 0,
   ) ?? 0;
-  let hint = '点选一个原子后可添加相连原子，点选两个可设置键。';
-  if (!geometry?.atoms.length) hint = '选择元素并添加第一个原子。';
-  else if (anchor) hint = `新原子将接到 ${atomLabel(anchor)}。`;
-  else if (pair.length) hint = `${selected.map(atomLabel).join(' · ')}　${existing ? `当前${bondNames[existing.order] ?? `键级 ${existing.order}`}` : '两原子未成键'}`;
-  else if (selected.length > 2) hint = `已选 ${selected.length} 个原子。`;
-
+  const elementPicker = <label>{editing ? '元素' : '替换为'}<input list={elementsId} value={element} maxLength={3}
+    disabled={disabled} onChange={event => onElementChange(event.target.value)} /></label>;
   return <section className="wb-builder" aria-label="分子建模">
+    <datalist id={elementsId}>{commonElements.map(symbol => <option key={symbol} value={symbol} />)}</datalist>
     <div className="wb-builder-controls">
-      <label>元素<input list={elementsId} value={element} maxLength={3}
-        disabled={disabled} onChange={event => setElement(event.target.value)} /></label>
-      <datalist id={elementsId}>{commonElements.map(symbol => <option key={symbol} value={symbol} />)}</datalist>
-      <button className="btn green sm" type="button" disabled={disabled || selected.length > 1 || !element.trim()}
-        onClick={() => onEdit({ action: 'add_atom', element: element.trim(), atoms: anchor ? [anchor.index] : [], order: anchor ? order : 1 })}>添加原子</button>
+      <div role="group" aria-label="画布操作" className="btn-group">
+        {([['select', '选择模式'], ['edit', '编辑模式']] as const).map(([mode, label]) => {
+          const active = editing === (mode === 'edit');
+          return <button key={mode} type="button" aria-pressed={active} className={`btn outline sm ${active ? 'active' : ''}`}
+            disabled={disabled} onClick={() => { if (!active) onModeChange(mode); }}>{label}</button>;
+        })}
+      </div>
+      {editing && <>
+        <label>添加内容<select value={brush} onChange={e => onBrushChange(e.target.value)} disabled={disabled}>
+          <option value="atom">原子</option>
+          <optgroup label="常用基团">{commonGroups.map(([smiles, name]) => <option key={smiles} value={smiles}>{name}</option>)}</optgroup>
+          {fragments.length > 0 && <optgroup label="基团历史">{fragments.map(f => <option key={f.id} value={f.smiles}>{f.name || f.smiles}</option>)}</optgroup>}
+          <option value="custom">自定义基团</option>
+        </select></label>
+        {brush === 'atom' && elementPicker}
+        {brush === 'custom' && <><label>基团 SMILES<input value={customSmiles} placeholder="例如 [*]OC" onChange={e => onCustomSmilesChange(e.target.value)} /></label>
+          <label>连接原子编号<input type="number" min={1} placeholder="有 [*] 可留空" value={attachment} onChange={e => onAttachmentChange(e.target.value)} /></label></>}
+        <button type="button" className="btn ghost sm" disabled={disabled || (brush === 'atom' && !element.trim()) || (brush === 'custom' && !customSmiles.trim())}
+          onClick={onPlace}>独立放置</button>
+      </>}
+      {!editing && anchor && <>{elementPicker}
+        <button className="btn outline sm" type="button" disabled={disabled || !element.trim() || anchor.symbol.toLowerCase() === element.trim().toLowerCase()}
+          onClick={() => onEdit({ action: 'atom_state', atoms: [anchor.index], element: element.trim() })}>替换元素</button></>}
+      {!editing && pair.length === 2 && <>
       <label>键级<select disabled={disabled} value={order} onChange={event => setOrder(Number(event.target.value))}>
         {[1, 2, 3, 1.5].map(value => <option value={value} key={value}>{bondNames[value]}</option>)}
       </select></label>
@@ -76,18 +99,18 @@ export function MoleculeBuilder({ geometry, selection, disabled, hasFrozenCoordi
         onClick={() => onEdit({ action: 'bond', atoms: pair, order })}>设置键</button>
       <button className="btn outline sm" type="button" disabled={disabled || !existing}
         onClick={() => onEdit({ action: 'bond', atoms: pair, order: 0 })}>断开键</button>
-      <button className="btn outline sm" type="button" disabled={disabled || !selected.length}
-        onClick={() => onEdit({ action: 'delete_atom', atoms: selected.map(atom => atom.index) })}>删除所选原子</button>
+      <span>{existing ? `当前${bondNames[existing.order] ?? existing.order}` : '两原子未成键'}</span></>}
+      {!editing && selected.length > 0 && <button className="btn outline sm" type="button" disabled={disabled}
+        onClick={() => onEdit({ action: 'delete_atom', atoms: selected.map(atom => atom.index) })}>删除所选原子</button>}
     </div>
-    <p className="wb-muted">{hint}</p>
-    {anchor && <AtomState key={`${anchor.atom_id ?? anchor.index}:${anchor.formal_charge}:${anchor.target_valence}:${anchor.hybridization_override}`}
+    {!editing && anchor && <AtomState key={`${anchor.atom_id ?? anchor.index}:${anchor.formal_charge}:${anchor.target_valence}:${anchor.hybridization_override}`}
       atom={anchor} bondValence={bondValence} unresolved={geometry?.graph_status === 'unresolved'}
       disabled={disabled} onEdit={onEdit} />}
     <div className="wb-force-field-controls">
       <label>预优化力场<select aria-label="预优化力场" value={forceField} disabled={disabled} onChange={event => setForceField(event.target.value as typeof forceField)}><option value="MMFF94">MMFF94</option><option value="UFF">UFF</option></select></label>
       <button className="btn outline sm" type="button" disabled={disabled || !geometry?.atoms.length || hasFrozenCoordinates}
         onClick={() => onEdit({ action: 'preoptimize', force_field: forceField })}>力场预优化</button>
-      <span className="wb-muted">{hasFrozenCoordinates ? '预优化暂不支持冻结坐标，请先移除冻结定义。' : '优化全部原子，预览后确认；缺参数时提示，不自动更换力场。'}</span>
+      <span className="wb-muted">{hasFrozenCoordinates ? '预优化暂不支持冻结坐标，请先移除冻结定义。' : '结果直接用于当前编辑稿，可继续编辑或撤销。'}</span>
     </div>
   </section>;
 }

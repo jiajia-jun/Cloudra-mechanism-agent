@@ -76,3 +76,8 @@ assert.equal(stateBadgeText('running'), 'running');
 assert.equal(stateBadgeText('failed'), 'failed');
 
 console.log('completion tests ok');
+
+for (const [state, label] of Object.entries({
+  queued: '排队中', failed: '运行失败', cancelled: '已取消', succeeded: '本轮已结束',
+  waiting_input: '等待用户输入', waiting_approval: '等待审批',
+})) assert.equal(stateBadgeText(state, 'zh'), label);

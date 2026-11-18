@@ -62,7 +62,7 @@ class FragmentLibrary:
         from cloudra.tools.core.molecule import with_positions
         from cloudra.tools.core.workbench_geometry import geometry_view
 
-        mol, attachment, _, order, direction = InternalCoordinates._embed_substituent_3d(smiles)
+        mol, attachment, _, order, direction, _ = InternalCoordinates._embed_substituent_3d(smiles)
         positions = mol.GetConformer().GetPositions()
         mol = with_positions(mol, positions - positions[attachment])
         return {'id': identity, 'smiles': smiles, 'name': '', 'use_count': 0, 'project_uses': {},

@@ -203,6 +203,7 @@ test('a failed identical send removes only its own pending bubble', async ({ pag
   const composer = page.getByTestId('composer-input');
   await composer.fill('identical request');
   await composer.press('Enter');
+  await expect(composer).toHaveValue('');
   await expect(bubble(page, 'identical request')).toHaveCount(1);
   await composer.fill('identical request');
   await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
@@ -423,7 +424,7 @@ test('reconnect reconciles stopped agents across the whole project without requi
   await expect(page.locator('.breadcrumb-agent-wrap .state-dot.cancelled')).toHaveCount(1);
   await page.getByRole('button', { name: '控制台', exact: true }).click();
   await page.getByRole('button', { name: '项目总览', exact: true }).click();
-  await expect(page.locator('.portal-agent-card').filter({ hasText: WORKER.display_name }).locator('.state-badge')).toHaveText('cancelled');
+  await expect(page.locator('.portal-agent-card').filter({ hasText: WORKER.display_name }).locator('.state-badge')).toHaveText('已取消');
   expect(viewReads).toBe(2);
 });
 

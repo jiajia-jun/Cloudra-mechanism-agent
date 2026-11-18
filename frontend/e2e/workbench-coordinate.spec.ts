@@ -104,7 +104,7 @@ test('saved freeze and scan values reopen separately from the measured coordinat
   await expect(editor.getByLabel('步数', { exact: true })).toHaveValue('5');
 });
 
-test('force field choice previews energy and convergence before an undoable commit', async ({ page }) => {
+test('force field optimization applies to the draft immediately and saving is optional', async ({ page }) => {
   const { workbench } = await open(page);
   const edits: unknown[] = [], saved: unknown[] = [];
   await page.route('**/workbench/edit', route => {
@@ -123,13 +123,16 @@ test('force field choice previews energy and convergence before an undoable comm
   await expect.poll(() => edits).toEqual([{ action: 'preoptimize', force_field: 'UFF', molecule: 'four-atoms' }]);
   await expect(workbench.locator('.wb-optimization')).toContainText('UFF · 未收敛');
   await expect(workbench.locator('.wb-optimization')).toContainText('12.3000 → 4.5000 kcal/mol');
-  await expect(workbench.getByRole('button', { name: '保存编辑稿到项目' })).toBeDisabled();
-  await workbench.getByRole('button', { name: '确认修改', exact: true }).click();
+  await expect(workbench.getByRole('button', { name: '确认修改', exact: true })).toHaveCount(0);
+  expect(saved).toEqual([]);
   await expect(workbench.getByRole('button', { name: '保存编辑稿到项目' })).toBeEnabled();
   await workbench.getByRole('button', { name: '撤销', exact: true }).click();
   await expect(workbench.locator('.wb-optimization')).toHaveCount(0);
+  expect(saved).toEqual([]);
+  await workbench.getByRole('button', { name: '力场预优化', exact: true }).click();
+  await expect(workbench.locator('.wb-optimization')).toBeVisible();
   await workbench.getByRole('button', { name: '保存编辑稿到项目' }).click();
-  await expect.poll(() => saved).toMatchObject([{ molecule: 'four-atoms' }]);
+  await expect.poll(() => saved).toMatchObject([{ molecule: 'optimized' }]);
 });
 
 test('manual hybridization and clearing its override use the shared atom state action', async ({ page }) => {

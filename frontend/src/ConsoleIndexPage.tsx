@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { api } from './api';
 import type { Project, Agent, ComputeJob } from './types';
+import { stateBadgeText } from './completion';
 import { useI18n, type Translations } from './i18n';
 
 export type ConsoleTab = 'overview' | 'research' | 'compute' | 'audit' | 'telemetry' | 'hub';
@@ -110,25 +111,6 @@ function getRoleMeta(roleId: string, t: Translations) {
   };
 }
 
-function getStateMeta(state: string, t: Translations) {
-  switch (state) {
-    case 'running':
-      return { label: t.stateRunning, dotClass: 'running' };
-    case 'waiting_for_input':
-    case 'waiting_for_dependents':
-    case 'waiting_for_message':
-      return { label: t.stateWaiting, dotClass: 'waiting' };
-    case 'idle':
-      return { label: t.stateIdle, dotClass: 'idle' };
-    case 'errored':
-      return { label: t.stateErrored, dotClass: 'errored' };
-    case 'finished':
-      return { label: t.stateFinished, dotClass: 'finished' };
-    default:
-      return { label: state, dotClass: 'neutral' };
-  }
-}
-
 export interface ConsoleIndexPageProps {
   project: Project;
   agents: Agent[];
@@ -206,7 +188,6 @@ export function ConsoleIndexPage({
 
   const renderAgentNode = (agent: Agent, depth: number): React.ReactNode => {
     const roleMeta = getRoleMeta(agent.role_id, t);
-    const stateMeta = getStateMeta(agent.state, t);
     const isActive = activeAgent?.id === agent.id;
     const children = childrenOf.get(agent.id) ?? [];
 
@@ -246,9 +227,9 @@ export function ConsoleIndexPage({
 
           <div className="agent-card-actions">
             <div className="agent-status-box">
-              <span className={`state-badge ${stateMeta.dotClass}`}>
+              <span className={`state-badge ${agent.state}`}>
                 <span className="badge-dot" />
-                <span>{stateMeta.label}</span>
+                <span>{stateBadgeText(agent.state, lang)}</span>
               </span>
               {agent.current_run && (
                 <span className="agent-run-badge" title={agent.current_run.run_id}>

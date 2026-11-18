@@ -53,17 +53,22 @@ test('builds a molecule from blank with the atom list and saves the native draft
   const atoms = dialog.getByLabel('原子列表', { exact: true });
   await test.step('Add the first atom and apply its target valence', async () => {
     await expect(builder.getByLabel('元素', { exact: true })).toHaveValue('C');
-    await activate(builder.getByRole('button', { name: '添加原子', exact: true }));
+    await activate(builder.getByRole('button', { name: '独立放置', exact: true }));
     await expect(atoms.getByRole('button', { name: 'C1', exact: true })).toBeVisible();
+    await activate(builder.getByRole('button', { name: '选择模式' }));
+    await activate(atoms.getByRole('button', { name: 'C1', exact: true }));
     await builder.getByLabel('形式电荷').fill('1');
     await builder.getByLabel('目标价数').fill('3');
     await activate(builder.getByRole('button', { name: '应用价态' }));
     await expect(builder.getByRole('button', { name: '补氢至目标价数' })).toBeEnabled();
   });
   await test.step('Attach an atom and change the bond through the atom list', async () => {
+    await activate(builder.getByRole('button', { name: '编辑模式' }));
     await builder.getByLabel('元素', { exact: true }).fill('O');
-    await activate(builder.getByRole('button', { name: '添加原子', exact: true }));
+    await activate(atoms.getByRole('button', { name: 'C1', exact: true }));
     await expect(atoms.getByRole('button', { name: 'O2', exact: true })).toBeVisible();
+    await activate(builder.getByRole('button', { name: '选择模式' }));
+    await activate(atoms.getByRole('button', { name: 'O2', exact: true }));
     await activate(atoms.getByRole('button', { name: 'C1', exact: true }));
     const order = builder.getByLabel('键级');
     await expect(order).toBeEnabled();
@@ -81,7 +86,8 @@ test('builds a molecule from blank with the atom list and saves the native draft
     await expect.poll(() => saved).toMatchObject([{ molecule: 'final-c', generate_input: false }]);
     await expect(dialog.locator('.wb-message')).toContainText('已保存');
     await activate(dialog.getByRole('button', { name: '新建空白分子', exact: true }));
-    await expect(dialog.locator('.wb-empty')).toBeVisible();
+    await expect(atoms.getByRole('button')).toHaveCount(0);
+    await expect(builder.getByRole('button', { name: '编辑模式' })).toHaveAttribute('aria-pressed','true');
     await expect(dialog.getByRole('button', { name: '撤销', exact: true })).toBeDisabled();
   });
   expect(edits).toEqual(steps.map(step => step.action));
