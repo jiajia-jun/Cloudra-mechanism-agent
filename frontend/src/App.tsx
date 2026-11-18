@@ -2404,10 +2404,10 @@ export default function App() {
             )}
             {activeProject && timeline.length === 0 && activeAgent?.state !== 'running' && (
               <div className="chat-empty">
-                <div className="big">{activeAgent ? `${activeAgent.display_name} is ready` : 'No activity yet'}</div>
+                <div className="big">{lang === 'zh' ? '当前没有对话记录' : 'No conversation yet'}</div>
                 {activeAgent
-                  ? 'Type a query below and press Send to start this agent.'
-                  : 'Send a message below to start the coordinator.'}
+                  ? (lang === 'zh' ? `可向 ${activeAgent.display_name} 发送消息。` : `Send a message to ${activeAgent.display_name}.`)
+                  : (lang === 'zh' ? '发送第一条消息以启动协调 Agent。' : 'Send a message below to start the coordinator.')}
               </div>
             )}
             {activeAgent && canLoadOlder && sessionEvents.length > 0 && (

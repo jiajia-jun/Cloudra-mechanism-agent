@@ -30,10 +30,12 @@ for (const labels of [
     });
 
     await openSpa(page);
+    const sidebar = page.locator('aside.left-sidebar');
+    await sidebar.getByText(PROJECT_ACTIVE.name, { exact: true }).click();
+    await expect(page.getByTestId('composer-input')).toBeEnabled();
     if (labels.language === 'English') {
       await page.getByRole('button', { name: 'EN', exact: true }).click();
     }
-    const sidebar = page.locator('aside.left-sidebar');
     const more = sidebar.locator('summary').filter({ hasText: labels.more });
     const benchmark = sidebar.getByRole('button', { name: labels.benchmark, exact: true });
     const cancel = page.getByRole('button', { name: labels.cancel, exact: true });
@@ -57,7 +59,6 @@ for (const labels of [
     await expect(more).toBeVisible();
     await expect(benchmark).toBeHidden();
 
-    await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, {exact:true}).click();
     await page.locator('.view-mode-btn').filter({hasText:labels.console}).click();
     await page.getByRole('button',{name:labels.ops}).click();
     await expect(cancel).toBeVisible();
