@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { AGENT, installApiMocks, openSpa, PROJECT_ACTIVE } from './fixtures';
 import type { GeometryView } from '../src/workbenchTypes';
+import type { EventEnvelope } from '../src/types';
 
 test.use({ launchOptions:{args:['--use-angle=swiftshader','--enable-unsafe-swiftshader']} });
 
@@ -31,7 +32,15 @@ test('a source frame sends annotated pixels and its structure in one message and
   await page.route('**/agents/*/messages', route=>{
     if (failFirst) {failFirst=false;return route.fulfill({status:503,body:'offline'});}
     messages.push(route.request().postDataJSON());
-    return route.fulfill({json:{accepted:true,event_id:'ev-shot',data:AGENT}});
+    return route.fulfill({json:{accepted:true,command_id:'send-shot',event_id:'ev-shot',data:AGENT}});
+  });
+  await page.route('**/agents/*/events/ev-shot', route=>{
+    const event:EventEnvelope = {
+      stream:'agent',type:'agent.message_injected',event_id:'ev-shot',project_id:PROJECT_ACTIVE.id,
+      session_id:AGENT.id,run_id:null,seq:1,session_seq:1,created_at:'2026-10-17T00:00:00Z',
+      data:{sender:'user',...messages.at(-1)},
+    };
+    return route.fulfill({json:event});
   });
   await openSpa(page);
   await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`,{exact:true}).click();
@@ -53,6 +62,7 @@ test('a source frame sends annotated pixels and its structure in one message and
   await expect(instruction).toHaveValue('看 A 的位置');
   await fire.click();
   await expect(instruction).toHaveValue('');
+  await expect(page.locator('.msg-body, .msg-bubble').filter({hasText:'看 A 的位置'})).toHaveCount(1);
   await expect(dialog).toBeVisible();
   expect(saves).toBe(0);
   expect(snapshots.at(-1)).toMatchObject({view:'source',source_frame:1,source_path:'irc.log',molecule:'frame-1',
