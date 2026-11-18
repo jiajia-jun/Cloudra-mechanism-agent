@@ -36,6 +36,7 @@ test('basic save needs no advanced tools or calculation settings', async ({ page
   await expect(dialog.getByLabel('引擎', { exact: true })).toHaveCount(0);
 });
 test('source is read-only and save follows the explicit editing draft', async ({ page }) => {
+  test.slow(); // Open, switch frames and complete three independent saves.
   const { dialog, saved } = await open(page);
   const save = dialog.getByRole('button', { name: '保存编辑稿到项目' });
   await dialog.getByRole('slider', { name: '来源帧' }).press('ArrowRight');
@@ -55,6 +56,7 @@ test('source is read-only and save follows the explicit editing draft', async ({
   await expect.poll(() => saved).toMatchObject([{ molecule: 'frame-a' }, { molecule: 'frame-b' }, { molecule: 'frame-a' }]);
 });
 test('mirror scope does not inherit the coordinate moving atom list', async ({ page }) => {
+  test.slow(); // Exercise the coordinate dialog followed by two separate previews.
   const { dialog } = await open(page);
   const edits: unknown[] = [];
   await page.route('**/workbench/edit', route => { edits.push(route.request().postDataJSON()); return route.fulfill({ json: a }); });

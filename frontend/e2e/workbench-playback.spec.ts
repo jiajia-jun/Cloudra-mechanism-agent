@@ -4,7 +4,9 @@ import { PROJECT_ACTIVE, installApiMocks, openSpa } from './fixtures';
 
 // These tests need real WebGL; keep software rendering local to this file.
 test.use({ launchOptions: { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } });
-test.describe.configure({ mode: 'default' });
+// Real WebGL rendering on the hosted runner can consume the default 30 seconds
+// across playback, re-import and the final frame checks.
+test.describe.configure({ mode: 'default', timeout: 90_000 });
 
 const geometries: Record<number, GeometryView> = Object.fromEntries([0, 1, 3].map((index) => {
   const x = 1 + index * 0.1;
