@@ -1,5 +1,6 @@
 """Human molecular edits retain their source without inheriting chemical claims."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -168,6 +169,36 @@ async def test_native_file_evidence_resolves_to_calculation_and_snapshot_without
         preserved = next(item for item in listing if item['path'] == str(snapshot))
         assert preserved['associations'][0]['id'] == 'sp_a'
         assert preserved['association_ref']['ref_id'] == ref.ref_id
+    await core.aclose()
+
+
+@pytest.mark.asyncio
+async def test_file_evidence_without_archive_does_not_hide_workbench_products(tmp_path):
+    core, root = _core(tmp_path)
+    mutable_file = root / 'geometry.xyz'
+    mutable_file.write_text('1\nCurrent file\nHe 0 0 0\n')
+    store = await asyncio.to_thread(_dag_store)
+    ref = await asyncio.to_thread(
+        store.register_evidence, 'user', mutable_file.name, {'arguments': {'log_path': str(mutable_file)}},
+        source_type='file',
+    )
+    await asyncio.to_thread(_add_node, store, [ref])
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app(core)), base_url='http://testserver') as client:
+        base = '/api/v2/projects/p/workbench'
+        saved = await client.post(f'{base}/save', json={'molecule': _molecule()})
+        assert saved.status_code == 200, saved.text
+
+        listing = await client.get(f'{base}/products')
+        assert listing.status_code == 200, listing.text
+        assert listing.json()['objects'] == [{'kind': 'node', 'id': 'sp_a', 'label': 'A'}]
+        assert [(item['path'], item['associations']) for item in listing.json()['products']] == [
+            (saved.json()['path'], []),
+        ]
+
+        for endpoint in ('open', 'preview'):
+            response = await client.post(f'{base}/{endpoint}', json={'file_evidence': ref.model_dump(mode='json')})
+            assert response.status_code == 404, response.text
+            assert '不可变归档快照' in response.json()['detail']
     await core.aclose()
 
 

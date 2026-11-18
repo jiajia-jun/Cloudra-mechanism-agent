@@ -45,7 +45,7 @@ class WorkbenchService:
         change = workspace.prepare_write(str(path.relative_to(self.root)), text, 'missing')
         workspace.apply(change)
 
-    def _file_evidence(self, ref: GraphRef, store: DagStore | None = None) -> FileEvidenceSnapshot:
+    def _file_evidence(self, ref: GraphRef, store: DagStore | None = None) -> FileEvidenceSnapshot | None:
         if ref.ref_type != 'file':
             raise ValueError('需要已登记的 file 证据引用')
         if store is None:
@@ -53,7 +53,10 @@ class WorkbenchService:
             if not Path(db.path).is_file():
                 raise FileNotFoundError('当前项目中不存在该文件证据')
             store = DagStore(db)
-        return FileEvidenceSnapshot.model_validate(store.resolve_evidence(ref))
+        payload = store.resolve_evidence(ref)
+        if not isinstance(payload, dict) or not {'snapshot_path', 'original_path', 'sha256'} <= payload.keys():
+            return None
+        return FileEvidenceSnapshot.model_validate(payload)
 
     def open(self, request) -> dict[str, Any]:
         from cloudra.tools.core.workbench_geometry import create_geometry
@@ -63,6 +66,8 @@ class WorkbenchService:
             source = self.source_path(request.path)
         elif request.file_evidence:
             evidence = self._file_evidence(request.file_evidence)
+            if evidence is None:
+                raise FileNotFoundError('该文件证据没有不可变归档快照')
             original = Path(evidence.snapshot_path)
             if not original.is_file():
                 raise FileNotFoundError('已登记的文件证据快照不存在')
@@ -218,6 +223,8 @@ class WorkbenchService:
                         # "file" points to a canonical evidence record, never
                         # a pathname. Resolve its actual immutable snapshot.
                         evidence = self._file_evidence(GraphRef.model_validate(ref), store)
+                        if evidence is None:
+                            continue
                         for value in (evidence.snapshot_path, evidence.original_path):
                             file = Path(value).resolve()
                             if file.is_relative_to(self.root) and file.is_file() and _sha256_file(file) == evidence.sha256:
