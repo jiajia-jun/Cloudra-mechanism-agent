@@ -70,9 +70,9 @@ test('manual frame changes retain the canvas during a slow fetch and reuse loade
 
 test('playback prepares coordinates once then loops locally without blank frames or canvas replacement', async ({ page }) => {
   // Check playback ticks independently of the software WebGL rendering speed.
-  await page.clock.install();
+  await page.clock.install({ time: new Date('2026-01-01T09:00:00Z') });
   const { dialog, requests } = await openTrajectory(page);
-  await page.clock.pauseAt(Date.now() + 1000);
+  await page.clock.pauseAt(new Date('2026-01-01T10:00:00Z'));
   await dialog.getByRole('button', { name: '播放各帧', exact: true }).click();
   await expect.poll(() => requests.includes(1) && requests.includes(3)).toBe(true);
   await expect(dialog.getByRole('slider', { name: '来源帧' })).toBeEnabled();

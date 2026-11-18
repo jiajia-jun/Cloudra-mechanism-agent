@@ -726,3 +726,20 @@ def test_canvas_does_not_use_a_pointer_position_for_bonded_placement_or_attach_a
         edit_geometry(dict(action='add_atom', molecule=seed, element='O', atoms=[1], position=(0, 0, 0)))
     with pytest.raises(ValueError, match='单键'):
         edit_geometry(dict(action='add_group', molecule=seed, smiles='[*]=O', atoms=[1]))
+
+
+@pytest.mark.parametrize('smiles', ['[*][C@](F)(Cl)Br', 'F[C@]([*])(Cl)Br', '[*]/C=C/F',
+                                    r'[*]/C=C\F', '[*]/N=C/F', '[*]C[C@H](Cl)F'])
+def test_attaching_a_group_preserves_declared_stereochemistry(smiles):
+    seed = edit_geometry(dict(action='add_atom', element='I'))
+    grown = edit_geometry(dict(action='add_group', smiles=smiles, molecule=seed['molecule'], atoms=[1]))
+    mol = Chem.RemoveHs(_copy_molecule(grown['molecule']))
+    expected = Chem.MolToSmiles(Chem.MolFromSmiles(smiles.replace('[*]', 'I')))
+    assert Chem.MolToSmiles(mol) == expected
+    Chem.AssignStereochemistryFrom3D(mol, replaceExistingTags=True)
+    assert Chem.MolToSmiles(mol) == expected
+
+
+def test_disconnected_imine_reports_when_its_declared_stereo_requires_the_anchor():
+    with pytest.raises(ValueError, match='点击已有原子'):
+        edit_geometry(dict(action='add_group', smiles='[*]/N=C/F'))

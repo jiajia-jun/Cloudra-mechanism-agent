@@ -339,7 +339,7 @@ def _initial_position(positions, symbols: list[str], element: str, anchor: int |
     return tuple(candidates[clearance.argmax()])
 
 
-def _append_piece(mol, piece, attachment: int, anchor: int | None, order: float, position=None, outward=None):
+def _append_piece(mol, piece, attachment: int, anchor: int | None, order: float, position=None, outward=None, bond_dir=None):
     """Append an atom or a rigid fragment without moving any existing atoms."""
     from rdkit import Chem
 
@@ -355,6 +355,9 @@ def _append_piece(mol, piece, attachment: int, anchor: int | None, order: float,
     if anchor is not None:
         neighbors = [atom.GetIdx() for atom in mol.GetAtomWithIdx(anchor).GetNeighbors()]
         result, _ = InternalCoordinates._op_bond(result, {'atoms': [anchor + 1, first + attachment + 1], 'order': order})
+        if bond_dir in (Chem.BondDir.ENDUPRIGHT, Chem.BondDir.ENDDOWNRIGHT):
+            result.GetBondBetweenAtoms(anchor, first + attachment).SetBondDir(bond_dir)
+            Chem.SetBondStereoFromDirections(result)
         hybridization = _local_geometry(result, result.GetAtomWithIdx(anchor))['hybridization']
     local = piece.GetConformer().GetPositions()
     local = local - local[attachment]
@@ -393,10 +396,14 @@ def _edit_builder(mol, request: EditRequest):
         from cloudra.tools.Chemtool.internal_coordinates import InternalCoordinates
 
         marked = connection_smiles(request.smiles, request.attachment_atom)
-        piece, index, _, order, outward = InternalCoordinates._embed_substituent_3d(marked)
+        piece, index, _, order, outward, bond_dir = InternalCoordinates._embed_substituent_3d(marked)
         if anchor is not None and order != 1:
             raise ValueError('编辑模式添加一根单键，请选择带单键连接点的基团')
-        return _append_piece(mol, piece, index, anchor, order, request.position, outward)
+        if anchor is None and piece.GetAtomWithIdx(index).GetDegree() == 1 and bond_dir in (
+            Chem.BondDir.ENDUPRIGHT, Chem.BondDir.ENDDOWNRIGHT,
+        ):
+            raise ValueError('此基团的双键立体构型依赖连接原子，请点击已有原子以保留构型')
+        return _append_piece(mol, piece, index, anchor, order, request.position, outward, bond_dir)
     if request.action == 'delete_atom':
         if len(request.atoms) == mol.GetNumAtoms():
             return _empty_molecule()

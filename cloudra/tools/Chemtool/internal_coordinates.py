@@ -1552,7 +1552,7 @@ class InternalCoordinates(Tool):
     def _embed_substituent_3d(smiles: str):
         """取代基 SMILES（恰好一个 ``[*]`` 假原子标记连接点）→ 力场优化过的 3D 片段。
 
-        返回 ``(frag, attach_idx, bond_type, bond_order, out_dir)``：
+        返回 ``(frag, attach_idx, bond_type, bond_order, out_dir, bond_dir)``：
         ``frag`` 不含假原子；``attach_idx`` 是连接原子在返回 Mol 中的
         局部索引；``out_dir`` 是连接原子指向临时封端碳的单位向量——即片段朝"核心一侧"的方向，
         对接时对齐到旧键方向的反向。所有失败一律 fail-loud。
@@ -1608,13 +1608,49 @@ class InternalCoordinates(Tool):
             raise ValueError("replace_group: degenerate substituent geometry (cap coincides with the attachment atom)")
         out_dir = out_vec / norm
 
+        # Replacing the cap by a new bond appends that neighbor last. RDKit's
+        # tetrahedral tag is relative to bond order, even with explicit H.
+        attach = frag.GetAtomWithIdx(attach_local)
+        neighbors = [nb.GetIdx() for nb in attach.GetNeighbors()]
+        if (len(neighbors) - 1 - neighbors.index(marker)) % 2:
+            if attach.GetChiralTag() in (Chem.ChiralType.CHI_TETRAHEDRAL_CW, Chem.ChiralType.CHI_TETRAHEDRAL_CCW):
+                attach.InvertChirality()
+
+        # Store the direction of the bond from the future anchor to this fragment.
+        # A two-coordinate imine N has no other neighbor to carry this direction.
+        Chem.SetDoubleBondNeighborDirections(frag)
+        cap_bond = frag.GetBondBetweenAtoms(marker, attach_local)
+        cap_dir = cap_bond.GetBondDir()
+        if cap_bond.GetBeginAtomIdx() != marker:
+            cap_dir = {Chem.BondDir.ENDUPRIGHT: Chem.BondDir.ENDDOWNRIGHT,
+                       Chem.BondDir.ENDDOWNRIGHT: Chem.BondDir.ENDUPRIGHT}.get(cap_dir, cap_dir)
+
+        # Keep declared alkene stereo referenced to surviving substituents.
+        # AddHs above makes the alternate neighbor explicit even for vinyl H.
+        opposite = {Chem.BondStereo.STEREOE: Chem.BondStereo.STEREOZ,
+                    Chem.BondStereo.STEREOZ: Chem.BondStereo.STEREOE,
+                    Chem.BondStereo.STEREOCIS: Chem.BondStereo.STEREOTRANS,
+                    Chem.BondStereo.STEREOTRANS: Chem.BondStereo.STEREOCIS}
+        for bond in attach.GetBonds():
+            refs = list(bond.GetStereoAtoms())
+            if marker not in refs or bond.GetStereo() not in opposite:
+                continue
+            other_end = bond.GetOtherAtomIdx(attach_local)
+            alternate = next((idx for idx in neighbors if idx not in (marker, other_end)), None)
+            if alternate is None:
+                continue
+            refs[refs.index(marker)] = alternate
+            bond.SetStereoAtoms(*refs)
+            bond.SetStereo(opposite[bond.GetStereo()])
+        Chem.SetDoubleBondNeighborDirections(frag)
+
         rw = Chem.RWMol(frag)
         removed = {marker} | {nb.GetIdx() for nb in frag.GetAtomWithIdx(marker).GetNeighbors()
                               if nb.GetAtomicNum() == 1}
         for idx in sorted(removed, reverse=True):
             rw.RemoveAtom(idx)
         attach_idx = attach_local - sum(idx < attach_local for idx in removed)
-        return rw.GetMol(), attach_idx, bond_type, bond_order, out_dir
+        return rw.GetMol(), attach_idx, bond_type, bond_order, out_dir, cap_dir
 
     @classmethod
     def _op_replace_group(cls, mol, op: dict, adj: dict[int, set[int]]):
@@ -1653,7 +1689,7 @@ class InternalCoordinates(Tool):
                 "replace_group requires 'smiles': the new substituent with exactly one [*] dummy "
                 "atom marking the attachment point (e.g. '[*]C(=O)O')"
             )
-        frag, attach_idx, bond_type, bond_order, out_dir = cls._embed_substituent_3d(smiles.strip())
+        frag, attach_idx, bond_type, bond_order, out_dir, cap_dir = cls._embed_substituent_3d(smiles.strip())
         frag_coords = np.asarray(frag.GetConformer().GetPositions(), dtype=float)
 
         vec = positions[b] - positions[a]
@@ -1681,6 +1717,7 @@ class InternalCoordinates(Tool):
         attachment = survivors.index(a)
         combined = Chem.RWMol(Chem.CombineMols(core.GetMol(), frag))
         combined.AddBond(attachment, first_new + attach_idx, bond_type)
+        combined.GetBondBetweenAtoms(attachment, first_new + attach_idx).SetBondDir(cap_dir)
         new_mol = with_positions(combined.GetMol(), np.vstack([positions[survivors], frag_placed]))
         # 新邻居被追加到末尾；校正邻接顺序的奇偶性，才能保留原来声明的手性，
         # 包括只有二维坐标、不能靠三维坐标重判手性的 MOL。
