@@ -34,9 +34,10 @@ export interface DocumentView {
 export interface Draft { atomMappingChanged?: boolean; geometry: GeometryView; settings: WorkbenchSettings; sourcePath?: string | null; sourceFrame?: number; frozen: FrozenCoordinate[]; scans: ScanCoordinate[] }
 export interface EditRequest {
   molecule?: string;
-  action: 'coordinate' | 'mirror' | 'bond' | 'replace_group' | 'resolve_bonds' | 'add_atom' | 'delete_atom' | 'atom_state' | 'fill_valence' | 'preoptimize';
+  action: 'coordinate' | 'mirror' | 'bond' | 'replace_group' | 'resolve_bonds' | 'add_atom' | 'add_group' | 'delete_atom' | 'atom_state' | 'fill_valence' | 'preoptimize';
   atoms?: number[]; value?: number; fixed_side?: 'first' | 'last'; moving_atoms?: number[];
   plane?: 'xy' | 'xz' | 'yz'; order?: number; smiles?: string; attachment_atom?: number;
+  position?: [number, number, number];
   element?: string; formal_charge?: number; valence?: number | null;
   hybridization?: 'sp' | 'sp2' | 'sp3' | null;
   force_field?: 'MMFF94' | 'UFF';

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AtomSpec, AtomStyleSpec, GLModel, GLViewer, Label } from '3dmol';
 import { api } from './api';
 import { useAppearance } from './appearance';
-import { parseXyz, initializeRenderModel, fitProjectedScale, toRenderAtoms, validModeDisplacements } from './moleculeRendering';
+import { parseXyz, initializeRenderModel, fitProjectedScale, pointOnCanvasPlane, toRenderAtoms, validModeDisplacements } from './moleculeRendering';
 import type { Atom3D } from './moleculeRendering';
 import './moleculeViewer.css';
 export { parseXyz } from './moleculeRendering';
@@ -19,7 +19,8 @@ export interface Molecule3DViewerProps {
   geometry?: { atoms: Atom3D[]; bonds: { atom1: number; atom2: number; order: number }[]; graph_status?: string; manual_bonds?: boolean };
   selectedAtoms?: number[];
   onAtomPick?: (index: number) => void;
-  onBackgroundClick?: () => void;
+  onBackgroundClick?: (position: [number, number, number]) => void;
+  editing?: boolean;
   modeDisplacements?: number[][];
   modePlaying?: boolean;
   preserveView?: boolean;
@@ -74,7 +75,7 @@ function acquireViewer(engine: MolecularEngine, mount: HTMLElement, compact: boo
 
 export function Molecule3DViewer({
   smiles, xyz, title, isTransitionState = false, saddleEvidenceSupported = false,
-  className = '', compact = false, geometry, selectedAtoms = NO_SELECTION, onAtomPick, onBackgroundClick,
+  className = '', compact = false, geometry, selectedAtoms = NO_SELECTION, onAtomPick, onBackgroundClick, editing = false,
   modeDisplacements, modePlaying = false, preserveView = false, coordinateHighlights = NO_HIGHLIGHTS,
 }: Molecule3DViewerProps) {
   const appearance = useAppearance();
@@ -82,10 +83,12 @@ export function Molecule3DViewer({
   const pickRef = useRef(onAtomPick); pickRef.current = onAtomPick;
   const backgroundClickRef = useRef(onBackgroundClick); backgroundClickRef.current = onBackgroundClick;
   const pickedRef = useRef(false);
+  const primaryPick = useRef(false);
   const modelRef = useRef<GLModel | null>(null);
   const selectionModelRef = useRef<GLModel | null>(null);
   const hoveredRef = useRef<Label | null>(null);
   const handleAtomPick = useCallback((atom:AtomSpec)=>{
+    if (!primaryPick.current) return;
     pickedRef.current=true;
     if(atom.serial!=null)pickRef.current?.(atom.serial);
   },[]);
@@ -192,7 +195,17 @@ export function Molecule3DViewer({
     }
     viewer.stopAnimate();viewer.clear();
     modelRef.current=null;selectionModelRef.current=null;hoveredRef.current=null;
-    if (!renderData.atoms.length) { viewer.render(); return; }
+    if (!renderData.atoms.length) {
+      if (preserveView && !initialViewRef.current) {
+        viewer.setView([0,0,0,0,0,0,0,1]);
+        viewer.zoomTo();
+        viewer.zoom(0.12);
+        initialViewRef.current=viewer.getView();
+        fittedModeRef.current=renderMode;
+      }
+      lastDataRef.current={atoms:renderData.atoms,preserveView};
+      viewer.render(); return;
+    }
     const model=viewer.addModel();
     modelRef.current=model;
     initializeRenderModel(model,renderData.atoms,inferDisplayBonds);
@@ -299,27 +312,35 @@ export function Molecule3DViewer({
   useEffect(() => {
     if (!viewer || !active || compact) return;
     const canvas=viewer.getCanvas();
-    let press: {id:number;x:number;y:number;moved:boolean;released:boolean} | null=null;
+    let press: {id:number;x:number;y:number;moved:boolean;released:boolean;touch:boolean} | null=null;
     const down=(event:PointerEvent)=>{
       pickedRef.current=false;
-      press=event.pointerType==='mouse' && event.isPrimary && event.button===0 && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
-        ? {id:event.pointerId,x:event.clientX,y:event.clientY,moved:false,released:false} : null;
+      press=event.isPrimary && event.button===0 && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey
+        ? {id:event.pointerId,x:event.clientX,y:event.clientY,moved:false,released:false,touch:event.pointerType==='touch'} : null;
+      primaryPick.current=!!press;
     };
     const move=(event:PointerEvent)=>{
-      if(press && event.pointerId===press.id && (event.clientX!==press.x || event.clientY!==press.y))press.moved=true;
+      if (press && event.pointerId === press.id) {
+        const tolerance=press.touch ? 5 : 0;
+        if (Math.abs(event.clientX-press.x)>tolerance || Math.abs(event.clientY-press.y)>tolerance) {
+          press.moved=true; primaryPick.current=false;
+        }
+      }
     };
     const up=(event:PointerEvent)=>{
       move(event);
       if(press && event.pointerId===press.id)press.released=event.target===canvas;
     };
-    const cancel=()=>{press=null;};
+    const cancel=()=>{press=null;primaryPick.current=false;};
     const click=(event:MouseEvent)=>{
       const tap=press;press=null;
-      if (!tap || !tap.released || tap.moved || pickedRef.current || event.button!==0 || event.target!==canvas) return;
+      if (!tap || (tap.touch && !editing) || !tap.released || tap.moved || pickedRef.current || event.button!==0 || event.target!==canvas) return;
       const bounds=canvas.getBoundingClientRect();
       const x=2*(event.clientX-bounds.left)/bounds.width-1;
       const y=1-2*(event.clientY-bounds.top)/bounds.height;
-      if (!viewer.targetedObjects(x,y,{}).length)backgroundClickRef.current?.();
+      if (!backgroundClickRef.current || viewer.targetedObjects(x,y,{}).length) return;
+      const position=pointOnCanvasPlane(viewer.getView(), points=>viewer.modelToScreen(points), event.pageX, event.pageY);
+      if (position) backgroundClickRef.current(position);
     };
     canvas.addEventListener('pointerdown',down);
     document.addEventListener('pointermove',move);
@@ -335,12 +356,12 @@ export function Molecule3DViewer({
       canvas.removeEventListener('wheel',cancel);
       canvas.removeEventListener('click',click);
     };
-  },[viewer,active,compact]);
+  },[viewer,active,compact,editing]);
 
   useEffect(()=>{if(viewer && active && !compact)viewer.spin(autoSpin?'y':false,0.45,true);},[viewer,autoSpin,active,compact]);
   const error=sourceError || renderData.error || renderError;
-  const reset=()=>{if(viewer && initialViewRef.current){viewer.setView(initialViewRef.current);viewer.render();}};
-  return <div className={`molecule-3d-container molecule-webgl ${compact?'molecule-compact':''} ${className}`}>
+  const reset=()=>{if(viewer && initialViewRef.current){viewer.setView(initialViewRef.current);if(preserveView && structure.atoms.length)viewer.zoomTo();viewer.render();}};
+  return <div className={`molecule-3d-container molecule-webgl ${compact?'molecule-compact':''} ${editing?'wb-drawing':''} ${className}`}>
     {!compact && <><div className="viewer-3d-badge viewer-evidence-note" role="note">{modeDisplacements?'实际计算简正模 · 位移幅度已缩放':'当前显示几何未与科学证据绑定'}</div>
       <div className="viewer-3d-header"><div className="viewer-3d-title"><span className="viewer-3d-badge">3D 分子结构</span>{title && <span className="viewer-3d-molname">{title}</span>}{isTransitionState && <span className="badge-ts-marker">{saddleEvidenceSupported?'鞍点证据已支持':'候选 TS · 未确证'}</span>}{structure.atoms.length>0 && <span className="viewer-3d-atomcount">{numFragments>1?`${numFragments} 分子体系 · `:''}{structure.atoms.length} 原子 · {inferDisplayBonds?'按距离显示连线':`${structure.bonds.length} 键`}</span>}</div>
         <div className="viewer-3d-controls"><div className="btn-group sm viewer-mode-switch" role="group" aria-label="分子显示方式">{([['ball_stick','球棍'],['spacefill','填充'],['wireframe','线框']] as const).map(([value,label])=><button key={value} type="button" className={`btn outline sm ${renderMode===value?'active':''}`} aria-pressed={renderMode===value} onClick={()=>setRenderMode(value)}>{label}</button>)}</div>
@@ -348,8 +369,8 @@ export function Molecule3DViewer({
         </div>
       </div></>}
     <div className="viewer-3d-canvas-wrap"><div ref={hostRef} className="viewer-webgl-host" aria-label={title?`${title} 三维分子结构`:'三维分子结构'}>{compact && thumbnail && <img className="viewer-webgl-snapshot" src={thumbnail} alt="实际分子结构预览"/>}</div>
-      {(error || loading || !structure.atoms.length || !viewer && active) && <div className={`viewer-webgl-status ${error?'viewer-webgl-error':''}`} role={error?'alert':'status'}>{error || (loading?'正在生成三维构象…':!structure.atoms.length?'暂无三维坐标':'正在载入三维视图…')}</div>}
-      {!compact && <div className="viewer-3d-hint"><span>{onAtomPick?'点击原子选择 · ':''}{onBackgroundClick?'点击空白清空 · ':''}拖动旋转 · 滚轮缩放 · 右键拖动平移</span></div>}
+      {(error || loading || !structure.atoms.length || !viewer && active) && <div className={`viewer-webgl-status ${error?'viewer-webgl-error':''}`} role={error?'alert':'status'}>{error || (loading?'正在生成三维构象…':!structure.atoms.length?(editing?'点击画布放置第一个原子或基团':'暂无三维坐标'):'正在载入三维视图…')}</div>}
+      {!compact && <div className="viewer-3d-hint"><span>{editing?'点击原子接单键 · 点击空白独立放置 · ':onAtomPick?'点击原子选择 · ':''}{!editing && onBackgroundClick?'点击空白清空 · ':''}拖动旋转 · 滚轮缩放 · 右键拖动平移</span></div>}
       {showCoords && !compact && <div className="viewer-3d-coords-drawer"><div className="drawer-header"><span>笛卡尔坐标 (Å)</span><button type="button" className="btn ghost sm" onClick={()=>setShowCoords(false)}>✕</button></div><div className="drawer-body"><pre className="mono-code">{structure.atoms.map(atom=>`${atom.index.toString().padStart(4)} ${atom.symbol.padEnd(3)} ${atom.x.toFixed(6).padStart(12)} ${atom.y.toFixed(6).padStart(12)} ${atom.z.toFixed(6).padStart(12)}`).join('\n')}</pre></div></div>}
     </div>
   </div>;

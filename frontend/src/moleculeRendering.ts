@@ -64,3 +64,16 @@ export function fitProjectedScale(points: {x:number;y:number}[], width: number, 
   const spanY=Math.max(...points.map(point=>point.y))-Math.min(...points.map(point=>point.y));
   return Math.min(width*fraction/spanX,height*fraction/spanY);
 }
+
+// Orthographic screen axes lie in the camera plane. Projecting the three model
+// basis vectors gives the inverse mapping at the current rotation and zoom.
+export function pointOnCanvasPlane(view: number[], project: (points: {x:number;y:number;z:number}[]) => {x:number;y:number}[],
+  pageX: number, pageY: number): [number, number, number] | null {
+  const [x, y, z] = view.map(value => -value);
+  const [origin, ...basis] = project([{x,y,z}, {x:x+1,y,z}, {x,y:y+1,z}, {x,y,z:z+1}]);
+  const u = basis.map(p => p.x - origin.x), v = basis.map(p => p.y - origin.y);
+  const u2 = u.reduce((sum, n) => sum + n*n, 0), v2 = v.reduce((sum, n) => sum + n*n, 0);
+  if (!u2 || !v2) return null;
+  const dx = (pageX-origin.x)/u2, dy = (pageY-origin.y)/v2;
+  return [x+dx*u[0]+dy*v[0], y+dx*u[1]+dy*v[1], z+dx*u[2]+dy*v[2]];
+}

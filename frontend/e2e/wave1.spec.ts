@@ -21,8 +21,10 @@ test.describe('destructive confirms', () => {
       await dialog.dismiss();
     });
     await openSpa(page);
-    await page.locator('aside.left-sidebar summary').filter({ hasText: '更多' }).click();
-    await page.getByTestId('cancel-all-compute-foot').click();
+    await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
+    await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
+    await page.getByRole('button', { name: '计算调度', exact: false }).click();
+    await page.getByTestId('cancel-all-compute').click();
     await expect.poll(() => mocks.cancelAllHits.length).toBe(0);
   });
 
@@ -33,8 +35,10 @@ test.describe('destructive confirms', () => {
       await dialog.accept();
     });
     await openSpa(page);
-    await page.locator('aside.left-sidebar summary').filter({ hasText: '更多' }).click();
-    await page.getByTestId('cancel-all-compute-foot').click();
+    await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
+    await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
+    await page.getByRole('button', { name: '计算调度', exact: false }).click();
+    await page.getByTestId('cancel-all-compute').click();
     await expect.poll(() => mocks.cancelAllHits.length).toBe(1);
     await expect(
       page.getByText(
@@ -74,9 +78,7 @@ test.describe('destructive confirms', () => {
     const jobRow = page.locator('.ops-table tbody tr').filter({ hasText: '#7' });
     await expect(jobRow.getByText('running', { exact: true })).toBeVisible();
     page.once('dialog', async (dialog) => { await dialog.accept(); });
-    const more = page.locator('aside.left-sidebar summary').filter({ hasText: '更多' });
-    await more.click();
-    const button = page.getByTestId('cancel-all-compute-foot');
+    const button = page.getByTestId('cancel-all-compute');
     await button.click();
     await expect(button).toBeDisabled();
     await expect(button).toHaveText('请求中…');
@@ -117,12 +119,11 @@ test.describe('destructive confirms', () => {
     await page.getByRole('button', { name: '计算调度', exact: false }).click();
     const jobRow = page.locator('.ops-table tbody tr').filter({ hasText: '#7' });
     await expect(jobRow.getByText('running', { exact: true })).toBeVisible();
-    await page.locator('aside.left-sidebar summary').filter({ hasText: '更多' }).click();
-    const button = page.getByTestId('cancel-all-compute-foot');
+    const button = page.getByTestId('cancel-all-compute');
     await button.click();
     await expect(page.getByText('暂时无法取消计算')).toBeVisible();
     await expect(button).toBeEnabled();
-    await expect(button).toHaveText('取消全部计算');
+    await expect(button).toHaveText('取消所有项目的计算');
     await expect(page.locator('.toast.ok')).toHaveCount(0);
     await expect(jobRow.getByText('取消中', { exact: true })).toBeVisible({ timeout: 1500 });
   });
@@ -162,8 +163,7 @@ test.describe('destructive confirms', () => {
     }
     await expect.poll(() => heldRequest).toBe(true);
     page.once('dialog', async (dialog) => { await dialog.accept(); });
-    await page.locator('aside.left-sidebar summary').filter({ hasText: '更多' }).click();
-    await page.getByTestId('cancel-all-compute-foot').click();
+    await page.getByTestId('cancel-all-compute').click();
     await expect(jobRow.getByText('取消中', { exact: true })).toBeVisible();
     const summaryCard = page.locator('.portal-nav-card').filter({ hasText: '量子化学计算资源调度' });
     if (surface === 'summary') {
@@ -182,6 +182,33 @@ test.describe('destructive confirms', () => {
     }
   });
 
+
+  test('cancel one job in the scheduler and inspect the project history', async ({ page }) => {
+    const mocks = await installApiMocks(page, { jobs: [JOB] });
+    let cancelled = false;
+    await page.route('**/compute/jobs?*', route => {
+      const recent = new URL(route.request().url()).searchParams.get('active_only') === 'false';
+      return route.fulfill({ json: recent ? [{ ...JOB, state: 'cancelled', start_timestamp: 100, end_timestamp: 165 }] : cancelled ? [] : [JOB] });
+    });
+    await page.route('**/compute/jobs/7/cancel', route => {
+      expect(route.request().method()).toBe('POST');
+      cancelled = true;
+      return route.fulfill({ json: { state: 'cancelled', message: 'Job is cancelled.' } });
+    });
+    await openSpa(page);
+    await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
+    await page.locator('.view-mode-btn').filter({ hasText: '控制台' }).click();
+    await page.getByRole('button', { name: '计算调度', exact: false }).click();
+    page.once('dialog', async dialog => { expect(dialog.message()).toContain('#7'); await dialog.accept(); });
+    await page.getByRole('button', { name: '取消作业 #7', exact: true }).click();
+    await expect(page.getByText('当前暂无排队或执行中的计算任务')).toBeVisible();
+    await page.getByRole('button', { name: '最近 100 条' }).click();
+    const row = page.locator('.ops-table tbody tr').filter({ hasText: '#7' });
+    await expect(row).toContainText('cancelled');
+    await expect(row).toContainText('1m5s');
+    await expect(row.getByRole('button')).toHaveCount(0);
+    expect(mocks.cancelAllHits).toHaveLength(0);
+  });
   test('Hard delete: dismiss confirm does not DELETE', async ({ page }) => {
     const mocks = await installApiMocks(page, { jobs: [] });
     page.once('dialog', async (dialog) => {
@@ -287,4 +314,40 @@ test('language switch preserves the new project entry and persists English', asy
   await expect(page.getByTestId(`hard-delete-${PROJECT_ARCHIVED.id}`)).toBeVisible();
   await page.getByRole('button', { name: '中', exact: true }).click();
   await expect(page.getByPlaceholder('新建项目名…')).toBeVisible();
+});
+
+for (const entry of ['chat', 'interaction'] as const) test(`long text in ${entry} preserves the draft, scrolls, and submits with a modifier`, async ({ page }) => {
+  const interaction = { id: 'ixn_long', interaction_id: 'ixn_long', session_id: AGENT.id, prompt: 'Describe the plan' };
+  const mocks = await installApiMocks(page, {
+    agents: [{ ...AGENT, state: entry === 'interaction' ? 'waiting_input' : 'succeeded' }],
+    interactions: entry === 'interaction' ? [interaction] : [], jobs: [],
+  });
+  const messages: unknown[] = [];
+  await page.route('**/api/v2/agents/*/messages', route => {
+    messages.push(route.request().postDataJSON());
+    return route.fulfill({ json: { command_id: 'c', accepted: true, event_id: 'e', data: AGENT } });
+  });
+  await openSpa(page);
+  await page.getByTitle(`选择项目: ${PROJECT_ACTIVE.name}`, { exact: true }).click();
+  const area = entry === 'chat' ? page.getByTestId('composer-input') : page.getByTestId('interaction-prompt-window').getByRole('textbox');
+  const draft = Array.from({length:60}, (_, n) => `段落 ${n+1}`).join('\n');
+  await area.fill(draft);
+  const height = (await area.boundingBox())!.height;
+  await page.getByRole('button',{name:'长文本模式',exact:true}).click();
+  await expect(area).toBeFocused();
+  expect((await area.boundingBox())!.height).toBeGreaterThan(height*2);
+  await area.press('Control+Home');
+  await area.evaluate(el => { el.scrollTop = 0; });
+  expect(await area.evaluate(el=>el.scrollTop)).toBe(0);
+  await area.press('Escape');
+  await expect(area).toHaveValue(draft);
+  await page.getByRole('button',{name:'长文本模式',exact:true}).click();
+  await area.evaluate((el: HTMLTextAreaElement)=>el.setSelectionRange(el.value.length,el.value.length));
+  await area.press('Enter');
+  await area.pressSequentially('end');
+  await expect(area).toHaveValue(draft+'\nend');
+  expect(messages.length + mocks.respondHits.length).toBe(0);
+  await area.press('Control+Enter');
+  if (entry === 'interaction') await expect.poll(()=>mocks.respondHits).toMatchObject([{payload:{response:draft+'\nend'}}]);
+  else await expect.poll(()=>messages.length).toBe(1);
 });

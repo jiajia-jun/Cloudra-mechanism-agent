@@ -804,3 +804,6 @@ details.wb-section[open] > summary {
   margin: 0;
   min-width: 0;
 }
+
+.wb-drawing .viewer-webgl-host canvas { cursor: crosshair; }
+.wb-builder-controls input[placeholder^="例如"] { width: 12em; }

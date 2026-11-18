@@ -211,3 +211,33 @@ for (const entry of ['source', 'import'] as const) {
     assert.deepEqual(structuredClone(curves[1].props.frames.map((frame: any) => [frame.index, frame.reaction_coordinate])), [[0, 300], [1, 301]]);
   });
 }
+
+test('canvas selection, growth, independent placement and undo follow the active tool', async () => {
+  const page = await mount();
+  const viewer = () => page.find(node => node.type === 'Molecule3DViewer');
+  const builder = () => page.find(node => node.type === 'MoleculeBuilder');
+  const requests: any[] = [];
+  page.api.edit = async (_id, body) => { requests.push(JSON.parse(JSON.stringify(body))); return edited; };
+  assert.equal(builder().props.editing, false);
+  viewer().props.onAtomPick(2); await page.settle();
+  assert.deepEqual(Array.from(builder().props.selection), [2]);
+  assert.equal(requests.length, 0);
+  builder().props.onModeChange('edit'); await page.settle();
+  builder().props.onBrushChange('[*]O'); await page.settle();
+  viewer().props.onAtomPick(1);
+  viewer().props.onAtomPick(1);
+  await page.settle();
+  assert.deepEqual(requests, [{ action: 'add_group', smiles: '[*]O', atoms: [1], molecule: 'original' }]);
+  assert.deepEqual(Array.from(builder().props.selection), []);
+  assert.equal(viewer().props.preserveView, true);
+  viewer().props.onBackgroundClick([1,2,3]); await page.settle();
+  assert.deepEqual(requests[1], { action: 'add_group', smiles: '[*]O', atoms: [], position:[1,2,3], molecule:'edited' });
+  page.button('撤销').props.onClick(); await page.settle();
+  page.button('撤销').props.onClick(); await page.settle();
+  assert.equal(viewer().props.geometry.molecule, 'original');
+  builder().props.onModeChange('select'); await page.settle();
+  viewer().props.onAtomPick(1); await page.settle();
+  viewer().props.onBackgroundClick([0,0,0]); await page.settle();
+  assert.deepEqual(Array.from(builder().props.selection), []);
+  assert.equal(requests.length, 2);
+});

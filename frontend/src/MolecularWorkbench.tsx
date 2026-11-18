@@ -5,7 +5,7 @@ import { MoleculeBuilder } from './MoleculeBuilder';
 import { WorkbenchCoordinateDialog, type CoordinateDialogSelection } from './WorkbenchCoordinateDialog';
 import { workbenchApi } from './workbenchApi';
 import type { DocumentView, Draft, EditRequest, FragmentEntry, FrameSummary, GeometryView, SaveResult, WorkbenchSource, WorkbenchInputFormat, FrozenCoordinate, ScanCoordinate } from './workbenchTypes';
-import { applyGeometry, draftFromFrame, coordinateType, curvePoints, defineFrozenCoordinate, detectImportFormat, measureCoordinate, selectionAfterEdit, toggleAtomSelection, undoDraft, validateSettings } from './molecularWorkbench';
+import { applyGeometry, commonGroups, replacementBond, draftFromFrame, coordinateType, curvePoints, defineFrozenCoordinate, detectImportFormat, measureCoordinate, selectionAfterEdit, toggleAtomSelection, undoDraft, validateSettings } from './molecularWorkbench';
 import './molecularWorkbench.css';
 
 export interface MolecularWorkbenchProps { project: Project; source: WorkbenchSource | null; onClose: () => void; onSaved: (result: SaveResult) => void; onContinueInChat?: (result: SaveResult) => void; onError: (error: string) => void }
@@ -13,6 +13,7 @@ const fromDocument = (doc: DocumentView): Draft | null => doc.geometry ? ({ geom
 const atomList = (value: string): number[] => value.split(',').flatMap(s => s.trim().split(' ')).filter(Boolean).map(Number);
 const metricLabel = { energy_hartree: '能量 / Hartree', rms_force: 'RMS 力', reaction_coordinate: '反应坐标' };
 type Metric = keyof typeof metricLabel;
+const emptyGeometry = { atoms: [], bonds: [] };
 
 function Curve({ frames, metric, selected, onSelect }: { frames: FrameSummary[]; metric: Metric; selected: number; onSelect: (i: number) => void }) {
   const points = curvePoints(frames, metric);
@@ -36,6 +37,10 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
   const [frame, setFrame] = useState(0);
   const [frameGeometry, setFrameGeometry] = useState<GeometryView | null>(null);
   const [view, setView] = useState<'draft'|'source'>('draft');
+  const [canvasMode, setCanvasMode] = useState<'edit' | 'select'>(source ? 'select' : 'edit');
+  const [brush, setBrush] = useState('atom');
+  const [element, setElement] = useState('C');
+  const editInFlight = useRef(false);
   const [selection, setSelection] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -78,7 +83,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
   const installDocument = (result: DocumentView) => {
     frameCache.current = new Map(result.geometry ? [[result.selected_frame, result.geometry]] : []);
     setDoc(result); setDraft(fromDocument(result)); setFrame(result.selected_frame); setFrameGeometry(result.geometry); setTitle(result.title); setView('draft'); setMirrorAtoms('');
-    setScanAxis(0); setScanSlice({});
+    setScanAxis(0); setScanSlice({}); setCanvasMode('select');
   };
 
   useEffect(() => {
@@ -88,6 +93,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
   const loadSource = (nextSource: WorkbenchSource | null) => {
     setDiscardAction(null); setCoordinateDialog(null);
     loadedProject.current = project.id;
+    setCanvasMode(nextSource ? 'select' : 'edit');
     const version = ++requestVersion.current;
     frameCache.current.clear();
     setDoc(null); setDraft(null); setHistory([]); setSelection([]); setPreview(null); setDirty(false); setPlaying(false); setModeIndex(-1); setModePlaying(false); setError(''); setMessage(''); setFragmentPreview(null);
@@ -132,10 +138,12 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
     setHistory(h => [...h,draft]); setDraft({...draft,settings}); setDirty(true);
   };
   const perform = async (action: Omit<EditRequest,'molecule'>, { fragment, immediate }: { fragment?: string; immediate?: boolean } = {}) => {
+    if (editInFlight.current) return false;
+    editInFlight.current = true;
     setError(''); setMessage(''); setBusy(true); setPlaying(false);
     const version = requestVersion.current;
     try {
-      const base = !originalGeometry && !doc && action.action === 'add_atom' ? null : operationBase();
+      const base = !originalGeometry && !doc && (action.action === 'add_atom' || action.action === 'add_group') ? null : operationBase();
       const edited = await workbenchApi.edit(project.id, { ...action, molecule: base?.geometry.molecule });
       if (version !== requestVersion.current || closed.current) return false;
       if (base && !immediate) {
@@ -145,14 +153,35 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
       const result = base ? applyGeometry(base, edited) : {
         draft: { geometry: edited, settings: {}, frozen: [], scans: [] }, invalidated: 0,
       };
-      const added = action.action === 'add_atom' ? edited.atoms.at(-1) : undefined;
-      commit(result.draft, added ? [added.index] : selectionAfterEdit(selection, edited.changes));
+      commit(result.draft, selectionAfterEdit(selection, edited.changes));
       setCoordinateDialog(null);
       const notes = [...(edited.warnings ?? [])];
       if (result.invalidated) notes.push(`已移除 ${result.invalidated} 条引用被删除原子的冻结／扫描定义。`);
       if (notes.length) setMessage(notes.join(' '));
       return true;
-    } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); return false; } finally { if (version === requestVersion.current && !closed.current) setBusy(false); }
+    } catch(e) { if (version === requestVersion.current && !closed.current) fail(e); return false; } finally { editInFlight.current = false; if (version === requestVersion.current && !closed.current) setBusy(false); }
+  };
+  const editingCanvas = canvasMode === 'edit' && view === 'draft' && !preview && !mode && !playing;
+  const changeCanvasMode = (next: 'edit' | 'select') => {
+    setCanvasMode(next); setSelection([]); setCoordinateDialog(null);
+  };
+  const place = (anchor?: number, position?: [number, number, number]) => {
+    if (!editingCanvas || builderDisabled) return;
+    const atoms = anchor == null ? [] : [anchor];
+    const placement = position ? { atoms, position } : { atoms };
+    if (brush === 'atom') {
+      if (element.trim()) void perform({ action: 'add_atom', element: element.trim(), order: 1, ...placement }, { immediate: true });
+    } else {
+      const smiles = brush === 'custom' ? fragmentSmiles.trim() : brush;
+      if (smiles) void perform({ action: 'add_group', smiles, ...placement,
+        ...(brush === 'custom' && attachment ? { attachment_atom: Number(attachment) } : {}),
+      }, { immediate: true });
+    }
+  };
+  const pickAtom = (index: number) => {
+    if (busy || preview || mode || playing) return;
+    if (editingCanvas) place(index);
+    else { setSelection(s => toggleAtomSelection(s, index)); setCoordinateDialog(null); }
   };
   const confirmPreview = async () => {
     if (!preview) return;
@@ -243,7 +272,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
   };
   const openCoordinateDialog = (next: CoordinateDialogSelection = { atoms: selection }) => {
     if (!editable || !originalGeometry || measureCoordinate(originalGeometry.atoms, next.atoms) == null) return;
-    setError(''); setSelection(next.atoms); setCoordinateDialog(next);
+    setError(''); setCanvasMode('select'); setSelection(next.atoms); setCoordinateDialog(next);
   };
   const defineCoordinate = (coordinate: FrozenCoordinate | ScanCoordinate) => {
     const base = operationBase();
@@ -277,7 +306,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
     setFragmentSmiles(typeof value === 'string' ? value : value.smiles);
     setFragmentPreview(entry?.geometry ?? null);
     setAttachment(entry?.attachment_atom ? String(entry.attachment_atom) : '');
-    if (entry) setFragmentName(entry.name);
+    setFragmentName(entry?.name ?? '');
   };
   const previewFragment = async () => {
     setBusy(true); setError('');
@@ -292,6 +321,7 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
       if(version === requestVersion.current && !closed.current) setBusy(false);
     }
   };
+  const replaceAtoms = replacementBond(originalGeometry, selection);
   const frameFacts = doc?.frames[frame];
   const scanDimensions = Math.max(0,...(doc?.frames.map(f => f.scan_coordinates?.length ?? 0) ?? []));
   const scanFrames = doc?.frames.filter(f => f.scan_coordinates?.length && Object.entries(scanSlice).every(([dim,value]) => Number(dim) === scanAxis || !value || f.scan_coordinates?.[Number(dim)] === Number(value))) ?? [];
@@ -318,7 +348,6 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
         <button className="btn outline sm" onClick={() => setDiscardAction(null)}>保留编辑稿</button>
       </div>
     </div>}
-    {error && <div className="wb-error" role="alert">{error}</div>}{message && <div className="wb-message" role="status">{message}</div>}{busy && <div className="wb-busy-indicator wb-muted" role="status">正在处理…</div>}
     <div className="wb-body"><main className="wb-main">
       <div className="wb-toolbar">
         <div className="wb-view-switcher">
@@ -340,17 +369,24 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
             : draft?.sourcePath ? `派生自 ${draft.sourcePath} · 帧 ${(draft.sourceFrame ?? 0) + 1}` : '手工建模'}
         </span>
       </div>
-      <MoleculeBuilder geometry={originalGeometry} selection={selection} disabled={builderDisabled} hasFrozenCoordinates={!!draft?.frozen.length}
+      <MoleculeBuilder editing={editingCanvas} onModeChange={changeCanvasMode} brush={brush} onBrushChange={setBrush}
+        element={element} onElementChange={setElement} fragments={fragments} customSmiles={fragmentSmiles} onCustomSmilesChange={selectFragment}
+        attachment={attachment} onAttachmentChange={setAttachment} onPlace={()=>place()} geometry={originalGeometry} selection={selection} disabled={builderDisabled} hasFrozenCoordinates={!!draft?.frozen.length}
         onEdit={action => void perform(action, { immediate: action.action !== 'preoptimize' })} />
-      <div className="wb-selection-bar" aria-label="选择与测量">
+      {!editingCanvas && <div className="wb-selection-bar" aria-label="选择与测量">
         <div className="wb-selected-chips">{visibleSelection.map((i,n)=><button disabled={busy || !!preview || !!mode} key={i} className="wb-atom-tag" onClick={()=>setSelection(s=>s.filter(a=>a!==i))} title="点击取消选择"><span className="wb-atom-order">{n+1}</span> {geometry?.atoms.find(a=>a.index===i)?.symbol}{i} <span className="wb-remove">×</span></button>)}</div>
         <span className="wb-selection-measure">{coordType ? `${{bond:'距离',angle:'键角',dihedral:'二面角'}[coordType]}：${measured == null ? '当前几何无法定义' : `${measured.toFixed(5)} ${unit}`}` : '依次选择 2／3／4 个原子以编辑距离／键角／二面角'}</span>
         {coordType && <button className="btn green sm" disabled={!editable || measured == null} onClick={()=>openCoordinateDialog()}>编辑{{bond:'距离',angle:'键角',dihedral:'二面角'}[coordType]}</button>}
         {visibleSelection.length > 0 && <button className="btn ghost sm" disabled={busy || !!preview || !!mode} onClick={()=>setSelection([])}>清空</button>}
-      </div>
-      {geometry && geometry.atoms.length > 0 ? <Molecule3DViewer key={`${doc?.document_id}:${doc?.geometry?.molecule}`} geometry={geometry} preserveView={view==='source' && !preview && !mode} title={view === 'source' ? doc?.title : title} selectedAtoms={visibleSelection} onAtomPick={i=>{if(!busy && !preview && !mode){setSelection(s=>toggleAtomSelection(s,i));setCoordinateDialog(null);}}} onBackgroundClick={()=>{if(!busy && !preview && !mode){setSelection([]);setCoordinateDialog(null);}}} modeDisplacements={mode?.displacements} modePlaying={modePlaying} coordinateHighlights={showCoordinates && visibleDraft && !(view==='source' && visibleDraft.atomMappingChanged) ? [...visibleDraft.frozen.map(c=>c.atoms),...visibleDraft.scans.map(c=>c.atoms)] : []} className="wb-viewer"/> : <div className="wb-empty">
-        {doc && !geometry ? '此点没有可用的原生几何，选择其他帧查看结构。' : '添加原子后将在此显示三维结构。'}
       </div>}
+      {geometry || !doc ? <Molecule3DViewer key={`${requestVersion.current}:${doc?.document_id ?? 'blank'}`} geometry={geometry ?? emptyGeometry} preserveView editing={editingCanvas} title={view === 'source' ? doc?.title : title} selectedAtoms={visibleSelection} onAtomPick={pickAtom} onBackgroundClick={position=>{
+        if (busy || preview || mode || playing) return;
+        if (editingCanvas) place(undefined, position);
+        else { setSelection([]); setCoordinateDialog(null); }
+      }} modeDisplacements={mode?.displacements} modePlaying={modePlaying} coordinateHighlights={showCoordinates && visibleDraft && !(view==='source' && visibleDraft.atomMappingChanged) ? [...visibleDraft.frozen.map(c=>c.atoms),...visibleDraft.scans.map(c=>c.atoms)] : []} className="wb-viewer"/> : <div className="wb-empty">
+        此点没有可用的原生几何，选择其他帧查看结构。
+      </div>}
+      {error && <div className="wb-error" role="alert">{error}</div>}{message && <div className="wb-message" role="status">{message}</div>}{busy && <div className="wb-busy-indicator wb-muted" role="status">正在处理…</div>}
       {geometry?.optimization && <p className="wb-optimization" role="status"><strong>{geometry.optimization.force_field} · {geometry.optimization.converged ? '已收敛' : '未收敛'}</strong> 能量 {geometry.optimization.initial_energy.toFixed(4)} → {geometry.optimization.final_energy.toFixed(4)} {geometry.optimization.energy_unit}（Δ {(geometry.optimization.final_energy-geometry.optimization.initial_energy).toFixed(4)}）</p>}
       {preview?.geometry.warnings?.map((warning,index)=><p className="wb-muted" key={index}>{warning}</p>)}
       {preview && <div className="wb-preview"><span>检查移动部分、连接关系和镜像结果。</span><div className="wb-banner-actions"><button className="btn primary sm" onClick={()=>void confirmPreview()}>确认修改</button><button className="btn outline sm" onClick={()=>setPreview(null)}>取消预览</button></div></div>}
@@ -372,12 +408,12 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
         <div className="wb-row">{(['charge','multiplicity'] as const).map(key=><label key={key}>{key==='charge'?'电荷':'多重度'}<input type="number" value={draft.settings[key]??''} onChange={e=>updateSettings({...draft.settings,[key]:e.target.value===''?null:Number(e.target.value)})}/></label>)}</div>
         <label>计算类型<select value={Object.keys(draft.settings.task_type?.[0]??{})[0]??''} onChange={e=>updateSettings({...draft.settings,task_type:[{[e.target.value]:null}]})}><option value="" disabled>请选择</option><option value="opt">几何优化</option><option value="freq">频率</option><option value="irc">IRC</option><option value="sp">单点能</option></select></label></>}
       </fieldset>}
-      <section className="wb-section"><h3>原子列表</h3><p>点击原子可切换选择，点击画布空白处取消全部选择。标签中的数字是选择顺序。</p>
+      <section className="wb-section"><h3>原子列表</h3><p>{editingCanvas ? '点击列表中的原子也可以从它接出一根单键。' : '点击切换选择，点击画布空白处清空。编号标出选择顺序。'}</p>
         <div className="wb-atoms" aria-label="原子列表">{geometry?.atoms.map(atom =>
           <button key={atom.atom_id ?? atom.index} disabled={busy || !!mode || !!preview}
             aria-label={`${atom.symbol}${atom.index}`} aria-pressed={visibleSelection.includes(atom.index)}
             className={`btn ghost sm ${visibleSelection.includes(atom.index) ? 'active' : ''}`}
-            onClick={() => { setSelection(s => toggleAtomSelection(s, atom.index)); setCoordinateDialog(null); }}>
+            onClick={() => pickAtom(atom.index)}>
             <span className="wb-atom-sym">{atom.symbol}</span><span className="wb-atom-idx">{atom.index}</span>
           </button>)}</div>
         <details><summary>已定义的冻结与扫描{visibleDraft && (visibleDraft.frozen.length > 0 || visibleDraft.scans.length > 0) && `（冻结 ${visibleDraft.frozen.length} · 扫描 ${visibleDraft.scans.length}）`}</summary>
@@ -394,11 +430,13 @@ export function MolecularWorkbench({ project, source, onClose, onSaved, onContin
         <label>镜像原子（逗号分隔，留空为整分子）<input value={mirrorAtoms} onChange={e=>setMirrorAtoms(e.target.value)}/></label>
         <div className="wb-input-with-action"><label className="wb-compact-label">镜面<select value={plane} onChange={e=>setPlane(e.target.value as typeof plane)}><option value="xy">XY</option><option value="xz">XZ</option><option value="yz">YZ</option></select></label><button className="btn outline sm" disabled={!editable} onClick={()=>void perform({action:'mirror',plane,...(mirrorAtoms.trim()?{moving_atoms:atomList(mirrorAtoms)}:{})})}>预览{mirrorAtoms.trim()?'指定原子':'整分子'}镜像</button></div>
       </details>
-      <details className="wb-section"><summary>基团替换与共享历史</summary><p>依次选择保留侧、被替换侧原子。预览后确认才记录使用次数。</p><label>基团 SMILES<input value={fragmentSmiles} onChange={e=>selectFragment(e.target.value)} placeholder="带 [*:1] 连接点，或在预览中点选"/></label><label>名称（可选）<input value={fragmentName} onChange={e=>setFragmentName(e.target.value)}/></label><button className="btn outline sm wb-btn-full" disabled={busy || !fragmentSmiles.trim()} onClick={()=>void previewFragment()}>预览基团／选择连接原子</button>
+      {!editingCanvas && <details className="wb-section"><summary>基团替换与共享历史</summary><p>选一个末端原子，或依次选保留侧和被替换侧。确认预览后记录使用次数。</p>
+        <label>常用基团<select value={commonGroups.some(([smiles])=>smiles===fragmentSmiles) ? fragmentSmiles : ''} onChange={e=>selectFragment(e.target.value)}>
+          <option value="">自定义或从历史选择</option>{commonGroups.map(([smiles,name])=><option key={smiles} value={smiles}>{name}</option>)}</select></label><label>基团 SMILES<input value={fragmentSmiles} onChange={e=>selectFragment(e.target.value)} placeholder="带 [*:1] 连接点，或在预览中点选"/></label><label>名称（可选）<input value={fragmentName} onChange={e=>setFragmentName(e.target.value)}/></label><button className="btn outline sm wb-btn-full" disabled={busy || !fragmentSmiles.trim()} onClick={()=>void previewFragment()}>预览基团／选择连接原子</button>
         {fragmentPreview && <div className="wb-fragment-preview"><Molecule3DViewer key={fragmentPreview.molecule} geometry={fragmentPreview} selectedAtoms={attachment?[Number(attachment)]:[]} onAtomPick={i=>setAttachment(String(i))} title="基团连接位置"/></div>}
-        <label>基团连接原子编号（有标记时可空）<input type="number" min={1} value={attachment} onChange={e=>setAttachment(e.target.value)}/></label><button className="btn green sm wb-btn-full" disabled={!editable || selection.length!==2 || !fragmentSmiles.trim()} onClick={()=>void perform({action:'replace_group',atoms:selection,smiles:fragmentSmiles,...(attachment?{attachment_atom:Number(attachment)}:{})},{fragment:fragmentSmiles})}>预览替换结果</button>
+        <label>基团连接原子编号（有标记时可空）<input type="number" min={1} value={attachment} onChange={e=>setAttachment(e.target.value)}/></label><button className="btn green sm wb-btn-full" disabled={!editable || replaceAtoms.length!==2 || !fragmentSmiles.trim()} onClick={()=>void perform({action:'replace_group',atoms:replaceAtoms,smiles:fragmentSmiles,...(attachment?{attachment_atom:Number(attachment)}:{})},{fragment:fragmentSmiles})}>预览替换结果</button>
         <input aria-label="搜索基团历史" placeholder="搜索名称或 SMILES" value={fragmentSearch} onChange={e=>setFragmentSearch(e.target.value)}/><div className="wb-fragments">{fragments.filter(f=>`${f.name} ${f.smiles}`.toLowerCase().includes(fragmentSearch.toLowerCase())).map(f=><div key={f.id} className="wb-fragment-row"><button className="wb-fragment-entry" onClick={()=>selectFragment(f)}><span className="wb-fragment-title">{f.name || f.smiles}</span><small>{f.project_use_count?'本项目用过 · ':''}累计 {f.use_count} 次 · {f.smiles}</small></button><button className="wb-fragment-del" aria-label={`删除基团 ${f.name || f.smiles}`} onClick={()=>{void workbenchApi.deleteFragment(project.id,f.id).then(refreshFragments).catch(fail);}}>×</button></div>)}</div>
-      </details>
+      </details>}
     </aside></div>
     {coordinateDialog && originalGeometry && (() => {
       const current = measureCoordinate(originalGeometry.atoms, coordinateDialog.atoms);

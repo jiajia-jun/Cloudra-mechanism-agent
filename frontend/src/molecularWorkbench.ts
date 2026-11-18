@@ -72,3 +72,18 @@ export function detectImportFormat(filename: string): WorkbenchInputFormat | nul
   const formats: WorkbenchInputFormat[] = ['xyz','mol','sdf','log','out','gjf','com','inp','pdb','cif'];
   return formats.find(format=>format===suffix) ?? null;
 }
+
+export const commonGroups = [
+  ['[*]C', '甲基 · CH₃'], ['[*]O', '羟基 · OH'], ['[*]N', '氨基 · NH₂'], ['[*]c1ccccc1', '苯基 · Ph'],
+] as const;
+
+export function replacementBond(geometry: GeometryView | null | undefined, selection: number[]): number[] {
+  if (!geometry) return [];
+  if (selection.length === 2) return selection;
+  if (selection.length !== 1 || geometry.graph_status === 'unresolved') return [];
+  const [atom] = selection;
+  const neighbors = geometry.bonds.filter(b => b.atom1 === atom || b.atom2 === atom);
+  if (neighbors.length !== 1) return [];
+  const bond = neighbors[0];
+  return [bond.atom1 === atom ? bond.atom2 : bond.atom1, atom];
+}

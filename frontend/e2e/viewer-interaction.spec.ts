@@ -133,3 +133,35 @@ test('enabling view preservation without changing geometry keeps the first subse
   await expect.poll(() => page.evaluate(() => (window as any).observed.viewer.getModel(0).selectedAtoms({ serial: 1 })[0].x)).toBe(-1);
   await expect.poll(() => page.evaluate(() => (window as any).observed.viewer.getView())).toEqual(await page.evaluate(() => (window as any).observed.original.view));
 });
+
+test('drawing on the blank workbench anchors the atom at the click and the next click grows a single bond', async ({page}) => {
+  await page.route('**/workbench/fragments', route => route.fulfill({json:{fragments:[]}}));
+  const edits: any[] = [];
+  const atoms: {index:number;symbol:string;x:number;y:number;z:number}[] = [];
+  await page.route('**/workbench/edit', route => {
+    const edit = route.request().postDataJSON();
+    edits.push(edit);
+    const [x,y,z] = edit.position ?? [atoms[0].x + 1.4, atoms[0].y, atoms[0].z];
+    atoms.push({index:atoms.length+1,symbol:edit.element ?? 'O',x,y,z});
+    return route.fulfill({json:{atoms,bonds:atoms.length>1?[{atom1:1,atom2:2,order:1}]:[],molecule:'draft'+atoms.length,xyz:''}});
+  });
+  await page.goto('/e2e/workbench-builder.html');
+  const canvas = page.locator('.viewer-webgl-host canvas');
+  await expect(canvas).toBeVisible();
+  const bounds = (await canvas.boundingBox())!;
+  const x = bounds.x + 0.6*bounds.width, y = bounds.y + 0.4*bounds.height;
+  await page.mouse.click(x,y);
+  await expect(page.getByRole('button',{name:'C1',exact:true})).toBeVisible();
+  expect(edits[0]).toMatchObject({action:'add_atom',element:'C',atoms:[],position:[expect.any(Number),expect.any(Number),expect.any(Number)]});
+  await page.getByLabel('添加内容').selectOption('[*]O');
+  // Scrolling to the palette can move the canvas in a small viewport.
+  await canvas.scrollIntoViewIfNeeded();
+  const next = (await canvas.boundingBox())!;
+  await page.mouse.click(next.x+0.6*next.width,next.y+0.4*next.height);
+  await expect(page.getByRole('button',{name:'O2',exact:true})).toBeVisible();
+  expect(edits[1]).toMatchObject({action:'add_group',smiles:'[*]O',atoms:[1],molecule:'draft1'});
+  await page.getByRole('button',{name:'选择模式'}).click();
+  await page.getByRole('button',{name:'O2',exact:true}).click();
+  await expect(page.getByRole('button',{name:'替换元素'})).toBeEnabled();
+  expect(edits).toHaveLength(2);
+});

@@ -4,6 +4,7 @@ import Markdown from './Markdown';
 import { ResearchPanel } from './ResearchPanel';
 import { MolecularWorkbench } from './MolecularWorkbench.tsx';
 import type { WorkbenchSource } from './workbenchTypes';
+import { LongTextControls, handleLongTextKey } from './LongTextControls';
 import OpsPanel from './OpsPanel';
 import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, Project } from './types';
 import GlobalConfig from './GlobalConfig';
@@ -41,7 +42,7 @@ import {
 import { ToolRow } from './ToolRow';
 import { ProgramCard } from './ProgramCard';
 import { PathPickerModal } from './PathPickerModal';
-import { completionChipFor } from './completion';
+import { completionChipFor, stateBadgeText } from './completion';
 import { useI18n } from './i18n';
 
 /* ------------------------------------------------------------------ helpers */
@@ -247,6 +248,7 @@ export default function App() {
   const pendingMessageSeqRef = useRef(0);
   const [roles, setRoles] = useState<Array<{ role_id: string; display_name: string }>>([]);
   const [draft, setDraft] = useState('');
+  const [longText, setLongText] = useState(false);
   const [slashSelected, setSlashSelected] = useState(0);
   const [slashDismissed, setSlashDismissed] = useState(false);
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -306,7 +308,7 @@ export default function App() {
     : interactions.length || approvals.length);
 
   // Slash commands autocomplete calculation
-  const isSlashPrompt = draft.startsWith('/') && !draft.includes('\n');
+  const isSlashPrompt = !longText && draft.startsWith('/') && !draft.includes('\n');
   const slashPrefix = isSlashPrompt ? draft.trim().toLowerCase() : '';
   const matchingSlash = useMemo(() => {
     if (!isSlashPrompt || slashDismissed) return [];
@@ -1154,15 +1156,26 @@ export default function App() {
     }
   }
 
-  async function cancelAllComputeJobs() {
-    if (cancellingComputeRef.current || !window.confirm(cancelAllComputeConfirm(lang))) {
+  async function cancelCompute(job?: ComputeJob) {
+    if (cancellingComputeRef.current || !activeProject) return;
+    const question = job
+      ? (lang === 'zh' ? `取消作业 #${job.id}（${job.path}）？` : `Cancel job #${job.id} (${job.path})?`)
+      : cancelAllComputeConfirm(lang);
+    if (!window.confirm(question)) {
       return;
     }
     cancellingComputeRef.current = true;
     setCancellingCompute(true);
     try {
-      const counts = await api.cancelAllComputeJobs();
-      pushToast('ok', formatCancelAllToast(counts, lang));
+      if (job) {
+        const result = await api.cancelComputeJob(activeProject.id, job.id);
+        if (result.state === 'cancelled') pushToast('ok', lang === 'zh' ? `已取消作业 #${job.id}` : `Cancelled job #${job.id}`);
+        else if (result.state === 'cancel_requested') pushToast('ok', lang === 'zh' ? `已请求停止作业 #${job.id}，等待确认退出。` : `Stop requested for job #${job.id}; awaiting exit.`);
+        else pushToast('error', result.message);
+      } else {
+        const counts = await api.cancelAllComputeJobs();
+        pushToast('ok', formatCancelAllToast(counts, lang));
+      }
     } catch (e) {
       reportError(e);
     } finally {
@@ -1690,14 +1703,10 @@ export default function App() {
     label: string;
   }>(() => {
     // 历史工具行和已到达的分片不能替代 Agent 的当前生命周期状态。
-    if (activeAgent?.state === 'waiting_approval') {
-      return { type: 'waiting', label: 'Waiting for approval' };
-    }
-    if (activeAgent?.state === 'waiting_input') {
-      return { type: 'waiting', label: 'Waiting for user input' };
-    }
     if (activeAgent?.state !== 'running') {
-      return { type: 'idle', label: 'Ready' };
+      const state = activeAgent?.state;
+      return { type: state === 'waiting_approval' || state === 'waiting_input' ? 'waiting' : 'idle',
+        label: state ? stateBadgeText(state, lang) : (lang === 'zh' ? '未选择 Agent' : 'No agent selected') };
     }
     if (streamView.streamText) {
       return { type: 'generating', label: 'Streaming response…' };
@@ -1712,7 +1721,7 @@ export default function App() {
       return { type: 'thinking', label: 'Reasoning / Thinking…' };
     }
     return { type: 'running', label: 'Processing turn…' };
-  }, [streamView.streamText, runningTool, liveThinking, activeAgent?.state]);
+  }, [streamView.streamText, runningTool, liveThinking, activeAgent?.state, lang]);
 
   // Agent tree: sub-agents fold under their parent's chip in the agent bar.
   const childrenOf = useMemo(() => {
@@ -2190,17 +2199,6 @@ export default function App() {
               >
                 {t.sidebarBenchmark}
               </button>
-              <button
-                type="button"
-                className="btn ghost sm"
-                data-testid="cancel-all-compute-foot"
-                disabled={cancellingCompute}
-                onClick={() => { void cancelAllComputeJobs(); }}
-              >
-                {cancellingCompute
-                  ? (lang === 'zh' ? '请求中…' : 'Requesting…')
-                  : (lang === 'zh' ? '取消全部计算' : 'Cancel All Compute')}
-              </button>
             </div>
           </details>
         </div>
@@ -2515,7 +2513,7 @@ export default function App() {
             {activeAgent?.state === 'queued' && timeline.length > 0 && (
               <div className="run-status">
                 <span className="state-dot queued" />
-                <span>queued — enter a query below to start</span>
+                <span>{stateBadgeText(activeAgent.state, lang)}</span>
               </div>
             )}
           </div>
@@ -2588,6 +2586,8 @@ export default function App() {
             )}
             <textarea
               ref={composerTextareaRef}
+              id="chat-message-input"
+              data-expanded={longText}
               data-testid="composer-input"
               rows={2}
               value={draft}
@@ -2597,6 +2597,10 @@ export default function App() {
                 setSlashSelected(0);
               }}
               onKeyDown={(e) => {
+                if (longText) {
+                  handleLongTextKey(e, () => { void sendMessage(); }, () => setLongText(false));
+                  return;
+                }
                 if (matchingSlash.length > 0) {
                   if (e.key === 'ArrowDown') {
                     e.preventDefault();
@@ -2658,7 +2662,7 @@ export default function App() {
                   <span className="yolo-tag">{activeProject.settings.defaults?.yolo === true ? 'YOLO' : 'SAFE'}</span>
                 </button>
               )}
-              <span className="composer-hint">Enter to send · Shift+Enter for newline</span>
+              <LongTextControls id="chat-message-input" expanded={longText} onExpand={setLongText} textarea={composerTextareaRef} t={t} />
               {visualOn && (
                 <>
                   <input
@@ -2806,7 +2810,7 @@ export default function App() {
             <ResearchPanel key={activeProject.id} project={activeProject} onError={reportError} onToast={pushToast} onOpenMolecule={openWorkbench} refreshVersion={researchRefreshVersion}/>
           ) : consoleTab === 'compute' ? (
             <div className="console-compute-container">
-              <OpsPanel project={activeProject} agents={agents} onError={reportError} refreshVersion={computeRefreshVersion} />
+              <OpsPanel key={activeProject.id} project={activeProject} activeJobs={sidebarJobs} cancelling={cancellingCompute} onCancel={cancelCompute} agents={agents} onError={reportError} refreshVersion={computeRefreshVersion} />
             </div>
           ) : consoleTab === 'audit' ? (
             <div className="console-audit-container">
