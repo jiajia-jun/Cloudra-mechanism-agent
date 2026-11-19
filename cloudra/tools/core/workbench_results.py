@@ -16,7 +16,23 @@ from pathlib import Path
 from cloudra.persistence.fs_utils import atomic_write_json
 from cloudra.tools.core import gaussian_frames, orca_frames
 from cloudra.tools.core.molecule import _copy_molecule, read_molecule, serialize_molecule
+from cloudra.tools.core.periodic_io import geometry_format_from_path, iter_ase_geometry
 from cloudra.tools.core.qm_engine import detect_qm_engine
+
+_CACHE_FORMAT = 3
+
+
+def _periodic_format(path: Path) -> str | None:
+    try:
+        fmt = geometry_format_from_path(path)
+    except ValueError:
+        return None
+    return fmt if fmt in {'cif', 'vasp', 'extxyz'} else None
+
+
+def can_open_workbench_source(path: Path) -> bool:
+    return (_periodic_format(path) is not None
+            or path.suffix.lower() in {'.mol', '.sdf', '.pdb', '.gjf', '.com', '.inp', '.log', '.out'})
 
 
 def _sidecar_root(source: Path) -> Path:
@@ -80,7 +96,7 @@ def _read_metadata(cache_root: Path, document_id: str) -> dict:
     except FileNotFoundError as exc:
         raise ValueError('Workbench document is unavailable; reopen its source') from exc
     source = Path(metadata['source_path'])
-    if metadata.get('_format_version') != 2 or metadata['_signature'] != _signature(source):
+    if metadata.get('_format_version') != _CACHE_FORMAT or metadata['_signature'] != _signature(source):
         open_document(source, cache_root)
         metadata = json.loads((directory / 'document.json').read_text())
     return metadata
@@ -98,6 +114,8 @@ def _frame_geometry(directory: Path, index: int) -> dict:
 
     path = directory / f'frame-{index}.json'
     stored = json.loads(path.read_text())
+    if 'periodic' in stored:
+        return stored['periodic']
     if 'molecule' in stored:
         mol = _copy_molecule(stored['molecule'])
     elif stored.get('xyz'):
@@ -188,13 +206,44 @@ def _forcefield_frames(source: Path):
 
 
 def _structure_frames(source: Path, data: dict | None):
+    from ase.io.xyz import write_xyz
     from rdkit import Chem
 
+    from cloudra.tools.core.workbench_geometry import periodic_geometry_view
+
+    fmt = _periodic_format(source)
     if data is not None:
         yield {'molecule': data['molecule']}, {'step': 0}
-    elif source.suffix.lower() == '.xyz':
+    elif fmt == 'extxyz':
+        # Keep complete blocks available for a growing XYZ file, and retain the
+        # original EXTXYZ frame text so its additional properties can travel.
         for index, xyz in enumerate(gaussian_frames.iter_xyz_blocks(source)):
-            yield {'xyz': xyz}, {'step': index}
+            comment = xyz.split('\n', 2)[1]
+            frame = {'xyz': xyz}
+            if 'Lattice' in comment or 'pbc' in comment:
+                try:
+                    atoms = next(iter_ase_geometry(io.StringIO(xyz), fmt))
+                except (AttributeError, TypeError) as exc:
+                    raise ValueError(f'Invalid EXTXYZ metadata in frame {index + 1}') from exc
+                if atoms.cell.any() or atoms.pbc.any():
+                    frame = {'periodic': periodic_geometry_view(atoms, extxyz=xyz)}
+            yield frame, {'step': index}
+    elif fmt:
+        # VASP can consult a neighboring POTCAR/OUTCAR for old symbol-free
+        # inputs. A Workbench source must be readable from its own contents.
+        native_source = io.StringIO(source.read_text(encoding='utf-8')) if fmt == 'vasp' else source
+        try:
+            for index, atoms in enumerate(iter_ase_geometry(native_source, fmt)):
+                if atoms.cell.any() or atoms.pbc.any():
+                    yield {'periodic': periodic_geometry_view(atoms)}, {'step': index}
+                else:
+                    buffer = io.StringIO()
+                    write_xyz(buffer, [atoms], fmt='%.17g')
+                    yield {'xyz': buffer.getvalue()}, {'step': index}
+        except AttributeError as exc:
+            if fmt == 'vasp' and exc.name == 'name':
+                raise ValueError('Standalone POSCAR/CONTCAR must declare its element symbols') from exc
+            raise
     elif source.suffix.lower() == '.sdf':
         with source.open('rb') as handle:
             for index, mol in enumerate(Chem.ForwardSDMolSupplier(handle, removeHs=False)):
@@ -214,11 +263,11 @@ def open_document(source_path: Path, cache_root: Path, frame_index: int | None =
     signature = _signature(source)
     metadata_path = directory / 'document.json'
     metadata = json.loads(metadata_path.read_text()) if metadata_path.exists() else None
-    if metadata is None or metadata.get('_format_version') != 2 or metadata['_signature'] != signature:
+    if metadata is None or metadata.get('_format_version') != _CACHE_FORMAT or metadata['_signature'] != signature:
         directory.mkdir(parents=True, exist_ok=True)
         metadata = {'document_id': document_id, 'title': source.name, 'source_path': str(source),
                     'task_type': 'structure', 'frames': [], 'modes': [], 'modes_reference_geometry': None,
-                    'settings': {}, 'warnings': [], '_signature': signature, '_format_version': 2}
+                    'settings': {}, 'warnings': [], '_signature': signature, '_format_version': _CACHE_FORMAT}
         parser = None
         text = ''
         if source.suffix.lower() in {'.log', '.out'}:
@@ -249,10 +298,13 @@ def open_document(source_path: Path, cache_root: Path, frame_index: int | None =
             frames = _structure_frames(source, saved)
         for index, (geometry, summary) in enumerate(frames):
             atomic_write_json(directory / f'frame-{index}.json', geometry)
-            metadata['frames'].append({'index': index, **summary, 'has_geometry': bool(geometry.get('xyz') or geometry.get('molecule'))})
+            metadata['frames'].append({
+                'index': index, **summary,
+                'has_geometry': bool(geometry.get('xyz') or geometry.get('molecule') or geometry.get('periodic')),
+            })
         if not metadata['frames']:
             reason = parser.frames_unavailable_reason(str(source)) if parser is orca_frames else None
-            raise ValueError(reason or 'No complete molecular frames are available in this source')
+            raise ValueError(reason or 'No complete geometry frames are available in this source')
         if parser:
             modes, reference = _normal_modes(parser, text, directory, metadata['frames'])
             metadata.update(modes=modes, modes_reference_geometry=reference)

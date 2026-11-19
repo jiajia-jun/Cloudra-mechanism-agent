@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import vm from 'node:vm';
 import { parseSync, transformSync } from 'rolldown/utils';
+import * as annotations from './workbenchAnnotations.ts';
 import * as helpers from './molecularWorkbench.ts';
 import type { DocumentView, GeometryView } from './workbenchTypes.ts';
 
@@ -71,7 +72,7 @@ async function mount() {
   const props = { project: { id: 'project', name: 'Project' }, source: { path: '/first' },
     onClose() { calls.closed++; }, onSaved() {}, onError: (error: string) => errors.push(error) };
   const component = vm.runInNewContext(`${compiled}\nMolecularWorkbench`, {
-    ...helpers, workbenchApi: api,
+    ...helpers, ...annotations, workbenchApi: api, useMemo: (compute: () => unknown) => compute(),
     React: { createElement: (type: Element['type'], props: object, ...children: unknown[]) => ({ type, props: { ...props, children } }) },
     Molecule3DViewer: 'Molecule3DViewer', MoleculeBuilder: 'MoleculeBuilder', WorkbenchCoordinateDialog: 'WorkbenchCoordinateDialog',
     useState(initial: any) {

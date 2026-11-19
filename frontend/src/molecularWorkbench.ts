@@ -68,8 +68,9 @@ export function defineFrozenCoordinate(draft: Draft, atoms: number[], target: st
 
 export function detectImportFormat(filename: string): WorkbenchInputFormat | null {
   const suffix = filename.split('.').pop()?.toLowerCase();
+  if (suffix === 'poscar' || suffix === 'contcar' || suffix === 'vasp') return 'poscar';
   if (suffix === 'smi' || suffix === 'smiles') return 'smiles';
-  const formats: WorkbenchInputFormat[] = ['xyz','mol','sdf','log','out','gjf','com','inp','pdb','cif'];
+  const formats: WorkbenchInputFormat[] = ['xyz','mol','sdf','log','out','gjf','com','inp','pdb','cif','extxyz'];
   return formats.find(format=>format===suffix) ?? null;
 }
 
@@ -86,4 +87,13 @@ export function replacementBond(geometry: GeometryView | null | undefined, selec
   if (neighbors.length !== 1) return [];
   const bond = neighbors[0];
   return [bond.atom1 === atom ? bond.atom2 : bond.atom1, atom];
+}
+
+export function workbenchLink(value: string): string | null {
+  if (!value || value.includes('://') || value.startsWith('//') || value.startsWith('#')) return null;
+  let path: string;
+  try { path = decodeURIComponent(value); } catch { return null; }
+  if (path.includes(':') || path.includes('\n') || path.includes('?') || path.includes('#')) return null;
+  const name = path.split('/').pop() ?? '';
+  return detectImportFormat(name) || name === 'structure.json' ? path : null;
 }

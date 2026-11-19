@@ -240,9 +240,10 @@ export const api = {
           : { content, language },
       ),
     }),
-  uploadFile: (projectId: string, file: File) => {
+  uploadFile: (projectId: string, file: File, source?: 'workbench') => {
     const form = new FormData();
     form.append('file', file);
+    if (source === 'workbench') form.append('workbench', 'true');
     // headers:{} replaces the JSON content-type so fetch sets the multipart boundary.
     return request<{ path: string; artifact_id: string }>(`/api/v2/projects/${projectId}/uploads`, {
       method: 'POST',

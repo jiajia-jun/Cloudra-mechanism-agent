@@ -22,6 +22,9 @@ from cloudra.persistence.paths import project_workspace_dir
 from cloudra.persistence.workspace import WorkspaceService
 from cloudra.services import session_store
 from cloudra.tools.core.molecule import serialize_molecule, to_xyz
+from cloudra.tools.core.workbench_results import can_open_workbench_source
+
+WORKBENCH_ATTACHMENT_SESSION = 'workbench-chat-attachments'
 
 
 class WorkbenchService:
@@ -92,9 +95,11 @@ class WorkbenchService:
             source = self.cache_root / 'imports' / f'{uuid4().hex}.json'
             self._write(source, json.dumps({'title': request.smiles, 'molecule': geometry['molecule'], 'settings': {}}, ensure_ascii=False))
         else:
-            fmt = request.input_format or 'xyz'
+            fmt = request.input_format.strip().lower() or 'xyz'
             suffix = {'gaussian-in': 'gjf', 'gaussian': 'gjf', 'orca': 'inp', 'smiles': 'smi'}.get(fmt, fmt)
-            if suffix not in {'xyz', 'mol', 'sdf', 'gjf', 'com', 'inp', 'smi', 'pdb', 'cif', 'json', 'log', 'out'}:
+            if not suffix.isascii() or not suffix.isalnum() or (
+                suffix not in {'smi', 'json'} and not can_open_workbench_source(Path(f'draft.{suffix}'))
+            ):
                 raise ValueError(f'不支持的导入格式：{fmt}')
             if fmt == 'smiles':
                 geometry = create_geometry(request.input_text, fmt)
@@ -117,7 +122,8 @@ class WorkbenchService:
                 'engine': document['settings'].get('engine'), 'frame_count': len(document['frames']),
                 'mode_count': len(document['modes']),
                 'selected_frame_facts': document['frames'][document['selected_frame']],
-                **{key: geometry[key] for key in ('xyz', 'atoms', 'bonds', 'graph_status', 'manual_bonds')}}
+                **{key: geometry[key] for key in ('xyz', 'atoms', 'bonds', 'graph_status', 'manual_bonds',
+                                                  'cell', 'pbc', 'warnings') if key in geometry}}
 
     def save(self, request) -> dict[str, Any]:
         from rdkit import Chem
@@ -228,7 +234,7 @@ class WorkbenchService:
                         for value in (evidence.snapshot_path, evidence.original_path):
                             file = Path(value).resolve()
                             if file.is_relative_to(self.root) and file.is_file() and _sha256_file(file) == evidence.sha256:
-                                result.setdefault(('file_path', str(file)), []).append(entry)
+                                result.setdefault(('file_path', str(file)), []).append({**entry, 'original_name': Path(evidence.original_path).name})
         return result, objects
 
     def products(self) -> dict[str, list[dict]]:
@@ -236,7 +242,8 @@ class WorkbenchService:
         from cloudra.services.compute_store import _db_ready, list_compute_jobs
 
         references, objects = self._graph_context()
-        artifacts = ArtifactService().list(self.project.id)
+        artifacts = [item for item in ArtifactService().list(self.project.id)
+                     if item.session_id != WORKBENCH_ATTACHMENT_SESSION]
         artifact_sources: dict[str, list] = {}
         for artifact in artifacts:
             artifact_sources.setdefault(artifact.source_path, []).append(artifact)
@@ -296,7 +303,6 @@ class WorkbenchService:
                 'association_ref': {'ref_type': 'compute_job', 'ref_id': str(job['id'])},
                 'files': [{'path': str(file), 'role': 'input' if file == input_path else 'output'} for file in local_files],
             })
-        molecular_suffixes = {'.xyz', '.mol', '.sdf', '.pdb', '.cif', '.gjf', '.com', '.inp', '.log', '.out'}
         for artifact in artifacts:
             if artifact.source_path in saved_files and artifact in matching_artifacts(Path(artifact.source_path)):
                 continue
@@ -307,7 +313,7 @@ class WorkbenchService:
                 'id': artifact.artifact_id, 'kind': 'artifact', 'title': artifact.name,
                 'artifact_id': artifact.artifact_id, 'path': artifact.source_path,
                 'created_at': artifact.created_at, 'state': '',
-                'can_open': Path(artifact.name).suffix.lower() in molecular_suffixes,
+                'can_open': can_open_workbench_source(Path(artifact.name)),
                 'associations': associations, 'files': [],
                 'association_ref': artifact_ref(artifact),
                 'mime_type': artifact.mime_type, 'size': artifact.size,
@@ -320,7 +326,7 @@ class WorkbenchService:
             file = Path(ref_id)
             if file.is_relative_to(self.root) and file.is_file():
                 products.append({'id': ref_id, 'kind': 'artifact', 'title': file.name, 'path': ref_id,
-                                 'created_at': '', 'state': '', 'can_open': file.suffix.lower() in molecular_suffixes,
+                                 'created_at': '', 'state': '', 'can_open': can_open_workbench_source(Path(associations[0]['original_name'])),
                                  'associations': associations, 'files': [],
                                  'association_ref': {key: associations[0][key] for key in ('ref_type', 'ref_id', 'content_hash') if key in associations[0]}})
         products.sort(key=lambda item: str(item.get('created_at') or ''), reverse=True)

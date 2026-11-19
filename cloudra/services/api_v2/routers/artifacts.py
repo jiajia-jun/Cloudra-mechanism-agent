@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 
 from ..context import ApiContext
@@ -39,7 +39,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         return [artifact.to_dict() for artifact in artifacts]
 
     @router.post("/api/v2/projects/{project_id}/uploads", dependencies=ctx.protected, status_code=status.HTTP_201_CREATED)
-    async def upload_project_image(project_id: str, file: UploadFile = File(...)) -> dict[str, Any]:
+    async def upload_project_image(project_id: str, file: UploadFile = File(...), workbench: bool = Form(False)) -> dict[str, Any]:
         """User image upload: stored under the project workspace and registered as an artifact.
 
         The returned ``path`` is what ``agent.message`` accepts in ``images``;
@@ -47,6 +47,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         """
         from cloudra.persistence.fs_utils import atomic_write_bytes
         from cloudra.runtime_v2.invocation import register_workspace_image_artifact
+        from cloudra.services.workbench import WORKBENCH_ATTACHMENT_SESSION
 
         project = ctx.core.require_project(project_id)
         filename = Path(file.filename or "").name
@@ -80,12 +81,14 @@ def build_router(ctx: ApiContext) -> APIRouter:
         artifact_id = await asyncio.to_thread(
             lambda: register_workspace_image_artifact(
                 project_id=project_id,
-                session_id="uploads",
+                session_id=WORKBENCH_ATTACHMENT_SESSION if workbench else "uploads",
                 agent_id=None,
                 workspace_root=str(root),
                 image_path=str(path),
             )
         )
+        if workbench and not artifact_id:
+            raise HTTPException(500, "Failed to register the workbench screenshot")
         return {"path": str(path), "artifact_id": artifact_id}
 
     @router.get("/api/v2/artifacts/{artifact_id}/download", dependencies=ctx.protected)

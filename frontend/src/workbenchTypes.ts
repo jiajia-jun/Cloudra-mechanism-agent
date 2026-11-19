@@ -1,4 +1,5 @@
-export type WorkbenchInputFormat = 'smiles'|'xyz'|'mol'|'sdf'|'log'|'out'|'gjf'|'com'|'inp'|'pdb'|'cif';
+import type { Cell } from './workbenchAnnotations';
+export type WorkbenchInputFormat = 'smiles'|'xyz'|'mol'|'sdf'|'log'|'out'|'gjf'|'com'|'inp'|'pdb'|'cif'|'extxyz'|'poscar';
 export interface WorkbenchSource { frame_index?: number; path?: string; artifact_id?: string; file_evidence?: {ref_type: 'file'; ref_id: string; content_hash?: string | null; revision?: number | null}; input_text?: string; input_format?: string; smiles?: string }
 export interface WorkbenchAtom {
   index: number; symbol: string; x: number; y: number; z: number; atom_id?: string;
@@ -8,6 +9,7 @@ export interface WorkbenchAtom {
   lone_pairs?: number | null;
 }
 export interface GeometryView {
+  cell?: Cell; pbc?: [boolean, boolean, boolean]; extxyz?: string;
   molecule: string; xyz: string; atoms: WorkbenchAtom[];
   bonds: { atom1: number; atom2: number; order: number }[];
   graph_status?: string;
@@ -45,3 +47,22 @@ export interface EditRequest {
 export interface FragmentEntry { id: string; smiles: string; name: string; use_count: number; project_use_count: number; attachment_atom?: number; geometry?: GeometryView }
 export interface SaveRequest { title: string; molecule: string; source_path?: string | null; source_frame?: number; settings: WorkbenchSettings; frozen_coordinates: FrozenCoordinate[]; scan_coordinates: ScanCoordinate[]; generate_input: boolean }
 export interface SaveResult { path: string; files: string[] | Record<string, string>; geometry: GeometryView; message: string }
+
+export interface SnapshotRequest {
+  title: string;
+  molecule?: string;
+  extxyz?: string;
+  source_path?: string | null;
+  source_frame?: number;
+  view: 'source' | 'draft';
+  warnings?: string[];
+  markers: import('./workbenchAnnotations').Marker[];
+  settings: WorkbenchSettings;
+  frozen_coordinates: FrozenCoordinate[];
+  scan_coordinates: ScanCoordinate[];
+}
+export interface WorkbenchShot {
+  text: string;
+  snapshot: SnapshotRequest;
+  capture: Promise<{image: Blob; camera: number[]}>;
+}
