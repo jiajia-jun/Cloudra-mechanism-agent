@@ -16,7 +16,7 @@ Windows 的详细步骤见 [`windows` 分支教程](https://github.com/yyywaa/Cl
 
 ## 下载安装包
 
-macOS 和 Linux 安装包直接从 [v0.1.1rc Release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1rc) 下载。Apple Silicon Mac 选择 `arm64`，Intel Mac 选择 `x86_64`；Linux x86_64 可选 `.deb` 或便携 `.tar.gz`。
+macOS 和 Linux 安装包直接从 [v0.1.1 Release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1) 下载。Apple Silicon Mac 选择 `arm64`，Intel Mac 选择 `x86_64`；Linux x86_64 可选 `.deb` 或便携 `.tar.gz`。
 
 实验性 Windows 安装包由单独的 `windows` 分支维护。在成功的 [Windows installer 工作流](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/windows-installer.yml)中下载 `windows-installer-x64` 构建产物；下载 Actions 构建产物需要登录 GitHub。
 

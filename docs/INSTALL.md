@@ -16,7 +16,7 @@ See the [Windows guide on the `windows` branch](https://github.com/yyywaa/Cloudr
 
 ## Download a package
 
-Download the macOS or Linux installer for your system directly from the [v0.1.1rc release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1rc). Choose the `arm64` package for Apple Silicon or `x86_64` for Intel Macs. Linux offers both a `.deb` and a portable `.tar.gz` for x86_64.
+Download the macOS or Linux installer for your system directly from the [v0.1.1 release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1). Choose the `arm64` package for Apple Silicon or `x86_64` for Intel Macs. Linux offers both a `.deb` and a portable `.tar.gz` for x86_64.
 
 Experimental Windows packages are maintained on the separate `windows` branch. Find them in a successful [Windows installer workflow](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/windows-installer.yml) run as the `windows-installer-x64` artifact; GitHub sign-in is required to download workflow artifacts.
 
