@@ -34,6 +34,9 @@ assert.equal(restored.draft.settings.method, 'chosen');
 console.log('molecular workbench behavior passed');
 
 assert.deepEqual(curvePoints([{index:0,step:1,energy_hartree:-2,reaction_coordinate:-1},{index:1,step:2,energy_hartree:-1}], 'energy_hartree').map(p=>p.x), [0,1]);
+const irc = [-0.8, 0, 0.8].map((reaction_coordinate, index) => ({index, step:index, reaction_coordinate, energy_hartree: -2 + index}));
+assert.deepEqual(curvePoints(irc, 'reaction_coordinate').map(p => [p.x, p.y]), [[0,-0.8],[1,0],[2,0.8]]);
+assert.deepEqual(curvePoints(irc, 'energy_hartree').map(p => p.x), [-0.8,0,0.8]);
 assert.equal(validateSettings({engine:'orca',method:'chosen',basis_set:'',charge:0,multiplicity:0},true), '电荷须为整数，多重度须为正整数。');
 assert.equal(undoDraft([], previous).draft, previous);
 assert.equal(undoDraft([null], previous).draft, null);
@@ -51,8 +54,9 @@ const scanSlice = [
   {index:0,step:0,energy_hartree:-10,scan_coordinates:[1.1,10]},
   {index:1,step:1,energy_hartree:null,scan_coordinates:[1.1,20]},
   {index:2,step:2,energy_hartree:-11,scan_coordinates:[1.6,10]},
-].map(frame=>({...frame,reaction_coordinate:frame.scan_coordinates[1]===10?frame.scan_coordinates[0]:undefined}));
-assert.deepEqual(curvePoints(scanSlice,'energy_hartree').map(p=>[p.frame,p.x]),[[0,1.1],[2,1.6]]);
+];
+assert.deepEqual(curvePoints(scanSlice,'energy_hartree',0).map(p=>[p.frame,p.x]),[[0,1.1],[2,1.6]]);
+assert.deepEqual(curvePoints(scanSlice,'energy_hartree',2), []);
 
 const frozenTarget = defineFrozenCoordinate(previous,[1,2],'1.7');
 assert.equal(frozenTarget.geometry, previous.geometry);

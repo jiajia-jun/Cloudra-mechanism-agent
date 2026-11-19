@@ -5,10 +5,12 @@ import { ResearchPanel } from './ResearchPanel';
 import { MolecularWorkbench } from './MolecularWorkbench.tsx';
 import { workbenchApi } from './workbenchApi';
 import type { WorkbenchShot, WorkbenchSource } from './workbenchTypes';
-import { LongTextControls, handleLongTextKey } from './LongTextControls';
+import { useComposerDraft } from './useComposerDraft';
+import { LongTextControls, handleLongTextKey, composingText } from './LongTextControls';
 import OpsPanel from './OpsPanel';
 import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, Project } from './types';
 import GlobalConfig from './GlobalConfig';
+import { openRouterCallbackCode } from './runtimeUrl';
 import ComposerModelPicker from './ComposerModelPicker';
 import ProjectSettingsModal from './ProjectSettingsModal';
 import KnowledgePanel from './KnowledgePanel';
@@ -210,6 +212,8 @@ export default function App() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [activeAgentId, setActiveAgentId] = useState<string | null>(null);
   const [projectStream, setProjectStream] = useState<{ projectId: string; cursor: number } | null>(null);
+  const [viewLoadFailed, setViewLoadFailed] = useState<string | null>(null);
+  const [viewRetry, setViewRetry] = useState(0);
   const [events, setEvents] = useState<EventEnvelope[]>([]);
   // One historical page, isolated from the live tail while browsing.
   const [olderEvents, setOlderEvents] = useState<EventEnvelope[]>([]);
@@ -223,6 +227,8 @@ export default function App() {
   const sidebarJobsRequestRef = useRef(0);
   const [viewMode, setViewMode] = useState<'dialogue' | 'console'>('dialogue');
   const [consoleTab, setConsoleTab] = useState<ConsoleTab>('overview');
+  const [researchJob, setResearchJob] = useState<{project: string; id: number} | null>(null);
+  useEffect(() => { if(consoleTab !== 'research') setResearchJob(null); }, [consoleTab]);
   const [workbenchDelivery,setWorkbenchDelivery] = useState<{agentId:string; eventId:string} | null>(null);
   const [workbench, setWorkbench] = useState<{projectId:string;source:WorkbenchSource|null}|null>(null);
   const [researchRefreshVersion,setResearchRefreshVersion] = useState(0);
@@ -249,7 +255,6 @@ export default function App() {
   const [pendingMessages, setPendingMessages] = useState<MessageItem[]>([]);
   const pendingMessageSeqRef = useRef(0);
   const [roles, setRoles] = useState<Array<{ role_id: string; display_name: string }>>([]);
-  const [draft, setDraft] = useState('');
   const [longText, setLongText] = useState(false);
   const [slashSelected, setSlashSelected] = useState(0);
   const [slashDismissed, setSlashDismissed] = useState(false);
@@ -267,7 +272,7 @@ export default function App() {
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   const [globalOpen, setGlobalOpen] = useState(() => {
     return Boolean(
-      new URLSearchParams(window.location.search).has('code') &&
+      openRouterCallbackCode(new URLSearchParams(window.location.search)) &&
         sessionStorage.getItem('openrouter_pkce_verifier')
     );
   });
@@ -276,8 +281,6 @@ export default function App() {
   const [telemetryOpen, setTelemetryOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
-  const [pendingImages, setPendingImages] = useState<Array<{ path: string; artifactId: string; name: string; size: number }>>([]);
-  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Cross-project pending approvals/ask_user (the AttentionDock + desktop
   // notifications).  Keyed by project id; polled for every non-archived
@@ -300,6 +303,11 @@ export default function App() {
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeAgent = agents.find((a) => a.id === activeAgentId) ?? null;
   const composerInteraction = composerInteractionFor(interactions, activeAgent?.id ?? null);
+  const recipientReady = projectStream?.projectId === activeProjectId
+    && Boolean(activeProject && (activeAgentId ? activeAgent?.project_id === activeProjectId : agents.length === 0));
+  const questionId = composerInteraction?.interaction_id ?? composerInteraction?.id;
+  const { draft, setDraft, pendingImages, setPendingImages, uploading, setUploading, adoptFirstAgent } =
+    useComposerDraft(activeProjectId, activeAgentId, questionId == null ? undefined : String(questionId));
   // Visual mode gates the composer attach button; defaults to on.
   const visualOn = activeProject
     ? (activeAgent?.settings.visual_mode ?? activeProject.settings.defaults?.visual_mode ?? true) !== false
@@ -645,6 +653,7 @@ export default function App() {
     setAgents([]);
     agentStateThroughRef.current.clear();
     setProjectStream(null);
+    setViewLoadFailed(null);
     activeAgentIdRef.current = null;
     setActiveAgentId(null);
     setEvents([]);
@@ -654,7 +663,6 @@ export default function App() {
     setStreamView({ streamText: '', frozen: [] });
     maxSeqRef.current = 0;
     setPendingMessages([]);
-    setPendingImages([]);
     setSidebarJobs(null);
     if (!activeProjectId) return;
     api
@@ -676,7 +684,12 @@ export default function App() {
           void selectAgent(agents[0].id);
         }
       })
-      .catch((error) => { if (!cancelled) reportError(error); });
+      .catch((error) => {
+        if (!cancelled) {
+          setViewLoadFailed(activeProjectId);
+          reportError(error);
+        }
+      });
     return () => {
       cancelled = true;
       ++agentSelectionVersionRef.current;
@@ -686,7 +699,7 @@ export default function App() {
         flushRafRef.current = null;
       }
     };
-  }, [activeProjectId, selectAgent, reportError, updateProjectView]);
+  }, [activeProjectId, selectAgent, reportError, updateProjectView, viewRetry]);
 
   /* ------------------------------------------------------------ SSE stream */
 
@@ -1189,6 +1202,13 @@ export default function App() {
   }
 
   async function sendMessage(shot?: WorkbenchShot) {
+    if (!recipientReady || uploading) {
+      if (shot) {
+        await shot.capture;
+        throw new Error(uploading ? '请等聊天附件上传完成后再发送结构。' : '请等项目会话加载后再发送结构。');
+      }
+      return;
+    }
     const target = shot ? { kind:'message' as const } : resolveComposerSendTarget({
       draft,
       sending,
@@ -1312,7 +1332,7 @@ export default function App() {
       }
       if (target.kind === 'respond') {
         if (await handleRespondInteraction(target.interactionId, content)) {
-          if (ownsComposer()) setDraft((current) => current === draft ? '' : current);
+          setDraft((current) => current === draft ? '' : current);
         }
         return;
       }
@@ -1337,13 +1357,14 @@ export default function App() {
             const receipt = await api.sendMessage(resp.data.id, content, images, imageArtifactIds, lang);
             if (shot && ownsComposer()) setWorkbenchDelivery({agentId:resp.data.id,eventId:receipt.event_id});
           }
-          if (!shot && ownsComposer()) {
+          if (!shot) {
             setDraft((current) => current === draft ? '' : current);
             setPendingImages((current) => current.filter((image) => !images.includes(image.path)));
           }
         } finally {
           // Keep the accepted agent as the retry target, and load its history
           // after delivery so a successful first message is visible without SSE.
+          adoptFirstAgent(resp.data.id);
           if (ownsComposer()) await selectAgent(resp.data.id);
         }
       } else {
@@ -1366,7 +1387,7 @@ export default function App() {
         const version = agentSelectionVersionRef.current;
         const receipt = await api.sendMessage(agentId, content, images, imageArtifactIds, lang);
         if (shot && ownsComposer()) setWorkbenchDelivery({agentId,eventId:receipt.event_id});
-        if (!shot && ownsComposer()) {
+        if (!shot) {
           setDraft((current) => current === draft ? '' : current);
           setPendingImages((current) => current.filter((image) => !images.includes(image.path)));
         }
@@ -1592,14 +1613,13 @@ export default function App() {
 
 
   async function onPickImages(files: FileList | null) {
-    if (!files || files.length === 0 || !activeProject) return;
-    const projectId = activeProject.id;
-    const selectionVersion = agentSelectionVersionRef.current;
+    if (!files || files.length === 0 || !activeProject || !recipientReady || sending || uploading) return;
+    const chosen = Array.from(files);
+    if (fileInputRef.current) fileInputRef.current.value = '';
     setUploading(true);
     try {
-      for (const file of Array.from(files)) {
+      for (const file of chosen) {
         const resp = await api.uploadFile(activeProject.id, file);
-        if (activeProjectIdRef.current !== projectId || agentSelectionVersionRef.current !== selectionVersion) return;
         uploadedArtifactsRef.current.set(resp.path, resp.artifact_id);
         setPendingImages((prev) => [...prev, { path: resp.path, artifactId: resp.artifact_id, name: file.name, size: file.size }]);
       }
@@ -1607,7 +1627,6 @@ export default function App() {
       reportError(e);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
@@ -2432,7 +2451,11 @@ export default function App() {
                 {t.selectProjectHint}
               </div>
             )}
-            {activeProject && timeline.length === 0 && activeAgent?.state !== 'running' && (
+            {activeProject && !recipientReady && <div className="chat-empty">{viewLoadFailed === activeProject.id
+              ? <button className="btn outline sm" onClick={() => setViewRetry(value => value + 1)}>{lang === 'zh' ? '会话读取失败，重新加载' : 'Retry loading conversations'}</button>
+              : projectStream?.projectId === activeProjectId ? (lang === 'zh' ? '请选择接收消息的 Agent。' : 'Select a recipient agent.')
+              : (lang === 'zh' ? '正在读取项目会话…' : 'Loading project conversations…')}</div>}
+            {recipientReady && activeProject && timeline.length === 0 && activeAgent?.state !== 'running' && (
               <div className="chat-empty">
                 <div className="big">{lang === 'zh' ? '当前没有对话记录' : 'No conversation yet'}</div>
                 {activeAgent
@@ -2627,6 +2650,7 @@ export default function App() {
                 setSlashSelected(0);
               }}
               onKeyDown={(e) => {
+                if (composingText(e)) return;
                 if (longText) {
                   handleLongTextKey(e, () => { void sendMessage(); }, () => setLongText(false));
                   return;
@@ -2675,7 +2699,7 @@ export default function App() {
                         : `Guide ${activeAgent.display_name}…`
                       : 'Describe the task for the coordinator…'
               }
-              disabled={!activeProject}
+              disabled={!recipientReady}
             />
             <div className="composer-actions">
               {activeProject && (
@@ -2693,7 +2717,7 @@ export default function App() {
                 </button>
               )}
               <LongTextControls id="chat-message-input" expanded={longText} onExpand={setLongText} textarea={composerTextareaRef} t={t} />
-              {visualOn && (
+              {visualOn && !composerInteraction && (
                 <>
                   <input
                     ref={fileInputRef}
@@ -2707,7 +2731,7 @@ export default function App() {
                     type="button"
                     className="btn ghost sm"
                     title="Attach images to the message (png/jpg/jpeg/webp, max 20 MB each)"
-                    disabled={uploading}
+                    disabled={uploading || sending || !recipientReady}
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {uploading ? 'Uploading…' : 'Attach Image'}
@@ -2740,7 +2764,7 @@ export default function App() {
                   }}
                 />
               )}
-              <button className="btn primary sm composer-send-btn" onClick={()=>void sendMessage()} disabled={!draft.trim() || !activeProject || sending}>
+              <button className="btn primary sm composer-send-btn" onClick={()=>void sendMessage()} disabled={!draft.trim() || !recipientReady || sending || uploading}>
                 {sending ? 'Sending…' : 'Send'}
               </button>
             </div>
@@ -2837,10 +2861,12 @@ export default function App() {
               onToast={(text, kind) => pushToast(kind === 'warn' ? 'info' : (kind ?? 'info'), text)}
             />
           ) : consoleTab === 'research' ? (
-            <ResearchPanel key={activeProject.id} project={activeProject} onError={reportError} onToast={pushToast} onOpenMolecule={openWorkbench} refreshVersion={researchRefreshVersion}/>
+            <ResearchPanel key={activeProject.id} project={activeProject} initialJobId={researchJob?.project === activeProject.id ? researchJob.id : undefined} onError={reportError} onToast={pushToast} onOpenMolecule={openWorkbench} refreshVersion={researchRefreshVersion}/>
           ) : consoleTab === 'compute' ? (
             <div className="console-compute-container">
-              <OpsPanel key={activeProject.id} project={activeProject} activeJobs={sidebarJobs} cancelling={cancellingCompute} onCancel={cancelCompute} agents={agents} onError={reportError} refreshVersion={computeRefreshVersion} />
+              <OpsPanel key={activeProject.id} project={activeProject} onOpenResult={id=>{
+                setResearchJob({project:activeProject.id,id});setConsoleTab('research');
+              }} activeJobs={sidebarJobs} cancelling={cancellingCompute} onCancel={cancelCompute} agents={agents} onError={reportError} refreshVersion={computeRefreshVersion} />
             </div>
           ) : consoleTab === 'audit' ? (
             <div className="console-audit-container">

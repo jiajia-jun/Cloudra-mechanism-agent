@@ -1028,3 +1028,20 @@ async def test_brief_and_availability_updates_refresh_and_persist_across_restore
     assert removed
     assert '- read:' not in str(removed)
     assert 'supersedes' in str(removed)
+
+
+def test_agent_endpoint_override_inherits_only_matching_slot_key(monkeypatch):
+    from cloudra.infra.config import get_config
+    from cloudra.runtime_v2.adapters import legacy_default_settings
+
+    slot = get_config().coordinator
+    monkeypatch.setattr(slot, "url", "https://service.invalid/v1/")
+    monkeypatch.setattr(slot, "key", "slot-key")
+    agent = SimpleNamespace(role_id="coordinator", settings=RuntimeSettings())
+    assert legacy_default_settings(agent).api_key == "slot-key"
+    agent.settings.base_url = "https://service.invalid/v1"
+    assert legacy_default_settings(agent).api_key == "slot-key"
+    agent.settings.base_url = "https://other.invalid/v1"
+    assert legacy_default_settings(agent).api_key == ""
+    agent.settings.api_key = "override-key"
+    assert legacy_default_settings(agent).api_key == "override-key"

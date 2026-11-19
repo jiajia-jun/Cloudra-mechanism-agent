@@ -14,12 +14,12 @@ import json
 from pathlib import Path
 
 from cloudra.persistence.fs_utils import atomic_write_json
-from cloudra.tools.core import gaussian_frames, orca_frames
+from cloudra.tools.core import gaussian_frames, orca_frames, xtb_frames
 from cloudra.tools.core.molecule import _copy_molecule, read_molecule, serialize_molecule
 from cloudra.tools.core.periodic_io import geometry_format_from_path, iter_ase_geometry
 from cloudra.tools.core.qm_engine import detect_qm_engine
 
-_CACHE_FORMAT = 3
+_CACHE_FORMAT = 4
 
 
 def _periodic_format(path: Path) -> str | None:
@@ -255,7 +255,7 @@ def _structure_frames(source: Path, data: dict | None):
         yield {'molecule': serialize_molecule(mol)}, {'step': 0}
 
 
-def open_document(source_path: Path, cache_root: Path, frame_index: int | None = None) -> dict:
+def open_document(source_path: Path, cache_root: Path, frame_index: int | None = None, *, input_name: str | None = None) -> dict:
     """Open/reopen a source, invalidating derived data when it or sidecars change."""
     source = source_path.resolve(strict=True)
     document_id = hashlib.sha256(str(source).encode()).hexdigest()
@@ -272,22 +272,37 @@ def open_document(source_path: Path, cache_root: Path, frame_index: int | None =
         text = ''
         if source.suffix.lower() in {'.log', '.out'}:
             engine = detect_qm_engine(str(source))
-            if engine not in {'gaussian', 'orca'}:
-                raise ValueError('This output is not a recognized Gaussian or ORCA log')
-            parser = gaussian_frames if engine == 'gaussian' else orca_frames
+            if engine not in {'gaussian', 'orca', 'xtb'}:
+                raise ValueError('此原始日志的格式不支持结构预览')
             text = source.read_text(encoding='utf-8', errors='replace')
-            metadata['task_type'] = '+'.join(sorted(parser.detect_job_types_from_text(text)))
             metadata['settings']['engine'] = engine
-            native = (parser.extract_frames_from_text(text) if engine == 'gaussian' else
-                      parser.extract_frames_from_text(text, log_path=str(source), sidecar_root=str(_sidecar_root(source))))
-            frames = (({'xyz': frame.xyz}, _summary(frame)) for frame in native)
+            if engine == 'xtb':
+                xyz = xtb_frames.final_xyz_from_text(text)
+                if not xyz:
+                    raise ValueError('该 xTB 日志没有完整的原生末帧结构')
+                metadata['task_type'] = '+'.join(sorted(xtb_frames.detect_job_types_from_text(text)))
+                facts = {'energy_hartree': xtb_frames.final_energy_hartree(text), 'converged': xtb_frames.opt_converged(text)}
+                frames = [({'xyz': xyz}, {k: v for k, v in facts.items() if v is not None})]
+            else:
+                parser = gaussian_frames if engine == 'gaussian' else orca_frames
+                metadata['task_type'] = '+'.join(sorted(parser.detect_job_types_from_text(text)))
+                native = (parser.extract_frames_from_text(text) if engine == 'gaussian' else
+                          parser.extract_frames_from_text(text, log_path=str(source), sidecar_root=str(_sidecar_root(source))))
+                frames = (({'xyz': frame.xyz}, _summary(frame)) for frame in native)
         elif trajectory := _trajectory_source(source):
             metadata['task_type'] = 'forcefield_optimization'
             metadata['settings']['forcefield'] = _trajectory_record(trajectory).engine
             frames = _forcefield_frames(trajectory)
         else:
             saved = None
-            if source.suffix.lower() in {'.json', '.cloudra'}:
+            suffix = source.suffix.lower()
+            if suffix in {'.gjf', '.com', '.inp'}:
+                from cloudra.tools.core.workbench_input import imported_input_settings
+
+                engine = 'orca' if suffix == '.inp' else 'gaussian'
+                metadata['settings'] = imported_input_settings(source.read_text(encoding='utf-8'), engine)
+                metadata['warnings'].append('已回填可确认的原生输入设置。重新生成输入前，请对照来源文件检查关键词、约束、方法和基组。')
+            elif suffix in {'.json', '.cloudra'}:
                 saved = json.loads(source.read_text())
                 if not isinstance(saved, dict) or not isinstance(saved.get('molecule'), str):
                     raise ValueError('Saved workbench file requires its native molecule state')
@@ -312,6 +327,8 @@ def open_document(source_path: Path, cache_root: Path, frame_index: int | None =
                 metadata['warnings'].append('Native frequencies are present, but complete mode displacements/reference geometry are unavailable.')
             if any(not frame['has_geometry'] for frame in metadata['frames']):
                 metadata['warnings'].append('Some native points have no printed geometry; their scalar facts remain available.')
+        if input_name is not None:
+            metadata['title'] = input_name
         atomic_write_json(metadata_path, metadata)
     selected = (next((frame['index'] for frame in reversed(metadata['frames']) if frame['has_geometry']),
                      len(metadata['frames']) - 1) if frame_index is None else frame_index)

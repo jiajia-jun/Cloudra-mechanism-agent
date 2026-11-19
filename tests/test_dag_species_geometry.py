@@ -148,3 +148,40 @@ def test_native_xtb_minimum_geometry_matches_the_declared_species(tmp_path, smil
     check = file_scientific_checks(store, graph, "r")["geometry"]
 
     assert check["status"] == want, check
+
+
+def test_dashboard_counts_only_matching_native_minima_and_rechecks_changed_evidence(tmp_path):
+    from cloudra.dag.models import OrchestrationMode, StageState
+    from cloudra.services.api_v2.routers.dag import _delivery_view
+
+    snapshots = {}
+    refs = []
+    fixture_dir = Path(__file__).parent / "fixtures"
+    for filename in ("gaussian/water_opt_freq_g16.out", "orca/co2_freq_orca42.out"):
+        path = tmp_path / Path(filename).name
+        path.write_bytes((fixture_dir / filename).read_bytes())
+        ref = GraphRef(ref_type="file", ref_id=filename)
+        refs.append(ref)
+        snapshots[filename] = snapshot_evidence_file(path, tmp_path).model_dump(mode="json")
+
+    geometry = StageState(kind="geometry", status="supported", ref=refs[0])
+    graph = GraphData(graph_id="delivery", graph_kind="delivery", revision=0, nodes=[
+        SpeciesNode(node_id="water", smiles="O", stages=[geometry]),
+        SpeciesNode(node_id="both", smiles=["O", "O=C=O"], refs=refs),
+        SpeciesNode(node_id="missing_component", smiles=["O", "O=C=O"], stages=[geometry]),
+        SpeciesNode(node_id="complex", smiles="O.O=C=O", refs=refs),
+        SpeciesNode(node_id="vetoed", smiles="O", stages=[geometry], evidence_vetoed=True),
+        SpeciesNode(node_id="no_evidence", smiles="O", stages=[StageState(kind="geometry", status="supported")]),
+    ])
+    controller = SimpleNamespace(
+        engine=SimpleNamespace(snapshot=lambda: SimpleNamespace(delivery=graph)),
+        store=SimpleNamespace(resolve_evidence=lambda ref: snapshots[ref.ref_id]), working_directory=tmp_path,
+        mode=OrchestrationMode.DAG_GUIDED,
+    )
+
+    def verified():
+        return {node["node_id"] for node in _delivery_view(controller)["graph"]["nodes"] if node["minimum_verified"]}
+
+    assert verified() == {"water", "both"}
+    Path(snapshots[refs[0].ref_id]["snapshot_path"]).unlink()
+    assert verified() == set()

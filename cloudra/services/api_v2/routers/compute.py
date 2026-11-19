@@ -24,6 +24,7 @@ from cloudra.services.compute_store import (
     alist_compute_jobs,
     arequest_compute_job_cancellation,
 )
+from cloudra.services.nodes import NodeRegistry, NodeRegistryError
 
 from ..context import ApiContext
 from ..models import ComputeCancelPost
@@ -76,8 +77,23 @@ def build_router(ctx: ApiContext) -> APIRouter:
         """
         from cloudra.services.node_capacity import node_capacity_views
 
-        views, _default_node_id = await asyncio.to_thread(node_capacity_views, ComputeDB())
+        try:
+            views, _default_node_id = await asyncio.to_thread(node_capacity_views, ComputeDB())
+        except NodeRegistryError as exc:
+            raise HTTPException(503, str(exc)) from exc
         return views
+
+    @router.post("/api/v2/compute/nodes/{node_id}/check", dependencies=ctx.protected)
+    async def check_node_environment(node_id: str) -> dict:
+        try:
+            registry = await asyncio.to_thread(NodeRegistry.from_environment)
+        except NodeRegistryError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        try:
+            ok, detail = await asyncio.to_thread(registry.check_environment, node_id)
+        except NodeRegistryError as exc:
+            raise HTTPException(404, str(exc)) from exc
+        return {"ok": ok, "detail": detail}
 
     @router.post("/api/v2/compute/cancel-all", dependencies=ctx.protected)
     async def cancel_all_compute_jobs() -> dict[str, int]:

@@ -743,3 +743,24 @@ def test_attaching_a_group_preserves_declared_stereochemistry(smiles):
 def test_disconnected_imine_reports_when_its_declared_stereo_requires_the_anchor():
     with pytest.raises(ValueError, match='点击已有原子'):
         edit_geometry(dict(action='add_group', smiles='[*]/N=C/F'))
+
+
+def test_xyz_charge_reaches_bond_perception_and_preoptimization_gate():
+    xyz = '5\nammonium\nN 0 0 0\nH .59 .59 .59\nH -.59 -.59 .59\nH -.59 .59 -.59\nH .59 -.59 -.59\n'
+    initial = create_geometry(xyz, 'xyz')
+    assert initial['graph_status'] == 'unresolved'
+    with pytest.raises(ValueError, match=initial['preoptimization_blocker']):
+        edit_geometry({'molecule': initial['molecule'], 'action': 'preoptimize'})
+    for charge, status in [(0, 'distance-inferred'), (1, 'perceived')]:
+        result = edit_geometry({'action': 'resolve_bonds', 'molecule': initial['molecule'], 'charge': charge})
+        assert result['graph_status'] == status
+        assert bool(result['preoptimization_blocker']) == (charge == 0)
+        initial = result
+    assert result['atoms'][0]['formal_charge'] == 1
+    assert edit_geometry({'molecule': result['molecule'], 'action': 'preoptimize'})['optimization']
+
+
+@pytest.mark.parametrize('action', ['atom_state', 'mirror'])
+def test_perception_charge_is_scoped_to_perception(action):
+    with pytest.raises(ValueError, match='charge is only valid for resolve_bonds'):
+        edit_geometry({'molecule': chain(), 'action': action, 'atoms': [1], 'charge': 1})

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { LongTextControls, handleLongTextKey } from './LongTextControls';
+import { LongTextControls, handleLongTextKey, composingText } from './LongTextControls';
 import type { Agent } from './types';
 import type { Translations } from './i18n';
 import { pendingBelongsToAgent } from './composerSend';
@@ -340,6 +340,7 @@ export default function InteractionPrompt({
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 onKeyDown={(e) => {
+                  if (composingText(e)) return;
                   if (e.key === 'Enter') {
                     e.preventDefault();
                     void handleDeny();
@@ -526,6 +527,7 @@ export default function InteractionPrompt({
               value={rejectReason}
               onChange={(e) => setRejectReason(e.target.value)}
               onKeyDown={(e) => {
+                if (composingText(e)) return;
                 if (e.key === 'Enter') {
                   e.preventDefault();
                   void handleRejectInteraction();
@@ -569,6 +571,7 @@ export default function InteractionPrompt({
           disabled={sending}
           onChange={(e) => setAnswerDraft(e.target.value)}
           onKeyDown={(e) => {
+            if (composingText(e)) return;
             if (longText) {
               handleLongTextKey(e, () => { void handleSendAnswer(); }, () => setLongText(false));
               return;

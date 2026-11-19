@@ -389,3 +389,51 @@ def test_ssh_local_view_does_not_report_this_hosts_availability(tmp_path, monkey
     assert remote["capacity"]["effective"] == {
         "max_concurrent": 2, "cpus": 16, "memory_mb": 32768,
     }
+
+
+@pytest.mark.parametrize("malformed", [True, False], ids=["invalid-json", "missing-file"])
+def test_registry_error_reaches_node_list_and_check(tmp_path, monkeypatch, malformed):
+    client = TestClient(create_v2_app())
+    registry = tmp_path / "nodes.json"
+    if malformed:
+        registry.write_text("{")
+    _use_registry(monkeypatch, registry)
+    for response in (
+        client.get("/api/v2/compute/nodes"),
+        client.post("/api/v2/compute/nodes/node-local/check"),
+    ):
+        assert response.status_code == 503
+        assert str(registry) in response.json()["detail"]
+
+
+@pytest.mark.parametrize("use_slurm", [True, False])
+def test_registered_ssh_node_is_checked_only_on_request(tmp_path, monkeypatch, use_slurm):
+    from cloudra.infra import ssh_transport
+
+    path, _, _ = _registry_file(tmp_path, os_probe=True)
+    data = json.loads(path.read_text())
+    remote = data["nodes"][1]
+    remote["connection"] = {"type": "ssh", "host": "test.invalid", "user": "chemist",
+                            "port": 2222, "remote_root": "/"}
+    remote["scheduler"] = {"type": "slurm" if use_slurm else "local"}
+    path.write_text(json.dumps(data))
+    _use_registry(monkeypatch, path)
+    endpoint = ssh_transport.SshEndpoint.from_connection(NodeRegistry.from_environment().node("hpc-login").connection)
+    assert endpoint.job_dir(2) == "/cloudra-2"
+    probes = []
+
+    def ssh_probe(endpoint, cmd, *, timeout):
+        probes.append((endpoint.target, cmd))
+        return (0, "", "") if len(probes) == 1 else (255, "", "connection refused")
+
+    monkeypatch.setattr(ssh_transport.shutil, "which", lambda name: f"/bin/{name}")
+    monkeypatch.setattr(ssh_transport, "run_remote", ssh_probe)
+    client = TestClient(create_v2_app())
+    assert client.get("/api/v2/compute/nodes").json()[1]["remote"] == "chemist@test.invalid:2222"
+    assert not probes
+    assert client.post("/api/v2/compute/nodes/hpc-login/check").json() == {"ok": True, "detail": ""}
+    assert "rsync" in probes[0][1] and ("sbatch" in probes[0][1]) == use_slurm
+    failed = client.post("/api/v2/compute/nodes/hpc-login/check").json()
+    assert not failed["ok"] and "connection refused" in failed["detail"]
+    assert len(probes) == 2
+    assert client.post("/api/v2/compute/nodes/absent/check").status_code == 404

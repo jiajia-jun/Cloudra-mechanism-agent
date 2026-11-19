@@ -115,3 +115,35 @@ test('picking across a cell edge dispatches both images and changes the screensh
   expect(result.extxyz).toBe('periodic native text');
   expect(result.markers).toEqual([{label:'A',kind:'site',atoms:[{index:1,image:[0,0,0]},{index:1,image:[1,0,0]}]}]);
 });
+
+test('saving the draft keeps its unsent instruction and markers, while source frames keep their own notes', async ({page}) => {
+  const geometry:GeometryView = {molecule:'structure',xyz:'',bonds:[],atoms:[{index:1,atom_id:'oxygen-id',symbol:'O',x:0,y:0,z:0}]};
+  let saves = 0;
+  await page.route('**/workbench/fragments', route=>route.fulfill({json:{fragments:[]}}));
+  await page.route('**/workbench/open', route=>route.fulfill({json:{document_id:'example',title:'Example',selected_frame:0,geometry,
+    frames:[{index:0,step:0}], settings:{}, warnings:[], modes:[]}}));
+  await page.route('**/workbench/save', route=>{
+    saves++;
+    return route.fulfill({json:{geometry,path:'structure.json',files:[],message:'已保存'}});
+  });
+  await page.goto('/e2e/workbench-builder.html?capture');
+  const dialog = page.getByRole('dialog',{name:'分子工作台'});
+  await dialog.getByLabel('结构来源').fill('O');
+  await dialog.getByRole('button',{name:'新建／打开'}).click();
+  await dialog.getByLabel('原子列表',{exact:true}).getByRole('button',{name:'O1',exact:true}).click();
+  await dialog.getByRole('button',{name:'标记原子',exact:true}).click();
+  const note = dialog.getByLabel('给 Agent 的图上指令');
+  await note.fill('检查 A');
+  await dialog.getByRole('button',{name:'保存编辑稿到项目'}).click();
+  await expect(dialog.getByRole('button',{name:'已保存到项目'})).toBeDisabled();
+  await expect(dialog.getByRole('button',{name:'移除标记 A'})).toBeVisible();
+  await expect(note).toHaveValue('检查 A');
+  await dialog.getByRole('button',{name:'来源帧',exact:true}).click();
+  await expect(note).toHaveValue('');
+  await note.fill('来源帧的指令');
+  await dialog.getByRole('button',{name:'返回编辑稿'}).click();
+  await expect(note).toHaveValue('检查 A');
+  await dialog.getByRole('button',{name:'关闭 ✕'}).click();
+  await expect(dialog.getByRole('alert')).toContainText('未发送');
+  expect(saves).toBe(1);
+});

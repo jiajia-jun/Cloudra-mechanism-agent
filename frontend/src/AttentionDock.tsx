@@ -1,3 +1,4 @@
+import { composingText } from './LongTextControls';
 /**
  * AttentionDock — floating stack of pending approvals / ask_user prompts
  * from projects OTHER than the one currently open (the active project is
@@ -130,6 +131,7 @@ function InteractionCard({
           disabled={sending}
           onChange={(e) => setResponse(e.target.value)}
           onKeyDown={(e) => {
+            if (composingText(e)) return;
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               void send();

@@ -90,3 +90,20 @@ def test_native_ts_keywords_are_preserved_with_freeze(engine, keywords, tmp_path
         [dict(coord_type='bond', atoms=[1, 2], value=1.1)], [], str(tmp_path / 'input'))
     assert keywords in content
     assert content.lower().count('optts' if engine == 'orca' else 'opt=') == 1
+
+
+def test_import_preserves_unknown_level_and_compound_or_modified_tasks():
+    from cloudra.tools.core.workbench_input import imported_input_settings
+
+    settings = imported_input_settings('! OddNativeMethod def2-SVP OptTS NumFreq\n* xyz 1 2\nHe 0 0 0\n*', 'orca')
+    assert settings == {'engine': 'orca', 'charge': 1, 'multiplicity': 2}
+
+
+def test_import_of_simple_orca_method_retains_native_scf_and_task_keywords():
+    from cloudra.tools.core.workbench_input import imported_input_settings
+
+    source = '! PBE0 def2-SVP TightSCF Opt\n* xyz 0 1\nHe 0 0 0\n*'
+    assert imported_input_settings(source, 'orca') == {
+        'engine': 'orca', 'charge': 0, 'multiplicity': 1, 'method': 'pbe0', 'basis_set': 'def2-svp',
+        'keywords': 'tightscf opt', 'task_type': [{'opt': None}],
+    }

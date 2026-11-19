@@ -249,3 +249,32 @@ async def test_openrouter_callback_cannot_break_out_of_inline_script():
     assert "</script><img" not in resp.text, "payload 截断了内联 <script>"
     assert "\\u003c/script" in resp.text, "`<` 应以 \\u003c 转义形式出现"
     assert "alert(1)" in resp.text, "载荷内容本身仍应保留（只是不可执行）"
+
+
+@pytest.mark.asyncio
+async def test_global_slot_key_tracks_final_endpoint_across_cli_and_web(tmp_path, monkeypatch):
+    from httpx import ASGITransport, AsyncClient
+
+    from cloudra.services.api_v2.app import create_v2_app
+
+    cfg = get_config()
+    monkeypatch.setattr(cfg, "config_file", tmp_path / "config.yaml")
+    set_config_value("coordinator.url", "https://example.invalid/team-a")
+    set_config_value("coordinator.key", "test-a")
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app()), base_url="http://testserver") as client:
+        async def patch(changes):
+            reply = await client.patch("/api/v2/runtime/config", json={"slot": "coordinator", "changes": changes})
+            assert reply.status_code == 200
+            return reply.json()["coordinator"]["key_set"]
+
+        assert await patch({"model": "second-model"})
+        assert await patch({"provider": "custom", "url": "https://example.invalid/team-a/"})
+        assert cfg.coordinator.key == "test-a"
+        assert not await patch({"provider": "custom", "url": "https://example.invalid/team-b"})
+        assert await patch({"key": "test-b"})
+        assert not await patch({"provider": "openrouter"})
+        assert await patch({"provider": "openai", "key": "replacement"})
+
+    assert cfg.coordinator.key == "replacement"
+    set_config_value("coordinator.url", "https://another.invalid/v1")
+    assert cfg.coordinator.provider == "custom" and cfg.coordinator.key == ""

@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { installApiMocks, openSpa } from './fixtures';
 
-async function mockCodex(page: import('@playwright/test').Page) {
+async function mockCodex(page: import('@playwright/test').Page, callbackQuery = '') {
   await installApiMocks(page);
   const slot = {
     provider: 'openai-codex', model: 'gpt-6-sol',
@@ -38,6 +38,8 @@ async function mockCodex(page: import('@playwright/test').Page) {
         tool_document_loading: { strategy: 'llm', semantic_backend: 'jev',
           jev: { endpoint: '', model: '', key_set: false, min_probability: null, max_tools: null },
           reranker: { endpoint: '', model: '', key_set: false, min_score: null, max_tools: null } } };
+    } else if (path.endsWith('/providers/openrouter/code-exchange')) {
+      result = { saved: true };
     } else if (path.endsWith('/codex/status')) {
       result = { authenticated, account_id: authenticated ? 'account-test' : null, expires_at: null };
     } else if (path.endsWith('/codex/device-login')) {
@@ -58,8 +60,8 @@ async function mockCodex(page: import('@playwright/test').Page) {
     }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify(result) });
   });
-  await openSpa(page);
-  await page.getByRole('button', { name: '全局设置', exact: true }).click();
+  await openSpa(page, callbackQuery);
+  if (!callbackQuery) await page.getByRole('button', { name: '全局设置', exact: true }).click();
   return { saved, searchSaved, polls: () => polls };
 }
 
@@ -114,4 +116,16 @@ test('closing settings stops device-code polling', async ({ page }) => {
   const countAtClose = state.polls();
   await page.waitForTimeout(1200);
   expect(state.polls()).toBe(countAtClose);
+});
+
+test('a full-page OpenRouter return exchanges the account code without opening settings manually', async ({ page }) => {
+  await page.addInitScript(() => {
+    sessionStorage.setItem('openrouter_pkce_verifier', 'test-verifier');
+    sessionStorage.setItem('openrouter_pkce_slot', 'follower');
+  });
+  const exchange = page.waitForRequest(request => request.url().endsWith('/providers/openrouter/code-exchange'));
+  await mockCodex(page, '?openrouter_code=test-code');
+  await expect(page.getByText('OpenRouter 账号授权成功！API Key 已自动绑定至 follower')).toBeVisible();
+  expect((await exchange).postDataJSON()).toEqual({ code: 'test-code', code_verifier: 'test-verifier', slot: 'follower' });
+  expect(new URL(page.url()).searchParams.has('openrouter_code')).toBe(false);
 });

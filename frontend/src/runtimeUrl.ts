@@ -32,3 +32,7 @@ export function isTrustedAuthMessageOrigin(
 ): boolean {
   return eventOrigin === pageOrigin;
 }
+
+export function openRouterCallbackCode(params: URLSearchParams): string | null {
+  return params.get('openrouter_code') || params.get('code');
+}

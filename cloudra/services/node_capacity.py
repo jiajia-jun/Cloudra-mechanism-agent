@@ -68,28 +68,7 @@ def node_capacity_views(db: ComputeDB | None = None) -> tuple[list[dict[str, Any
     ``capacity{registered, os_available, effective}`` / ``in_flight`` / ``free``。
     传 ``db`` 时填在用量与余量（缺库/空库即在用量为 0）。
     """
-    registry = _registry_or_none()
-    if registry is None:
-        node_id = _fallback_node_id()
-        report = capacity_report(default_resources())
-        view = {
-            "node_id": node_id,
-            "display_name": node_id,
-            "scheduler": "local",
-            "connection": "local",
-            "remote": None,
-            "state": "online",
-            "capacity": {
-                "registered": report["declared"],
-                "os_available": report["os_available"],
-                "effective": report["effective"],
-            },
-            "in_flight": dict(_ZERO),
-            "free": dict(_ZERO),
-        }
-        _fill_free(view)
-        return [view], node_id
-
+    registry = NodeRegistry.from_environment()
     views: list[dict[str, Any]] = []
     for node in registry.nodes:
         effective = effective_node_resources(node)
@@ -116,7 +95,7 @@ def node_capacity_views(db: ComputeDB | None = None) -> tuple[list[dict[str, Any
             "scheduler": str(node.scheduler.get("type", "local")),
             "connection": str(connection.get("type", "local")),
             "remote": (
-                f"{connection['user']}@{connection['host']}"
+                f"{connection['user']}@{connection['host']}:{connection['port']}"
                 if connection.get("type") == "ssh"
                 else None
             ),

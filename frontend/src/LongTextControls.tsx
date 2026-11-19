@@ -14,8 +14,12 @@ export function LongTextControls({ expanded, onExpand, textarea, id, t }: {
   </>;
 }
 
+export function composingText(event: KeyboardEvent) {
+  return event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+}
+
 export function handleLongTextKey(event: KeyboardEvent<HTMLTextAreaElement>, submit: () => void, collapse: () => void) {
-  if (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+  if (composingText(event)) return;
   if (event.key === 'Escape') {
     event.preventDefault();
     collapse();

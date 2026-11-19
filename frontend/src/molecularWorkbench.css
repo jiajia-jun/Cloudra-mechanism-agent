@@ -164,6 +164,12 @@
   border-radius: 6px;
 }
 .wb-selection-measure { flex: 1; font-size: 12px; min-width: 160px; }
+.molecular-workbench[data-picking] > .wb-open,
+.molecular-workbench[data-picking] .wb-header > button,
+.molecular-workbench[data-picking] .wb-main > :not(.wb-group-picker, .wb-viewer),
+.molecular-workbench[data-picking] .wb-sidebar > :not(.wb-atom-list-section),
+.molecular-workbench[data-picking] .wb-atom-list-section > details { display: none; }
+.wb-group-picker { overflow-wrap: anywhere; }
 .wb-force-field-controls { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
 .wb-optimization { margin: 0; padding: 8px 12px; background: var(--bg-layer); font-size: 12px; }
 .wb-coordinate-dialog {

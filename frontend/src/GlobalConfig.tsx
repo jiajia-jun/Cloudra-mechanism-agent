@@ -13,7 +13,7 @@ import { api } from './api';
 import CodexAuthPanel from './CodexAuthPanel';
 import SearchConfigSection from './SearchConfigSection';
 import ToolDocumentLoadingSection from './ToolDocumentLoadingSection';
-import { isTrustedAuthMessageOrigin } from './runtimeUrl';
+import { isTrustedAuthMessageOrigin, openRouterCallbackCode } from './runtimeUrl';
 import type { ProviderPreset, RuntimeConfig } from './types';
 import { APPEARANCES, applyAppearance, useAppearance } from './appearance';
 import { useI18n } from './i18n';
@@ -61,6 +61,12 @@ function draftFrom(cfg: RuntimeConfig, slot: Slot): SlotDraft {
   };
 }
 
+function normalizedEndpoint(value: string) {
+  let url = value.trim();
+  while (url.endsWith('/')) url = url.slice(0, -1);
+  return url;
+}
+
 function SlotSection({
   title,
   hint,
@@ -84,7 +90,9 @@ function SlotSection({
   onSave: (slot: Slot, clearKey: boolean) => void;
   onConnectOpenRouter: (slot: Slot) => void;
 }) {
-  const keySet = savedCfg[slot].key_set;
+  const { lang } = useI18n();
+  const endpointChanged = normalizedEndpoint(savedCfg[slot].url) !== normalizedEndpoint(draft.url);
+  const keySet = savedCfg[slot].key_set && !endpointChanged;
   const usesCodex = draft.provider === 'openai-codex';
   const currentPreset = presets.find((p) => p.id === draft.provider);
 
@@ -97,7 +105,7 @@ function SlotSection({
         model: p.default_model,
         context_window: String(p.context_window),
         supports_vision: p.supports_vision,
-        ...(p.id === 'openai-codex' ? { key: '' } : {}),
+        ...(p.default_url !== draft.url || p.id === 'openai-codex' ? { key: '' } : {}),
       });
     } else {
       onChange({ provider: 'custom' });
@@ -111,6 +119,7 @@ function SlotSection({
     );
     onChange({
       url: newUrl,
+      key: '',
       provider: matched ? matched.id : 'custom',
     });
   };
@@ -194,7 +203,9 @@ function SlotSection({
           }
         />
         <span className="field-hint">
-          write-only: the stored key is never shown. Leave empty to keep the current key.
+          {endpointChanged
+            ? (lang === 'zh' ? '服务地址已更改。请为新地址输入凭据，留空将清除旧地址的密钥。' : 'New API endpoint. Enter its key, or save with no key to clear the previous credential.')
+            : (lang === 'zh' ? '密钥仅写入。留空可保留此地址的已有密钥。' : 'Leave empty to keep the saved key for this endpoint.')}
         </span>
       </label>}
 
@@ -304,7 +315,7 @@ export default function GlobalConfig({
   useEffect(() => {
     let cancelled = false;
     const urlParams = new URLSearchParams(window.location.search);
-    const authCode = urlParams.get('openrouter_code') || urlParams.get('code');
+    const authCode = openRouterCallbackCode(urlParams);
     const verifier = sessionStorage.getItem('openrouter_pkce_verifier');
     const targetSlot = (sessionStorage.getItem('openrouter_pkce_slot') as Slot) || 'coordinator';
 

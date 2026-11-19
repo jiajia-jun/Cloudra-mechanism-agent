@@ -207,6 +207,8 @@ def _run_native_evaluation(task: ChemTask, manifest: Path) -> dict:
 def read_task_result(manifest_path: str) -> tuple[dict,bool]:
     task=ChemTask.model_validate_json(Path(manifest_path).read_text())
     data=json.loads(Path(result_path(manifest_path)).read_text())
+    if not isinstance(data, dict) or not isinstance(data.get('result'), dict):
+        raise ValueError('chemistry task receipt requires a result object')
     if data.get('manifest_digest') != content_digest(task.model_dump()):
         raise ValueError('chemistry task result manifest digest mismatch')
     code=data.get('process_exit_code')

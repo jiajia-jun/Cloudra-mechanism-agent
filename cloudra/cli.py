@@ -343,22 +343,16 @@ def config_init(force):
     )
 
     from cloudra.infra.config import mutate_config
-    from cloudra.infra.providers import apply_provider_preset
 
     def _apply(work):
-        if coord_provider and coord_provider != "custom":
-            apply_provider_preset(work.coordinator, coord_provider)
-        work.coordinator.model = coord_model
-        work.coordinator.url = coord_url
-        if coord_key:
-            work.coordinator.key = coord_key
-
-        if foll_provider and foll_provider != "custom":
-            apply_provider_preset(work.follower, foll_provider)
-        work.follower.model = foll_model
-        work.follower.url = foll_url
-        if foll_key:
-            work.follower.key = foll_key
+        for slot, provider, model, url, key in (
+            (work.coordinator, coord_provider, coord_model, coord_url, coord_key),
+            (work.follower, foll_provider, foll_model, foll_url, foll_key),
+        ):
+            changes = {"provider": provider, "model": model, "url": url}
+            if key:
+                changes["key"] = key
+            slot.apply_changes(changes)
 
         if openalex_key:
             work.openalex_api_key = openalex_key

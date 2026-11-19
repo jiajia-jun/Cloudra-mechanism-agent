@@ -650,3 +650,41 @@ async def test_api_v2_dag_mutations_malformed_operation_is_422():
         )
         assert resp.status_code == 422
         assert "Invalid graph operation" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_agent_key_stays_in_memory_only_for_its_destination(monkeypatch):
+    from cloudra.infra.config import role_model_config
+    from cloudra.runtime_v2.adapters import legacy_default_settings
+
+    core = RuntimeCore(strict_events=True)
+    project = (await _execute(core, "project.create", payload={"name": "key-binding"})).data
+    agent = (await _spawn(core, project.id)).data
+    slot = role_model_config(agent.role_id)
+    monkeypatch.setattr(slot, "url", "https://initial.invalid/api")
+    monkeypatch.setattr(slot, "key", "slot-token")
+
+    async def edit(**changes):
+        await _execute(core, "agent.settings_update", target={"session_id": agent.id}, payload=changes)
+        return core.require_agent(agent.id)
+
+    agent = await edit(api_key="private-a")
+    agent = await edit(model="second-model", yolo=True)
+    assert legacy_default_settings(agent).api_key == "private-a"
+    monkeypatch.setattr(slot, "url", "https://changed.invalid/api")
+    monkeypatch.setattr(slot, "key", "new-slot-token")
+    assert legacy_default_settings(agent).api_key == "new-slot-token"
+    agent = await edit(base_url="https://initial.invalid/api/")
+    assert agent.settings.api_key == "private-a"
+    agent = await edit(base_url="https://new.invalid/api")
+    assert agent.settings.api_key == ""
+    agent = await edit(base_url="https://explicit.invalid/api", api_key="private-b")
+    assert legacy_default_settings(agent).api_key == "private-b"
+    await core.agent_host.start_run(agent)
+    await core.agent_host.finish_run(agent, outcome="succeeded")
+    await _execute(core, "agent.restart", target={"session_id": agent.id}, payload={"settings": {"model": "third-model"}})
+    assert core.require_agent(agent.id).settings.api_key == "private-b"
+    agent = await edit(api_key="")
+    assert agent.settings.api_key == ""
+    for event in core.event_log:
+        assert "private-a" not in event.model_dump_json() and "private-b" not in event.model_dump_json()

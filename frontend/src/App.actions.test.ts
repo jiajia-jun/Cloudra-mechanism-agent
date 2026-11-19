@@ -32,7 +32,7 @@ function actions(globals: Record<string, unknown>) {
     mergeProjectSnapshot,
     activeProjectIdRef: { current: (globals.activeProject as { id?: string } | null)?.id },
     agentSelectionVersionRef: { current: 0 },
-    setAgents() {},
+    setAgents() {}, recipientReady: true, uploading: false, adoptFirstAgent() {},
     ...globals,
   });
 }
@@ -195,28 +195,15 @@ for (const entry of ['sendMessage', 'spawnRole'] as const) {
       if (switchTo === 'project') projectRef.current = 'Q';
       selectionRef.current++;
       state.selected = 'new-selection';
-      state.draft = 'Original question';
       response.resolve({ data: { id: 'old-created-agent' } });
       await pending;
       assert.deepEqual(state.errors, []);
       assert.equal(state.selected, 'new-selection');
-      assert.equal(state.draft, 'Original question', 'a late send must not clear another selection’s draft');
+      assert.equal(state.draft, entry === 'sendMessage' ? '' : 'Original question',
+        'only the accepted send consumes its original recipient’s draft');
     });
   }
 }
-
-await test('a late upload never adds the previous project’s attachments to the current composer', async () => {
-  const { state, projectRef, selectionRef, globals } = composerState();
-  const response = deferred<{ path: string; artifact_id: string }>();
-  const calls = actions({ ...globals, api: { uploadFile: () => response.promise } });
-  const pending = calls.onPickImages([{ name: 'original.png', size: 32 }]);
-  projectRef.current = 'Q';
-  selectionRef.current++;
-  state.images = [{ path: '/Q/new.png', artifactId: 'new-image' }];
-  response.resolve({ path: '/P/original.png', artifact_id: 'old-image' });
-  await pending;
-  assert.deepEqual(state.images, [{ path: '/Q/new.png', artifactId: 'new-image' }]);
-});
 
 for (const whileWaiting of ['unchanged', 'new-draft', 'other-project'] as const) {
   await test(`a failed send preserves text and attachments (${whileWaiting})`, async () => {
@@ -317,3 +304,90 @@ await test('same-role siblings do not share pending interaction or approval UI s
 });
 
 console.log('App.actions.test.ts: ok');
+
+const draftHookSource = readFileSync(new URL('./useComposerDraft.ts', import.meta.url), 'utf8')
+  .replace("import { useState } from 'react';", '').replace('export function', 'function');
+
+function draftStore() {
+  let all: Record<string, unknown> = {};
+  return vm.runInNewContext(transformSync('draft.ts', draftHookSource+'\nuseComposerDraft;', { lang: 'ts' }).code, {
+    useState: () => [all, (update: (old: object) => typeof all) => { all = update(all); }],
+  }) as (project: string, agent: string | null, question?: string) => ReturnType<typeof import('./useComposerDraft')['useComposerDraft']>;
+}
+
+test('draft text and in-flight uploads stay with their project, agent and question', async () => {
+  const render = draftStore();
+  const { globals } = composerState({ id: 'A' });
+  const upload = deferred<{ path: string; artifact_id: string }>();
+  render('P','A').setDraft('For A');
+  const pick = actions({ ...globals, ...render('P','A'), api: { uploadFile: () => upload.promise } });
+  const pending = pick.onPickImages([{ name: 'a.png', size: 5 }]);
+  assert.equal(render('P','A').uploading, true);
+  const deliveries: object[] = [];
+  await actions({ ...globals, ...render('P','A'), api: { sendMessage: () => { deliveries.push({}); } } }).sendMessage();
+  assert.equal(deliveries.length, 0);
+  render('P','B').setDraft('For B');
+  upload.resolve({path:'P/a.png', artifact_id:'a'});
+  await pending;
+  assert.equal(render('P','A').uploading, false);
+  assert.equal(render('P','A').pendingImages[0]?.artifactId, 'a');
+  assert.equal(render('P','A').draft, 'For A');
+  assert.equal(render('P','B').draft, 'For B');
+  assert.equal(render('P','B').pendingImages.length, 0);
+  assert.equal(render('Q','A').draft, '');
+  assert.equal(render('P','A','question').draft, '');
+});
+
+test('adopting the first coordinator preserves unsent text and attachments for retry', () => {
+  const render = draftStore();
+  render('P',null).setDraft('First image');
+  render('P',null).setPendingImages(() => [{ path:'a.png', artifactId:'a', name:'a.png', size:5 }]);
+  render('P',null).adoptFirstAgent('new');
+  assert.equal(render('P','new').draft,'First image');
+  assert.equal(render('P','new').pendingImages[0]?.artifactId, 'a');
+  assert.equal(render('P',null).draft,'');
+  assert.equal(render('Q','new').pendingImages.length,0);
+});
+
+test('project loading and an unresolved selection cannot start a coordinator', async () => {
+  const ready = nodes.find(node => node.type === 'VariableDeclarator' && node.id?.name === 'recipientReady').init;
+  const code = transformSync('ready.ts', '('+appSource.slice(ready.start,ready.end)+')', {lang:'ts'}).code;
+  for (const state of [
+    { projectStream:null, activeAgentId:null, agents:[] },
+    { projectStream:{projectId:'previous'}, activeAgentId:'A', activeAgent:{project_id:'previous'}, agents:[{id:'A'}] },
+    { projectStream:{projectId:'P'}, activeAgentId:null, agents:[{id:'A'}] },
+  ]) {
+    const recipientReady = vm.runInNewContext(code, { activeProjectId:'P', activeProject:{id:'P'}, activeAgent:null, ...state });
+    assert.equal(recipientReady, false);
+    const {globals}=composerState();
+    let spawns=0;
+    await actions({...globals, recipientReady, api:{spawnAgent(){++spawns;}}}).sendMessage();
+    assert.equal(spawns,0);
+  }
+});
+
+test('input method candidate selection cannot submit chat or an answer', () => {
+  const helpers = readFileSync(new URL('./LongTextControls.tsx', import.meta.url), 'utf8');
+  const helper = parseSync('LongTextControls.tsx',helpers,{lang:'tsx'}).program.body.find((n:any)=>n.declaration?.id?.name==='composingText') as any;
+  const composingText=vm.runInNewContext(transformSync('composing.ts','('+helpers.slice(helper.declaration.start,helper.declaration.end)+')',{lang:'ts'}).code);
+  for(const [filename,id] of [['App.tsx','chat-message-input'],['InteractionPrompt.tsx','interaction-answer-input']]) {
+    const source=readFileSync(new URL('./'+filename, import.meta.url),'utf8');
+    const found:any[]=[];
+    function visit(node:any){
+      if(!node || typeof node!=='object')return;
+      if(node.type==='JSXOpeningElement')found.push(node);
+      Object.values(node).forEach(visit);
+    }
+    visit(parseSync(filename,source,{lang:'tsx'}).program);
+    const box=found.find(node=>node.attributes.some((a:any)=>a.name?.name==='id' && a.value?.value===id));
+    const fn=box.attributes.find((a:any)=>a.name?.name==='onKeyDown').value.expression;
+    let sends=0;
+    const callback=vm.runInNewContext(transformSync('key.ts','('+source.slice(fn.start,fn.end)+')',{lang:'ts'}).code,
+      { composingText,longText:false,matchingSlash:[],sendMessage:()=>{sends++;},handleSendAnswer:()=>{sends++;} });
+    const enter={key:'Enter',shiftKey:false,preventDefault(){}};
+    for (const nativeEvent of [{isComposing:true,keyCode:13},{isComposing:false,keyCode:229}]) callback({...enter,nativeEvent});
+    assert.equal(sends,0);
+    callback({...enter,nativeEvent:{isComposing:false,keyCode:13}});
+    assert.equal(sends,1);
+  }
+});

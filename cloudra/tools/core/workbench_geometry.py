@@ -9,7 +9,14 @@ from uuid import uuid4
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, StrictInt, StrictStr, model_validator
 
 from cloudra.tools.core.geometry import fibonacci_sphere_directions
-from cloudra.tools.core.molecule import Molecule, _copy_molecule, read_molecule, serialize_molecule, to_xyz
+from cloudra.tools.core.molecule import (
+    Molecule,
+    _copy_molecule,
+    read_molecule,
+    serialize_molecule,
+    to_xyz,
+    total_charge,
+)
 
 _BUILDER_ACTIONS = {'add_atom', 'add_group', 'delete_atom', 'atom_state', 'fill_valence'}
 _TARGET_VALENCE = 'cloudra_target_valence'
@@ -28,6 +35,7 @@ class EditRequest(BaseModel):
     moving_atoms: list[int] | None = None
     plane: Literal['xy', 'xz', 'yz'] = 'yz'
     order: Literal[0, 1, 1.5, 2, 3] = 1
+    charge: StrictInt | None = None
     smiles: str | None = None
     attachment_atom: int | None = None
     position: tuple[FiniteFloat, FiniteFloat, FiniteFloat] | None = None
@@ -70,6 +78,8 @@ class EditRequest(BaseModel):
             raise ValueError('formal_charge, valence and hybridization are only valid for atom_state')
         if 'force_field' in self.model_fields_set and self.action != 'preoptimize':
             raise ValueError('force_field is only valid for preoptimize')
+        if 'charge' in self.model_fields_set and self.action != 'resolve_bonds':
+            raise ValueError('charge is only valid for resolve_bonds')
         if self.action == 'preoptimize' and (self.atoms or self.moving_atoms is not None):
             raise ValueError('preoptimize operates on the complete current conformer')
         if self.action == 'coordinate' and (len(self.atoms) not in (2, 3, 4) or self.value is None):
@@ -177,6 +187,11 @@ def geometry_view(mol) -> dict:
     """Coordinates plus the declared graph; viewing never guesses connectivity."""
     mol = _identities(_copy_molecule(mol))
     positions = mol.GetConformer().GetPositions()
+    try:
+        _preoptimization_graph(mol)
+        preoptimization_blocker = None
+    except ValueError as exc:
+        preoptimization_blocker = str(exc)
     return {
         'molecule': serialize_molecule(mol),
         'xyz': to_xyz(mol),
@@ -195,6 +210,8 @@ def geometry_view(mol) -> dict:
             for bond in mol.GetBonds()
         ],
         'graph_status': _graph_status(mol),
+        'total_charge': total_charge(mol),
+        'preoptimization_blocker': preoptimization_blocker,
         'manual_bonds': bool(mol.HasProp('cloudra_manual_bonds')) and mol.GetBoolProp('cloudra_manual_bonds'),
     }
 
@@ -500,11 +517,9 @@ def _edit_builder(mol, request: EditRequest):
     return mol
 
 
-def _preoptimize(mol, engine: str):
+def _preoptimization_graph(mol):
     import numpy as np
     from rdkit import Chem
-
-    from cloudra.tools.core.structure_builder import BuildStrategy, _make_force_field
 
     if not mol.GetNumAtoms() or not mol.GetNumConformers():
         raise ValueError('preoptimize requires a nonempty molecule with coordinates')
@@ -529,6 +544,17 @@ def _preoptimize(mol, engine: str):
     positions = working.GetConformer().GetPositions()
     if not np.isfinite(positions).all():
         raise ValueError('preoptimize requires finite coordinates')
+    return working
+
+
+def _preoptimize(mol, engine: str):
+    import numpy as np
+    from rdkit import Chem
+
+    from cloudra.tools.core.structure_builder import BuildStrategy, _make_force_field
+
+    working = _preoptimization_graph(mol)
+    positions = working.GetConformer().GetPositions()
     conf_id = working.GetConformer().GetId()
     try:
         force_field = _make_force_field(working, conf_id, engine)
@@ -583,7 +609,7 @@ def edit_geometry(request: EditRequest | dict) -> dict:
     elif request.action == 'preoptimize':
         result, summary = _preoptimize(mol, request.force_field)
     elif request.action == 'resolve_bonds':
-        result, source, warnings = InternalCoordinates._resolve_molecule(mol, None)
+        result, source, warnings = InternalCoordinates._resolve_molecule(mol, request.charge)
         summary = {'moved_atoms': [], 'bond_source': source, 'warnings': warnings}
     else:
         op = request.model_dump(exclude={'molecule', 'action', 'force_field', 'hybridization'}, exclude_none=True)

@@ -866,7 +866,13 @@ async def _execute_effect(core: RuntimeCore, effect: Effect) -> None:
     if isinstance(effect, EnsureDir):
         await asyncio.to_thread(_mkdir, effect.path)
     elif isinstance(effect, PatchApiKey):
-        core.require_agent(effect.session_id).settings.api_key = effect.api_key
+        from cloudra.infra.config import role_model_config
+
+        agent = core.require_agent(effect.session_id)
+        endpoint = agent.settings.base_url
+        if effect.api_key and not endpoint:
+            endpoint = (await asyncio.to_thread(role_model_config, agent.role_id)).url
+        agent.settings.bind_api_key(effect.api_key, endpoint)
     elif isinstance(effect, DeliverMessage):
         core.mailbox.enqueue(effect.session_id, effect.message)
     elif isinstance(effect, ScheduleAgent):

@@ -108,9 +108,12 @@ export function MoleculeBuilder({ geometry, selection, disabled, hasFrozenCoordi
       disabled={disabled} onEdit={onEdit} />}
     <div className="wb-force-field-controls">
       <label>预优化力场<select aria-label="预优化力场" value={forceField} disabled={disabled} onChange={event => setForceField(event.target.value as typeof forceField)}><option value="MMFF94">MMFF94</option><option value="UFF">UFF</option></select></label>
-      <button className="btn outline sm" type="button" disabled={disabled || !geometry?.atoms.length || hasFrozenCoordinates}
+      <button className="btn outline sm" type="button" disabled={disabled || !geometry?.atoms.length || hasFrozenCoordinates || !!geometry?.preoptimization_blocker}
         onClick={() => onEdit({ action: 'preoptimize', force_field: forceField })}>力场预优化</button>
-      <span className="wb-muted">{hasFrozenCoordinates ? '预优化暂不支持冻结坐标，请先移除冻结定义。' : '结果直接用于当前编辑稿，可继续编辑或撤销。'}</span>
+      <span className="wb-muted">{hasFrozenCoordinates ? '预优化暂不支持冻结坐标，请先移除冻结定义。' : geometry?.preoptimization_blocker
+        ? (geometry.graph_status === 'unresolved' || geometry.graph_status === 'distance-inferred'
+          ? '请在「连接感知与镜像」中感知键级；带电结构可指定总电荷。' : geometry.preoptimization_blocker)
+        : '结果直接用于当前编辑稿，可继续编辑或撤销。'}</span>
     </div>
   </section>;
 }

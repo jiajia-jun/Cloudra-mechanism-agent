@@ -129,7 +129,7 @@ test('unmounting cancels a pending DAG commit through the actual effect cleanup'
   assert.equal(committed.length, 0);
 });
 
-test('the ResearchPanel graph callback invalidates the actual products effect', () => {
+test('the ResearchPanel graph callback invalidates a paged, cancellable project search', async () => {
   const research = readFileSync(new URL('./ResearchPanel.tsx', import.meta.url), 'utf8');
   const found: any[] = [];
   function collect(node: any) {
@@ -146,7 +146,7 @@ test('the ResearchPanel graph callback invalidates the actual products effect', 
     && research.slice(node.start, node.end).includes('workbenchApi.products'));
   let refresh = 0;
   const dependencies = () => vm.runInNewContext(research.slice(effect.arguments[1].start, effect.arguments[1].end), {
-    project: { id: 'p' }, refresh, refreshVersion: 0,
+    project: { id: 'p' }, refresh, refreshVersion: 0, search:'', kind:'all', selected:null, offset:0,
   });
   const before = dependencies();
   const changed = vm.runInNewContext(transformSync('callback.ts', `(${research.slice(callback.start, callback.end)})`, { lang: 'ts' }).code, {
@@ -155,4 +155,41 @@ test('the ResearchPanel graph callback invalidates the actual products effect', 
   });
   changed();
   assert.notDeepEqual(structuredClone(dependencies()), structuredClone(before));
+  let pending: (()=>void) | null = null;
+  const requests: unknown[][] = [];
+  const commits: unknown[] = [];
+  const runSearch = vm.runInNewContext(transformSync('effect.ts', `(${research.slice(effect.arguments[0].start, effect.arguments[0].end)})`, {lang:'ts'}).code, {
+    project:{id:'p'}, search:'#17', kind:'calculation', selected:null, offset:0,
+    window:{setTimeout:(fn:()=>void)=>{ pending=fn;return 1; },clearTimeout:()=>{pending=null;}},
+    workbenchApi:{products:async (...args: unknown[])=>{requests.push(args);return {products:['record'],objects:[],total:1,offset:0};}},
+    setLoading() {},setError() {},setObjects() {},setTotal() {},setOffset() {},setProducts:(rows: unknown)=>commits.push(rows),
+  });
+  const stop = runSearch();
+  assert.equal(requests.length,0);
+  stop();
+  assert.equal(pending,null);
+  const cancelInFlight = runSearch();
+  (pending as unknown as ()=>void)();
+  cancelInFlight();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(commits,[]);
+  runSearch();
+  (pending as unknown as ()=>void)();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(requests.at(-1),['p','#17','calculation',null,0]);
+  assert.deepEqual(commits,[['record']]);
+});
+
+test('minimum count uses only the server’s native evidence verdict for that species node', () => {
+  const stats = nodes.find(node => node.type === 'VariableDeclarator' && node.id?.name === 'completionStats')!.init.arguments[0];
+  const result = evaluate(stats, {
+    nodes: [
+      { minimum_verified: true, stages: [{kind:'geometry',status:'supported'}] },
+      { minimum_verified: true, smiles:['O','O=C=O'], stages: [] },
+      { minimum_verified: false, smiles:['O','O=C=O'], stages: [{kind:'frequency',status:'supported'}] },
+      { stages: [{kind:'geometry',status:'supported'}] },
+    ], edges: [], hasSaddleEvidence() { return false; },
+  })();
+  assert.equal(result.verifiedMinima, 2);
+  assert.equal(result.minimaRate, 50);
 });

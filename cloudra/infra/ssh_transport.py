@@ -64,7 +64,7 @@ class SshEndpoint:
 
     def job_dir(self, task_id: int) -> str:
         """远端作业目录：``<remote_root>/cloudra-<task_id>``（按作业隔离）。"""
-        return f"{self.remote_root}/cloudra-{task_id}"
+        return f"{self.remote_root.rstrip('/')}/cloudra-{task_id}"
 
 
 def ssh_argv(endpoint: SshEndpoint) -> list[str]:
@@ -203,7 +203,7 @@ def check_remote_bins(
     ``MISSING:<name>`` 标记行回报，精确整行比对）。bins 来自本包内置常量
     （``compute_utils._REQUIRED_BINS`` 等），不是外部输入。传输失败抛 SshError。
     """
-    key = (endpoint.host, endpoint.user, endpoint.port, tuple(sorted(bins)))
+    key = (endpoint, tuple(sorted(bins)))
     now = time.monotonic()
     hit = _bin_probe_cache.get(key)
     if hit and not refresh and now - hit[0] < _BIN_PROBE_TTL_SECONDS:
@@ -232,7 +232,7 @@ def check_remote_bins(
 
 
 def check_remote_environment(
-    endpoint: SshEndpoint, job_type: str, *, slurm: bool
+    endpoint: SshEndpoint, job_type: str, *, slurm: bool, refresh: bool = False
 ) -> tuple[bool, str]:
     """远端节点准入探针：引擎 + 传输依赖（rsync/bash）+ Slurm 工具链。
 
@@ -248,21 +248,25 @@ def check_remote_environment(
             "rsync is required locally to stage jobs to a remote node; "
             "install rsync and resubmit."
         )
-    remote_bins = [*bins, "bash", "rsync"]
+    transport_bins = ["bash", "rsync"]
     if slurm:
-        remote_bins += ["sbatch", "sacct", "scancel"]
+        transport_bins += ["sbatch", "sacct", "scancel"]
+    remote_bins = list(dict.fromkeys([*bins, *transport_bins]))
     try:
-        ok, missing = check_remote_bins(endpoint, remote_bins)
+        _, missing = check_remote_bins(endpoint, remote_bins, refresh=refresh)
     except SshError as exc:
         return False, (
             f"Remote node {endpoint.target} is unreachable: {exc}. "
             "Check the node's connection block (host/user/port/identity_file) "
             "and SSH key authorization."
         )
-    if not ok:
+    required_missing = [name for name in transport_bins if name in missing]
+    if all(name in missing for name in bins):
+        required_missing.extend(name for name in bins if name not in required_missing)
+    if required_missing:
         return False, (
             f"Remote node {endpoint.target} is missing required programs: "
-            f"{', '.join(missing)}. Install them or fix PATH/modules on the "
+            f"{', '.join(required_missing)}. Install them or fix PATH/modules on the "
             "remote host, then resubmit."
         )
     return True, ""
