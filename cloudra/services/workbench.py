@@ -65,13 +65,16 @@ class WorkbenchService:
         from cloudra.tools.core.workbench_geometry import create_geometry
         from cloudra.tools.core.workbench_results import open_document
 
+        original_manifest = None
         if request.path:
             source = self.source_path(request.path)
+            original_manifest = source
         elif request.file_evidence:
             evidence = self._file_evidence(request.file_evidence)
             if evidence is None:
                 raise FileNotFoundError('该文件证据没有不可变归档快照')
             original = Path(evidence.snapshot_path)
+            original_manifest = Path(evidence.original_path)
             if not original.is_file():
                 raise FileNotFoundError('已登记的文件证据快照不存在')
             if _sha256_file(original) != evidence.sha256:
@@ -86,6 +89,7 @@ class WorkbenchService:
             service = ArtifactService()
             token, _ = service.issue_download_token(self.project.id, request.artifact_id)
             artifact, original = service.resolve_download(self.project.id, request.artifact_id, token)
+            original_manifest = Path(artifact.source_path)
             source = self.cache_root / 'imports' / request.artifact_id / artifact.name
             source.parent.mkdir(parents=True, exist_ok=True)
             if not source.is_file():
@@ -108,9 +112,16 @@ class WorkbenchService:
             else:
                 source = self.cache_root / 'imports' / f'{uuid4().hex}.{suffix}'
                 self._write(source, request.input_text)
-        result = open_document(source, self.cache_root, request.frame_index)
+        result = open_document(source, self.cache_root, request.frame_index, input_name=request.input_name)
         if request.artifact_id:
             result['source_artifact_id'] = request.artifact_id
+        if (original_manifest is not None and original_manifest.name == 'structure.json'
+                and original_manifest.parent.parent == self.root / '.cloudra' / 'structures'
+                and original_manifest.is_file()
+                and (source == original_manifest or _sha256_file(original_manifest) == _sha256_file(source))):
+            result['saved_with_input'] = any(
+                (original_manifest.parent / name).is_file() for name in ('calculation.gjf', 'calculation.inp')
+            )
         return result
 
     def preview(self, request) -> dict[str, Any]:
@@ -199,7 +210,7 @@ class WorkbenchService:
         return {'path': str(state_path), 'files': files, 'artifact_ids': artifact_ids, 'geometry': geometry,
                 'message': '已保存完整结构、连接关系与计算设置。', 'notification_content': message}
 
-    def _graph_context(self) -> tuple[dict[tuple[str, str], list[dict]], list[dict]]:
+    def _graph_context(self, file_scope: set[Path] | None = None) -> tuple[dict[tuple[str, str], list[dict]], list[dict]]:
         from cloudra.dag.store import GraphBundleNotFound
 
         db = ConversationDB(self.project.id)
@@ -233,17 +244,91 @@ class WorkbenchService:
                             continue
                         for value in (evidence.snapshot_path, evidence.original_path):
                             file = Path(value).resolve()
+                            if file_scope is not None and file not in file_scope:
+                                continue
                             if file.is_relative_to(self.root) and file.is_file() and _sha256_file(file) == evidence.sha256:
                                 result.setdefault(('file_path', str(file)), []).append({**entry, 'original_name': Path(evidence.original_path).name})
         return result, objects
 
-    def products(self) -> dict[str, list[dict]]:
+    def _job_files(self, job: dict) -> dict[str, Path]:
         from cloudra.infra.compute_utils import resolve_log_path
+
+        source = (self.root / job['path']).resolve()
+        if not source.is_relative_to(self.root):
+            return {}
+        paths = {'input': source}
+        if job['jobtype'] == 'chem_task':
+            from cloudra.runtime.chem_task import read_task_result, result_path
+
+            receipt = Path(result_path(str(source))).resolve()
+            if receipt.is_relative_to(self.root) and receipt.is_file():
+                paths['receipt'] = receipt
+                try:
+                    result, _ = read_task_result(str(source))
+                except (ValueError, KeyError, OSError, TypeError, AttributeError):
+                    # The raw receipt remains available; unverified members do not.
+                    pass
+                else:
+                    fields = {
+                        'optimized_xyz': 'geometry', 'path_xyz_path': 'path',
+                        'scan_xyz_path': 'scan', 'ts_xyz_path': 'candidate',
+                        'candidate_path': 'candidate', 'log_file': 'output',
+                        'stdout_path': 'output', 'stderr_path': 'stderr',
+                        'input_xyz_path': 'input_geometry', 'reactant_path': 'reactant',
+                        'product_path': 'product', 'gradient_file': 'gradient', 'hessian_file': 'hessian',
+                    }
+                    for field, role in fields.items():
+                        value = result['result'].get(field)
+                        if isinstance(value, str) and value:
+                            paths.setdefault(role, (receipt.parent / value).resolve())
+        else:
+            try:
+                paths['output'] = Path(resolve_log_path(str(source), job['jobtype'], job['id'])).resolve()
+            except (OSError, ValueError, TypeError, AttributeError):
+                # A damaged execution receipt cannot establish which output belongs to this job.
+                # Its input and the other jobs in the project remain accessible.
+                pass
+        return {role: path for role, path in paths.items() if path.is_relative_to(self.root) and path.is_file()}
+
+    def _project_job(self, job_id: int) -> dict | None:
+        from cloudra.services.compute_store import _db_ready, get_compute_job
+
+        db = ComputeDB()
+        job = get_compute_job(db, job_id) if _db_ready(db) else None
+        return job if job and job['conversation_id'] == self.project.id else None
+
+    def job_file(self, job_id: int, role: str) -> Path:
+        job = self._project_job(job_id)
+        if job is None:
+            raise FileNotFoundError('当前项目中没有这项作业')
+        path = self._job_files(job).get(role)
+        if not path:
+            raise FileNotFoundError('该作业文件不可用')
+        return path
+
+    def products(self, query: str = '', kind: str | None = None, object_kind: str | None = None,
+                 object_id: str | None = None, offset: int = 0, limit: int = 24) -> dict:
         from cloudra.services.compute_store import _db_ready, list_compute_jobs
 
-        references, objects = self._graph_context()
+        if bool(object_kind) != bool(object_id):
+            raise ValueError('对象类型和编号必须同时指定')
+        needle = query.strip().casefold()
+        number = needle.removeprefix('#')
+        exact_job = needle.startswith('#') and number.isascii() and number.isdigit()
+        job_files = {}
+        if exact_job:
+            # SQLite job identifiers are signed 64-bit integers.
+            job = self._project_job(int(number)) if len(number) <= 19 and int(number) < 2**63 else None
+            jobs = [job] if job and kind in {None, 'calculation'} else []
+            job_files = {row['id']: self._job_files(row) for row in jobs}
+        else:
+            db = ComputeDB()
+            jobs = list_compute_jobs(db, conversation_id=self.project.id, order='recent') if kind in {None, 'calculation'} and _db_ready(db) else []
+        file_scope = {path for files in job_files.values() for path in files.values()} if exact_job else None
+        references, objects = self._graph_context(file_scope)
+        include_files = not exact_job and kind != 'calculation'
         artifacts = [item for item in ArtifactService().list(self.project.id)
-                     if item.session_id != WORKBENCH_ATTACHMENT_SESSION]
+                     if item.session_id != WORKBENCH_ATTACHMENT_SESSION] if include_files else []
         artifact_sources: dict[str, list] = {}
         for artifact in artifacts:
             artifact_sources.setdefault(artifact.source_path, []).append(artifact)
@@ -262,53 +347,67 @@ class WorkbenchService:
             return {'ref_type': 'artifact', 'ref_id': artifact.artifact_id, 'content_hash': artifact.sha256}
         products = []
         saved_files: set[str] = set()
-        for path in sorted((self.root / '.cloudra' / 'structures').glob('*/structure.json'), reverse=True):
+        structures = (self.root / '.cloudra' / 'structures').glob('*/structure.json') if include_files else []
+        for path in sorted(structures, reverse=True):
             state = json.loads(path.read_text(encoding='utf-8'))
-            saved_files.update(str(file) for file in path.parent.iterdir() if matching_artifacts(file))
             # Keep the exact member-file reference on its association. A record
             # groups files; this does not turn every member into that species.
             associations = []
-            for member in path.parent.iterdir():
-                if not member.is_file():
+            files = []
+            for member in sorted(path.parent.iterdir()):
+                if not member.resolve().is_relative_to(self.root) or not member.is_file():
                     continue
                 associations.extend(references.get(('file_path', str(member)), []))
-                for artifact in matching_artifacts(member):
+                matches = matching_artifacts(member)
+                entry = {'role': member.suffix.lstrip('.'), 'path': str(member)}
+                if matches:
+                    saved_files.add(str(member))
+                    entry['artifact_id'] = matches[0].artifact_id
+                files.append(entry)
+                for artifact in matches:
                     associations.extend(references.get(('artifact', artifact.artifact_id), []))
             state_artifacts = matching_artifacts(path)
             products.append({
                 'id': str(path), 'kind': 'structure', 'title': state.get('title', path.parent.name),
                 'path': str(path), 'source_path': state.get('source_path'), 'source_frame': state.get('source_frame'),
                 'created_at': state.get('created_at', ''), 'state': 'draft', 'can_open': True,
-                'preview_xyz': (path.parent / 'structure.xyz').read_text(encoding='utf-8') if (path.parent / 'structure.xyz').is_file() else '',
                 'associations': associations,
                 'association_ref': artifact_ref(state_artifacts[-1]) if state_artifacts else None,
-                'files': [{'path': str(file), 'role': file.suffix.lstrip('.')} for file in path.parent.iterdir() if file.is_file()],
+                'files': files,
             })
-        db = ComputeDB()
-        jobs = list_compute_jobs(db, conversation_id=self.project.id, order='recent', limit=100) if _db_ready(db) else []
         for job in jobs:
             input_path = Path(job.get('path') or '')
             input_path = (input_path if input_path.is_absolute() else self.root / input_path).resolve()
             job_type = job.get('jobtype') or job.get('job_type') or 'calculation'
-            log_path = Path(resolve_log_path(str(input_path), job_type, job.get('id')))
-            local_files = [file for file in (input_path, log_path) if file.is_relative_to(self.root) and file.is_file()]
-            chosen = log_path if log_path in local_files else input_path
+            local_files = job_files[job['id']] if exact_job else self._job_files(job)
+            # A submitted input can be opened independently, never as the calculation's result.
+            result_roles = ('geometry', 'path', 'scan', 'candidate')
+            chosen_role = next((role for role in result_roles if role in local_files), 'output')
+            chosen = local_files.get(chosen_role) or input_path
+            files = [{'path': str(file), 'role': role,
+                      'can_open': (role in (*result_roles, 'input_geometry', 'reactant', 'product', 'input')
+                                   and can_open_workbench_source(file)
+                                   and (file.suffix.lower() != '.inp' or job_type == 'orca'))}
+                     for role, file in local_files.items()]
             associations = [*references.get(('compute_job', str(job['id'])), []),
                             *references.get(('file_path', str(chosen)), [])]
             products.append({
                 'id': f'job:{job["id"]}', 'kind': 'calculation', 'title': input_path.stem,
                 'job_id': job['id'], 'job_type': job_type, 'state': job.get('state'),
-                'created_at': job.get('created_at') or '', 'path': str(chosen),
-                'can_open': chosen in local_files, 'associations': associations,
+                'created_at': datetime.fromtimestamp(job['start_timestamp'], timezone.utc).isoformat()
+                              if (job.get('start_timestamp') or 0) > 0 else '', 'path': str(chosen),
+                'can_open': chosen_role in result_roles or ('output' in local_files and job_type in {'gaussian', 'orca', 'xtb', 'chem_task'}),
+                'associations': associations,
                 'association_ref': {'ref_type': 'compute_job', 'ref_id': str(job['id'])},
-                'files': [{'path': str(file), 'role': 'input' if file == input_path else 'output'} for file in local_files],
+                'files': files,
             })
         for artifact in artifacts:
             if artifact.source_path in saved_files and artifact in matching_artifacts(Path(artifact.source_path)):
                 continue
-            associations = [*references.get(('artifact', artifact.artifact_id), []),
-                            *(references.get(('file_path', artifact.source_path), [])
-                              if artifact in matching_artifacts(Path(artifact.source_path)) else [])]
+            associations = list(references.get(('artifact', artifact.artifact_id), []))
+            file_refs = references.get(('file_path', artifact.source_path))
+            if file_refs and artifact in matching_artifacts(Path(artifact.source_path)):
+                associations.extend(file_refs)
             products.append({
                 'id': artifact.artifact_id, 'kind': 'artifact', 'title': artifact.name,
                 'artifact_id': artifact.artifact_id, 'path': artifact.source_path,
@@ -321,7 +420,7 @@ class WorkbenchService:
         # Explicit file references are useful even without artifact registration.
         known_paths = {item['path'] for item in products}
         for (ref_type, ref_id), associations in references.items():
-            if ref_type != 'file_path' or ref_id in known_paths:
+            if not include_files or ref_type != 'file_path' or ref_id in known_paths:
                 continue
             file = Path(ref_id)
             if file.is_relative_to(self.root) and file.is_file():
@@ -329,5 +428,18 @@ class WorkbenchService:
                                  'created_at': '', 'state': '', 'can_open': can_open_workbench_source(Path(associations[0]['original_name'])),
                                  'associations': associations, 'files': [],
                                  'association_ref': {key: associations[0][key] for key in ('ref_type', 'ref_id', 'content_hash') if key in associations[0]}})
-        products.sort(key=lambda item: str(item.get('created_at') or ''), reverse=True)
-        return {'products': products, 'objects': objects}
+        def matches(item):
+            if kind and item['kind'] != kind:
+                return False
+            if object_id and not any(a['kind'] == object_kind and a['id'] == object_id for a in item['associations']):
+                return False
+            if exact_job:
+                return True
+            values = [item.get(key) for key in ('title', 'path', 'source_path', 'job_type', 'state', 'job_id')]
+            values.extend(file['path'] for file in item['files'])
+            values.extend(a['label'] for a in item['associations'])
+            return any(needle in str(value).casefold() for value in values if value is not None)
+
+        filtered = sorted((item for item in products if matches(item)), key=lambda item: item['created_at'] or '', reverse=True)
+        start = min(offset, ((len(filtered) - 1) // limit) * limit) if filtered else 0
+        return {'products': filtered[start:start + limit], 'objects': objects, 'total': len(filtered), 'offset': start}

@@ -91,6 +91,21 @@ class LLMConfig(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
+    def apply_changes(self, changes: dict[str, Any]) -> None:
+        """Apply a slot edit as one change of destination and credentials."""
+        from cloudra.infra.providers import apply_provider_preset, detect_provider_from_url, same_model_endpoint
+
+        previous_url, previous_key = self.url, self.key
+        applied_preset = bool(changes.get("provider")) and apply_provider_preset(self, changes["provider"])
+        for name, value in changes.items():
+            if name != "provider" or not applied_preset:
+                setattr(self, name, value)
+        if "key" not in changes:
+            self.key = previous_key if same_model_endpoint(previous_url, self.url) else ""
+        if not self.provider or ("url" in changes and "provider" not in changes):
+            detected = detect_provider_from_url(self.url)
+            self.provider = detected.id if detected else "custom"
+
 
 class EmailConfig(BaseSettings):
     """SMTP/IMAP configuration for notifications and interaction.
@@ -375,17 +390,10 @@ class CloudraConfig(BaseSettings):
                     if role in data["llm"]:
                         cfg = getattr(self, role)
                         role_data = data["llm"][role]
-                        if "provider" in role_data and role_data["provider"]:
-                            from cloudra.infra.providers import apply_provider_preset
-                            apply_provider_preset(cfg, str(role_data["provider"]))
-                        for k, v in role_data.items():
-                            if hasattr(cfg, k) and v is not None:
-                                setattr(cfg, k, v)
-                        if not cfg.provider and cfg.url:
-                            from cloudra.infra.providers import detect_provider_from_url
-                            detected = detect_provider_from_url(cfg.url)
-                            if detected:
-                                cfg.provider = detected.id
+                        cfg.apply_changes({
+                            name: value for name, value in role_data.items()
+                            if name in LLMConfig.model_fields and (value is not None or name == "reasoning_effort")
+                        })
 
             if "email" in data:
                 for k, v in data["email"].items():
@@ -563,20 +571,8 @@ def set_config_value(key: str, value: str) -> None:
         if final_key == "mcp_servers" and isinstance(target, CloudraConfig):
             target.mcp_servers = _validate_mcp_servers(_coerce_value({}, value))
             return
-        if final_key == "provider" and isinstance(target, LLMConfig):
-            from cloudra.infra.providers import apply_provider_preset, get_provider_preset
-            preset = get_provider_preset(value)
-            if preset and preset.id != "custom":
-                apply_provider_preset(target, preset.id)
-            else:
-                target.provider = value
-            return
-        if final_key == "url" and isinstance(target, LLMConfig):
-            from cloudra.infra.providers import detect_provider_from_url
-            target.url = value
-            detected = detect_provider_from_url(value)
-            if detected:
-                target.provider = detected.id
+        if isinstance(target, LLMConfig):
+            target.apply_changes({final_key: _coerce_value(getattr(target, final_key), value)})
             return
         setattr(target, final_key, _coerce_value(getattr(target, final_key), value))
 
@@ -593,6 +589,11 @@ def get_config() -> CloudraConfig:
     if _config is None:
         _config = CloudraConfig()
     return _config
+
+
+def role_model_config(role_id: str) -> LLMConfig:
+    cfg = get_config()
+    return cfg.coordinator if role_id == "coordinator" else cfg.follower
 
 
 def _model_to_yaml_data(cfg: CloudraConfig) -> dict:

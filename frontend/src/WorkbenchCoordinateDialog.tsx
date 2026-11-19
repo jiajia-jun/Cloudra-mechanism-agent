@@ -3,16 +3,20 @@ import type { CoordinateType, EditRequest, FrozenCoordinate, ScanCoordinate } fr
 
 export interface CoordinateDialogSelection {
   atoms: number[];
+  movingAtoms?: number[];
   frozen?: FrozenCoordinate;
   scan?: ScanCoordinate;
 }
 
-export function WorkbenchCoordinateDialog({ selection, kind, current, busy, error, onClose, onPreview, onDefine }: {
+export function WorkbenchCoordinateDialog({ selection, kind, current, busy, error, picking, onPickMoving, onClearMoving, onClose, onPreview, onDefine }: {
   selection: CoordinateDialogSelection;
   kind: CoordinateType;
   current: number;
   busy: boolean;
   error: string;
+  picking: boolean;
+  onPickMoving: () => void;
+  onClearMoving: () => void;
   onClose: () => void;
   onPreview: (edit: Omit<EditRequest, 'molecule'>) => void;
   onDefine: (coordinate: FrozenCoordinate | ScanCoordinate) => void;
@@ -21,24 +25,29 @@ export function WorkbenchCoordinateDialog({ selection, kind, current, busy, erro
   const targetInput = useRef<HTMLInputElement>(null);
   const [target, setTarget] = useState(selection.frozen ? String(selection.frozen.value) : current.toFixed(5));
   const [fixedSide, setFixedSide] = useState<'first' | 'last'>('first');
-  const [moving, setMoving] = useState('');
   const [scanStart, setScanStart] = useState(selection.scan ? String(selection.scan.scan_start) : current.toFixed(5));
   const [scanEnd, setScanEnd] = useState(selection.scan ? String(selection.scan.scan_end) : '');
   const [scanSteps, setScanSteps] = useState(selection.scan ? String(selection.scan.scan_steps) : '');
   const [validationError, setValidationError] = useState('');
   const label = { bond: '距离', angle: '键角', dihedral: '二面角' }[kind];
   const unit = kind === 'bond' ? 'Å' : '°';
+  const fixedAtom = fixedSide === 'first' ? selection.atoms[0] : selection.atoms.at(-1);
+  const movingAtom = fixedSide === 'first' ? selection.atoms.at(-1) : selection.atoms[0];
 
   useEffect(() => {
     const node = dialog.current!;
     const trigger = document.activeElement;
-    node.showModal();
-    targetInput.current?.focus();
     return () => {
       node.close();
       if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
     };
   }, []);
+
+  useEffect(() => {
+    const node = dialog.current!;
+    if (picking) node.close();
+    else { node.showModal(); targetInput.current?.focus(); }
+  }, [picking]);
 
   const attempt = (operation: () => void) => {
     setValidationError('');
@@ -49,11 +58,8 @@ export function WorkbenchCoordinateDialog({ selection, kind, current, busy, erro
     return Number(value);
   };
   const preview = () => attempt(() => {
-    const movingAtoms = moving.split(',').flatMap(part => part.trim().split(' ')).filter(Boolean).map(Number);
-    if (moving.trim() && (!movingAtoms.length || movingAtoms.some(index => !Number.isInteger(index) || index < 1)
-      || new Set(movingAtoms).size !== movingAtoms.length)) throw new Error('移动原子须为不重复的正整数编号，以逗号分隔。');
     onPreview({ action: 'coordinate', atoms: selection.atoms, value: number(target, '目标值'), fixed_side: fixedSide,
-      ...(movingAtoms.length ? { moving_atoms: movingAtoms } : {}) });
+      ...(selection.movingAtoms?.length ? { moving_atoms: selection.movingAtoms } : {}) });
   });
 
   return <dialog ref={dialog} className="wb-coordinate-dialog" aria-label={`调整${label}`}
@@ -70,7 +76,14 @@ export function WorkbenchCoordinateDialog({ selection, kind, current, busy, erro
       <fieldset disabled={busy}>
         <label>目标值 {unit}<input ref={targetInput} aria-label="内坐标目标值" type="number" step="any" value={target} onChange={event => setTarget(event.target.value)} /></label>
         <label>固定侧<select value={fixedSide} onChange={event => setFixedSide(event.target.value as typeof fixedSide)}><option value="first">固定前侧，移动末侧基团</option><option value="last">固定末侧，移动前侧基团</option></select></label>
-        <details><summary>手动指定移动部分</summary><label>手动指定移动原子（逗号分隔，可留空）<input value={moving} onChange={event => setMoving(event.target.value)} placeholder="如 4,5,6" /></label></details>
+        <div className="wb-toolbar">
+          <button type="button" className="btn outline sm" onClick={onPickMoving}>画布选择移动原子</button>
+          {selection.movingAtoms?.length ? <>
+            <span>移动组：{selection.movingAtoms.join('、')}</span>
+            <button type="button" className="btn ghost sm" onClick={onClearMoving}>恢复自动选组</button>
+          </> : <span className="wb-muted">按固定侧和分子连接自动选组</span>}
+        </div>
+        <p className="wb-muted">固定端 {fixedAtom}，移动端 {movingAtom}。手动选组时点选移动端及随它移动的原子。</p>
         <details open={!!selection.frozen || !!selection.scan}>
           <summary>冻结与扫描</summary>
           <button className="btn outline sm" type="button" onClick={() => attempt(() => onDefine({ coord_type: kind, atoms: selection.atoms, value: number(target, '目标值') }))}>定义冻结坐标</button>

@@ -191,12 +191,12 @@ class NodeRegistry:
     def from_environment(cls) -> "NodeRegistry":
         registry_file = os.getenv("CLOUDRA_NODE_REGISTRY_FILE", "").strip()
         if registry_file:
-            path = Path(registry_file).expanduser().resolve(strict=True)
+            path = Path(registry_file).expanduser()
             try:
                 payload = json.loads(path.read_text(encoding="utf-8"))
+                return cls.from_dict(payload)
             except (OSError, ValueError) as exc:
-                raise NodeRegistryError(f"cannot load node registry: {path}") from exc
-            return cls.from_dict(payload)
+                raise NodeRegistryError(f"cannot load node registry {path}: {exc}") from exc
 
         candidate = Path.cwd()
         try:
@@ -250,6 +250,22 @@ class NodeRegistry:
         raise NodeRegistryError(
             f"unknown workspace route: {node.node_id}/{workspace_id}"
         )
+
+    def check_environment(self, node_id: str) -> tuple[bool, str]:
+        """Run the shell/transport checks used by admission, without submitting a job."""
+        from cloudra.infra.compute_utils import check_job_type
+        from cloudra.infra.slurm import check_slurm_tools
+        from cloudra.infra.ssh_transport import SshEndpoint, check_remote_environment
+
+        node = self.node(node_id)
+        slurm = node.scheduler["type"] == "slurm"
+        if node.connection["type"] == "ssh":
+            return check_remote_environment(
+                SshEndpoint.from_connection(node.connection), "shell", slurm=slurm, refresh=True,
+            )
+        if slurm:
+            return check_slurm_tools()
+        return check_job_type("shell", str(node.workspaces[0].path))
 
     def public_nodes(self) -> list[dict]:
         return [node.public() for node in self.nodes]
@@ -365,7 +381,7 @@ class NodeRegistry:
             "host": host,
             "user": user,
             "port": port,
-            "remote_root": remote_root.rstrip("/"),
+            "remote_root": remote_root.rstrip("/") or "/",
         }
         identity = value.get("identity_file")
         if identity is not None:

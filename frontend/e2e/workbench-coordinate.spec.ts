@@ -1,38 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
-import type { DocumentView, GeometryView } from '../src/workbenchTypes';
+import { expect, test } from '@playwright/test';
+import { geometry, openCoordinateWorkbench } from './workbench-coordinate-fixture';
 
 test.use({ launchOptions: { args: ['--disable-webgl'] } });
 // Each case opens, previews, cancels and reopens the dialog on hosted runners.
 test.setTimeout(60_000);
-
-const geometry: GeometryView = {
-  molecule: 'four-atoms', xyz: '', graph_status: 'declared',
-  atoms: [
-    { index: 1, symbol: 'C', x: 1, y: 0, z: 0 },
-    { index: 2, symbol: 'C', x: 0, y: 0, z: 0 },
-    { index: 3, symbol: 'C', x: 0, y: 1, z: 0 },
-    { index: 4, symbol: 'H', x: 0, y: 1, z: 1 },
-  ],
-  bonds: [1, 2, 3].map(atom1 => ({ atom1, atom2: atom1 + 1, order: 1 })),
-};
-const document: DocumentView = { document_id: 'edit', title: 'Editable molecule', geometry, frames: [{ index: 0, step: 0 }], selected_frame: 0, modes: [], settings: {}, warnings: [] };
-
-async function open(page: Page) {
-  await page.route('**/workbench/fragments', route => route.fulfill({ json: { fragments: [] } }));
-  await page.route('**/workbench/open', route => route.fulfill({ json: document }));
-  const edits: unknown[] = [];
-  await page.route('**/workbench/edit', route => {
-    edits.push(route.request().postDataJSON());
-    return route.fulfill({ json: { ...geometry, molecule: 'adjusted' } });
-  });
-  await page.goto('/e2e/workbench-builder.html');
-  const workbench = page.getByRole('dialog', { name: '分子工作台', exact: true });
-  await workbench.getByLabel('结构来源').fill('CCCC');
-  await workbench.getByRole('button', { name: '新建／打开', exact: true }).click();
-  const atoms = workbench.getByLabel('原子列表', { exact: true });
-  await expect(atoms.getByRole('button', { name: 'C1', exact: true })).toBeVisible();
-  return { workbench, atoms, edits };
-}
 
 for (const { count, label, current } of [
   { count: 2, label: '距离', current: '1.00000' },
@@ -40,7 +11,7 @@ for (const { count, label, current } of [
   { count: 4, label: '二面角', current: '-90.00000' },
 ]) {
   test(`${label} popup starts with the actual coordinate and previews ordered atoms`, async ({ page }) => {
-    const { workbench, atoms, edits } = await open(page);
+    const { workbench, atoms, edits } = await openCoordinateWorkbench(page);
     for (let i = 1; i <= count; i++) await atoms.getByRole('button', { name: `${i === 4 ? 'H' : 'C'}${i}`, exact: true }).click();
     const trigger = workbench.getByRole('button', { name: `编辑${label}`, exact: true });
     await expect(trigger).toBeVisible();
@@ -66,7 +37,7 @@ for (const { count, label, current } of [
 }
 
 test('coordinate errors stay in the popup and cancelling changes no draft', async ({ page }) => {
-  const { workbench, atoms } = await open(page);
+  const { workbench, atoms } = await openCoordinateWorkbench(page);
   await atoms.getByRole('button', { name: 'C1', exact: true }).click();
   await atoms.getByRole('button', { name: 'C2', exact: true }).click();
   await workbench.getByRole('button', { name: '编辑距离', exact: true }).click();
@@ -79,7 +50,7 @@ test('coordinate errors stay in the popup and cancelling changes no draft', asyn
 });
 
 test('saved freeze and scan values reopen separately from the measured coordinate', async ({ page }) => {
-  const { workbench, atoms, edits } = await open(page);
+  const { workbench, atoms, edits } = await openCoordinateWorkbench(page);
   await atoms.getByRole('button', { name: 'C1', exact: true }).click();
   await atoms.getByRole('button', { name: 'C2', exact: true }).click();
   await workbench.getByRole('button', { name: '编辑距离', exact: true }).click();
@@ -105,7 +76,7 @@ test('saved freeze and scan values reopen separately from the measured coordinat
 });
 
 test('force field optimization applies to the draft immediately and saving is optional', async ({ page }) => {
-  const { workbench } = await open(page);
+  const { workbench } = await openCoordinateWorkbench(page);
   const edits: unknown[] = [], saved: unknown[] = [];
   await page.route('**/workbench/edit', route => {
     const body = route.request().postDataJSON(); edits.push(body);
@@ -136,7 +107,7 @@ test('force field optimization applies to the draft immediately and saving is op
 });
 
 test('manual hybridization and clearing its override use the shared atom state action', async ({ page }) => {
-  const { workbench, atoms } = await open(page);
+  const { workbench, atoms } = await openCoordinateWorkbench(page);
   const edits: unknown[] = [];
   await page.route('**/workbench/edit', route => {
     const body = route.request().postDataJSON(); edits.push(body);

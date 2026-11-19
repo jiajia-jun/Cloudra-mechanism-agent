@@ -91,12 +91,42 @@ function RefreshSvg({ className = '' }: { className?: string }) {
   );
 }
 
-export default function OpsPanel({ project, agents, activeJobs, onCancel, cancelling, onError, refreshVersion }: {
+function NodeEnvironmentCheck({ node }: { node: ComputeNode }) {
+  const { lang } = useI18n();
+  const zh = lang === 'zh';
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; detail: string; time: string } | null>(null);
+  async function check() {
+    setChecking(true);
+    try {
+      const response = await api.checkNodeEnvironment(node.node_id);
+      setResult({ ...response, time: new Date().toLocaleTimeString() });
+    } catch (error) {
+      setResult({ ok: false, detail: error instanceof Error ? error.message : String(error), time: new Date().toLocaleTimeString() });
+    } finally {
+      setChecking(false);
+    }
+  }
+  const scope = [node.connection === 'ssh' ? 'SSH / rsync' : '', node.scheduler === 'slurm' ? 'Slurm CLI' : 'bash'].filter(Boolean).join(' · ');
+  return <div className="node-environment-check">
+    <button type="button" className="btn outline sm" disabled={checking} onClick={() => void check()}>
+      {checking ? (zh ? '检查中…' : 'Checking…') : (zh ? '检查执行环境' : 'Check environment')}
+    </button>
+    <span className="dim" role="status">
+      {result
+        ? [result.time, scope, result.ok ? (zh ? '检查通过' : 'Check passed') : result.detail].join(' · ')
+        : [scope, zh ? '尚未检查' : 'Unchecked'].join(' · ')}
+    </span>
+  </div>;
+}
+
+export default function OpsPanel({ project, agents, activeJobs, onCancel, cancelling, onError, onOpenResult, refreshVersion }: {
   project: Project;
   agents: Agent[];
   activeJobs: ComputeJob[] | null;
   cancelling: boolean;
   onCancel: (job?: ComputeJob) => void;
+  onOpenResult: (jobId: number) => void;
   onError: (e: unknown) => void;
   refreshVersion: number;
 }) {
@@ -105,6 +135,8 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
   const [activeOnly, setActiveOnly] = useState(true);
   const jobsRequestRef = useRef(0);
   const [nodes, setNodes] = useState<ComputeNode[] | null>(null);
+  const [nodesError, setNodesError] = useState('');
+  const nodesRequestRef = useRef(0);
   const [reminders, setReminders] = useState<PendingReminder[] | null>(null);
   const remindersRequestRef = useRef(0);
 
@@ -133,13 +165,18 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
   }, [project.id, activeOnly, onError]);
 
   const loadNodes = useCallback(async () => {
+    const revision = ++nodesRequestRef.current;
     try {
       const data = await api.computeNodes();
+      if (revision !== nodesRequestRef.current) return;
       setNodes(data);
-    } catch (e) {
-      onError(e);
+      setNodesError('');
+    } catch (error) {
+      if (revision !== nodesRequestRef.current) return;
+      setNodes(null);
+      setNodesError(error instanceof Error ? error.message : String(error));
     }
-  }, [onError]);
+  }, []);
 
   const loadReminders = useCallback(async () => {
     const requestVersion = ++remindersRequestRef.current;
@@ -162,10 +199,11 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
 
   useEffect(() => {
     void loadNodes();
-    const timer = setInterval(() => {
-      api.computeNodes().then(setNodes).catch(() => undefined);
-    }, 4000);
-    return () => clearInterval(timer);
+    const timer = setInterval(() => { void loadNodes(); }, 4000);
+    return () => {
+      ++nodesRequestRef.current;
+      clearInterval(timer);
+    };
   }, [loadNodes, refreshVersion]);
 
   useEffect(() => {
@@ -182,7 +220,6 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
 
   // Overall KPI compute metrics
   const kpis = useMemo(() => {
-    const onlineNodes = (nodes ?? []).filter((n) => n.state === 'online').length;
     const totalNodes = nodes?.length ?? 0;
     const totalSlots = (nodes ?? []).reduce((acc, n) => acc + (n.capacity.effective.max_concurrent || 0), 0);
     const usedSlots = (nodes ?? []).reduce((acc, n) => acc + (n.in_flight.slots || 0), 0);
@@ -193,7 +230,6 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
     const pendingReminders = (reminders ?? []).length;
     const slotUsagePercent = totalSlots > 0 ? Math.round((usedSlots / totalSlots) * 100) : 0;
     return {
-      onlineNodes,
       totalNodes,
       totalSlots,
       usedSlots,
@@ -217,11 +253,10 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
           <div className="kpi-content">
             <span className="kpi-label">{t.opsKpiNodes}</span>
             <div className="kpi-val-row">
-              <span className="kpi-number green">{kpis.onlineNodes}</span>
-              <span className="kpi-unit">/ {kpis.totalNodes}</span>
+              <span className="kpi-number">{nodes ? kpis.totalNodes : '—'}</span>
             </div>
             <span className="kpi-sub">
-              {kpis.onlineNodes > 0 ? t.opsKpiNodesDesc : t.opsNodesNoneOnline}
+              {nodesError ? (lang === 'zh' ? '读取失败' : 'Read failed') : t.opsKpiNodesDesc}
             </span>
           </div>
         </div>
@@ -233,11 +268,11 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
           <div className="kpi-content">
             <span className="kpi-label">{t.opsKpiSlots}</span>
             <div className="kpi-val-row">
-              <span className="kpi-number amber">{kpis.usedSlots}</span>
-              <span className="kpi-unit">/ {kpis.totalSlots}</span>
+              <span className="kpi-number amber">{nodes ? kpis.usedSlots : '—'}</span>
+              <span className="kpi-unit">/ {nodes ? kpis.totalSlots : '—'}</span>
             </div>
             <span className="kpi-sub">
-              {t.opsKpiSlotsDesc(Math.max(0, kpis.totalSlots - kpis.usedSlots), kpis.slotUsagePercent)}
+              {nodes ? t.opsKpiSlotsDesc(Math.max(0, kpis.totalSlots - kpis.usedSlots), kpis.slotUsagePercent) : '—'}
             </span>
           </div>
         </div>
@@ -249,11 +284,11 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
           <div className="kpi-content">
             <span className="kpi-label">{t.opsKpiCpu}</span>
             <div className="kpi-val-row">
-              <span className="kpi-number cyan">{kpis.usedCpus}</span>
-              <span className="kpi-unit">/ {kpis.totalCpus}</span>
+              <span className="kpi-number cyan">{nodes ? kpis.usedCpus : '—'}</span>
+              <span className="kpi-unit">/ {nodes ? kpis.totalCpus : '—'}</span>
             </div>
             <span className="kpi-sub">
-              {t.opsKpiCpuDesc(Math.max(0, kpis.totalCpus - kpis.usedCpus))}
+              {nodes ? t.opsKpiCpuDesc(Math.max(0, kpis.totalCpus - kpis.usedCpus)) : '—'}
             </span>
           </div>
         </div>
@@ -290,14 +325,16 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
             <button
               type="button"
               className="btn ghost sm refresh-btn"
-              onClick={() => loadNodes().catch(onError)}
+              onClick={() => void loadNodes()}
             >
               <RefreshSvg />
               <span>{t.opsRefreshNodes}</span>
             </button>
           </div>
           <div className="ops-card-body">
-            {nodes === null ? (
+            {nodesError ? (
+              <p role="alert">{lang === 'zh' ? '无法读取计算节点配置' : 'Unable to read compute node configuration'} · {nodesError}</p>
+            ) : nodes === null ? (
               <div className="ops-empty-hint">{t.opsLoadingNodes}</div>
             ) : nodes.length === 0 ? (
               <div className="ops-empty-state small">
@@ -331,13 +368,15 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
                           )}
                         </div>
                         <div className="node-item-right">
-                          <span className={`status-pill ${n.state === 'online' ? 'online' : 'offline'}`}>
-                            <span className="status-glow-dot" />
-                            {n.state.toUpperCase()}
+                          <span className="badge role-badge">
+                            {lang === 'zh'
+                              ? (n.state === 'online' ? '登记为在线' : n.state === 'offline' ? '登记为离线' : `登记状态 · ${n.state}`)
+                              : `Registered as ${n.state}`}
                           </span>
                         </div>
                       </div>
 
+                      <NodeEnvironmentCheck key={JSON.stringify([n.node_id, n.connection, n.remote, n.scheduler])} node={n} />
                       {/* Three Gauges / Resource Bars */}
                       <div className="node-metrics-stack">
                         {/* 1. Concurrent Slots */}
@@ -477,7 +516,9 @@ export default function OpsPanel({ project, agents, activeJobs, onCancel, cancel
                         <td>{(j.state === 'ready' || j.state === 'running') && <button type="button" className="btn outline sm" disabled={cancelling}
                           aria-label={lang === 'zh' ? `取消作业 #${j.id}` : `Cancel job #${j.id}`} onClick={()=>onCancel(j)}>
                           {lang === 'zh' ? '取消' : 'Cancel'}
-                        </button>}</td>
+                        </button>}{['done','failed','cancelled'].includes(j.state) && <button className="btn outline sm" type="button"
+                          aria-label={lang === 'zh' ? `查看作业 #${j.id} 的结果` : `View results for job #${j.id}`}
+                          onClick={()=>onOpenResult(j.id)}>{lang === 'zh' ? '查看结果' : 'View results'}</button>}</td>
                       </tr>
                     ))}
                   </tbody>

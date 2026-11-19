@@ -4,11 +4,31 @@ export type Vec3 = [number, number, number];
 export type Cell = [Vec3, Vec3, Vec3];
 export interface AtomImage { index: number; image: Vec3 }
 export interface Marker { label: string; kind: 'atoms' | 'site'; atoms: AtomImage[] }
+export interface BoundMarker extends Omit<Marker, 'atoms'> { atoms: (AtomImage & { atomId?: string })[] }
+export interface AnnotationDraft { markers: BoundMarker[]; next: number; text: string; sentMarkers?: BoundMarker[] }
 export interface SceneAtom extends WorkbenchAtom { sourceIndex: number; image: Vec3 }
 export interface DisplayMarker { label: string; kind: Marker['kind']; points: Vec3[]; center: Vec3 }
 
 const origin: Vec3 = [0, 0, 0];
 const axes = [0, 1, 2] as const;
+
+export function resolveMarkers(markers: BoundMarker[], geometry: GeometryView) {
+  if (!markers.length) return {resolved:[], missing:[]};
+  const byId = new Map(geometry.atoms.map(atom => [atom.atom_id, atom.index]));
+  const byIndex = new Set(geometry.atoms.map(atom => atom.index));
+  const resolved: Marker[] = [];
+  const missing: string[] = [];
+  for (const marker of markers) {
+    const atoms: AtomImage[] = [];
+    for (const ref of marker.atoms) {
+      const index = ref.atomId ? byId.get(ref.atomId) : ref.index;
+      if (index !== undefined && byIndex.has(index)) atoms.push({index, image:ref.image});
+    }
+    if (atoms.length === marker.atoms.length) resolved.push({label:marker.label, kind:marker.kind, atoms});
+    else missing.push(marker.label);
+  }
+  return {resolved, missing};
+}
 
 function translated(point: Vec3, cell: Cell | undefined, shift: Vec3): Vec3 {
   if (!cell) return point;

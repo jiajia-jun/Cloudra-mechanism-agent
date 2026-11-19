@@ -364,6 +364,11 @@ def detect_provider_from_url(url: str) -> ProviderPreset | None:
     return None
 
 
+def same_model_endpoint(first: str | None, second: str | None) -> bool:
+    """The full API base, including its path, identifies a credential destination."""
+    return bool(first and second and first.rstrip("/") == second.rstrip("/"))
+
+
 def apply_provider_preset(
     target: Any,
     provider_id: str,
@@ -397,7 +402,7 @@ def apply_provider_preset(
         elif hasattr(target, field):
             setattr(target, field, val)
 
-    if preset.id == "openai-codex" and _get("provider") != preset.id:
+    if preset.default_url and not same_model_endpoint(_get("url"), preset.default_url):
         _set("key", "")
     _set("provider", preset.id)
     if preset.default_url:

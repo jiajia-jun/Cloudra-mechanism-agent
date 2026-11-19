@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Annotated, Any, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, computed_field
 
 from cloudra.tools.core.permission_model import PermissionSet
 
@@ -141,6 +141,18 @@ class RuntimeSettings(RuntimeSettingsPatch):
     invocation_protocol: InvocationProtocol = InvocationProtocol.JAVASCRIPT
 
     api_key: str = Field(default="", repr=False, exclude=True)
+    _key_endpoint: str | None = PrivateAttr(default=None)
+
+    def bind_api_key(self, key: str, endpoint: str | None) -> None:
+        self.api_key = key
+        self._key_endpoint = endpoint if key else None
+
+    def api_key_for(self, endpoint: str) -> str:
+        from cloudra.infra.providers import same_model_endpoint
+
+        if self._key_endpoint is not None and not same_model_endpoint(endpoint, self._key_endpoint):
+            return ""
+        return self.api_key
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -154,10 +166,18 @@ class RuntimeSettings(RuntimeSettingsPatch):
         # to None = unset); drop them so a round-tripped settings dict with
         # serialized nulls can never poison the result.
         patch_data = {k: v for k, v in patch.model_dump(exclude_unset=True).items() if v is not None}
-        if patch.api_key is not None:
-            patch_data["api_key"] = patch.api_key
         data.update(patch_data)
-        return RuntimeSettings.model_validate(data)
+        updated = RuntimeSettings.model_validate(data)
+        if patch.api_key is not None:
+            updated.bind_api_key(patch.api_key, updated.base_url or None)
+        elif updated.base_url == self.base_url:
+            updated.bind_api_key(self.api_key, self._key_endpoint)
+        elif updated.base_url:
+            from cloudra.infra.providers import same_model_endpoint
+
+            if same_model_endpoint(updated.base_url, self._key_endpoint or self.base_url):
+                updated.bind_api_key(self.api_key, updated.base_url)
+        return updated
 
 
 class ToolPolicy(BaseModel):

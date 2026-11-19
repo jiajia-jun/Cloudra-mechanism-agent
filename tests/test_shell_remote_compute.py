@@ -172,13 +172,28 @@ def test_shell_remote_environment_only_requires_execution_and_transport(monkeypa
     endpoint = SshEndpoint(host="test.invalid", user="test", port=22, remote_root="/scratch/test")
     monkeypatch.setattr("cloudra.infra.ssh_transport.shutil.which", lambda _name: "/bin/rsync")
 
-    def probe(_endpoint, bins):
+    def probe(_endpoint, bins, *, refresh=False):
         # No chemistry engine or Python distribution is needed for admission.
         assert set(bins) == {"bash", "rsync"}
         return True, []
 
     monkeypatch.setattr("cloudra.infra.ssh_transport.check_remote_bins", probe)
     assert check_remote_environment(endpoint, "shell", slurm=False) == (True, "")
+
+
+@pytest.mark.parametrize(("job_type", "missing", "ok"), [
+    ("gaussian", ["g09", "g26"], True),
+    ("gaussian", ["g16", "g09", "g26"], False),
+    ("cp2k", ["cp2k.popt", "cp2k.ssmp", "cp2k.psmp"], True),
+    ("vasp", ["vasp_gam", "vasp_ncl", "rsync"], False),
+    ("gaussian", ["g09", "g26", "sbatch"], False),
+])
+def test_remote_engine_accepts_alternative_executables_but_requires_transport(monkeypatch, job_type, missing, ok):
+    endpoint = SshEndpoint(host="test.invalid", user="test", port=22, remote_root="/scratch/test")
+    monkeypatch.setattr("cloudra.infra.ssh_transport.shutil.which", lambda _name: "/bin/rsync")
+    monkeypatch.setattr("cloudra.infra.ssh_transport.check_remote_bins",
+                        lambda *args, **kwargs: (not missing, missing))
+    assert check_remote_environment(endpoint, job_type, slurm=True)[0] == ok
 
 
 class _LocalCommandTransport:

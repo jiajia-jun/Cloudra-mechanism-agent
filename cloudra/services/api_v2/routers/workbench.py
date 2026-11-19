@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import Response
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, model_validator
 
 from cloudra.dag.models import GraphRef
@@ -29,6 +29,7 @@ class OpenRequest(BaseModel):
     artifact_id: str | None = None
     file_evidence: GraphRef | None = None
     input_text: str | None = None
+    input_name: str | None = Field(default=None, min_length=1, max_length=255)
     input_format: str = 'xyz'
     smiles: str | None = None
     frame_index: StrictInt | None = Field(default=None, ge=0)
@@ -43,6 +44,9 @@ class OpenRequest(BaseModel):
                 raise ValueError(f'{name} 不能是空字符串或仅含空白')
         if sum(value is not None for value in sources.values()) + (self.file_evidence is not None) != 1:
             raise ValueError('请选择一个文件，或提供结构文本／SMILES')
+        if self.input_name is not None and (self.input_text is None and self.smiles is None or
+                self.input_name in {'.', '..'} or any(c in self.input_name for c in ('/', '\\', '\x00'))):
+            raise ValueError('input_name 只能是所导入文本的文件名')
         return self
 
 
@@ -167,8 +171,21 @@ def build_router(ctx: ApiContext) -> APIRouter:
         return saved
 
     @router.get('/products')
-    async def products(project_id: str) -> dict:
+    async def products(project_id: str, query: str = '', kind: Literal['structure', 'calculation', 'artifact'] | None = None,
+                       object_kind: Literal['node', 'edge'] | None = None, object_id: str | None = None,
+                       offset: int = Query(default=0, ge=0), limit: int = Query(default=24, ge=1, le=100)) -> dict:
         workspace = await _work(service, project_id)
-        return await _work(workspace.products)
+        return await _work(workspace.products, query, kind, object_kind, object_id, offset, limit)
+
+    @router.get('/jobs/{job_id}/files/{role}')
+    async def job_file(project_id: str, job_id: int,
+                       role: Literal['input', 'output', 'geometry', 'receipt', 'path', 'scan', 'candidate',
+                                     'stderr', 'input_geometry', 'reactant', 'product', 'gradient', 'hessian'],
+                       download: bool = True) -> FileResponse:
+        workspace = await _work(service, project_id)
+        path = await _work(workspace.job_file, job_id, role)
+        return FileResponse(path, filename=path.name, media_type='text/plain',
+                            content_disposition_type='attachment' if download else 'inline',
+                            headers={'X-Content-Type-Options': 'nosniff'})
 
     return router

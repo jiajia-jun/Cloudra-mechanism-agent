@@ -60,6 +60,10 @@ async def test_manual_builder_round_trip_from_blank_to_saved_structure(tmp_path)
         assert Path(saved['files']['mol']).is_file()
         reopened = await client.post(f'{base}/open', json={'path': saved['path']})
         assert reopened.status_code == 200, reopened.text
+        assert reopened.json()['saved_with_input'] is False
+        archived = await client.post(f'{base}/open', json={'artifact_id': saved['artifact_ids']['state']})
+        assert archived.status_code == 200, archived.text
+        assert archived.json()['saved_with_input'] is False
         geometry = reopened.json()['geometry']
         assert geometry['atoms'] == ammonium['atoms']
         assert geometry['bonds'] == ammonium['bonds']
@@ -289,6 +293,9 @@ async def test_save_native_input_uses_confirmed_freeze_and_keeps_original(tmp_pa
         assert response.status_code == 200, response.text
         saved = response.json()
         assert native_freeze in Path(saved['files']['input']).read_text()
+        reopened = await client.post('/api/v2/projects/p/workbench/open', json={'path': saved['path']})
+        assert reopened.status_code == 200, reopened.text
+        assert reopened.json()['saved_with_input'] is True
         assert saved['geometry']['atoms'][1]['x'] == pytest.approx(1.4)
     await core.aclose()
 
@@ -349,4 +356,190 @@ async def test_generate_requires_explicit_scientific_inputs(tmp_path):
         assert response.status_code == 400, response.text
         assert 'method' in response.text
         assert not list((root / '.cloudra' / 'structures').glob('*/structure.json'))
+    await core.aclose()
+
+
+@pytest.mark.asyncio
+async def test_research_results_search_all_jobs_and_distinguish_native_output_from_input(tmp_path):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.services.compute_store import insert_compute_job
+
+    core, root = _core(tmp_path)
+    db = ComputeDB().init()
+    water = root / 'water.xyz'
+    water.write_text('3\ninput\nO 0 0 0\nH 0 0 1\nH 0 1 0\n')
+    native = Path(__file__).parent / 'fixtures' / 'xtb' / 'water_opt_xtb.out'
+    (root / 'water.out').write_bytes(native.read_bytes())
+    slab = root / 'slab.inp'
+    slab.write_text('&GLOBAL\n PROJECT surface\n&END GLOBAL\n')
+    (root / 'slab.out').write_text(' CP2K| version string: CP2K\n')
+    def job(input_path, engine, project='p'):
+        return insert_compute_job(db, node_id='local', conversation_id=project, session_id='a', path=str(input_path),
+                                  state='done', jobtype=engine)
+    first = job(water, 'xtb')
+    cp2k = job(slab, 'cp2k')
+    for index in range(100):
+        job(root / f'newer-{index}.xyz', 'xtb')
+    foreign = job(water, 'xtb', project='second')
+    base = '/api/v2/projects/p/workbench'
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app(core)), base_url='http://testserver') as client:
+        async def page(**params):
+            response = await client.get(base + '/products', params=params)
+            assert response.status_code == 200, response.text
+            return response.json()
+
+        head = await page(kind='calculation')
+        assert head['total'] == 102 and len(head['products']) == 24
+        assert (await page(offset=96))['products'][-1]['job_id'] == first
+        assert (await page(query='water.xyz'))['products'][0]['job_id'] == first
+        water_card, = (await page(query=f'#{first}'))['products']
+        assert water_card['job_id'] == first and water_card['can_open']
+        assert water_card['path'] == str(root / 'water.out')
+        opened = (await client.post(base + '/open', json={'path': water_card['path']})).json()
+        assert opened['settings']['engine'] == 'xtb' and len(opened['frames']) == 1
+        assert opened['geometry']['atoms'][0]['z'] == pytest.approx(0.11731)
+        assert opened['frames'][0]['converged'] is True
+        water_sp = Path(__file__).parent / 'fixtures' / 'xtb' / 'water_sp_xtb.out'
+        (root / 'water.out').write_bytes(water_sp.read_bytes())
+        assert (await client.post(base + '/preview', json={'path': water_card['path']})).status_code == 400
+        assert (await client.post(base + '/preview', json={'path': str(water)})).status_code == 200
+
+        cp2k_card, = (await page(query=f'#{cp2k}'))['products']
+        assert not cp2k_card['can_open'] and not any(f['can_open'] for f in cp2k_card['files'])
+        raw = await client.get(f'{base}/jobs/{cp2k}/files/output', params={'download': 'false'})
+        assert raw.status_code == 200 and raw.content == (root / 'slab.out').read_bytes()
+        assert raw.headers['content-disposition'].startswith('inline;')
+        assert raw.headers['content-type'].startswith('text/plain')
+        download = await client.get(f'{base}/jobs/{first}/files/input')
+        assert download.headers['content-disposition'].startswith('attachment;') and download.content == water.read_bytes()
+        assert (await client.get(f'{base}/jobs/{foreign}/files/input')).status_code == 404
+        escape = root.parent / 'private.xyz'
+        escape.write_text('1\nprivate\nHe 0 0 0\n')
+        water.unlink()
+        water.symlink_to(escape)
+        assert (await client.get(f'{base}/jobs/{first}/files/input')).status_code == 404
+    await core.aclose()
+
+
+@pytest.mark.asyncio
+async def test_saved_research_members_search_sources_and_download_registered_bytes(tmp_path):
+    core, root = _core(tmp_path)
+    source = root / 'source-conformer.xyz'
+    source.write_text('1\nsource\nC 0 0 0\n')
+    base = '/api/v2/projects/p/workbench'
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app(core)), base_url='http://testserver') as client:
+        saved = (await client.post(base + '/save', json={
+            'title': 'candidate', 'molecule': _molecule(), 'source_path': str(source),
+        })).json()
+        for query in ['source-conformer.xyz', 'structure.mol']:
+            listing = (await client.get(base + '/products', params={'query': query})).json()
+            assert listing['total'] == 1 and listing['products'][0]['path'] == saved['path']
+        for member in listing['products'][0]['files']:
+            url = f"/api/v2/artifacts/{member['artifact_id']}/download"
+            response = await client.get(url, params={'project_id':'p'})
+            assert response.status_code == 200 and response.content == Path(member['path']).read_bytes()
+    await core.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(('engine', 'name', 'source'), [
+    ('gaussian', '自由基.gjf', '#p HF/STO-3G SP\n\nH\n\n0 2\nH 0 0 0\n\n'),
+    ('orca', '自由基.inp', '! SP STO-3G HF\n* xyz 0 2\nH 0 0 0\n*\n'),
+])
+async def test_local_input_title_and_explicit_native_settings_survive_reopening(tmp_path, engine, name, source):
+    core, root = _core(tmp_path)
+    base = '/api/v2/projects/p/workbench/open'
+    body = {'input_name': name, 'input_text': source, 'input_format': name.split('.')[-1]}
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app(core)), base_url='http://testserver') as client:
+        response = await client.post(base, json=body)
+        assert response.status_code == 200, response.text
+        imported = response.json()
+        path = Path(imported['source_path'])
+        assert path.name != name and path.is_relative_to(root)
+        reopened = (await client.post(base, json={'path': str(path)})).json()
+        for doc in (imported, reopened):
+            assert doc['title'] == name
+            assert doc['settings'] == dict(engine=engine, charge=0, multiplicity=2,
+                                           method='hf', basis_set='sto-3g', task_type=[{'sp': None}])
+        invalid = await client.post(base, json={**body, 'input_name': '../other.gjf'})
+        assert invalid.status_code == 422
+    await core.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('engine', ['gaussian', 'chem_task'])
+async def test_broken_job_receipt_preserves_search_and_access_to_input(tmp_path, engine):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime.chem_task import result_path
+    from cloudra.services.compute_store import insert_compute_job
+
+    core, root = _core(tmp_path)
+    filename = root / ('run.chem.json' if engine == 'chem_task' else 'run.gjf')
+    filename.write_text(json.dumps({'task':'xtb_opt','reactant_xyz':'input.xyz','cpus':1}) if engine == 'chem_task' else 'input')
+    job = insert_compute_job(ComputeDB().init(), node_id='local', conversation_id='p', session_id='a',
+                             path=str(filename), state='failed', jobtype=engine)
+    receipt = Path(result_path(str(filename))) if engine == 'chem_task' else root / '.cloudra' / f'execution-{job}' / 'evidence.json'
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    receipt.write_text('[]')
+    base = '/api/v2/projects/p/workbench'
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app(core)),base_url='http://testserver') as client:
+        for params in ({}, {'query':f'#{job}'}):
+            records = await client.get(base+'/products',params=params)
+            assert records.status_code == 200, records.text
+            card, = records.json()['products']
+            assert not card['can_open']
+        assert (await client.get(f'{base}/jobs/{job}/files/input')).content == filename.read_bytes()
+        assert (await client.get(f'{base}/jobs/{job}/files/output')).status_code == 404
+        if engine == 'chem_task':
+            assert (await client.get(f'{base}/jobs/{job}/files/receipt')).content == receipt.read_bytes()
+    await core.aclose()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('task_type,trajectory_field,candidate_field,log_field,role', [
+    ('xtb_path', 'path_xyz_path', 'ts_xyz_path', 'stdout_path', 'path'),
+    ('xtb_scan', 'scan_xyz_path', 'candidate_path', 'log_file', 'scan'),
+])
+async def test_native_task_receipt_exposes_trajectory_and_candidate(tmp_path, task_type, trajectory_field,
+                                                             candidate_field, log_field, role):
+    from cloudra.persistence.database import ComputeDB
+    from cloudra.runtime.chem_task import ChemTask, content_digest, result_path
+    from cloudra.services.compute_store import insert_compute_job
+
+    core, root = _core(tmp_path)
+    xyz = '2\nframe\nH 0 0 0\nH 0.75 0 0\n'
+    manifest = root / 'task.json'
+    extra = {'product_xyz': xyz} if task_type == 'xtb_path' else {'scan': {
+        'kind': 'scan', 'calculation': {'engine': 'xtb', 'method': 'GFN2-xTB', 'basis_set': ''},
+        'scans': [{'coord_type': 'bond', 'atoms': [0, 1], 'scan_start': 0.7, 'scan_end': 0.8, 'scan_steps': 2}],
+        'force_constant': 0.5,
+    }}
+    task = ChemTask(task=task_type, reactant_xyz=xyz, cpus=1, **extra)
+    manifest.write_text(task.model_dump_json())
+    trajectory, candidate, log = (root / name for name in ('trajectory.xyz', 'candidate.xyz', 'engine.log'))
+    trajectory.write_text(xyz * 2)
+    candidate.write_text(xyz)
+    log.write_text('native process output')
+    Path(result_path(str(manifest))).write_text(json.dumps({
+        'manifest_digest': content_digest(task.model_dump()), 'process_exit_code': 0,
+        'artifact_root': str(root), 'result': {
+            'returncode': 0, trajectory_field: str(trajectory), candidate_field: str(candidate), log_field: str(log),
+        },
+    }))
+    job = insert_compute_job(ComputeDB().init(), node_id='local', conversation_id='p', session_id='a',
+                             path=str(manifest), state='done', jobtype='chem_task')
+    base = '/api/v2/projects/p/workbench'
+    async with AsyncClient(transport=ASGITransport(app=create_v2_app(core)), base_url='http://testserver') as client:
+        response = await client.get(base + '/products', params={'query': f'#{job}'})
+        assert response.status_code == 200, response.text
+        card, = response.json()['products']
+        assert card['path'] == str(trajectory) and card['can_open']
+        files = {item['role']: item for item in card['files']}
+        assert files[role]['can_open'] and files['candidate']['can_open']
+        for member_role, path in [(role, trajectory), ('candidate', candidate), ('output', log)]:
+            download = await client.get(f'{base}/jobs/{job}/files/{member_role}')
+            assert download.status_code == 200 and download.content == path.read_bytes()
+        opened = await client.post(base + '/open', json={'path': str(trajectory)})
+        assert opened.status_code == 200, opened.text
+        assert len(opened.json()['frames']) == 2
     await core.aclose()

@@ -10,6 +10,55 @@ from cloudra.tools.core.geometry_inputs import (
 from cloudra.tools.core.molecule import _copy_molecule, total_charge
 
 
+def imported_input_settings(text: str, engine: str) -> dict:
+    """Copy explicit settings from a single native Cartesian input."""
+    from cloudra.runtime_v2.method_policy import _ORCA_JOB_TOKENS, _is_basis_token, _is_orca_aux_basis_token
+    from cloudra.tools.core.calculation_intent import gaussian_routes, inspect_input, orca_directives
+
+    intent = inspect_input(text, engine=engine)
+    settings = {'engine': engine}
+    for field in ('charge', 'multiplicity'):
+        value = getattr(intent, field)
+        if value is not None:
+            settings[field] = value
+    try:
+        if engine == 'gaussian':
+            routes = gaussian_routes(text)
+            if len(routes) != 1:
+                return settings
+            tokens = routes[0]
+            levels = [token.split('/') for token in tokens if token.count('/') == 1 and '=' not in token]
+            if len(levels) == 1:
+                method, basis = levels[0]
+                if method and _is_basis_token(basis) and ':' not in method and '(' not in method:
+                    settings.update(method=method, basis_set=basis)
+        else:
+            tokens, blocks = orca_directives(text)
+            # Native blocks can override an orbital basis or a simple-input method.
+            if set(blocks) <= {'pal', 'maxcore'}:
+                bases = [token for token in tokens if _is_basis_token(token) and not _is_orca_aux_basis_token(token)]
+                # ORCA bare tokens have no field positions. Only recognize an
+                # explicit, simple level; unfamiliar combinations stay editable.
+                methods = [token for token in tokens if token in {
+                    'hf', 'pbe', 'pbe0', 'b3lyp', 'mp2', 'ccsd', 'ccsd(t)',
+                }]
+                if len(bases) == 1 and len(methods) == 1:
+                    other = [token for token in tokens if token != bases[0] and token != methods[0]]
+                    if all(token in _ORCA_JOB_TOKENS or _is_orca_aux_basis_token(token) for token in other):
+                        settings.update(method=methods[0], basis_set=bases[0])
+                        if any(token not in {'opt', 'freq', 'sp', 'irc'} for token in other):
+                            settings['keywords'] = ' '.join(other)
+    except ValueError:
+        return settings
+    # A TS optimization, numeric frequency or compound task must never turn
+    # into a different calculation through the single-task dropdown.
+    simple_tasks = {'opt': 'minimum_opt', 'freq': 'frequency', 'irc': 'irc', 'sp': 'single_point'}
+    for token, task in simple_tasks.items():
+        if token in tokens and intent.tasks == {task}:
+            settings['task_type'] = [{token: None}]
+    return settings
+
+
 def render_workbench_input(mol, settings: dict, frozen_coordinates: list[dict],
                            scan_coordinates: list[dict], output_path: str) -> str:
     from cloudra.tools.Chemtool.qm_input_writer import QmInputWriter, QmInputWriter_input_schema

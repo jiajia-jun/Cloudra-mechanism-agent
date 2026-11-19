@@ -183,10 +183,8 @@ export const DICTIONARY = {
     hubLoadingPosts: '加载帖子列表中…',
 
     // Ops Panel (Compute)
-    opsKpiNodes: '计算节点状态 (NODES)',
-    opsKpiNodesOnline: (online: number, total: number) => `${online} / ${total} 在线`,
-    opsKpiNodesDesc: '本地与集群调度通道正常',
-    opsNodesNoneOnline: '暂无在线计算节点',
+    opsKpiNodes: '已配置的计算节点',
+    opsKpiNodesDesc: '来自节点配置',
     opsNodesNoneRegistered: '未发现已注册的计算节点',
     opsKpiSlots: '并发算力槽位 (SLOTS LOAD)',
     opsKpiSlotsDesc: (free: number, pct: number) => `可用余量 ${free} 槽位 (${pct}% 占用)`,
@@ -467,10 +465,8 @@ export const DICTIONARY = {
     hubLoadingPosts: 'Loading post list…',
 
     // Ops Panel (Compute)
-    opsKpiNodes: 'Compute Nodes (NODES)',
-    opsKpiNodesOnline: (online: number, total: number) => `${online} / ${total} Online`,
-    opsKpiNodesDesc: 'Local & cluster channels operational',
-    opsNodesNoneOnline: 'No online compute nodes',
+    opsKpiNodes: 'Configured nodes',
+    opsKpiNodesDesc: 'From the node registry',
     opsNodesNoneRegistered: 'No registered compute nodes found',
     opsKpiSlots: 'Parallel Slots (SLOTS LOAD)',
     opsKpiSlotsDesc: (free: number, pct: number) => `${free} slots available (${pct}% load)`,

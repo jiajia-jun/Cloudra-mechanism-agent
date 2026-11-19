@@ -50,6 +50,24 @@ def _dag_controller(ctx: ApiContext, project_id: str):
     )
 
 
+def _delivery_view(controller) -> dict[str, Any]:
+    from cloudra.dag.file_science import file_scientific_checks
+
+    graph = controller.engine.snapshot().delivery
+    data = graph.model_dump(mode="json")
+    for node, row in zip(graph.nodes, data["nodes"], strict=True):
+        row["minimum_verified"] = False
+        if node.evidence_vetoed or node.evidence_level == "rejected" or node.status == "rejected":
+            continue
+        if not node.refs and not any(stage.ref and stage.status.value == "supported" for stage in node.stages):
+            continue
+        checks = file_scientific_checks(
+            controller.store, graph, node.node_id, workspace_root=controller.working_directory, use_cache=True,
+        )
+        row["minimum_verified"] = checks["geometry"]["status"] == "passed"
+    return {"mode": controller.mode.value, "graph": data}
+
+
 def build_router(ctx: ApiContext) -> APIRouter:
     router = APIRouter()
 
@@ -67,8 +85,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         if controller is None:
             return {"mode": "standard", "graph": None}
         await controller.initialize()
-        snapshot = await asyncio.to_thread(controller.engine.snapshot)
-        return {"mode": controller.mode.value, "graph": snapshot.delivery.model_dump(mode="json")}
+        return await asyncio.to_thread(_delivery_view, controller)
 
     @router.get("/api/v2/projects/{project_id}/dag/report", dependencies=ctx.protected)
     async def dag_report(project_id: str) -> dict[str, Any] | None:

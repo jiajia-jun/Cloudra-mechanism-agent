@@ -723,10 +723,7 @@ export default function DagPanel({
 
   // Completion & physical consistency stats
   const completionStats = useMemo(() => {
-    const verifiedMinima = nodes.filter((n) => {
-      const st = (n.stages as Json[] | undefined) ?? [];
-      return st.some((s) => s.kind === 'frequency' && s.status === 'supported');
-    }).length;
+    const verifiedMinima = nodes.filter(node => node.minimum_verified === true).length;
 
     const verifiedTs = edges.filter(hasSaddleEvidence).length;
 
@@ -984,7 +981,7 @@ export default function DagPanel({
               {/* Three Verification Rate Progress Bars */}
               <div className="overview-metrics-grid">
                 <div className="stat-metric-row">
-                  <span className="metric-label">极小值 0 虚频确证率</span>
+                  <span className="metric-label">物种节点零虚频核验率</span>
                   <div className="metric-bar-wrap">
                     <div className="metric-bar-fill green" style={{ width: `${completionStats.minimaRate}%` }} />
                   </div>
@@ -1012,8 +1009,8 @@ export default function DagPanel({
               <div className="overview-summary-cards">
                 <div className="summary-pill-card">
                   <span className="pill-num green">{completionStats.nodesCount}</span>
-                  <span className="pill-title">驻点 (Minima)</span>
-                  <span className="pill-desc">{completionStats.verifiedMinima} 个已通过 0 虚频</span>
+                  <span className="pill-title">物种节点</span>
+                  <span className="pill-desc">{completionStats.verifiedMinima} / {completionStats.nodesCount} 个节点通过核验；分离态逐组分核验</span>
                 </div>
                 <div className="summary-pill-card">
                   <span className="pill-num cyan">{completionStats.edgesCount}</span>

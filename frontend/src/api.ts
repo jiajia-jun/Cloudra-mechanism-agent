@@ -186,6 +186,8 @@ export const api = {
   // Registered-node capacity views (global ledger, not project-scoped): one
   // entry per node with its own quota, in-flight usage and free headroom.
   computeNodes: () => request<ComputeNode[]>('/api/v2/compute/nodes'),
+  checkNodeEnvironment: (nodeId: string) =>
+    request<{ ok: boolean; detail: string }>(`/api/v2/compute/nodes/${encodeURIComponent(nodeId)}/check`, { method: 'POST' }),
   listPendingReminders: (projectId: string) =>
     request<PendingReminder[]>(`/api/v2/projects/${projectId}/reminders/pending`),
   // ---- AgentHub forum (routers/hub.py): project-scoped post projection + user posts ----
@@ -315,6 +317,8 @@ export const api = {
   artifacts: (projectId: string) => request<Array<Record<string, unknown>>>(`/api/v2/projects/${projectId}/artifacts`),
   artifactDownloadUrl: (projectId: string, artifactId: string) =>
     withToken(`${runtimeUrl}/api/v2/artifacts/${artifactId}/download?project_id=${encodeURIComponent(projectId)}`),
+  jobFileUrl: (projectId: string, jobId: number, role: string, download = true) =>
+    withToken(`${runtimeUrl}/api/v2/projects/${encodeURIComponent(projectId)}/workbench/jobs/${jobId}/files/${encodeURIComponent(role)}?download=${download}`),
   // Full human-readable Markdown dump of the project's event stream.
   projectTranscriptUrl: (projectId: string) =>
     withToken(`${runtimeUrl}/api/v2/projects/${projectId}/transcript`),

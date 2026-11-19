@@ -78,14 +78,17 @@ class QueryComputeQueue(Tool):
         # 它本来就是给 agent 看节点算力状态的）。容量探测（vm_stat 子进程）与
         # 在用量读库都是阻塞活，整体卸载到线程。
         db = ComputeDB()
-        if not os.path.exists(db.path):
-            nodes, _ = await asyncio.to_thread(node_capacity_views, None)
+        from cloudra.services.nodes import NodeRegistryError
+
+        has_db = os.path.exists(db.path)
+        try:
+            nodes, default_node_id = await asyncio.to_thread(node_capacity_views, db if has_db else None)
+        except NodeRegistryError as exc:
+            return QueryComputeQueue_output_schema(is_success=False, message=str(exc))
+        if not has_db:
             return QueryComputeQueue_output_schema(
-                is_success=True,
-                nodes=nodes,
-                message="No compute jobs have been submitted yet.",
+                is_success=True, nodes=nodes, message="No compute jobs have been submitted yet.",
             )
-        nodes, default_node_id = await asyncio.to_thread(node_capacity_views, db)
         by_id = {view["node_id"]: view for view in nodes}
 
         try:

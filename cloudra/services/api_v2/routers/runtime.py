@@ -112,15 +112,14 @@ def build_router(ctx: ApiContext) -> APIRouter:
     async def openrouter_code_exchange(body: OpenRouterExchangeRequest) -> dict[str, Any]:
         """使用授权码换取 OpenRouter API Key，可选自动落盘到对应 slot。"""
         from cloudra.infra.config import mutate_config
-        from cloudra.infra.providers import apply_provider_preset, exchange_openrouter_code
+        from cloudra.infra.providers import exchange_openrouter_code
 
         key = await asyncio.to_thread(exchange_openrouter_code, body.code, body.code_verifier)
 
         if body.slot:
             def _apply(work) -> None:
                 target = work.coordinator if body.slot == "coordinator" else work.follower
-                apply_provider_preset(target, "openrouter")
-                target.key = key
+                target.apply_changes({"provider": "openrouter", "key": key})
 
             await asyncio.to_thread(mutate_config, _apply)
 
@@ -229,21 +228,13 @@ def build_router(ctx: ApiContext) -> APIRouter:
         and never returned by the GET endpoint.
         """
         from cloudra.infra.config import mutate_config
-        from cloudra.infra.providers import apply_provider_preset, detect_provider_from_url
 
         slot = body.slot
         changes = body.changes.model_dump(exclude_unset=True)
 
         def _apply(work) -> None:
             target = work.coordinator if slot == "coordinator" else work.follower
-            if "provider" in changes and changes["provider"]:
-                apply_provider_preset(target, changes["provider"])
-            for field, value in changes.items():
-                setattr(target, field, value)
-            if "url" in changes and "provider" not in changes:
-                detected = detect_provider_from_url(target.url)
-                if detected:
-                    target.provider = detected.id
+            target.apply_changes(changes)
 
         await asyncio.to_thread(mutate_config, _apply)
         return await runtime_config()

@@ -21,9 +21,9 @@ from pydantic import ValidationError
 
 from cloudra.base.session_class import Session
 from cloudra.base.tools_class import input_schema as LegacyInputSchema
-from cloudra.infra.config import get_config
+from cloudra.infra.config import get_config, role_model_config
 from cloudra.infra.llm_client import LLMClient, first_prefix_divergence, request_fingerprint
-from cloudra.infra.providers import detect_provider_from_url
+from cloudra.infra.providers import detect_provider_from_url, same_model_endpoint
 from cloudra.infra.streaming import _aiter_chunks, _ChunkPumper, dynamic_deep_merge
 from cloudra.infra.tool_errors import validation_feedback
 from cloudra.infra.yolo_guard import reset_session_yolo, set_session_yolo
@@ -113,12 +113,13 @@ def legacy_default_settings(agent: AgentSession) -> RuntimeSettings:
     Coordinator is selected by role id only because the legacy config has two
     named slots; this is a bridge detail, not a runtime privilege.
     """
-    cfg = get_config()
-    legacy = cfg.coordinator if agent.role_id == "coordinator" else cfg.follower
+    legacy = role_model_config(agent.role_id)
     settings = agent.settings.model_copy(deep=True)
     settings.model = settings.model or legacy.model
     settings.base_url = settings.base_url or legacy.url
-    settings.api_key = settings.api_key or legacy.key
+    settings.api_key = settings.api_key_for(settings.base_url)
+    if not settings.api_key and same_model_endpoint(settings.base_url, legacy.url):
+        settings.api_key = legacy.key
     settings.context_window = settings.context_window or legacy.context_window
     settings.timeout = settings.timeout or legacy.timeout
     # native_search 的 v2 默认值就是 "auto"，无法区分"显式 auto"与默认值；
@@ -634,9 +635,7 @@ class LegacyLLMProvider:
         Vision capability lives on the legacy per-role LLMConfig slots; the
         slot is selected by role id exactly like ``legacy_default_settings``.
         """
-        cfg = get_config()
-        legacy = cfg.coordinator if agent.role_id == "coordinator" else cfg.follower
-        return bool(legacy.supports_vision)
+        return bool(role_model_config(agent.role_id).supports_vision)
 
     def resolve_effective_settings(self, agent: AgentSession) -> RuntimeSettings:
         """``complete()`` 实际使用的 settings（legacy 槽位补全空字段）。

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sceneAtoms, displayMarkers, cellEdges, markerLabel, atomImageLabel } from './workbenchAnnotations.ts';
+import { type BoundMarker, resolveMarkers, sceneAtoms, displayMarkers, cellEdges, markerLabel, atomImageLabel } from './workbenchAnnotations.ts';
 import { detectImportFormat, workbenchLink } from './molecularWorkbench.ts';
 import type { GeometryView } from './workbenchTypes.ts';
 
@@ -26,4 +26,19 @@ test('workspace links accept local structures and leave external URLs as hyperli
   assert.equal(workbenchLink('outputs/test%20one.extxyz'),'outputs/test one.extxyz');
   assert.equal(workbenchLink('https://example.org/output.xyz'),null);
   assert.equal(workbenchLink('notes.md'),null);
+});
+
+test('renumbered draft markers follow atom identities and deleted site atoms invalidate the whole label', () => {
+  const markers: BoundMarker[] = [
+    {label:'A',kind:'atoms',atoms:[{index:2,image:[0,0,0],atomId:'oxygen'}]},
+    {label:'B',kind:'site',atoms:[{index:1,image:[0,0,0],atomId:'carbon'},{index:2,image:[0,0,0],atomId:'oxygen'}]},
+  ];
+  const original = {...geometry, atoms:[
+    {index:1,symbol:'C',x:0,y:0,z:0,atom_id:'carbon'},{index:2,symbol:'O',x:1,y:0,z:0,atom_id:'oxygen'},
+  ]};
+  const deleted = {...original, atoms:[{...original.atoms[1],index:1}]};
+  assert.deepEqual(resolveMarkers(markers, deleted), {
+    resolved:[{label:'A',kind:'atoms',atoms:[{index:1,image:[0,0,0]}]}], missing:['B'],
+  });
+  assert.deepEqual(resolveMarkers(markers, original).missing, []);
 });
