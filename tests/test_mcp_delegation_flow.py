@@ -29,6 +29,15 @@ def test_mcp_cli_command_is_registered():
     assert "--api-url" in result.output
 
 
+def test_agy_mcp_config_matches_codex_mcp_manifest():
+    codex_cfg = json.loads((ROOT / "plugins/cloudra-subagent/mcp.json").read_text())
+    agy_cfg = json.loads((ROOT / "plugins/cloudra-subagent/mcp_config.json").read_text())
+    codex_server = codex_cfg["mcpServers"]["cloudra"]
+    agy_server = agy_cfg["mcpServers"]["cloudra"]
+    assert agy_server["command"] == codex_server["command"]
+    assert agy_server["args"] == codex_server["args"]
+
+
 @pytest.mark.asyncio
 async def test_batch_messages_return_scoped_durable_receipts(tmp_path):
     harness = await ScenarioHarness.start(tmp_path)

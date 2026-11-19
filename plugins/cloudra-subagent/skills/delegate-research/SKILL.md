@@ -5,7 +5,7 @@ description: Delegate a chemical mechanism research task to a running Cloudra in
 
 # Delegate research to Cloudra
 
-The local plugin needs the Cloudra package with its `mcp` extra, the `cloudra` executable on Codex's PATH, and an already running Cloudra service. In the Cloudra repository, install **cloudra-subagent** from the **cloudra** marketplace. If the desktop app was already open when the marketplace file was added, restart it so the marketplace is discovered.
+The local plugin needs the Cloudra package with its `mcp` extra, the `cloudra` executable on the host agent's PATH, and an already running Cloudra service. In the Cloudra repository, install **cloudra-subagent** from the **cloudra** marketplace (Codex) or via `agy plugin install ./plugins/cloudra-subagent` (Antigravity). If the desktop app was already open when the plugin was installed, restart or start a new session so it is discovered.
 
 1. For ongoing work, use `list_projects` and `get_progress` to find the intended project and the exact Agent instance. Send follow-up instructions with `send_message` and check each recipient's delivery status.
 2. For a new task, call `start_task` with a name and the research request, including the user's constraints. Save the returned project and Coordinator IDs. Use `workspace_dir` only for a distinct local directory explicitly selected by the user. Refer to its inputs using paths relative to that directory.
