@@ -73,28 +73,34 @@ async function openResearchWorkbench(page: Page) {
     const ink = params.get('theme') === 'light' ? '#1f2937' : '#cbd5e1';
     return route.fulfill({ contentType: 'image/svg+xml', body: `<svg xmlns="http://www.w3.org/2000/svg" width="180" height="40"><text x="90" y="26" text-anchor="middle" fill="${ink}" font-size="18">${smiles}</text></svg>` });
   });
-  await page.route('**/api/v2/projects/*/dag/delivery', (route) => route.fulfill({ json: {
-    mode: 'dag_guided', graph: {
-      nodes: [
-        { node_id: 'reactants', label: '起始物种', smiles: ['[Na+].[Cl-]'] },
-        { node_id: 'complex', label: '结合物种', smiles: ['[Na+].[Cl-]'] },
-        {
-          node_id: 'separated', label: '分离产物', smiles: ['[Na+]', '[Cl-]'],
-          metadata: { xyz: '2\nIllustrative separated-pair display\nNa 0 0 0\nCl 5 0 0' },
-          stages: [
-            { kind: 'geometry', status: 'pending', required: true, reason: '展示样例：优化产物已登记，等待核对原生日志。', ref: { ref_type: 'artifact', ref_id: 'example-geometry.xyz' } },
-            { kind: 'frequency', status: 'pending', required: true, reason: '展示样例：频率证据待核对。' },
-          ],
-        },
-        { node_id: 'alternative', label: '竞争通道', smiles: ['[Na+].[Cl-]'] },
-      ],
-      edges: [
-        { edge_id: 'associate', label: '结合假设', source_node_id: 'reactants', target_node_id: 'complex', evidence_level: 'proposed' },
-        { edge_id: 'release', label: '候选解离步骤（示例）', source_node_id: 'complex', target_node_id: 'separated', evidence_level: 'proposed' },
-        { edge_id: 'compete', label: '竞争路径', source_node_id: 'reactants', target_node_id: 'alternative', evidence_level: 'proposed' },
-        { edge_id: 'converge', label: '汇合假设', source_node_id: 'alternative', target_node_id: 'separated', evidence_level: 'proposed' },
-      ],
-    },
+  const graph = {
+    nodes: [
+      { node_id: 'reactants', label: '起始物种', smiles: ['[Na+].[Cl-]'] },
+      { node_id: 'complex', label: '结合物种', smiles: ['[Na+].[Cl-]'] },
+      {
+        node_id: 'separated', label: '分离产物', smiles: ['[Na+]', '[Cl-]'],
+        metadata: { xyz: '2\nIllustrative separated-pair display\nNa 0 0 0\nCl 5 0 0' },
+        stages: [
+          { kind: 'geometry', status: 'pending', required: true, reason: '展示样例：优化产物已登记，等待核对原生日志。', ref: { ref_type: 'artifact', ref_id: 'example-geometry.xyz' } },
+          { kind: 'frequency', status: 'pending', required: true, reason: '展示样例：频率证据待核对。' },
+        ],
+      },
+      { node_id: 'alternative', label: '竞争通道', smiles: ['[Na+].[Cl-]'] },
+    ],
+    edges: [
+      { edge_id: 'associate', label: '结合假设', source_node_id: 'reactants', target_node_id: 'complex', evidence_level: 'proposed' },
+      { edge_id: 'release', label: '候选解离步骤（示例）', source_node_id: 'complex', target_node_id: 'separated', evidence_level: 'proposed' },
+      { edge_id: 'compete', label: '竞争路径', source_node_id: 'reactants', target_node_id: 'alternative', evidence_level: 'proposed' },
+      { edge_id: 'converge', label: '汇合假设', source_node_id: 'alternative', target_node_id: 'separated', evidence_level: 'proposed' },
+    ],
+  };
+  await page.route('**/api/v2/projects/*/dag/delivery', (route) => route.fulfill({ json: { mode: 'dag_guided', graph } }));
+  await page.route('**/api/v2/projects/*/workbench/products?*', (route) => route.fulfill({ json: {
+    products: [], total: 0, offset: 0,
+    objects: [
+      ...graph.nodes.map(({ node_id, label }) => ({ kind: 'node', id: node_id, label })),
+      ...graph.edges.map(({ edge_id, label }) => ({ kind: 'edge', id: edge_id, label })),
+    ],
   } }));
   await openSpa(page);
   await page.getByTitle(`选择项目: ${project.name}`, { exact: true }).click();

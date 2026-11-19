@@ -151,14 +151,20 @@ def test_auto_text_reads_native_graph_without_a_coordinate_roundtrip(fmt):
         assert mol.GetProp("source") == "charged input"
 
 
-def test_internal_coordinate_auto_text_keeps_known_charge_and_graph():
+@pytest.mark.parametrize("charge", [None, -1, 0])
+def test_internal_coordinate_auto_text_keeps_known_charge_and_graph(charge):
     from cloudra.tools.Chemtool.internal_coordinates import InternalCoordinates
 
     source = Chem.MolFromSmiles("[13CH3:7][O-]")
     source.AddConformer(Chem.Conformer(source.GetNumAtoms()))
     text = Chem.MolToMolBlock(source)
 
-    mol, bond_source, notes = InternalCoordinates._load_molecule(None, text, "auto", 0)
+    if charge == 0:
+        with pytest.raises(ValueError, match="charge of the existing molecular graph"):
+            InternalCoordinates._load_molecule(None, text, "auto", charge)
+        return
+
+    mol, bond_source, notes = InternalCoordinates._load_molecule(None, text, "auto", charge)
 
     assert Chem.GetFormalCharge(mol) == -1
     assert mol.GetNumBonds() == 1

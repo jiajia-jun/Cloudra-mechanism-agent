@@ -206,7 +206,8 @@ test.describe('destructive confirms', () => {
     const row = page.locator('.ops-table tbody tr').filter({ hasText: '#7' });
     await expect(row).toContainText('cancelled');
     await expect(row).toContainText('1m5s');
-    await expect(row.getByRole('button')).toHaveCount(0);
+    await expect(row.getByRole('button', { name: '取消作业 #7', exact: true })).toHaveCount(0);
+    await expect(row.getByRole('button', { name: '查看作业 #7 的结果', exact: true })).toBeVisible();
     expect(mocks.cancelAllHits).toHaveLength(0);
   });
   test('Hard delete: dismiss confirm does not DELETE', async ({ page }) => {

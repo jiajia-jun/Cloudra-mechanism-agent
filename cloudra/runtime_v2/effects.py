@@ -20,7 +20,7 @@
   decide 以草稿产出、shell 在第二拍落日志——事件先于投递落地，message_id
   两处一致。
 - ``PatchApiKey``：api_key 是 write-only 秘密，永不进事件/快照；活对象的
-  内存覆盖补挂也是副作用，显式建模而不是藏在 decide 里 mutate。
+  内存覆盖在对应设置投影后、发布前补挂，显式建模而不是藏在 decide 里 mutate。
 - ``ReconcileSupervision``：编排模式迁移沿（project.update 或
   agent.settings_update 切回/切入 dag_guided）补一次督导待办通知（产出方
   ``_decide_update_project`` / ``_decide_patch_agent_settings``）。
@@ -77,7 +77,8 @@ class PatchApiKey:
     """给活 agent 补挂/清除 api_key 内存覆盖（空字符串 = 清除回落全局 key）。"""
 
     session_id: str
-    api_key: str
+    role_id: str
+    api_key: str = field(repr=False)
 
 
 @dataclass(frozen=True)

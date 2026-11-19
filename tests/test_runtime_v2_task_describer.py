@@ -72,6 +72,13 @@ async def test_task_describer_triggers_on_user_message_and_subagent_spawn(tmp_pa
 
     describer = TaskDescriber(core)
     describer.start()
+    task_updated = asyncio.Event()
+
+    async def on_event(event):
+        if event.type == "agent.task_updated":
+            task_updated.set()
+
+    core.event_hub.subscribe(on_event)
 
     # 1. Spawn root coordinator
     coord = (
@@ -101,8 +108,8 @@ async def test_task_describer_triggers_on_user_message_and_subagent_spawn(tmp_pa
                 actor="user",
             )
         )
-        # Give async task a brief moment to run
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(task_updated.wait(), timeout=5)
+        task_updated.clear()
 
         updated_coord = core.require_agent(coord.id)
         assert updated_coord.current_task == "正在分析反应机理全貌"
@@ -130,7 +137,7 @@ async def test_task_describer_triggers_on_user_message_and_subagent_spawn(tmp_pa
             )
         ).data
 
-        await asyncio.sleep(0.05)
+        await asyncio.wait_for(task_updated.wait(), timeout=5)
         updated_child = core.require_agent(child.id)
         assert updated_child.current_task == "计算过渡态TS-1虚频"
 
