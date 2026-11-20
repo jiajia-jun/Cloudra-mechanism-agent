@@ -159,6 +159,17 @@ test('transient narration stays bounded and explicitly marks omission', async ({
   await expect(page.locator('.msg-body').filter({ hasText: 'narration-300 ' })).toBeVisible();
 });
 
+test('typing a draft preserves the structure link in a committed message', async ({ page }) => {
+  await history(page, [event(1, '[Geometry](results/frame.xyz)')]);
+  await openSpa(page);
+  await page.getByText(PROJECT_ACTIVE.name, { exact: true }).click();
+
+  const link = page.getByRole('button', { name: 'Geometry', exact: true });
+  const original = await link.evaluateHandle(button => button);
+  await page.getByTestId('composer-input').fill('Compare the next frame');
+  expect(await original.evaluate(button => button.isConnected)).toBe(true);
+});
+
 test('chat can retrieve every byte-trimmed event from a short page in both directions', async ({ page }) => {
   await history(page, Array.from({ length: 150 }, (_, index) => event(
     index + 1, `byte-message-${index + 1} ` + 'b'.repeat(30000),

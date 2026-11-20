@@ -232,7 +232,10 @@ export default function App() {
   const [workbenchDelivery,setWorkbenchDelivery] = useState<{agentId:string; eventId:string} | null>(null);
   const [workbench, setWorkbench] = useState<{projectId:string;source:WorkbenchSource|null}|null>(null);
   const [researchRefreshVersion,setResearchRefreshVersion] = useState(0);
-  const openWorkbench = (source:WorkbenchSource|null) => { if(activeProjectId) setWorkbench({projectId:activeProjectId,source}); };
+  const openWorkbench = useCallback((source: WorkbenchSource | null) => {
+    if (activeProjectId) setWorkbench({ projectId: activeProjectId, source });
+  }, [activeProjectId]);
+  const openStructurePath = useCallback((path: string) => openWorkbench({ path }), [openWorkbench]);
   useEffect(() => { setWorkbench(null); }, [activeProjectId]);
   useEffect(() => {
     const handleWorkbenchShortcut = (event:KeyboardEvent) => {
@@ -2514,7 +2517,7 @@ export default function App() {
                       {/* Streaming text renders as plain text to avoid a full
                           remark/KaTeX parse on every token; committed messages
                           get markdown. */}
-                      {item.streaming ? item.content : <Markdown text={item.content} onOpenStructure={path=>openWorkbench({path})} />}
+                      {item.streaming ? item.content : <Markdown text={item.content} onOpenStructure={openStructurePath} />}
                     </div>
                   )}
                 </div>
@@ -2920,7 +2923,7 @@ export default function App() {
       </div>
         {workbench && activeProject && workbench.projectId===activeProject.id && <MolecularWorkbench key={activeProject.id} project={activeProject} source={workbench.source} onClose={()=>setWorkbench(null)} onError={reportError} onSaved={(result)=>{setResearchRefreshVersion(n=>n+1);pushToast('ok',`已保存结构：${result.path}`);}} onLaunch={sendMessage}
           recipient={activeAgent?.display_name} reply={workbenchReply}
-          onOpenStructure={path=>openWorkbench({path})}/>}
+          onOpenStructure={openStructurePath}/>}
         {projectSettingsOpen && activeProject && (
           <ProjectSettingsModal
             key={activeProject.id}
