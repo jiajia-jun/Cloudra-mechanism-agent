@@ -15,6 +15,8 @@ import type {
   Project,
   ProviderPreset,
   RuntimeConfig,
+  RuntimeDiagnostics,
+  UpdateCheckResult,
 } from './types';
 import { bootstrapApiToken } from './apiToken';
 import { trustedRuntimeBase } from './runtimeUrl';
@@ -287,6 +289,9 @@ export const api = {
       body: JSON.stringify({ code, code_verifier, slot }),
     }),
   runtimeConfig: () => request<RuntimeConfig>('/api/v2/runtime/config'),
+  runtimeDiagnostics: () => request<RuntimeDiagnostics>('/api/v2/runtime/diagnostics'),
+  checkForUpdates: (force = false) =>
+    request<UpdateCheckResult>(`/api/v2/runtime/update-check${force ? '?force=true' : ''}`),
   patchSearchConfig: (changes: { search_provider?: RuntimeConfig['search_provider']; deepseek_api_key?: string }) =>
     request<RuntimeConfig>('/api/v2/runtime/config/search', {
       method: 'PATCH',

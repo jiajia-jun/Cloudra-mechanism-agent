@@ -11,8 +11,10 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import CodexAuthPanel from './CodexAuthPanel';
+import EnvironmentDiagnosticsPanel from './EnvironmentDiagnosticsPanel';
 import SearchConfigSection from './SearchConfigSection';
 import ToolDocumentLoadingSection from './ToolDocumentLoadingSection';
+import { UpdateCheckInline } from './UpdateCheckSection';
 import { isTrustedAuthMessageOrigin, openRouterCallbackCode } from './runtimeUrl';
 import type { ProviderPreset, RuntimeConfig } from './types';
 import { APPEARANCES, applyAppearance, useAppearance } from './appearance';
@@ -21,6 +23,7 @@ import { useI18n } from './i18n';
 interface GlobalConfigProps {
   onClose: () => void;
   onToast: (kind: 'ok' | 'error', text: string) => void;
+  onOpenOnboarding?: () => void;
 }
 
 interface SlotDraft {
@@ -301,6 +304,7 @@ function SlotSection({
 export default function GlobalConfig({
   onClose,
   onToast,
+  onOpenOnboarding,
 }: GlobalConfigProps) {
   const { lang } = useI18n();
   const appearance = useAppearance();
@@ -523,6 +527,34 @@ export default function GlobalConfig({
             <SearchConfigSection config={cfg} onSaved={setCfg} onToast={onToast} />
             <ToolDocumentLoadingSection config={cfg.tool_document_loading}
               onSaved={setCfg} onToast={onToast} />
+            <div className="config-section">
+              <div className="config-section-head">
+                <div>
+                  <div className="config-section-title">
+                    {lang === 'zh' ? '环境自检' : 'Environment Self-Check'}
+                  </div>
+                  <div className="config-section-hint">
+                    {lang === 'zh'
+                      ? '随时复查大模型配置、基础化学库、本地或远程计算节点与数据目录权限。'
+                      : 'Verify LLM config, core chemistry libraries, compute nodes, and storage permissions anytime.'}
+                  </div>
+                </div>
+                {onOpenOnboarding && (
+                  <button
+                    type="button"
+                    className="btn ghost sm"
+                    onClick={() => {
+                      onClose();
+                      onOpenOnboarding();
+                    }}
+                  >
+                    {lang === 'zh' ? '重新打开使用引导' : 'Reopen Onboarding'}
+                  </button>
+                )}
+              </div>
+              <EnvironmentDiagnosticsPanel />
+            </div>
+            <UpdateCheckInline onToast={onToast} />
           </>
         )}
       </div>
