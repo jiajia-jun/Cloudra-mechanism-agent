@@ -7916,6 +7916,7 @@ body {
 
 .onboarding-modal {
   width: min(760px, 94vw);
+  max-width: min(760px, 94vw);
   max-height: 88vh;
   display: flex;
   flex-direction: column;
@@ -8119,14 +8120,14 @@ body {
   flex-shrink: 0;
 }
 
-.diag-overall-ready { background: var(--emerald); }
+.diag-overall-ready { background: var(--green); }
 .diag-overall-needs_setup { background: var(--yellow); }
-.diag-overall-degraded { background: #ef4444; }
+.diag-overall-degraded { background: var(--red, #ef4444); }
 
 .diag-error-banner {
   padding: 10px 12px;
-  border: 1px solid rgba(239, 68, 68, 0.45);
-  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid var(--red, #ef4444);
+  background: color-mix(in srgb, var(--red, #ef4444) 12%, transparent);
   color: var(--fg);
   font-size: 12.5px;
 }
@@ -8187,9 +8188,9 @@ body {
 }
 
 .diag-pill-ready {
-  border-color: var(--emerald);
-  background: var(--emerald-dim);
-  color: var(--emerald-soft);
+  border-color: var(--green);
+  background: var(--green-dim);
+  color: var(--green-soft);
 }
 
 .diag-pill-optional_missing {
@@ -8205,9 +8206,9 @@ body {
 }
 
 .diag-pill-error {
-  border-color: rgba(239, 68, 68, 0.65);
-  background: rgba(239, 68, 68, 0.16);
-  color: #fca5a5;
+  border-color: var(--red, #ef4444);
+  background: color-mix(in srgb, var(--red, #ef4444) 14%, transparent);
+  color: var(--red, #ef4444);
 }
 
 .diag-row-detail {
@@ -8290,6 +8291,15 @@ body {
   gap: 8px;
   flex-wrap: wrap;
   margin-top: 14px;
+}
+
+.update-inline-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .update-inline-actions {

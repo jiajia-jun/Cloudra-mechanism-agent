@@ -30,7 +30,7 @@ export default function OnboardingModal({
 
   return (
     <div className="modal-backdrop" onClick={() => onClose(dontShowAgain)}>
-      <div className="modal-card onboarding-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal onboarding-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
             <div className="modal-title">{stepTitles[step]}</div>

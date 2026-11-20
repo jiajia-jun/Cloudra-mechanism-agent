@@ -527,13 +527,13 @@ export default function GlobalConfig({
             <SearchConfigSection config={cfg} onSaved={setCfg} onToast={onToast} />
             <ToolDocumentLoadingSection config={cfg.tool_document_loading}
               onSaved={setCfg} onToast={onToast} />
-            <div className="config-section">
-              <div className="config-section-head">
+            <div className="modal-section">
+              <div className="update-inline-head">
                 <div>
-                  <div className="config-section-title">
+                  <div className="modal-section-title">
                     {lang === 'zh' ? '环境自检' : 'Environment Self-Check'}
                   </div>
-                  <div className="config-section-hint">
+                  <div className="onboarding-callout-sub">
                     {lang === 'zh'
                       ? '随时复查大模型配置、基础化学库、本地或远程计算节点与数据目录权限。'
                       : 'Verify LLM config, core chemistry libraries, compute nodes, and storage permissions anytime.'}

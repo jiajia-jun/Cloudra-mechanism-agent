@@ -43,7 +43,7 @@ export function UpdateModal({
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card update-modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal update-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div className="modal-title">
             {lang === 'zh'
@@ -156,13 +156,13 @@ export function UpdateCheckInline({ onToast }: UpdateCheckInlineProps) {
   };
 
   return (
-    <div className="config-section update-inline-section">
-      <div className="config-section-head">
+    <div className="modal-section update-inline-section">
+      <div className="update-inline-head">
         <div>
-          <div className="config-section-title">
+          <div className="modal-section-title">
             {lang === 'zh' ? '版本与更新检查' : 'Version & Update Check'}
           </div>
-          <div className="config-section-hint">
+          <div className="onboarding-callout-sub">
             {result
               ? result.status === 'update_available'
                 ? (lang === 'zh'
