@@ -71,6 +71,7 @@ test('a project starts through the explicit sidebar form without automatically l
     return route.fulfill({ status: 201, json: { command_id: 'cmd_create', event_id: 'ev_create', accepted: true, data: created } });
   });
   await openSpa(page);
+  await page.getByTitle('跳过引导', { exact: true }).click();
   await expect(page.getByTestId('composer-input')).toBeDisabled();
   await page.getByRole('button', { name: '新建项目', exact: true }).click();
   await page.getByPlaceholder('新建项目名…').fill(' 显式研究项目 ');
