@@ -1,15 +1,17 @@
-"""计算调度守护进程：与 API 进程彻底分家的排队 / 容量记账 / 崩溃对账器。
+"""Standalone compute scheduler daemon.
 
-设计约定（详见 AGENTS.md）：
+Runs independently from the web API process to claim queued jobs, enforce
+per-node capacity limits, and reconcile crashed or restarted jobs.
 
-- **中央 compute.db 是唯一事实源**：守护进程与 API 之间不加任何新 IPC；
-  认领用原子租约 UPDATE，状态同步靠各自重启后的对账收敛。compute_jobs
-  已迁出会话库，认领/对账每 tick 只打这一份库。
-- **执行面可靠性 = OS 级**：进程存活判定一律 flock 探测
-  （`infra/flocks.py`），不读 PID、不解析 ps//proc 文本。
-- **永不 kill 计算进程**：guard 死 → adopt guard 等 calc 锁释放后收尾；
-  calc 活 → 等它跑完。取消只有用户/agent 显式 cancel_requested 一条路。
-- 单实例：`data_dir/scheduler.lock` 排他 flock，抢不到即退出。
+Key invariants:
+- The central ``compute.db`` is the single source of truth; the daemon and API
+  coordinate solely through atomic SQLite updates rather than custom IPC.
+- Local job liveness is determined strictly via POSIX file locks
+  (``infra/flocks.py``), never by guessing PIDs or parsing ``ps`` output.
+- Running calculations are never killed on error or restart: if a guard exits
+  while the calculation lock is still held, an adopt guard waits for it to
+  finish naturally. Jobs only cancel on an explicit ``cancel_requested`` flag.
+- Only one daemon instance runs per ``data_dir`` (enforced by ``scheduler.lock``).
 """
 
 from __future__ import annotations

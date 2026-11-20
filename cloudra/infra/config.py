@@ -1,23 +1,13 @@
-"""
-Cloudra configuration management.
+"""Cloudra global configuration management.
 
-Supports layered config:
-  1. CLI arguments (highest priority)
-  2. Config file (~/.config/cloudra/config.yaml)
-  3. Environment variables (CLOUDRA_* and legacy COORDINATOR_* / FOLLOWER_*)
-  4. .env file in the current working directory
-  5. Defaults (lowest priority)
+Settings load in priority order: CLI flags → ``~/.config/cloudra/config.yaml``
+→ ``CLOUDRA_*`` environment variables → local ``.env`` → defaults.
 
-Note: the config file takes precedence over environment variables and .env,
-so values set via `cloudra config init` / `cloudra config set` are always
-effective. Environment variables are still supported for backward compatibility
-and CI/automation use cases, but the YAML config is the recommended source of
-truth for local development.
-
-写路径纪律：磁盘 YAML 是唯一事实源，进程内单例只是其缓存。所有写一律走
-``mutate_config(fn)``——flock（config.yaml.lock）下读磁盘最新状态 → fn 修改
-→ atomic_write_text 原子写回 → 单例从磁盘重载。多进程并发写不丢更新；
-不存在任何"内存快照整文件重写"的路径。
+The YAML file on disk is the single source of truth; the in-process singleton
+is only a cache. All writes go through ``mutate_config(fn)``, which holds an
+exclusive file lock, reloads the latest YAML from disk, applies ``fn``, writes
+atomically, and refreshes the singleton so concurrent processes never clobber
+each other.
 """
 
 import logging

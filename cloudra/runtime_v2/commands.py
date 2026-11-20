@@ -1,32 +1,23 @@
-"""Command bus: decide（纯）→ 落日志/发布/持久化 → apply_event → effects。
+"""Command bus: validate cleanly, persist events, apply state, then run effects.
 
-固定四拍（FP 内核化 3b）：
+Every command follows the same sequence:
+1. **Decide (pure)**: ``DECIDERS[type](core, command) -> Decision`` runs all
+   validation without IO or mutation. Invalid commands raise
+   ``CommandRejected`` (optionally carrying audit events to record).
+2. **Persist then apply**: Each draft event is appended, flushed to SQLite
+   (when configured), and applied via ``apply_event``. If persistence fails
+   mid-way, unpersisted tail events are dropped so disk and memory stay in sync.
+3. **Run effects**: Side effects (creating directories via ``to_thread``,
+   scheduling/cancelling runners, enqueueing mailbox messages) run after state
+   is durable. Write-only ``api_key`` values are attached in memory only.
 
-1. **decide**：``DECIDERS[type](core, command) -> Decision``，纯函数——全部
-   守卫校验在这里（非法抛 ``CommandRejected``，拒绝前要留审计轨迹的草稿
-   挂在异常的 ``events`` 上），零 IO、零 mutate、零 await 副作用。
-2. **逐事件 persist-then-apply**：每条草稿 ``append`` → ``flush``（store
-   存在时落库再发布）→ ``apply_event``。中途 ``EventPersistenceError`` 丢弃
-   未落库尾巴再抛出，避免下次 flush 把从未 apply 的事件写进磁盘。包装路径
-   已 apply 再扫尾 flush，失败不丢尾巴、留给下次重试。
-3. **effects**：shell 统一执行副作用（EnsureDir 走 to_thread；runner
-   schedule/cancel；mailbox enqueue）。api_key 只在持久化后的投影中补挂，
-   订阅者收到事件前即可使用。
+Thin broker wrappers (``approval.decide``, ``interaction.respond``,
+``context.inject``, ``agent.compact``) delegate directly to their managers
+because waking in-process asyncio waiters is inherently process-local.
 
-已是事件投影的 broker 不强行进 decide：``approval.decide`` /
-``interaction.respond`` / ``context.inject`` / ``agent.compact`` 保持薄包装
-（WRAPPERS）直接调 broker/manager——它们的"状态"本就事件可推导，且
-future 解析是刻意的 shell 行为（等待者必须在本进程内被唤醒，无法从事件
-重放）。包装路径的事件由 bus 在执行后统一扫尾发布/持久化；状态投影在
-wrapper 内紧跟 append 过 ``apply_event``（如 agent.compact 的
-pending_compactions 投影）。
-
-快照是缓存不是权威：权威是事件表，纯重放（``events_after({})`` 全量）
-必须与"快照+尾巴"逐字段等价（tests/test_runtime_v2_replay_equivalence.py
-守这条）。execute 因此不再每命令整库快照，改为节流后台落（每
-``_SNAPSHOT_EVENT_INTERVAL`` 条事件或 ``_SNAPSHOT_TIME_INTERVAL_S`` 秒，
-取先到，在命令边界检查）；进程关闭路径（api_v2 lifespan finally /
-benchmark backend finally）显式调 ``flush_snapshot()`` 补一次。
+Snapshots are only a throttled cache—the event log is always the source of
+truth, verified by ``tests/test_runtime_v2_replay_equivalence.py``. Shutdown
+hooks call ``flush_snapshot()`` to persist the latest cache before exit.
 """
 
 from __future__ import annotations

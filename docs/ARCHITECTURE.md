@@ -2,63 +2,60 @@
 
 [Documentation](README_EN.md) · [Contributing](../CONTRIBUTING.md)
 
-Cloudra connects a shared agent runtime, chemistry tools and a calculation scheduler. In graph modes, species and reaction steps carry links to calculation evidence. The [DAG guide](DAG_ORCHESTRATION.md) describes delivery contracts; the [TS guide](TS_PROCESS_SOP.md) owns transition-state workflow and scientific acceptance requirements.
+Cloudra connects three pieces: a shared event-sourced agent runtime, a chemistry/QM toolset, and a detached compute scheduler. In graph modes (`dag_record` and `dag_guided`), every species and reaction step in the mechanism graph links back to immutable calculation logs. See the [DAG guide](DAG_ORCHESTRATION.md) for mechanism-graph contracts and the [TS guide](TS_PROCESS_SOP.md) for transition-state workflow and scientific acceptance rules.
 
-## Architecture: Agent Collaboration and an Event-Sourced Kernel
+## How Agents Work Together
 
-### Roles and Responsibilities
+Every agent role runs on the same `runtime_v2` loop, separated by explicit permissions:
 
-All roles use the same `runtime_v2` execution kernel, with explicit permissions and responsibilities:
+- **Coordinator** plans the investigation, delegates calculations or literature tasks, and owns the mechanism graph.
+- **Specialists** handle focused work (DFT, MD, literature, writing, etc.) and return concrete files and tool receipts. Subagents and AgentHub peer calls follow the same lifecycle and permission checks.
+- **Supervisor** (active in `dag_guided` mode) reviews mechanism drafts and submitted calculation evidence from its persisted mailbox. It has read-only access to the graph, and a supervisor approval never overrides missing or failed physics checks.
+- **AgentHub** is the shared persisted forum and mailbox where agents post findings and exchange messages asynchronously.
 
-- **Coordinator** decomposes the research objective, delegates work and maintains the mechanism graph and delivery scope.
-- **Specialists** perform their permitted research, computation or writing tasks and return concrete files and tool receipts. Hierarchical launcher/swarm dispatch and AgentHub peer calls share the project agent lifecycle; their permission checks still apply.
-- **Supervisor** is a normal runtime agent in `dag_guided` mode. It reads pending reviews, drafts and queued requests from the persisted supervision mailbox and adjudicates submitted claims. It is read-only on the delivery graph; accepting a draft or claim cannot replace missing or failed scientific checks.
-- **AgentHub** provides persisted forum posts, messages, search and peer calls so agents can exchange findings asynchronously.
+## Event-Sourced Runtime (`runtime_v2`)
 
-### Event-Driven Runtime with Declarative Notice Injection (S1 Kernel)
+`runtime_v2` is built so that restarts, crashes, and long calculations never leave silent half-state behind:
 
-The runtime (`runtime_v2`) is engineered for deterministic execution and crash resilience:
-- **Append-Only Event Sourcing (`EventLog` & `EventHub`)**: Every tool execution, thinking step (`agent.thinking`), state transition, and graph mutation is logged as an immutable, typed event. Sessions can be replayed, audited, and seamlessly restored across server restarts or power failures.
-- **Declarative Notice Injection**: Instead of fragile manual prompt concatenations, the engine uses `notices.pin` to deterministically assemble DAG gaps, active research goals, and schedule alerts into LLM turns.
-- **Autonomous Schedule Guard**: When schedule mode is enabled, attempts to stop without an active wake-up (timer or read-only `check_command` poll) are intercepted by `ScheduleStage`, so agents can sleep during long calculations and wake when a check succeeds or the timeout hits.
-- **Functional Core with Externalized State**: Command handling is split into pure, IO-free deciders that emit event drafts and effects, a single guard-free `apply_event` applier shared by the online path and crash-recovery replay, and a thin shell that executes the effects. Snapshots are only throttled caches — recovery replays events after per-project high-water marks. Nothing durable lives in process memory: approvals, compaction requests, and agent state are all event projections, explicitly expired (`approval.expired` / `interaction.expired`) on restart rather than silently dropped.
+- **Append-only event log (`EventLog` & `EventHub`)**: Every model turn, thinking block (`agent.thinking`), tool call, state change, and graph edit is recorded as an immutable typed event. Sessions can be replayed, audited, and resumed after a server restart.
+- **Declarative notices (`notices.pin`)**: Instead of ad-hoc prompt string stitching, active research goals, DAG gaps, and schedule reminders are injected deterministically into each turn.
+- **Autonomous schedule guard (`ScheduleStage`)**: When `/schedule` mode is on, an agent cannot silently stop while long calculations are still running unless it sets a wake-up timer or read-only `check_command` poll.
+- **Pure core, externalized state**: Commands run through IO-free deciders that emit event drafts and effects, one shared guard-free `apply_event` applier used by both live execution and crash replay, and a thin effect runner. Snapshots are only caches; recovery replays events past each project's high-water mark. Approvals, compaction requests, and agent state all live in the event log—orphaned prompts expire explicitly (`approval.expired` / `interaction.expired`) on restart rather than vanishing.
 
-### Process Topology: A Crash-Isolated Execution Plane
+## Crash-Isolated Process Layout
 
-The control plane and calculation execution run separately:
+The web interface and actual quantum-chemistry jobs live in separate processes so a UI crash never kills a calculation:
 
-- **Web process** (`api_v2` + SPA, single port): the control plane. It may crash or restart at any time — no computation dies with it.
-- **Compute scheduler** (`cloudra scheduler`): claims queued jobs under capacity accounting and launches detached `guard` processes. The desktop launcher starts the scheduler as a child and stops it when the API exits. A scheduler can also be started separately, and an unexpected exit does not trigger an automatic restart. Detached guards and submitted remote jobs continue after the scheduler stops. An explicit compute cancellation writes `cancel_requested`. A native guard signals the process group it created, then confirms child exit and lock release before recording `cancelled` and releasing capacity. The central `compute.db` stores terminal states for the API to read, including after downtime.
+- **Web API & UI (`api_v2` + SPA, single port)** is the control plane. You can restart it anytime without touching running QM jobs.
+- **Compute scheduler (`cloudra scheduler`)** claims queued jobs within configured node capacity and spawns detached `guard` processes. The desktop app starts and stops the scheduler alongside the API, or you can run it standalone. Even if the scheduler exits, already-running detached guards and remote Slurm/SSH jobs keep running.
+- **Safe cancellation**: Cancelling a job writes `cancel_requested` into `compute.db` rather than killing processes blindly. A native guard signals its own process group, waits for the child to exit and release its exclusive file lock, and only then records `cancelled` and frees capacity.
+- **Clean shutdown**: `cloudra stop` writes `daemons.stop`, asks the API to exit gracefully, cancels in-flight agent reasoning, closes streams and JS hosts, and confirms exit. Cancelling a single agent (`POST /api/v2/agents/{id}/cancel`) stops its LLM loop while leaving its compute jobs alive.
 
-Durable state synchronization between the control plane, scheduler and guards uses SQLite (WAL) and file locks.
+All durable state sync between the API, scheduler, and guards goes through SQLite (WAL mode) and POSIX file locks.
 
-The `chem-kb` plugin retrieves complete source knowledge texts through graph-keyword matches exposed in AgentHub. The graph indexes sources; retrieved cards supply the content. It does not start a vector service or fill missing graph matches through vector search or content scanning. Knowledge health reports graph and source-content availability.
+The `chem-kb` knowledge plugin retrieves full reference cards by matching graph keywords in AgentHub—it does not run a background vector service or guess matches via embedding search.
 
-`cloudra stop` writes the `daemons.stop` marker for independently running daemons, requests a graceful API shutdown, and checks whether the services exited. The API cancels and awaits agent runs and finalization tasks, closes streams and clients, and reaps its JS hosts. Per-agent cancel (`POST /api/v2/agents/{id}/cancel`) stops that agent's reasoning work while its compute jobs continue. Cloudra stops local reads and retries of requests already sent to the LLM provider.
+## Repository Map
 
-## Repository map
-
-| Directory | Responsibility |
+| Directory | What lives here |
 | --- | --- |
-| `cloudra/runtime_v2/` | Shared agent loop, roles, policies, events, recovery and JS host. |
-| `cloudra/dag/` | Mechanism graph, stage contracts and evidence review. |
-| `cloudra/tools/` | Registered chemistry, computation, file and search tools; capabilities restrict access. |
-| `cloudra/scheduler/`, `cloudra/runtime/` | Job dispatch, monitoring and guards; native program termination is checked independently of parsed values. |
-| `cloudra/services/`, `frontend/` | Web API and user interface. |
-| `cloudra/persistence/` | Databases and the shared path definitions in `paths.py`. |
-| `cloudra/infra/` | Configuration, file locks and SSH/Slurm transport. |
-| `cloudra/knowledge/`, `kg_data/`, `知识卡片/` | Knowledge retrieval, graph inputs and source texts. `vector_store/` is a historical offline asset. |
-| `cloudra/benchmark/`, `ideapool/` | Benchmark implementation and versioned task sources. |
-| `gold_compute/` | Reference evidence indexes and reproduction instructions. |
-| `paper/` | Research inputs, figure sources, and companion-data reproduction scripts. |
-| `deploy/`, `scripts/`, `tests/` | Deployment guides, maintenance scripts and regression tests. |
+| `cloudra/runtime_v2/` | Agent loop, roles, policies, event log, crash recovery, and JS tool host. |
+| `cloudra/dag/` | Mechanism graph, stage contracts, and evidence review. |
+| `cloudra/tools/` | Chemistry, QM, file, search, and management tools with capability gates. |
+| `cloudra/scheduler/`, `cloudra/runtime/` | Compute job scheduling, monitoring, and detached guards. |
+| `cloudra/services/`, `frontend/` | FastAPI v2 backend and React/TypeScript web UI. |
+| `cloudra/persistence/` | SQLite stores and canonical path helpers (`paths.py`). |
+| `cloudra/infra/` | YAML config (`config.py`), file locks (`flocks.py`), diagnostics, and SSH/Slurm transport. |
+| `cloudra/knowledge/`, `kg_data/`, `知识卡片/` | Graph-indexed chemistry knowledge base and source cards (`vector_store/` is a legacy offline artifact). |
+| `cloudra/benchmark/`, `ideapool/` | Benchmark harness and versioned problem sets. |
+| `gold_compute/` | Reference evidence indexes and reproduction guides. |
+| `paper/` | Manuscript assets and reproduction scripts. |
+| `deploy/`, `scripts/`, `tests/` | Deployment templates, helper scripts, and test suites. |
 
-## Maintenance pointers
+## Maintenance Notes
 
-Use `persistence/paths.py` for data paths and `infra/config.py` for configuration updates. Roles are defined in `runtime_v2/roles.py`; tool registration lives in `tools/registry.py`. Policies follow the order in `runtime_v2/policies/__init__.py`; context compaction is handled separately by the runtime. Model-generated predictions are hypotheses, not calculation evidence.
-
-Local compute liveness and exclusive ownership use file locks. A job's assigned node does not change because another node has spare capacity. Node configuration and remote execution are documented in [Node registry](NODE_REGISTRY.md); SSH and Slurm have their own deployment instructions in the [documentation index](README_EN.md).
-
-Atom indices depend on the interface: Gaussian uses 1-based indices and ORCA uses 0-based indices; structure-tool references are 1-based. Follow the actual tool contract and the [TS input guide](TS_PROCESS_SOP.md), rather than converting by guesswork.
-
-Tool invocation and documentation loading are described in [Tool protocols](TOOL_PROTOCOLS.md). Rules for code changes remain in [AGENTS.md](../AGENTS.md).
+- Always resolve data paths via `persistence/paths.py` and write config changes through `infra/config.py` (`mutate_config`).
+- Roles live in `runtime_v2/roles.py`, tool registration in `tools/registry.py`, and policy ordering in `runtime_v2/policies/__init__.py`.
+- Local compute liveness relies exclusively on POSIX file locks (`infra/flocks.py`). A job stays on its assigned node—see [Node registry](NODE_REGISTRY.md) for local, SSH, and Slurm setup.
+- Watch atom indexing: Gaussian and structure tools are **1-based**, while ORCA is **0-based**. Never convert indices by guesswork; follow the tool schema and [TS guide](TS_PROCESS_SOP.md).
+- For tool invocation protocols and document loading, see [Tool protocols](TOOL_PROTOCOLS.md). Engineering rules live in [AGENTS.md](../AGENTS.md).

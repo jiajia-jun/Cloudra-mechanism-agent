@@ -1,43 +1,33 @@
-# TS 状态机使用与验收
+# 过渡态（TS）流程与科学验收
 
-2026-10-19 更新。本文描述当前格式 7 的实际工具接口；输入定义见 `cloudra/tools/core/ts_inputs.py`，工具入口见 `cloudra/tools/Chemtool/ts_search_process.py`。旧设计稿留在 `superpowers/specs/`，不能代替当前 schema。工程回归、计算作业完成和科学验收分别记录。
+本文档说明 Cloudra 过渡态求解流程（格式 7）的实际用法和科学验收红线。工具参数以 `cloudra/tools/core/ts_inputs.py` 和 `cloudra/tools/Chemtool/ts_search_process.py` 为准。
 
-## 入口与推进
+## 四个核心工具
 
-| 工具 | 模型填写的字段 | 行为 |
+| 工具 | 怎么用 | 干什么用 |
 | --- | --- | --- |
-| `ts_prepare` | `input: TsInput`，必填 | 为一条路径创建一次持久记录；成功作业自动接续 |
-| `ts_inspect` | `run_id: str`，必填 | 只读查看权威状态、结构原子表、作业、实际方法、证据、费用与下一步，不推进计算 |
-| `ts_resume` | `run_id: str`、`reason: str` 必填；`changes: TsInputChanges` 默认 `{}` | 修订同一个 run；失败后可原参数重试，也可修改科学输入探索新路线 |
-| `ts_stop` | `run_id: str`、`reason: str`，均必填 | 停止该流程继续推进；撤回排队作业，对运行中作业写 `cancel_requested`，由执行端安全收尾 |
+| `ts_prepare` | 填 `input: TsInput` | 为一条反应路径建档并自动往前推进；作业算完后自动接下一阶段 |
+| `ts_inspect` | 填 `run_id` | 只读查看当前状态、原子编号表、作业列表、实际方法、已有证据和下一步建议 |
+| `ts_resume` | 填 `run_id`、`reason` 和可选 `changes` | 修订同一个 run：失败了可以原样重试，也可以换初猜、改扫描或调方法继续探索 |
+| `ts_stop` | 填 `run_id` 和 `reason` | 停掉后续自动推进；撤回排队作业，给运行中作业写 `cancel_requested` 等它安全退出 |
 
-并发版本、调用重放键和摘要均由运行时维护，模型不填写。`ts_prepare` 成功后不要重复创建同一路径；正常链无需反复调用 `ts_resume`。同项目有写权限的 Agent 可接手 run，程序记录 owner 转移；只读角色只能检查状态。
+并发版本、防重放键和摘要全由程序管，模型不用填。`ts_prepare` 建好一次就别重复建，正常跑完会自动续接，不需要反复调 `ts_resume`。
 
-**正式 TS 求解与完整验证优先走 `ts_prepare` / `ts_resume`**；直接 `submit_compute_job` 提交 TS/IRC 仅用于探索性试算或能力探针。普通物种 Opt/Freq、单点和探索扫描仍使用计算队列。候选以 `guess.kind="provided"`、`guess.xyz_path` 和 `guess.evidence_refs` 接回流程，符合来源校验的已有 IRC 可用 `verification.irc_log`；这不是任意 TS/Freq 日志的通用导入接口。阻塞时先 `ts_inspect` 并修订点名声明，不以手动串联替代正式流程。提交成功不代表 TS 已确证或已绑定 DAG。队列兼容回归见 `tests/test_manual_ts_submission.py`。
+**什么时候走 `ts_prepare`，什么时候直接交计算**：正式求 TS 和做完整验证优先走 `ts_prepare` / `ts_resume`；普通物种优化、单点能和试探性扫描直接用 `submit_compute_job`。手头已经有外部候选结构时，通过 `guess.kind="provided"` 接回流程；有合格的已有 IRC 日志时填 `verification.irc_log`。如果你直接用 `submit_compute_job` 跑了 Gaussian/ORCA 的 IRC，算完正常结束且双向都有帧时，系统会自动导出规范的两端 XYZ（`irc_end_a_path` / `irc_end_b_path`），但 A/B 还不等于反应物/产物，必须再分别做无约束 Opt/Freq 确认身份。
 
-直接提交的动态提醒按声明引擎解析完整原生输入，包含 Gaussian 各种 `Opt=TS` / `Opt=(...,TS)` 与后续 Link1，以及 ORCA `NEB-TS` 变体和有效的 `%neb NEB_TS true`。标题、注释、普通优化和扫描不产生 TS 提醒。提醒固定到下一轮 Agent 系统上下文，重复提交不重复注入；当前提交仍按现有准入规则继续，提醒不构成拦截。shell 脚本内容不被猜测为 Gaussian/ORCA 输入。
+## `TsInput` 里要填什么
 
-直接以 `job_type="gaussian"` / `"orca"` 提交的 IRC 在完成冻结后，正常终止且真实双侧可得时自动导出规范 XYZ；完成通知给出两条路径，`query_compute_job` 以 `irc_end_a_path` / `irc_end_b_path` 返回。A/B 不代表反应物/产物，仍须分别无约束 Opt/Freq 并核对身份与方向。若 QM 由 shell 脚本内部启动，shell 回执不解析内部 QM；将原生日志提交 DAG 后，入库快照才生成恢复文件，断链诊断给出具体 Opt 与规范端点路径。程序不修改原生日志或输入，也不放宽几何同一性判据。
+除了 `reaction` 必填外，其他字段都可以先空着，流程走到需要时再补；程序绝不会偷偷替你猜泛函和基组。
 
-## 输入分组
+- **`reaction`（必填）**：`reactant_smiles`、`product_smiles`、总 `charge` 和总 `multiplicity`；可选 `electronic_character`、`selected_candidate`、`reaction_center`。注意产物写 `"B.C"` 代表络合物，写 `["B", "C"]` 代表分离产物（`B + C`），两者对应的极小值证据完全不同。
+- **`calculations`（可选字典）**：给整套计算配置起个名字，后面阶段用 `{"ref": "名字"}` 明确复用，避免重复抄写。每套 `QmCalculation` 必须写清 `engine`、`method` 和 `basis_set`（不需要基组的方法显式写 `basis_set=""`），不要把整行 route 硬塞进 `method`；额外选项放 `keywords`，ORCA 块放 `orca_blocks`，Gaussian 末尾输入放 `end_setting`。
+- **`conformers`（可选）**：不填就从 SMILES 用 ETKDGv3（默认种子 42）自动生成起点；也可以指定已有文件、构象库或旋转/成环指导。
+- **`guess`（可选）**：选初猜方式——`xtb_path`、`scan` 或 `provided`（外部候选结构）。
+- **`ts_optimization`（可选）**：正式鞍点优化的计算配置（或引用）。
+- **`verification`（可选）**：TS 频率、IRC、两端无约束 Opt/Freq 的配置，以及可选的已有 `irc_log` 或分离产物 `component_logs`。
+- **`execution`（可选）**：CPU 核数和内存（默认 1 核、4096 MB）。
 
-`TsInput` 的实际顶层字段如下；除 `reaction` 外，各组允许先省略，在流程点名需要时补充。缺失的方法或结构不会被自动猜成默认值。
-
-| 字段 | 类型 / 默认 | 含义 |
-| --- | --- | --- |
-| `reaction` | `TsReaction`，必填 | `reactant_smiles`、`product_smiles`、总 `charge`、总 `multiplicity` 必填；可选 `electronic_character`、`selected_candidate`，`reaction_center` 默认空列表 |
-| `calculations` | `dict[str, QmCalculation]`，默认 `{}` | 本次输入内的命名完整计算配置；阶段通过 `{ref: "名称"}` 明确复用，不自动继承 |
-| `conformers` | `TsConformers`，可省略 | 两端未提供来源时自动从 SMILES 生成；也可指定 `generate`、`file`、`catalog` 或产物绕键旋转，以及成环/距离指导 |
-| `guess` | `xtb_path / scan / provided / null`，默认 `null` | 有类型的路径、扫描或有来源的候选结构 |
-| `ts_optimization` | `QmCalculation / CalculationRef / null`，默认 `null` | 正式鞍点优化的独立计算配置 |
-| `verification` | `TsVerification`，默认空组 | TS 频率、IRC、两端 Opt/Freq；可提供已有 `irc_log`、端点文件种子和分离产物 `component_logs` |
-| `execution` | `TsExecution`，默认 CPU 1、内存 4096 MB | `cpus`、`memory_mb` 与可选有来源的动作/模型请求额度；不把资源字段当科学方法声明 |
-
-`reaction.product_smiles="B.C"` 声明络合物，`reaction.product_smiles=["B", "C"]` 声明分离产物，显示为 `B + C`。二者不是相同的极小值证据对象。
-
-完整 `QmCalculation` 必须明确 `engine`、非空 `method` 和 `basis_set`；无基组的方法也显式填 `basis_set=""`。按原生字段分开填写单一方法 token、基组和额外 `keywords`，避免把整段 route 放进 `method`。`keywords` 默认空字符串，`frequency_mode` 默认 `auto`；`orca_blocks` 默认 `null`，用于 ORCA；`end_setting` 默认空字符串，用于 Gaussian。可原样写出的错误、冲突或未知原生参数保留并返回模型可见 warning，包括跨引擎字段误用；不强补求解器选项。必填结构、文件完整性、资源容量和受信 Benchmark 合同仍独立校验。原生 xTB 仍要求空 `basis_set`，不接受 Gaussian/ORCA 关键词、原生块或频率模式。同一命名配置的复用必须明确引用；探索与正式阶段各自选择方法。
-
-复用示例（理论级别须已获用户授权，此例不构成默认推荐；它只是完整输入中的配置片段）：
+复用配置示例（仅演示格式，不代表默认方法推荐）：
 
 ```json
 {
@@ -52,70 +42,40 @@
 }
 ```
 
-## 实际原子编号与结构来源
+## 原子编号、映射与结构来源
 
-程序管理两端实际分子的原子对应关系。未指定候选时，复用现有映射评分及排序，自动采用第一个完整候选；保留歧义信息并在返回消息中说明自动选择。需要研究者覆盖时，通过 `reaction.selected_candidate` 或 `reaction_mapping(run_id, selected_candidate)` 选择 **0-based** 候选。模型无需维护 `atom_map`、`heavy_atom_binding` 或结构摘要。未填写 `reaction_center` 时，从已绑定的全原子对应推导成断键；显式反应中心优先，实际编号转换由程序处理。
+- **编号规则千万别混**：Cloudra 结构字段、Gaussian 和 xTB 都是 **1-based** 全原子编号（对应 XYZ 行号，不是 SMILES 重原子序号）；只有 ORCA 原生 scan/freeze 是 **0-based**。以 `ts_inspect` 返回的当前原子表为准。
+- **原子映射**：未指定时程序自动选得分最高的完整映射并在消息里说明；想手动切候选时，用 **0-based** 的 `reaction.selected_candidate` 或 `reaction_mapping`。没填 `reaction_center` 时会从映射自动推导出成断键。
+- **结构不可变留底**：`guess.kind="provided"` 接受时会固定原始字节和摘要，事后改源文件不会悄悄污染已接受的候选；真要换文件就走 `ts_resume` 重新声明。需要保电荷、自由基或立体信息时，连同与 XYZ 同序的 MOL/SDF 一起给。
 
-结构/反应字段使用当前实际原子表的 **1-based 全原子编号**；ORCA 原生 scan/freeze 用 **0-based**，Gaussian/xTB 用 **1-based**。这些是实际 XYZ 中的坐标行，不是 SMILES 重原子序号。修订后以返回的当前原子表为准；历史 QM 文件保留原编号。
+## 路径、扫描与中途修订
 
-未填两端结构来源或将来源设为 `null` 时，程序从相应 SMILES 自动生成起始几何；默认使用已有 ETKDGv3 和种子 42，显式种子优先。`conformers.<role>.kind="file"` 使用传入文件，文件错误会明确返回。省略或设置 `optimization:null` 即不额外做构建阶段预优化，不代表它已经是极小值。来源修订保留省略项；显式重新声明文件路径会重新导入当前字节，即使路径字符串没变。返回消息及终态通知汇总实际完成的结构生成、算法与种子、原子编号、映射选择和反应中心推导，已有科学判据保持不变。
+- 探索方法可以和正式 TS 方法不同，但每个阶段都要自己说清楚。原生 xTB 构象/路径/扫描固定用 `GFN2-xTB`（`basis_set=""`）。
+- 扫描最多两个坐标：双坐标 ORCA 必须标明 `grid`（网格）或 `concerted`（同步路径）；原生 xTB 扫描必须给正的 `force_constant`，双坐标标明 `concerted` 或 `sequential`。二维扫描绝不会自动拿最高点当 TS，所有初猜峰都必须再做正式的无约束 TS 优化。
+- **失败了怎么修**：直接用 `ts_resume`（`changes={}` 可原样重试，也可以改结构、改扫描或用 `{replace: ...}` 换方法），历史失败和日志都会保留。有作业正在运行或取消中时不能修订；只排队的 `ready` 作业会在修订时被安全撤回重排，绝不强杀正在跑的计算。
+- **改了什么重算什么**：换结构/初猜会重算下游；换 TS 方法重跑正式链；只改频率保留 TS Opt；只改 IRC 保留 TS/Freq；只改一侧端点只重算那一侧。
 
-程序只在实际分子图对应关系可证明时沿用旧原子身份、转换新输入的坐标编号。来源身份无法对应时清除失效的映射和相关编号声明，点名要求检查；不猜测排列，也不改写外部源文件。需要保留电荷、自由基、同位素或立体身份时同时提供与 XYZ 同序的 MOL/SDF；MOL 声明不能代替实际 XYZ 连通性检查。
+## 电子态与方法核对
 
-`guess.kind="provided"` 的 XYZ 与 `evidence_refs` 在接受时固定原始字节和内部摘要。源文件后来更正或删除，不会悄悄改变已接受候选；需用 `ts_resume.changes.guess` 重新声明来源。副本自身缺失或变化时停止后续推进，现存计算不受影响。
+每个作业入队前都会拿实际写入的输入文件核对方法、溶剂、电荷和自旋。普通科研项目没有方法白名单，只有 Benchmark 项目会额外叠加题目方法约束。
 
-## 路径与扫描
-
-当前原生构象优化、xTB 路径和 xTB 扫描使用显式 GFN2-xTB；其它方法走已有 ORCA/Gaussian 写入器，能力不足时点名暂停。探索方法可与正式 TS 方法不同，但每个阶段都须明确声明。
-
-- `guess.kind="scan"` 独立声明 `calculation`、`scans` 和可选 `freeze`；扫描最多两个坐标，按实际输入几何与对应引擎编号填写。
-- 单坐标不填 `mode`。双坐标 ORCA 必须明确 `grid`（独立曲面）或 `concerted`（同步路径且点数相同）；Gaussian 使用独立网格，不填 `mode`。
-- 原生 xTB 扫描明确 `calculation={engine:"xtb",method:"GFN2-xTB",basis_set:""}`，每条扫描给起点、终点、点数及正的 `force_constant`；双坐标明确 `concerted` 或 `sequential`。不把冻结坐标静默解释成软约束。
-- 实际命令、版本、逐点收敛、电子能与约束势分开留证。二维网格不自动挑一个峰当 TS；所有扫描峰、路径候选和提供的峰帧都须经过新的无约束正式 TS 优化和科学验证。
-
-## 修订、失败与在途作业
-
-同一计算配置内，省略字段保留旧值；`keywords=""`、`orca_blocks:null`、`end_setting=""` 显式清除。改变 `engine`、`method` 或 `basis_set` 使用 `{replace: 完整配置}`；更换引用使用 `{replace: {ref: "名称"}}`。`changes.calculations` 按名称合并，`null` 只删除不再被引用的配置；坐标补丁无需重复计算配置。
-
-失败不是路径的永久终点。可用 `changes={}` 重试失败尝试，或修订扫描、结构和初猜验证新假设；旧失败、输入、日志、作业和费用自动保留。当前接口没有 `scan_recovery` 字段，也不要求另交修复文档。执行修复被接受不代表科学失败原因已经解决。
-
-运行中或 `cancel_requested` 作业阻止修订；仅排队的 `ready` 作业允许修订，程序在事务内撤回已被替代的排队作业，不杀正在运行的计算。停止用 `ts_stop`；等待执行端收尾后再继续。
-
-失效范围由依赖决定：结构或初猜变更重建其下游；TS 方法变更重跑正式链；TS 频率变更保留 TS Opt；IRC 变更保留 TS/Freq；单侧端点配置变更只重算该侧。旧作业的实际配置快照与历史证据保持原样。
-
-## 方法、电子态与权限
-
-每个计算入队前读取实际原生方法、关键词/溶剂设置、电荷和自旋，与本阶段声明比较。只有显式属于 Benchmark 的项目叠加该题 `MethodPolicy` 和可选受信 `calculation_contracts`；普通研究项目没有默认方法/基组白名单。缺失的方法不从全局配置、示例或历史任务推断。
-
-`reaction.charge` 与 `reaction.multiplicity` 描述总电子态，可显式声明 `electronic_character="open_shell"` 或 `"closed_shell"`；程序不替用户选择基态、初始自旋分布或新阈值。未优化 ETKDG 种子可交给已授权量化方法；开壳层/自由基结构不做 MMFF/UFF 打分，闭壳层卡宾的几何准备也保守跳过力场。
-
-GFN-xTB/CREST 的 `--uhf` 只表达总 α/β 电子数差，不能用 `--uhf 0` 表达开壳层单重态；不支持的输入在提交前暂停。可改用有来源的外部初猜或明确支持该电子态的 ORCA/Gaussian 声明，不能把准备成功当成电子态已确证。相关原生说明见 [xTB](https://xtb-docs.readthedocs.io/en/latest/spgfn.html) 与 [CREST](https://crest-lab.github.io/crest-docs/page/examples/standard_sp.html)。
-
-只读角色不能提交或修订，也不能借有更大权限的 Agent 绕过；每次自动续接重新检查权限与阶段声明。撤销写权限只阻止新提交，现有量化进程继续运行。
+注意开壳层体系：GFN-xTB / CREST 的 `--uhf` 只表示总自旋电子数差，不能用来算开壳层单重态，遇到不支持的电子态会在提交前暂停提醒，改用 ORCA/Gaussian 或外部初猜即可。开壳层/自由基和闭壳层卡宾都会保守跳过力场打分。
 
 ## 科学验收
 
-1. TS Opt 原生正常结束且优化收敛；TS Freq 有且仅有一个虚频，并检查振动是否对应目标反应。一虚频只证明一阶鞍点，不独立证明路径身份。
-2. 同一已验证 TS 的真实双向 IRC 必须有可用外帧，IRC 起点与该 TS 几何匹配。两侧真实末帧分别作为无约束优化起点，收敛到身份/立体化学正确且零虚频的极小值；保留 IRC、起始帧、优化与频率之间的真实来源关系。
-3. 上述端点优化链成立即接受方向证明。IRC 本身可以如实 `partial`，不要求两向到底收敛；几何区间只作提示，异常或无法判断时发出警告并建议检查轨迹，不否决已成立的端点优化证据。几何区间吻合本身也不能替代真实端点优化链。
-4. 独立物种种子即使零虚频，也不能冒充真实 IRC 外帧优化。缺来源、端点身份或频率证据时保持 `candidate_only`，不把作业 `done` 当成科学通过。
+判断一个过渡态“真正成立”，必须同时满足下面这几条硬条件：
 
-分离产物用列表声明，并可经 `verification.product_endpoint.component_logs` 提供每个组分独立正常终止、零虚频且身份正确的日志。系统固定副本，结合真实 IRC 的实际分离产物端点与反应物侧证据单独检查；只证明 `B + C` 通道，不证明 `B.C` 络合物极小值。组分能量也不能拼成络合物能量。
+1. **TS 本身过关**：TS 优化原生正常结束且收敛；同一几何的频率计算有且仅有 **1 个虚频**，并且振动模式确实对应目标成断键（仅有 1 个虚频只证明它是一阶鞍点，不代表就是你要的反应）。
+2. **真实双向 IRC + 端点优化确证**：以这个已验证的 TS 为起点跑真实双向 IRC，拿到两侧可用的外帧，再把两头末帧分别拿去做无约束优化和频率计算，最终收敛到身份、立体化学都正确且 **0 虚频** 的反应物和产物极小值。
+3. **方向证明怎么算过**：只要上面这条“TS → 真实 IRC 末帧 → 无约束 Opt/Freq 收敛到正确零虚频端点”的证据链成立，就认可方向证明。IRC 本身可以如实处于 `partial`（不强求两端一路到底收敛）；几何距离窗口只是辅助提醒，不会推翻已经成立的端点优化，反过来也不能用几何看起来像来代替真正的端点优化。
+4. **不能拿独立物种冒充端点**：单独算出来的反应物/产物零虚频极小值，不能冒充从 IRC 末帧优化出来的端点。缺来源、缺身份匹配或缺频率时，状态只停在 `candidate_only`，作业跑完（`done`）绝不等于科学验收通过。
 
-频率完成后，`frequency_analysis` 复用同一作业的原生日志模式解析，记录虚频运动原子、反应中心占比与键向投影；占比是未加质量权重位移平方和比例。缺位移的 `missing` 不代表方向不符，`modes:null` 不代表占比零。`mode_alignment` 的 `misaligned` / `undecidable` 通知所属 Agent 判断，不自动禁止 IRC、不自动取消计算，也不添加新占比阈值。
+分离产物（`["B", "C"]`）可以通过 `verification.product_endpoint.component_logs` 交齐各组分的正常结束、零虚频日志，与真实 IRC 分离产物端点一起校验，只证明 `B + C` 通道，不证明 `B.C` 络合物。
 
-既有窗口与碰撞判据不因本次文档更新改变。初始 Hessian 只使用同理论级别真实产物；模型、溶剂等完整声明不同须重新计算，不以位移末帧代替中心导数。
+频率算完后，`frequency_analysis` 会解析虚频位移在反应中心上的占比（未加质量权重的位移平方和比例）；如果方向看起来偏了（`misaligned`）或数据不足（`undecidable`），系统会通知 Agent 人工/自主判断，不会擅自强停计算。初始 Hessian 必须来自完全相同理论级别的真实计算产物，不能拿位移末帧凑数。
 
-## 权威状态、费用与历史
+## 状态与费用口径
 
-`prepare / resume / inspect` 共用 `status`、`stage`、`result`、`waiting_for`、`available_results`、`structures`、`blocked`、`failed_attempt`、`next`、`methods`、`frequency_analysis`、`usage` 与导出信息。`result.verified=true` 才表示已记录科学检查通过；工具 `is_success=true` 不表示 TS 已确证。
-
-数据库账本是权威来源；`process.json` 是导出快照，过期时返回明确提示，不以旧 JSON 反推新状态。`methods` 展示计划配置与作业不可变实际快照，完成作业的原生日志经 `available_results` 返回；保留它们供直接证据送审。
-
-不设预计墙钟/CPU 小时准入和介入次数上限；保留已授权的实际计算动作数和模型请求数限制。`runtime_seconds` 是经过时间，`allocated_cpu_hours` 是申请核数乘经过时间，`measured_cpu_hours` 缺测为 `null`，不能冒充实测。
-
-格式 6 及更早记录按历史原输入和作业只读保留，自动接续与修订隔离；不迁移旧科学输入、不影响现存计算和排他锁。当前成功、失败、停止和范围交付仍是不同状态。
-
-## 状态读取与历史记录
-
-`ts_inspect` 不推进计算；只有导出与当前修订及结构一致时才提供 `details_path`。内部格式号、并发修订号和重放键由程序维护，不属于模型输入。历史工程验收与合并记录见[归档](archive/TS_STATE_MACHINE_ACCEPTANCE.md)，不作为当前真实引擎验证结果。
+- `result.verified=true` 才表示通过了科学检查；工具返回 `is_success=true` 只说明命令调用没报错。
+- 数据库账本是唯一权威状态，`process.json` 只是导出快照；旧版本（格式 6 及更早）只读保留。
+- 费用统计里，`runtime_seconds` 是墙钟耗时，`allocated_cpu_hours` 是申请核数乘耗时，`measured_cpu_hours` 没实测到就是 `null`，绝不拿估算冒充实测。

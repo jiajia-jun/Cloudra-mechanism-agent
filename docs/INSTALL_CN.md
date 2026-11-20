@@ -1,88 +1,85 @@
-# Cloudra 安装与桌面启动
+# Cloudra 安装与启动
 
 [English](INSTALL.md) · [返回首页](../README_CN.md)
 
-普通用户下载适合自己系统的安装包，双击安装，再从应用程序或桌面打开 Cloudra。安装包已包含 Python、Node.js、基础依赖和网页界面，无需先安装开发工具。
+大多数用户直接下桌面安装包就行。安装包里已经打包好了 Python、Node.js、基础依赖和网页界面，不用自己配开发环境，装完双击图标就会在浏览器里打开。
 
-| 系统 | 安装包 | 安装后从这里打开 |
+| 系统 | 下载哪个包 | 装完在哪打开 |
 | --- | --- | --- |
-| macOS，Apple Silicon | `Cloudra-<版本>-macos-arm64.pkg` | “应用程序”中的 Cloudra |
-| macOS，Intel | `Cloudra-<版本>-macos-x86_64.pkg` | “应用程序”中的 Cloudra |
-| Ubuntu / Debian 桌面，x86_64 | `Cloudra-<版本>-linux-x64.deb` | 应用菜单中的 Cloudra |
-| 其他兼容 Linux 桌面，x86_64 | `Cloudra-<版本>-linux-x64.tar.gz` | 解压目录中的 Cloudra |
-| Windows，原生 x64 | `Cloudra-<版本>-windows-x64-Setup.exe` | 开始菜单或桌面的 Cloudra |
+| macOS（Apple Silicon M 系列） | `Cloudra-<版本>-macos-arm64.pkg` | “应用程序”里的 Cloudra |
+| macOS（Intel） | `Cloudra-<版本>-macos-x86_64.pkg` | “应用程序”里的 Cloudra |
+| Ubuntu / Debian 桌面（x86_64） | `Cloudra-<版本>-linux-x64.deb` | 应用菜单里的 Cloudra |
+| 其他 Linux 桌面（x86_64） | `Cloudra-<版本>-linux-x64.tar.gz` | 解压目录里的 `Cloudra` |
+| Windows 原生（x64） | `Cloudra-<版本>-windows-x64-Setup.exe` | 开始菜单或桌面上的 Cloudra |
 
-Windows 的详细步骤见 [`windows` 分支教程](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS_CN.md)。需要修改程序或自行部署时，见后面的[从源码安装](#从源码安装)。
+Windows 的详细步骤单独写在 [`windows` 分支教程](https://github.com/yyywaa/Cloudra-mechanism-agent/blob/windows/docs/INSTALL_WINDOWS_CN.md)。如果你要改代码或者自己部署服务器，直接看后面的[从源码安装](#从源码安装)。
 
 ## 下载安装包
 
-macOS 和 Linux 安装包直接从 [v0.1.1 Release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1) 下载。Apple Silicon Mac 选择 `arm64`，Intel Mac 选择 `x86_64`；Linux x86_64 可选 `.deb` 或便携 `.tar.gz`。
+macOS 和 Linux 的包直接去 [v0.1.1 Release](https://github.com/yyywaa/Cloudra-mechanism-agent/releases/tag/v0.1.1) 下载。Mac 选芯片对应的 `arm64` 或 `x86_64`；Linux x86_64 优先下 `.deb`，非 Debian 系用便携 `.tar.gz`。
 
-实验性 Windows 安装包由单独的 `windows` 分支维护。在成功的 [Windows installer 工作流](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/windows-installer.yml)中下载 `windows-installer-x64` 构建产物；下载 Actions 构建产物需要登录 GitHub。
+实验性的 Windows 安装包由 `windows` 分支构建，登录 GitHub 后在 [Windows installer 工作流](https://github.com/yyywaa/Cloudra-mechanism-agent/actions/workflows/windows-installer.yml) 的最近一次成功记录里下载 `windows-installer-x64`。
 
 ## macOS 安装
 
-1. 点苹果菜单 → “关于本机”：显示 Apple M 系列芯片的选择 `arm64`，显示 Intel 处理器的选择 `x86_64`。
-2. 双击 `.pkg`，按系统安装窗口中的“继续”“安装”完成安装；系统可能要求输入管理员密码。
-3. 打开 Finder → “应用程序”，双击 **Cloudra**。浏览器会自动打开界面；已有桌面目录时，也会添加桌面的 Cloudra 入口。
-4. 以后从“应用程序”、桌面或 Dock 打开。退出时，在 Dock 的 Cloudra 图标上右键选择“退出”，或使用应用菜单的“退出 Cloudra”。
+1. 点左上角苹果菜单 → **关于本机**：芯片写 Apple M 系列就下 `arm64`，写 Intel 就下 `x86_64`。
+2. 双击 `.pkg`，一路点“继续”“安装”，按提示输入 Mac 密码。
+3. 打开 Finder → **应用程序**，双击 **Cloudra**，浏览器会自动弹出来。桌面上也会顺手放一个快捷入口。
+4. 平时想彻底退出服务，在 Dock 里的 Cloudra 图标上右键选“退出”，或者点顶部菜单栏的“退出 Cloudra”。
 
-当前测试安装包尚未完成 Apple 开发者签名和公证。下载包内附带 `Unblock-Cloudra.command`，使用方法见[首页的解除隔离说明](../README_CN.md#macos-首次打开被拦截)。若系统阻止打开，在确认文件来自本项目对应构建后，进入“系统设置 → 隐私与安全性”，找到该文件的提示，点击“仍要打开（Open Anyway）”，再按提示确认。安装包或应用首次打开都可能触发提示，见 [Apple 官方说明](https://support.apple.com/en-gb/102445)。
+因为现在的测试包还没买苹果开发者公证，第一次打开时 macOS 可能会拦截。安装包旁边附带了 `Unblock-Cloudra.command`，具体用法看[首页的解除拦截说明](../README_CN.md#macos-首次打开被拦截)。也可以手动去“系统设置 → 隐私与安全性”里找到对应提示，确认文件来自本仓库后点“仍要打开（Open Anyway）”，参考 [Apple 官方说明](https://support.apple.com/en-gb/102445)。
 
 ## Linux 安装
 
-桌面安装包以 Ubuntu 22.04 及更新版本、Debian 12 及更新版本为目标；其他发行版可尝试便携包。
+桌面包主要针对 Ubuntu 22.04+ 和 Debian 12+；其他发行版建议用便携包。
 
 ### Ubuntu / Debian
 
-双击 `.deb`，在系统的软件安装窗口中点击“安装”，按要求输入密码。随后在应用菜单搜索 **Cloudra** 并打开，浏览器会自动打开界面。首次启动会在已有桌面目录中添加入口；若提示不受信任，可右键选择“允许启动”。
-
-如果系统没有关联 `.deb` 的图形安装程序，可在下载目录打开终端执行：
+双击 `.deb` 用系统软件中心点“安装”即可，或者在下载目录开终端跑一行：
 
 ```bash
 sudo apt install ./Cloudra-*-linux-x64.deb
 ```
 
+装完在应用菜单搜 **Cloudra** 打开。首次启动会在桌面放快捷方式；如果桌面系统提示不受信任，右键选“允许启动”就行。
+
 ### Linux 便携包
 
-便携包使用系统的 `xdg-utils` 和 `lsof` 软件包；缺少时通过发行版的软件管理器安装。`.deb` 已自动声明这些系统依赖。
+便携包依赖系统的 `xdg-utils` 和 `lsof`（`.deb` 已经自动声明了，便携包缺的话用系统包管理器装一下）。
 
-解压 `.tar.gz` 到准备长期保留的文件夹，双击其中名为 **Cloudra** 的可执行文件。首次启动会添加应用菜单入口；已有桌面目录时，也会添加桌面入口。保留解压后的目录，供这些入口继续使用。
-
-停止时，在应用菜单中的 Cloudra 入口上右键，选择 **Stop Cloudra**。
+把 `.tar.gz` 解压到一个你打算长期放着不动的目录，双击里面的 **Cloudra** 启动。首次启动会自动建好应用菜单和桌面入口，所以别把解压目录删了。想彻底停掉服务时，在应用菜单里的 Cloudra 图标上右键选 **Stop Cloudra**。
 
 ## 第一次使用与更新
 
-1. 在全局设置（Global Settings）中配置主 Agent 与协作 Agent 的模型、接口地址和凭据，也可使用界面提供的账号登录。
-2. 创建项目，选择工作目录，放入结构或已有文件，输入任务后开始使用。
-3. 需要计算时，再配置本地或远端计算节点，见[配置指南](CONFIGURATION_CN.md)和[部署文档](README.md#部署与配置)。
+1. 打开右上角或左下角的 **全局设置（Global Settings）**，填好主 Agent 和协作 Agent 的模型与 API Key，或者直接用内置的 ChatGPT / Codex 账号登录。
+2. 新建一个项目，选好工作目录，放进分子结构或已有计算文件，在对话框里交代任务就能开跑。
+3. 需要跑量化或分子动力学计算时，再去配本地或远程节点，见[配置指南](CONFIGURATION_CN.md)和[部署文档](README.md#部署与配置)。
 
-安装包包含界面和基础运行环境。ORCA、Gaussian、xTB、CREST 等计算软件及其许可证按任务另行准备。模型调用与联网功能仍需相应的网络和账号配置。
+有几件事提前心里有数：
 
-关闭浏览器标签页后，Cloudra 服务仍可继续运行；再次点击应用入口可重新打开界面。退出 Cloudra 服务与取消量子化学作业是不同操作。
-
-更新时，退出 Cloudra 后安装同一系统与架构的新安装包。便携包应解压到新的长期目录，再从新目录启动；保留旧目录中的项目文件和自定义数据，确认后再处理旧目录。
-
-启动失败时查看系统提示；macOS 日志位于 `~/Library/Logs/Cloudra/desktop.log`，Linux 日志位于 `~/.local/state/cloudra/desktop.log`。
+- 安装包只含 Cloudra 本体和基础运行环境；ORCA、Gaussian、xTB、CREST 等专业计算软件以及它们各自的许可证需要你按需另装。
+- 关掉浏览器标签页不会停掉后台服务，再点桌面图标就能重新连上。彻底退出 Cloudra 和取消正在跑的量化计算也是两回事——已经提交到后台的计算任务不会因为你关网页就死掉。
+- 更新版本时，先退出 Cloudra，再直接装新版本安装包覆盖就行。便携包建议解压到新目录启动，确认项目数据都在再删旧目录。
+- 万一启动失败，去翻日志定位：macOS 在 `~/Library/Logs/Cloudra/desktop.log`，Linux 在 `~/.local/state/cloudra/desktop.log`。
 
 ## 从源码安装
 
-以下步骤面向开发者、需要安装额外 Python 扩展的用户和自行部署的用户。`master` 分支源码运行于 macOS / Linux；原生 Windows 使用 [`windows` 分支](https://github.com/yyywaa/Cloudra-mechanism-agent/tree/windows)。
+想改代码、装额外 Python 扩展，或者在无图形界面的服务器上跑，用源码方式最省心。`master` 分支面向 macOS 和 Linux；原生 Windows 切到 [`windows` 分支](https://github.com/yyywaa/Cloudra-mechanism-agent/tree/windows)。
 
 ### 准备环境
 
-需要 **Python ≥ 3.11**、**Node.js ≥ 22.12** 和 npm，建议先使用 Python 3.13 与 Node.js LTS。
+需要 **Python ≥ 3.11**、**Node.js ≥ 22.12** 和 npm（推荐 Python 3.13 + Node.js LTS）。
 
-macOS：从 [Python 官方下载页](https://www.python.org/downloads/macos/)安装 Python 3.13 的 `.pkg`，然后运行“应用程序 → Python 3.13 → Install Certificates.command”。再从 [Node.js 官网](https://nodejs.org/en/download)安装 macOS LTS `.pkg`，重开终端。
+macOS 可以直接去 [Python 官网](https://www.python.org/downloads/macos/) 装 3.13 的 `.pkg`（装完顺手双击“应用程序 → Python 3.13 → Install Certificates.command”），再去 [Node.js 官网](https://nodejs.org/en/download) 装 macOS LTS `.pkg`，装完重开终端。
 
-Ubuntu 24.04 及更新版本：
+Ubuntu 24.04+ 先装基础包：
 
 ```bash
 sudo apt update
 sudo apt install -y git python3 python3-venv python3-pip curl
 ```
 
-从 [Node.js 官方下载页](https://nodejs.org/en/download)选择 **LTS → Linux → nvm → npm**，执行页面给出的安装步骤，重开终端。其他 Linux 发行版使用自己的包管理器准备 Python、venv 和 Git。
+然后按 [Node.js 官网](https://nodejs.org/en/download) 的 **LTS → Linux → nvm → npm** 步骤装好 Node.js 并重开终端。
 
 ### 下载、安装和启动
 
@@ -93,29 +90,36 @@ bash install.sh
 bash web.sh
 ```
 
-也可在项目主页点击 **Code → Download ZIP**，解压到长期保留的目录。macOS 在终端输入 `cd `（末尾有空格），把解压目录拖进窗口并按回车，再运行上面最后两条命令；也可双击源码目录中的 `Install.command` 运行安装。
+不想用 Git 也可以在仓库首页点 **Code → Download ZIP** 解压，macOS 里甚至可以直接双击目录里的 `Install.command`。`install.sh` 会自动建 `.venv`、装好前后端依赖、编完网页并建好桌面图标。用 `bash web.sh` 启动期间别关那个终端窗口。
 
-源码安装程序创建 `.venv`、安装 Python 和 JavaScript 依赖、构建网页并创建桌面入口，无需手动激活环境或在安装时填模型配置。通过 `bash web.sh` 启动时，使用期间保留启动终端。
-
-停止源码版全部 Cloudra 服务：
+要停掉源码版全部服务：
 
 ```bash
 .venv/bin/python -m cloudra stop
 ```
 
-通过 Git 更新时，停止 Cloudra 后在源码目录执行 `git pull --ff-only`，再运行 `bash install.sh`。移动源码目录后需要在新位置删除 `.venv` 并重新安装，不能直接复用旧虚拟环境。
+以后更新源码时，先停服务，再在仓库目录里跑：
 
-需要额外的化学、PDF 或浏览器工具时，在源码目录按需安装：
+```bash
+git pull --ff-only
+bash install.sh
+```
+
+注意如果你把整个源码文件夹挪了地方，旧的 `.venv` 路径会失效，删掉 `.venv` 重新跑一遍 `bash install.sh` 就好。
+
+需要额外的化学、PDF 解析或浏览器抓取扩展时按需装：
 
 ```bash
 .venv/bin/python -m pip install -e '.[chem,pdf,browser]'
 .venv/bin/python -m playwright install chromium
 ```
 
-PyMOL 另行安装。可选包在不同平台上的可用性不同，安装失败时查看具体报错。
+PyMOL 需要单独安装。
 
-| 源码安装问题 | 处理方法 |
+### 常见小坑
+
+| 遇到什么问题 | 怎么修 |
 | --- | --- |
-| 新 Python 已安装，但选中了旧版 | 运行 `CLOUDRA_PYTHON=python3.13 bash install.sh`。 |
-| 桌面入口丢失 | 运行 `.venv/bin/python scripts/create_desktop_shortcut.py` 重新生成。 |
-| 浏览器未自动打开或提示未授权 | 复制启动终端里 `web UI:` 后的完整链接，包含 `#token=` 部分。 |
+| 装了新 Python 但脚本还是捡到旧版 | 用 `CLOUDRA_PYTHON=python3.13 bash install.sh` 指定解释器。 |
+| 桌面快捷方式不见了 | 跑 `.venv/bin/python scripts/create_desktop_shortcut.py` 重建。 |
+| 浏览器没自己打开，或者打开报未授权 | 复制终端里 `web UI:` 后面那一整串带 `#token=` 的链接粘进地址栏。 |
