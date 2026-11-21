@@ -8,8 +8,19 @@ import type { WorkbenchShot, WorkbenchSource } from './workbenchTypes';
 import { useComposerDraft } from './useComposerDraft';
 import { LongTextControls, handleLongTextKey, composingText } from './LongTextControls';
 import OpsPanel from './OpsPanel';
-import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, Project } from './types';
+import type { Agent, CompletionSummary, ComputeJob, EventEnvelope, Project, UpdateCheckResult } from './types';
 import GlobalConfig from './GlobalConfig';
+import OnboardingModal from './OnboardingModal';
+import { UpdateModal } from './UpdateCheckSection';
+import {
+  readDismissedUpdateVersion,
+  readOnboardingDismissed,
+  shouldAutoOpenOnboarding,
+  shouldShowUpdateNotice,
+  writeDismissedUpdateVersion,
+  writeOnboardingDismissed,
+  type OnboardingStarter,
+} from './onboardingState';
 import { openRouterCallbackCode } from './runtimeUrl';
 import ComposerModelPicker from './ComposerModelPicker';
 import ProjectSettingsModal from './ProjectSettingsModal';
@@ -281,6 +292,13 @@ export default function App() {
   const [telemetryOpen, setTelemetryOpen] = useState(false);
   const [hubOpen, setHubOpen] = useState(false);
   const [projectSettingsOpen, setProjectSettingsOpen] = useState(false);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<UpdateCheckResult | null>(null);
+  const [updateModalOpen, setUpdateModalOpen] = useState(false);
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string>(() =>
+    readDismissedUpdateVersion(typeof window !== 'undefined' ? window.localStorage : null),
+  );
+  const onboardingCheckedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Cross-project pending approvals/ask_user (the AttentionDock + desktop
   // notifications).  Keyed by project id; polled for every non-archived
@@ -536,11 +554,79 @@ export default function App() {
   /* ------------------------------------------------------- initial loading */
 
   useEffect(() => {
-    api.listProjects(true).then((list) => setProjects((prev) =>
-      list.map((project) => mergeProjectSnapshot(prev.find((p) => p.id === project.id), project)),
-    )).catch(reportError);
+    api.listProjects(true).then((list) => {
+      setProjects((prev) =>
+        list.map((project) => mergeProjectSnapshot(prev.find((p) => p.id === project.id), project)),
+      );
+      if (!onboardingCheckedRef.current) {
+        onboardingCheckedRef.current = true;
+        const dismissed = readOnboardingDismissed(typeof window !== 'undefined' ? window.localStorage : null);
+        if (shouldAutoOpenOnboarding({ projectsLoaded: true, projectsCount: list.length, dismissed })) {
+          setOnboardingOpen(true);
+        }
+      }
+    }).catch(reportError);
     api.listRoles().then(setRoles).catch(reportError);
+    api.checkForUpdates(false)
+      .then((info) => {
+        if (info && typeof info.status === 'string') {
+          setUpdateInfo(info);
+        }
+      })
+      .catch(() => undefined);
   }, [reportError]);
+
+  const handleCloseOnboarding = useCallback((dontShowAgain: boolean) => {
+    if (dontShowAgain) {
+      writeOnboardingDismissed(typeof window !== 'undefined' ? window.localStorage : null, true);
+    }
+    setOnboardingOpen(false);
+  }, []);
+
+  const handlePickOnboardingStarter = useCallback(
+    (starter: OnboardingStarter, dontShowAgain: boolean) => {
+      if (dontShowAgain) {
+        writeOnboardingDismissed(typeof window !== 'undefined' ? window.localStorage : null, true);
+      }
+      setOnboardingOpen(false);
+      const prompt = lang === 'zh' ? starter.promptZh : starter.promptEn;
+      setDraft(prompt);
+      if (!activeProject) {
+        setProjectCreateExpanded(true);
+        setNewProject(lang === 'zh' ? starter.titleZh : starter.titleEn);
+        pushToast(
+          'info',
+          lang === 'zh'
+            ? '已预填项目名与起始提示词，确认工作目录并创建项目即可开始。'
+            : 'Prefilled project name and starter prompt—create the project to begin.',
+        );
+      } else {
+        pushToast(
+          'ok',
+          lang === 'zh'
+            ? '已将模板提示词填入对话框，修改占位符后即可发送。'
+            : 'Starter prompt filled into the composer—edit placeholders and send.',
+        );
+      }
+    },
+    [activeProject, lang, pushToast, setDraft],
+  );
+
+  const handleDismissUpdateVersion = useCallback((version: string) => {
+    writeDismissedUpdateVersion(typeof window !== 'undefined' ? window.localStorage : null, version);
+    setDismissedUpdateVersion(version);
+  }, []);
+
+  const handleRecheckUpdates = useCallback(async () => {
+    try {
+      const info = await api.checkForUpdates(true);
+      if (info && typeof info.status === 'string') {
+        setUpdateInfo(info);
+      }
+    } catch {
+      /* keep prior state */
+    }
+  }, []);
 
   /* ---------------------------------------------------- benchmark drill-down */
 
@@ -2227,6 +2313,20 @@ export default function App() {
 
         {/* Sidebar actions */}
         <div className="left-sidebar-foot">
+          {shouldShowUpdateNotice(updateInfo, dismissedUpdateVersion) && updateInfo && (
+            <button
+              type="button"
+              className="btn primary sm update-pill-btn"
+              onClick={() => setUpdateModalOpen(true)}
+              title={
+                lang === 'zh'
+                  ? `发现新版本 v${updateInfo.latest_version}，点击查看详情`
+                  : `New version v${updateInfo.latest_version} available`
+              }
+            >
+              <span>↑ v{updateInfo.latest_version}</span>
+            </button>
+          )}
           <button
             type="button"
             className="btn outline sm settings-btn"
@@ -2238,6 +2338,16 @@ export default function App() {
           <details className="sidebar-more">
             <summary>{t.sidebarMore}</summary>
             <div className="sidebar-more-actions">
+              <button
+                type="button"
+                className="btn ghost sm"
+                onClick={(event) => {
+                  event.currentTarget.closest('details')?.removeAttribute('open');
+                  setOnboardingOpen(true);
+                }}
+              >
+                {lang === 'zh' ? '使用引导与体检' : 'Onboarding & Check'}
+              </button>
               <button
                 type="button"
                 className="btn ghost sm"
@@ -2937,6 +3047,26 @@ export default function App() {
         {globalOpen && (
           <GlobalConfig
             onClose={() => setGlobalOpen(false)}
+            onToast={pushToast}
+            onOpenOnboarding={() => setOnboardingOpen(true)}
+          />
+        )}
+        {onboardingOpen && (
+          <OnboardingModal
+            onClose={handleCloseOnboarding}
+            onOpenSettings={() => {
+              setOnboardingOpen(false);
+              setGlobalOpen(true);
+            }}
+            onPickStarter={handlePickOnboardingStarter}
+          />
+        )}
+        {updateModalOpen && updateInfo && (
+          <UpdateModal
+            update={updateInfo}
+            onClose={() => setUpdateModalOpen(false)}
+            onDismissVersion={handleDismissUpdateVersion}
+            onRecheck={handleRecheckUpdates}
             onToast={pushToast}
           />
         )}

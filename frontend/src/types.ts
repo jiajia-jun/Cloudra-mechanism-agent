@@ -304,3 +304,39 @@ export interface FsBrowseResponse {
   entries: FsBrowseEntry[];
   writable: boolean;
 }
+
+export type DiagnosticGroup = 'llm' | 'chemistry' | 'compute' | 'storage';
+export type DiagnosticStatus = 'ready' | 'optional_missing' | 'warning' | 'error';
+
+export interface DiagnosticCheck {
+  id: string;
+  group: DiagnosticGroup;
+  status: DiagnosticStatus;
+  optional: boolean;
+  summary: string;
+  detail: string;
+  hint: string;
+}
+
+export interface RuntimeDiagnostics {
+  overall_status: 'ready' | 'needs_setup' | 'degraded';
+  version: string;
+  platform: string;
+  install_mode: string;
+  active_compute_jobs: number;
+  checked_at: string;
+  checks: DiagnosticCheck[];
+}
+
+export interface UpdateCheckResult {
+  status: 'update_available' | 'up_to_date' | 'unavailable';
+  current_version: string;
+  latest_version: string;
+  release_url: string;
+  release_notes: string;
+  published_at: string;
+  install_mode: string;
+  active_compute_jobs: number;
+  checked_at: string;
+  error: string;
+}

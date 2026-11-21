@@ -271,4 +271,18 @@ def build_router(ctx: ApiContext) -> APIRouter:
                     'errors': errors}) from None
         return await runtime_config()
 
+    @router.get("/api/v2/runtime/diagnostics", dependencies=ctx.protected)
+    async def runtime_diagnostics() -> dict[str, Any]:
+        """Run non-destructive environment self-check across LLM, chemistry, compute, and storage."""
+        from cloudra.infra.diagnostics import run_environment_diagnostics
+
+        return await asyncio.to_thread(run_environment_diagnostics)
+
+    @router.get("/api/v2/runtime/update-check", dependencies=ctx.protected)
+    async def runtime_update_check(force: bool = False) -> dict[str, Any]:
+        """Read-only check against GitHub Releases for a newer Cloudra version."""
+        from cloudra.infra.diagnostics import check_for_updates
+
+        return await asyncio.to_thread(check_for_updates, force=force)
+
     return router

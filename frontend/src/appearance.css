@@ -585,3 +585,108 @@
   :root[data-appearance='acid'] :is(.chat-column, .composer-wrap) { padding-left: 24px; padding-right: 24px; }
 }
 :root[data-appearance] *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: var(--control-radius); }
+
+
+/* 新手引导、环境自检与更新提示随三套外观同步切换。 */
+:root[data-appearance] :is(.onboarding-card, .onboarding-llm-callout, .onboarding-starter-card, .diag-toolbar, .diag-row, .diag-error-banner, .update-active-warning, .update-notes-box, .update-source-box) {
+  border-radius: var(--tool-radius);
+  box-shadow: var(--tool-shadow);
+}
+:root[data-appearance] :is(.onboarding-step-pill, .onboarding-mode-tag, .diag-pill) {
+  border-radius: var(--control-radius);
+}
+:root[data-appearance] .onboarding-step-pill.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--fg);
+}
+:root[data-appearance] .onboarding-starter-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+:root[data-appearance] .update-notes-pre {
+  font-family: var(--mono);
+  color: var(--fg-secondary);
+}
+
+:root[data-appearance='modernism'] :is(.onboarding-card, .onboarding-llm-callout, .onboarding-starter-card, .diag-toolbar, .diag-row, .update-notes-box, .update-source-box) {
+  background: var(--bg-layer);
+  border-color: var(--border);
+  box-shadow: var(--tool-shadow);
+}
+:root[data-appearance='modernism'] .onboarding-step-pill {
+  background: var(--bg-layer);
+  border-color: var(--border);
+}
+:root[data-appearance='modernism'] .onboarding-step-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+:root[data-appearance='modernism'] .onboarding-starter-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+:root[data-appearance='punk'] :is(.onboarding-card, .onboarding-llm-callout, .onboarding-starter-card, .diag-toolbar, .diag-row, .update-notes-box, .update-source-box) {
+  background: var(--bg-layer);
+  border-color: var(--border);
+  border-radius: 0;
+  box-shadow: none;
+}
+:root[data-appearance='punk'] .onboarding-step-pill {
+  border-radius: 0;
+  background: var(--bg-inset);
+  border-color: var(--border);
+}
+:root[data-appearance='punk'] .onboarding-step-pill.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+:root[data-appearance='punk'] .onboarding-starter-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-hover);
+}
+
+:root[data-appearance='acid'] :is(.onboarding-modal, .update-modal) {
+  padding: 24px 28px;
+  border-radius: 14px;
+  box-shadow: 0 18px 48px rgba(48, 59, 39, 0.14);
+}
+:root[data-appearance='acid'] :is(.onboarding-card, .onboarding-llm-callout, .diag-toolbar, .diag-row, .update-notes-box, .update-source-box) {
+  background: var(--bg-inset);
+  border-color: var(--border-subtle);
+  border-radius: 10px;
+  box-shadow: none;
+}
+:root[data-appearance='acid'] .onboarding-starter-card {
+  background: #ffffff;
+  border-color: var(--border);
+  border-radius: 10px;
+}
+:root[data-appearance='acid'] .onboarding-starter-card:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+:root[data-appearance='acid'] .onboarding-step-pill {
+  background: #f1f4e9;
+  border-color: transparent;
+  border-radius: 8px;
+  padding: 5px 12px;
+}
+:root[data-appearance='acid'] .onboarding-step-pill.active {
+  background: #d9ec7b;
+  border-color: transparent;
+  color: #293a1e;
+}
+:root[data-appearance='acid'] .left-sidebar-foot > .btn.update-pill-btn {
+  background: #d9ec7b;
+  color: #293a1e;
+  border-color: transparent;
+  text-align: center;
+  justify-content: center;
+}
+:root[data-appearance='acid'] .left-sidebar-foot > .btn.update-pill-btn:hover {
+  background: #cee365;
+}
