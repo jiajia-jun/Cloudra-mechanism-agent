@@ -1,89 +1,30 @@
-# 运行透明度后端接口
+# 运行状态观测接口
 
-这些接口复用 runtime_v2 的持久化事件与中央计算账本，使用现有 API 身份验证。
-它们只读，不启动、重试或终止计算。前端可用现有项目 SSE 获取更新通知，再按需查询。
+下面几个只读接口用来给前端或外部监控查看“Agent 现在到底在干嘛、工具跑到哪一步、关联了哪些计算作业”。它们直接读 `runtime_v2` 事件日志和中央 `compute.db`，走现有 API Token 鉴权，不会启动、重试或取消任何计算。
 
-## 项目活动
+## 查看项目实时活动
 
 `GET /api/v2/projects/{project_id}/activity`
 
-返回 `project_id`、`as_of_seq`、`observed_at` 和 `agents`。
-每个 Agent 包含身份、父 Agent、运行状态、当前 run、`goal`、`activity`、
-`active_calls`、`waits`、最后一条相关事件引用、最后一次完成门禁、活跃计算与待触发提醒。
+返回 `project_id`、`as_of_seq`、`observed_at` 和每个 Agent 的当前快照，包括父子关系、运行状态、当前 `goal`、`activity`（如 `running_tool`、`waiting_model`、`waiting_approval`、`waiting_input`、`waiting_background`、`idle` 等）、未结束的工具调用 `active_calls`、明确的等待对象 `waits`、活跃计算作业和待触发提醒。
 
-- `active_calls` 包含当前 run 中全部未结束调用，支持并行 JS 子调用。
-- `activity` 区分 `running_tool`、`waiting`、`waiting_model`、`waiting_approval`、
-  `waiting_input`、`waiting_background`、`queued`、`idle`、`unknown`。
-- `waits` 是明确记录的等待目标，包含种类、目标 ID 与来源调用或事件。
-  父子关系本身不证明父 Agent 正在等待；活跃计算也不自动证明 Agent 已挂起。
-- 后台等待必须有对应已结束 run 的 `wait_background` 门禁；此时提供账本中的
-  活跃计算、待触发提醒作为唤醒来源。暂无来源时保持空列表，不猜测原因。
-- `goal` 来自既有目标文件；未设置时为 null，不由聊天文本推断。
-- `as_of_seq` 只对应事件快照，可用于衔接项目 SSE 的 cursor。计算账本和目标文件
-  在工作线程中随后读取；这不是跨多个存储的原子快照。`observed_at` 是完成读取时间。
-- 时间戳仅表示记录时间。没有新事件不证明进程死亡，也不触发卡死或失败判定。
+注意两点：
+- 这里有一说一：只有事件里明确记了等待对象才算在等，不会单凭父子关系或后台有计算就瞎猜它卡住了；
+- `as_of_seq` 用来衔接项目 SSE 流，没有新事件只说明这段时间安静，不代表进程死了。
 
-## 工具调用列表
+## 查看工具调用记录与详情
 
-`GET /api/v2/agents/{session_id}/tool-calls?limit=50&before=<session_seq>`
+- **分页列表**：`GET /api/v2/agents/{session_id}/tool-calls?limit=50&before=<session_seq>`（`limit` 范围 1–200，按时间倒序分页，每条摘要最多 500 字）。
+- **单条详情**：`GET /api/v2/agents/{session_id}/tool-calls/{request_event_id}`。
 
-返回 `items` 与 `next_before`，按请求时间倒序。`limit` 范围 1–200；`before`
-为排他游标，下一页使用 `next_before`，无更多记录时为 null。分页按调用次数，
-不会因中途日志多而丢掉一次调用的开始记录。
+注意每条调用的唯一地址是 **`request_event_id`**，而不是模型返回的 `tool_call_id`（后者在审批或重试时可能复用）。详情接口会返回完整原始入参 `arguments`、校验归一化后的 `effective_arguments`、完整原始输出 `result`、阶段进度 `progress`、原始事件列表以及关联的 `compute_jobs`（严格按项目隔离，不会漏出其他项目的作业）。
 
-每次请求用 **`request_event_id`** 标识。模型的 `tool_call_id` 可以跨 run 或审批
-重试复用，不能作为调用详情的唯一地址。新运行记录还会在阶段、原始结果和结束
-事件上携带请求事件 ID，使重叠调用也能准确关联。
+工具执行状态、副作用状态、计算作业状态和科学验证结论是分开记录的：比如 `submit_compute_job` 成功返回（`completed`）时，对应的量化作业可能还在排队（`ready`）；如果 run 异常中断导致工具没写结束事件，查询时会如实投影成 `status=interrupted`，但不会篡改底层事件或计算账本。
 
-列表提供工具名、run/JS 程序/调用编号、阶段、状态、起止/更新时间、耗时、结果摘要、
-副作用状态、错误、原始结果事件 ID、计算 ID 和已登记产物 ID。摘要最多 500 字符，
-`summary_truncated` 标明是否截短。完整输入输出只在详情中返回。
+## 实时阶段进度与单作业查询
 
-## 工具调用详情
+工具在执行过程中可以通过 `tool.progress` 事件汇报阶段（`validating` / `preparing` / `executing` / `submitting` / `waiting` / `parsing` / `postprocessing`）以及关联的 `compute_job_ids` 和 `waits`。事件先落盘再推 SSE，重放历史不会重新跑工具；只有工具真的汇报了阶段才展示，不会伪造假进度条。
 
-`GET /api/v2/agents/{session_id}/tool-calls/{request_event_id}`
+想查某一条计算作业的当前账本状态，直接调 `GET /api/v2/projects/{project_id}/compute/jobs/{job_id}`（未知或跨项目返回 404）。
 
-除列表字段外还包含：
-
-- `arguments`：原始完整参数；`effective_arguments`：工具适配器或执行器明确报告的
-  最新校验/归一化参数。不是对外部程序全部默认参数的推断。
-- `result`：完整的 `tool.result_recorded` 返回，包含原始 `data`，不以摘要替代。
-- `result_availability`：`pending`、`available` 或 `unavailable`。
-- `progress` 与 `events`：本次调用的阶段记录和原始事件，可定位到来源与时间。
-- `compute_jobs`：关联作业当前账本记录；`unavailable_compute_job_ids`：无法取得
-  的作业编号（缺失或不属于当前项目），不会返回其他项目的作业详情。
-
-工具状态、副作用状态、计算状态与科学验证结论必须分别展示。例如提交工具
-`completed` 时，计算可能仍为 `ready`；后处理失败时，工具可以是 `failed`，
-而 `effect_state=completed` 且原始结果仍可读取。run 已结束但工具未写结束记录时
-在内存中投影为 `status=interrupted`、`effect_state=unknown`，原始结果仍可读取。
-查询不追加工具结束事件，也不会据此修改计算账本；后续新 run 的调用保持原有状态。
-
-原始结果只关联到自己的调用尝试，不追随跨会话或其他尝试的任意事件 ID。
-原始事件接口 `GET /api/v2/agents/{session_id}/events/{event_id}` 继续可用。
-
-## 实时阶段与计算关联
-
-`tool.progress` 通过现有 EventWriter 先持久化再发布到项目 SSE，重放不会执行工具。
-阶段负载由 `ToolProgress`（Pydantic，拒绝多余字段）校验：
-
-- `phase`：validating / preparing / executing / submitting / waiting / parsing / postprocessing。
-- `message`：执行器报告的说明；`effective_arguments`：可选归一化参数。
-- `compute_job_ids`：正整数作业编号；`waits`：明确等待的 Agent 或计算作业。
-- 调用、请求事件与 JS 程序编号由运行时填写，工具不负责猜测关联关系。
-
-已接入通用工具的校验后参数记录、计算提交的准入/入库/同步等待阶段，以及
-同步子 Agent 调用（含 swarm）的等待目标。TS 工具通过原始结构化结果的
-`usage.jobs` / `waiting_for` 关联计算。普通提交通过阶段记录和 `job_id` 关联计算。
-其他工具目前可看到统一生命周期、参数和完整返回；内部细分阶段只有执行器主动
-报告时才存在，不生成虚假的进度百分比。
-
-`GET /api/v2/projects/{project_id}/compute/jobs/{job_id}` 返回单个作业的当前账本记录，
-包含节点、调度状态、资源和错误。未知项目/作业或跨项目访问返回 404。
-账本不存在时查询不创建它；数据库读取失败会报错，不冒充“没有作业”。
-
-## 验证
-
-相关测试位于 `test_api_v2_observability.py`、`test_runtime_v2_invocation.py`、
-`test_runtime_v2_subagent_bridge.py` 与 `test_compute.py`。
-覆盖完整结果、分页、并发归属、后台等待、事件重放、持久化失败和项目隔离。
+相关回归测试在 `test_api_v2_observability.py`、`test_runtime_v2_invocation.py`、`test_runtime_v2_subagent_bridge.py` 和 `test_compute.py`。

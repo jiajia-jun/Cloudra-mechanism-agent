@@ -2,50 +2,56 @@
 
 [English](CONFIGURATION.md) · [返回文档中心](README.md)
 
-先按[首页](../README_CN.md)完成安装。在全局设置中填写主 Agent 与协作 Agent 的提供商、模型名称和凭据；量子化学软件与计算节点按具体研究任务单独配置。
+装好 Cloudra 之后，大部分常用配置都能直接在网页里的 **全局设置（Global Settings）** 点完。这里补充命令行启动、远程访问、斜杠命令、联网搜索、Codex 登录和外部 MCP 服务的配置方法。
 
-## 服务与远程访问
+## 启动服务与远程访问
 
 ```bash
-cloudra                      # 构建前端并启动服务，自动打开浏览器
-cloudra web --skip-build     # 复用已构建的前端
-cloudra web --host 0.0.0.0   # 允许其他机器访问
+cloudra                      # 编译前端、启动服务并自动打开浏览器
+cloudra web --skip-build     # 跳过前端编译，直接启动
+cloudra web --host 0.0.0.0   # 监听所有网卡，允许局域网或远程访问
 ```
 
-默认监听 `127.0.0.1:8000`。远程访问时使用终端显示的 `#token=` 链接；任何能连接监听地址的机器都可以用此令牌访问。访问控制依赖 bearer token，`Authorization: Bearer …` 与 `?token=` 等价，适用于所有 HTTP 方法，不检查 Host。非本机监听时不要设置 `CLOUDRA_API_TOKEN=off`。
+服务默认只监听本机 `127.0.0.1:8000`。
 
-## 对话命令
+如果你把服务开在远程服务器上，启动后终端会打印一条带 `#token=` 的完整链接，直接用这条链接打开就能登录。接口鉴权只认这个令牌（请求头 `Authorization: Bearer …` 和 URL 参数 `?token=` 都可以，不限 HTTP 方法，也不挑 Host）。只要监听了非本机地址，就千万别把 `CLOUDRA_API_TOKEN` 设成 `off`。
 
-在主聊天框中键入 `/`，可以查看可用命令，支持键盘选择与 Tab 补全：
+## 聊天框里的斜杠命令
 
-- `/schedule [on|off]`：切换自主调度模式。开启后，没有有效自唤醒提醒的停止请求会被拦截，便于在长计算期间挂起并恢复研究。
-- `/goal <任务目标描述>`：为当前会话锚定核心研究目标。该目标经过多轮上下文压缩依然常驻。
-- `/yolo [on|off]`：切换自动审批（YOLO模式），由自动审批策略评估需要授权的操作；权限和科学证据要求仍然适用。
-- `/compact`：手动触发上下文结构化压缩，生成带文件交接指针的摘要并归档历史。
-- `/help`：快速呼出指令指南。
+在输入框里打 `/` 就能弹出命令菜单，支持方向键和 Tab 补全：
+
+- `/schedule [on|off]`：开关“自主值守”模式。打开后，如果后台还有长计算没完、Agent 却没设唤醒提醒就想停下来，系统会把它拦住，方便它在跑计算时安心休眠、算完自动醒来接着干。
+- `/goal <目标>`：把当前的核心研究目标钉死在上下文里，就算后面聊得很长、触发了上下文压缩也不会忘。
+- `/yolo [on|off]`：开关自动审批模式。开启后系统会用自动策略替你审常规操作，但基础权限红线和科学证据门槛不会放水。
+- `/compact`：手动压缩一遍历史对话，把旧内容归档成带文件路径交接信息的摘要，腾出上下文空间。
+- `/help`：列出所有可用命令。
 
 ## 联网搜索
 
-默认 `search` 使用 DeepSeek Search，`browser` 使用 DeepSeek Fetch 读取页面正文；截图与显式等待仍走浏览器。Search 与 Fetch 共用一把密钥，独立于语言模型。在全局设置中配置，或运行：
+默认情况下，搜索工具 `search` 走 DeepSeek Search，网页正文读取走 DeepSeek Fetch（需要截图或等待页面渲染时还是用真实浏览器）。这两个共用一把密钥，和你聊天用的大模型密钥互不相干。除了在全局设置里填，也可以用命令行配：
 
 ```bash
 cloudra config set search_provider deepseek
 cloudra config set deepseek_api_key YOUR_DEEPSEEK_API_KEY
 ```
 
-也支持 `CLOUDRA_SEARCH_PROVIDER` 和 `CLOUDRA_DEEPSEEK_API_KEY` 环境变量。可选提供商为 `deepseek`（默认）、`auto`、`tavily`、`brave`、`bing` 和 `duckduckgo`。指定提供商时，缺少凭据或请求失败会直接报错；`auto` 依次尝试 DeepSeek、Tavily、Brave、Bing 和 DuckDuckGo。Tavily 与 Brave 分别使用 `TAVILY_API_KEY`、`BRAVE_SEARCH_API_KEY`；非 DeepSeek 提供商继续通过浏览器读取页面正文。
+也支持环境变量 `CLOUDRA_SEARCH_PROVIDER` 和 `CLOUDRA_DEEPSEEK_API_KEY`。
 
-DeepSeek 模型原生搜索需显式开启；`native_search=auto` 仍使用独立搜索工具。开启方式：
+可选的搜索后端有 `deepseek`（默认）、`auto`、`tavily`、`brave`、`bing` 和 `duckduckgo`。指定某个具体后端时，缺密钥或请求失败会直接报错；选 `auto` 会按 DeepSeek → Tavily → Brave → Bing → DuckDuckGo 的顺序往下试。Tavily 和 Brave 的密钥分别读 `TAVILY_API_KEY` 和 `BRAVE_SEARCH_API_KEY`。非 DeepSeek 后端统一用浏览器抓网页正文。
+
+如果你想用 DeepSeek 模型自带的原生联网搜索，需要手动打开（默认 `native_search=auto` 仍走独立的 `search` 工具）：
 
 ```bash
 cloudra config set coordinator.native_search deepseek
 ```
 
-其他模型提供商保持原有原生搜索行为；在相应模型配置中设 `native_search=off` 可改用独立搜索工具。
+其他厂商的模型默认保留各自原本的原生搜索行为；想强制关掉原生搜索、统一走独立搜索工具，把对应槽位的 `native_search` 设成 `off` 就行。
 
-## ChatGPT / Codex 登录
+## ChatGPT / Codex 账号登录
 
-在全局设置中选择 **OpenAI Codex（ChatGPT 账号）**，点击登录按钮，在授权页面输入设备码，完成后保存主 Agent 或协作 Agent 的模型配置。二者共用 Cloudra 保存的账号登录。
+不想配 API Key，也可以直接用 ChatGPT 账号。在全局设置里把供应商选成 **OpenAI Codex（ChatGPT 账号）**，点登录按钮拿到设备码去网页授权，完成后保存主 Agent 或协作 Agent 配置就行，两个槽位共用同一个登录态。
+
+命令行也能直接配：
 
 ```bash
 cloudra auth codex login
@@ -57,15 +63,17 @@ cloudra auth codex status
 cloudra auth codex logout
 ```
 
-提供商别名也接受 `codex` 和 `openai_codex`。可用模型取决于账号权限；账号或工作区安全设置可能需要开启设备授权，见 [OpenAI 身份验证说明](https://developers.openai.com/codex/auth/)。
+供应商名字也认 `codex` 和 `openai_codex`。具体能用哪些模型取决于你的账号权限；如果账号或团队工作区默认关了设备码登录，需要先按 [OpenAI 认证说明](https://developers.openai.com/codex/auth/) 打开。
 
 ## 工具运行环境
 
-默认 JavaScript 协议需要 Node.js ≥ 22 及首页安装步骤中的宿主依赖。可选的 `traditional` 协议不使用 JS 宿主。调用协议和工具文档加载机制见[开发者说明](TOOL_PROTOCOLS.md)。
+Cloudra 默认用 JavaScript 协议让 Agent 编排工具调用，这需要本机有 **Node.js ≥ 22** 以及 `install.sh` 装好的宿主依赖。如果不想装 Node.js，可以在 Agent 设置里切换成 `traditional` 协议（每次调一个工具，不依赖 JS 宿主）。底层机制见[工具协议说明](TOOL_PROTOCOLS.md)。
 
-## 外部 MCP 工具
+## 接入外部 MCP 工具
 
-安装官方 SDK 依赖：`pip install 'cloudra[mcp]'`（`cloudra[all]` 已包含）。在 `cloudra config get config_file` 指向的 YAML 中加入连接配置，然后重启服务：
+如果你想把实验室自己的脚本或外部工具接进 Cloudra，先装好 MCP 依赖：`pip install 'cloudra[mcp]'`（装了 `cloudra[all]` 的已经自带）。
+
+然后运行 `cloudra config get config_file` 找到配置文件路径，往里面的 YAML 加一段 `mcp_servers` 并重启服务：
 
 ```yaml
 mcp_servers:
@@ -80,10 +88,8 @@ mcp_servers:
       Authorization: "Bearer your-token"
 ```
 
-本地连接必填 `command`，可选 `args: list[str]`、`env: dict[str, str]`、`cwd: str`；远程连接必填 `url`，可选 `headers: dict[str, str]`。两种连接分别使用 stdio 和 Streamable HTTP。服务名由配置键指定，工具名称和参数定义从服务自动获取。
+本地进程（stdio）必填 `command`，可选 `args`、`env`、`cwd`；远程服务（Streamable HTTP）必填 `url`，可选 `headers`。
 
-工具以 `mcp__服务__工具` 名称进入现有目录；名称含特殊字符或过长时，程序自动生成稳定名称。新建 Agent 按已有工具策略取得这些工具，按需读取完整契约，使用 JavaScript 或传统协议调用。用户按原方式交代任务即可。已有会话保留原工具列表；修改配置后重启并创建新会话或子 Agent。
+接入之后，外部工具会以 `mcp__服务名__工具名` 的形式自动出现在新建会话的工具目录里（名字太长或含特殊字符时程序会自动规整）。你照常在聊天框里提需求就行，不用记特殊语法。旧会话不会热加载新工具，改完配置重启后开新会话或新子 Agent 即可生效。
 
-每个连接可选 `permissions`，复用现有 `read/write/manage/script/destructive` 布尔字段；默认要求 `read` 和 `script`。需要审批的服务可设 `destructive: true`，沿用现有审批流程。远端工具注解不授予本地权限。配置显示和 CLI get/set 会隐藏连接凭据。
-
-文本、图片及结构化结果保留；图片进入现有工作区产物流程。外部工具返回成功代表工具执行成功，科学结论仍按现有证据标准验收。首版使用预配置鉴权头，不提供交互式 OAuth 或运行中配置热更新。
+权限方面，每个 MCP 服务都能配一个可选的 `permissions` 字段，复用 Cloudra 现有的 `read` / `write` / `manage` / `script` / `destructive` 开关（默认需要 `read` 和 `script`）。高风险服务加上 `destructive: true` 就会走人工审批。配置文件里的密钥在界面和 CLI 查询时都会自动打码隐藏。注意外部工具返回“执行成功”只说明程序跑通了，科学结论该怎么验收还是按 Cloudra 原本的证据标准来。

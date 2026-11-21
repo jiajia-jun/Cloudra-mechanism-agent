@@ -1,53 +1,52 @@
-# Tool protocols
+# Tool Protocols
 
 [Documentation](README_EN.md) · [Architecture](ARCHITECTURE.md)
 
-For developers integrating tools or changing agent execution. Installation requirements for users are in the [README](../README.md).
+This page is for developers working on tool integration or agent execution. For normal installation, see the [README](../README.md).
 
-## Invocation
+## `javascript` vs `traditional` Invocation
 
-The default protocol is `javascript`; `traditional` is a per-agent opt-in. With the default, the model submits one bounded JavaScript program (`js_exec`) per wire exchange that orchestrates capability-permitted tools and reports results with `text(value)`:
+Cloudra defaults to the **`javascript`** protocol; **`traditional`** is available per agent in settings.
+
+- **`javascript` (default)**: In each model turn, the agent sends one bounded JavaScript snippet (`js_exec`) that calls permitted tools and returns output with `text(value)`:
 
 ```js
 const result = await tools.log_parser({log_path: '/absolute/path/calculation.out'});
 text({call_id: result.call_id, ok: result.is_success, data: result.data});
 ```
 
-With `invocation_protocol: traditional` (Web UI agent settings, or the same field in a settings patch) the model instead issues one tool call per wire exchange and needs no JS host at all. Both protocols share the lifecycle and authority rules below; only the dispatch shape differs.
+- **`traditional`**: Classic one-tool-call-per-turn wire format, with no JS host required.
 
-### Tool documentation loading
+Both protocols enforce the exact same permissions, policy pipeline, and event recording—only the wire format differs:
 
-JavaScript agents retain a short directory of every permitted tool. The complete `get_tool_docs` and `update_memory` contracts are always included when those tools are available. Before the first real task in a new context, one temporary selection request chooses which additional complete contracts to preload. Selection considers relevant workflow guidance, planning, existing calculation or graph state, delivery checks and delegated results alongside execution tools; these are not all loaded by default. The default reuses the agent's effective model and credentials; it creates no additional agent. Read another current contract with `const r = await tools.get_tool_docs({names: ['log_parser']}); text(r.data.documents);`. Loading documentation does not grant permissions or limit calls to the initially selected tools. Traditional agents keep their full wire schemas.
+- Every `tools.*` call inside JS still goes through the full durable `request → policy → executor → raw result` pipeline. Top-level control tools (`stop`, `ask_user`, `schedule`) stay top-level only.
+- Each nested call resolves to `{call_id, is_success, summary, data, duration_ms}`. Normal tool failures resolve with `is_success: false`; policy blocks reject with a catchable `ToolCallError` (catching it never grants permission).
+- Protocol choice is frozen for the duration of a run; changing it takes effect on the next run.
+- Tool calls execute serially per agent even if the script uses `Promise.all`.
+- Every call receipt is persisted in `program.finished`, and the UI program card renders from those events. The JS heap is never checkpointed—if the server restarts mid-script, unfinished programs are marked interrupted and never auto-replayed.
 
-In **Global config → 工具说明加载**, choose **现有模型** or **语义筛选**. Semantic selection supports a configured Jev endpoint (per-tool probability) or an already deployed local Reranker endpoint (indexed relevance scores, such as a BGE service). Set each backend's own boundary and optional maximum number of documents. Jev requires its own credential; Reranker credentials are optional. Cloudra does not download models or manage these services. Keys are write-only: leaving a field blank preserves its stored value, while the clear button atomically switches to the existing model and clears that backend's key.
+## On-Demand Tool Documentation Loading
 
-Selection failure is recorded and shown in context; the main task can continue using the directory and on-demand reader. It does not switch backends automatically. Ordinary tasks, wakeups, approvals and process restores retain the initial selection; an explicit context reset selects again. Repeated contracts fold into name/version/reload references during context compaction. Changed contracts supersede older versions and must be reread. Settings apply to the first task of a new context, so changing them does not retrigger an existing selection.
+JavaScript agents always see a short directory of permitted tools plus the full schemas for `get_tool_docs` and `update_memory` (when permitted). Before the first real task in a fresh context, Cloudra runs one lightweight selection pass to preload the full docs for the most relevant tools; any other tool's current contract can be fetched on demand via `tools.get_tool_docs({names: ['...']})`. Loading docs never changes permissions. Traditional agents always receive full wire schemas.
 
-Use `PYTHONPATH=. python scripts/benchmarks/tool_document_selection.py --output /tmp/tool-documents.json` for document-token estimates without network calls. Add `--run llm`, `--run jev` or `--run reranker` to explicitly evaluate configured services on eight fixed tasks. The report accepts alternative useful tool sets and records missing/unrelated documents, service status, selection usage and latency. Token estimates exclude the rest of the agent prompt; this script executes no scientific tools and cannot establish task completion or scientific acceptance.
+In **Global Settings → Tool Documentation Loading**, you can choose between **Existing Model** (default, reuses the agent's current model) and **Semantic Selection** (calls a configured Jev endpoint or a local Reranker service such as BGE). Cloudra does not download or manage those services. API keys are write-only, and clearing a key atomically switches back to the existing model.
 
-- **Same lifecycle, same authority**: nested `tools.*` calls are real invocations through the same durable request → policy → executor → durable raw result pipeline as traditional calls. The protocol grants no extra authority — capabilities are rechecked at admission — and direct controls (`stop`, `ask_user`, `schedule`) remain top-level only.
-- **Uniform ToolResponse**: every nested call resolves `{call_id, is_success, summary, data, duration_ms}`. Business failures resolve with `is_success: false`; policy denials reject with a catchable `ToolCallError` (`code` such as `policy_blocked`, plus `stage` and host call id) — catching it grants no authority.
-- **Run-fixed setting**: the protocol is frozen when a run starts; changing the setting applies to the next run and never restarts or converts the active run.
-- **Serial backend**: the full tool lifecycle runs one call at a time per agent, even if the program uses `Promise.all`. No tool parallelism is claimed.
-- **Receipts, not hidden state**: `program.finished` records per-call receipts (`status`, `effect_state`, `raw_result_event_id`), program outputs and the sanitized error. The UI program card renders these events, and its source download is a snapshot of the durable `program.submitted` event.
-- **No heap recovery, no auto-rerun**: the JS process/heap is never checkpointed. A restart marks unfinished programs and calls interrupted without retrying side effects; a failed program returns one ordinary failed exchange, and a later model turn may submit a repaired program.
+If pre-selection fails, the error is surfaced in context and the agent simply continues using the directory and `get_tool_docs`. To benchmark selection quality and token cost offline, run `PYTHONPATH=. python scripts/benchmarks/tool_document_selection.py --output /tmp/tool-documents.json` (add `--run llm`, `--run jev`, or `--run reranker` to test live backends).
 
-### Installation
+## JS Host Setup & Security Boundary
 
-The guest runs in QuickJS-WASM inside a separate Node ≥ 22 process. Install the pinned host dependency once:
+The JS runner executes generated code inside QuickJS-WASM hosted by a separate Node ≥ 22 process. Install its pinned dependencies once:
 
 ```bash
 npm ci --prefix cloudra/runtime_v2/js_host --ignore-scripts --no-audit --no-fund
 ```
 
-Cloudra never runs npm during execution or server startup. Missing Node or dependency makes `javascript` runs (the default protocol) report `runtime_unavailable` with no silent fallback; `traditional` runs need no JS dependency at all. For an installed (pip) package, run the same command against `<site-packages>/cloudra/runtime_v2/js_host`.
+Cloudra never runs `npm` at runtime. If Node or the host package is missing, `javascript` runs fail loudly with `runtime_unavailable` instead of falling back silently.
 
-### Security boundary
+The threat model is a **single-user local workstation**: QuickJS-WASM, a killable child process, 64 KiB source cap, 1 MiB tool-result cap, CPU interrupts, a 15 s idle watchdog, `--max-old-space-size=128`, minimal env, and a fixed cwd outside workspaces. It is **not** a multi-tenant OS sandbox—do not run untrusted code on a machine you need isolated at the OS level.
 
-The supported threat model is a **local single-user runtime** containing untrusted generated JS within QuickJS-WASM, a killable process, and a hostile-input-checked bridge: 64 KiB source cap, bounded JSON-lines transport, 1 MiB tool-result cap, CPU interrupt checks, a 15 s idle watchdog, `--max-old-space-size=128` (a V8 heap hint, not an OS RSS limit), minimal environment, and a fixed cwd outside user workspaces. This is **not a hardened multi-tenant OS sandbox**: Node/engine vulnerabilities are residual risk, and minimal cwd/env cannot stop a compromised host from reading files. OS-level sandboxes/containers are explicitly out of scope — do not run programs you would not trust on this machine.
+## Codex Account Transport
 
-## Codex account transport
+ChatGPT / Codex OAuth tokens are stored separately in `<data_dir>/.codex_oauth.json` with owner-only permissions (`0600`), refreshed under a file lock, and never exposed to the Web UI or mixed with normal API keys.
 
-Cloudra stores its independent OAuth session in `.codex_oauth.json` under its configured data directory, with owner-only permissions. It refreshes expiring access tokens and saves rotated refresh tokens under a process lock. Status queries are read-only. Login credentials are never returned to the Web UI or saved as model API keys.
-
-Codex requests use the dedicated `https://chatgpt.com/backend-api/codex/responses` endpoint with `store=false`. Agent, compaction and auxiliary calls share this transport. The endpoint requires streaming; Cloudra also assembles a normal response for callers using `stream=false`. Generic sampling parameters (`temperature`, `top_p`) and output-token limits are omitted on this route.
+Requests go to `https://chatgpt.com/backend-api/codex/responses` with `store=false` (shared across agent turns, compaction, and helper calls). The endpoint always streams; Cloudra assembles a standard response when callers request non-streaming output, and omits unsupported sampling parameters (`temperature`, `top_p`, max output tokens).
