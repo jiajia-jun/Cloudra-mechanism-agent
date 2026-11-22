@@ -58,7 +58,7 @@ def cli(ctx, version, host, port, coordinator_model, coordinator_url, coordinato
         sys.exit(_launch_or_exit(_frontend_or_exit(), rebuild=False, skip_build=False,
                                  host=host, port=port))
 
-    if ctx.invoked_subcommand == "mcp":
+    if ctx.invoked_subcommand in {"mcp", "watchdog"}:
         return
 
     _apply_config_overrides(
@@ -118,7 +118,20 @@ def web(host, port, rebuild, skip_build):
 
 @cli.command(name="mcp")
 @click.option("--api-url", envvar="CLOUDRA_MCP_API_URL", help="已运行的 Cloudra API 地址。")
-def mcp_bridge(api_url):
+@click.option(
+    "--mode",
+    type=click.Choice(["host", "subagent"]),
+    default="host",
+    show_default=True,
+    help="MCP 模式：host（复用 Cloudra 工具与计算认领看门狗）或 subagent（委托给 Cloudra 自研 Agent）。",
+)
+@click.option(
+    "--owner-id",
+    envvar="CLOUDRA_MCP_OWNER_ID",
+    default=None,
+    help="host 模式下用于标识外部宿主归属的 ID（用于认领本宿主提交的计算作业）。",
+)
+def mcp_bridge(api_url, mode, owner_id):
     """通过 stdio 将通用 Agent 接到已运行的 Cloudra。"""
     import asyncio
 
@@ -129,9 +142,52 @@ def mcp_bridge(api_url):
             raise
         raise click.ClickException('请安装 MCP 依赖：pip install "cloudra[mcp]"') from None
     try:
-        asyncio.run(run(api_url))
+        asyncio.run(run(api_url, mode=mode, owner_id=owner_id))
     except RuntimeError as exc:
         raise click.ClickException(str(exc)) from exc
+
+
+@cli.command(name="watchdog")
+@click.option(
+    "--hook",
+    type=click.Choice(["stop", "pre-invocation", "status"]),
+    default="stop",
+    show_default=True,
+    help="宿主生命周期钩子类型：stop、pre-invocation 或只读 status。",
+)
+@click.option("--api-url", envvar="CLOUDRA_MCP_API_URL", help="已运行的 Cloudra API 地址。")
+@click.option("--project-id", default=None, help="可选：仅检查指定项目的计算作业。")
+@click.option("--owner-id", envvar="CLOUDRA_MCP_OWNER_ID", default=None, help="可选：仅检查指定宿主的作业。")
+def watchdog_cmd(hook, api_url, project_id, owner_id):
+    """计算任务认领看门狗（供 Antigravity hooks.json 等宿主钩子调用）。"""
+    import json
+
+    from cloudra.services.watchdog import (
+        evaluate_pre_invocation_hook,
+        evaluate_stop_hook,
+        fetch_watchdog_status,
+    )
+
+    raw_stdin = "" if sys.stdin.isatty() else sys.stdin.read().strip()
+    try:
+        hook_input = json.loads(raw_stdin) if raw_stdin else {}
+    except ValueError:
+        hook_input = {}
+    if not isinstance(hook_input, dict):
+        hook_input = {}
+
+    status = fetch_watchdog_status(
+        api_url=api_url,
+        project_id=project_id,
+        owner_id=owner_id,
+    )
+    if hook == "status":
+        output = status or {"active_jobs": [], "unclaimed_terminal_jobs": [], "reachable": False}
+    elif hook == "pre-invocation":
+        output = evaluate_pre_invocation_hook(hook_input, status=status)
+    else:
+        output = evaluate_stop_hook(hook_input, status=status)
+    click.echo(json.dumps(output, ensure_ascii=False))
 
 
 def _login_codex_account() -> None:

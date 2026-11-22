@@ -1,0 +1,18 @@
+{
+  "cloudra-compute-watchdog": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "cloudra watchdog --hook pre-invocation",
+        "timeout": 10
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "cloudra watchdog --hook stop",
+        "timeout": 10
+      }
+    ]
+  }
+}

@@ -2,6 +2,18 @@
   "name": "cloudra",
   "plugins": [
     {
+      "name": "cloudra",
+      "source": {
+        "source": "local",
+        "path": "./plugins/cloudra"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    },
+    {
       "name": "cloudra-subagent",
       "source": {
         "source": "local",

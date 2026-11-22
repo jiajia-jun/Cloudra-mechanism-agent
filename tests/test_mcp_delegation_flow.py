@@ -27,15 +27,29 @@ def test_mcp_cli_command_is_registered():
     result = CliRunner().invoke(cli, ["mcp", "--help"])
     assert result.exit_code == 0, result.output
     assert "--api-url" in result.output
+    assert "--mode" in result.output
+
+    watchdog_help = CliRunner().invoke(cli, ["watchdog", "--help"])
+    assert watchdog_help.exit_code == 0, watchdog_help.output
+    assert "--hook" in watchdog_help.output
 
 
 def test_agy_mcp_config_matches_codex_mcp_manifest():
-    codex_cfg = json.loads((ROOT / "plugins/cloudra-subagent/mcp.json").read_text())
-    agy_cfg = json.loads((ROOT / "plugins/cloudra-subagent/mcp_config.json").read_text())
-    codex_server = codex_cfg["mcpServers"]["cloudra"]
-    agy_server = agy_cfg["mcpServers"]["cloudra"]
-    assert agy_server["command"] == codex_server["command"]
-    assert agy_server["args"] == codex_server["args"]
+    for plugin_dir, server_name, expected_args in (
+        ("plugins/cloudra", "cloudra", ["mcp"]),
+        ("plugins/cloudra-subagent", "cloudra-subagent", ["mcp", "--mode", "subagent"]),
+    ):
+        codex_cfg = json.loads((ROOT / plugin_dir / "mcp.json").read_text())
+        agy_cfg = json.loads((ROOT / plugin_dir / "mcp_config.json").read_text())
+        codex_server = codex_cfg["mcpServers"][server_name]
+        agy_server = agy_cfg["mcpServers"][server_name]
+        assert agy_server["command"] == codex_server["command"] == "cloudra"
+        assert agy_server["args"] == codex_server["args"] == expected_args
+
+    hooks_cfg = json.loads((ROOT / "plugins/cloudra/hooks.json").read_text())
+    watchdog_hook = hooks_cfg["cloudra-compute-watchdog"]
+    assert watchdog_hook["Stop"][0]["command"] == "cloudra watchdog --hook stop"
+    assert watchdog_hook["PreInvocation"][0]["command"] == "cloudra watchdog --hook pre-invocation"
 
 
 @pytest.mark.asyncio
@@ -82,7 +96,7 @@ async def test_mcp_plugin_stdio_delegates_to_live_cloudra(tmp_path, monkeypatch)
     harness = await asyncio.to_thread(ScenarioHarness, tmp_path, provider=provider)
     app = create_v2_app(core=harness.core)
     config_path = ROOT / "plugins/cloudra-subagent/mcp.json"
-    launch = json.loads(config_path.read_text())["mcpServers"]["cloudra"]
+    launch = json.loads(config_path.read_text())["mcpServers"]["cloudra-subagent"]
 
     lock_path = runtime_api_lock_path(harness.store.path)
     with locked(lock_path), socket.socket() as listener:

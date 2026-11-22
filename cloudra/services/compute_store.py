@@ -1053,3 +1053,69 @@ def mark_notified(db: ComputeDB, task_id: int) -> None:
             con.commit()
 
     retry_on_locked(write)
+
+
+def list_session_compute_jobs(
+    db: ComputeDB,
+    *,
+    session_id: Optional[str] = None,
+    session_prefix: Optional[str] = None,
+    conversation_id: Optional[str] = None,
+    states: Optional[tuple[str, ...]] = None,
+    unclaimed_only: bool = False,
+    limit: Optional[int] = None,
+) -> list[dict]:
+    """按提交 session（精确或前缀）查询作业；供外部宿主计算认领看门狗使用。"""
+    if not _db_ready(db):
+        return []
+    clauses: list[str] = []
+    params: list[Any] = []
+    if session_id is not None:
+        clauses.append("session_id=?")
+        params.append(session_id)
+    elif session_prefix is not None:
+        clauses.append("session_id LIKE ? ESCAPE '\\'")
+        escaped = session_prefix.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        params.append(f"{escaped}%")
+    if conversation_id is not None:
+        clauses.append("conversation_id=?")
+        params.append(conversation_id)
+    if states is not None:
+        if not states:
+            return []
+        placeholders = ",".join("?" for _ in states)
+        clauses.append(f"state IN ({placeholders})")
+        params.extend(states)
+    if unclaimed_only:
+        clauses.append("notified_at IS NULL")
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    sql = f"SELECT {_SELECT_COLUMNS} FROM compute_jobs{where} ORDER BY id DESC"
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(int(limit))
+
+    def read() -> list[dict]:
+        with db.connect() as con:
+            return [_row_dict(row) for row in con.execute(sql, params).fetchall()]
+
+    return retry_on_locked(read)
+
+
+def claim_terminal_job(db: ComputeDB, task_id: int) -> bool:
+    """原子认领一条已终态且未通知的计算作业（CAS 写 notified_at）。"""
+    if not _db_ready(db):
+        return False
+    placeholders = ",".join("?" for _ in TERMINAL_STATES)
+    sql = (
+        f"UPDATE compute_jobs SET notified_at=? "
+        f"WHERE id=? AND state IN ({placeholders}) AND notified_at IS NULL"
+    )
+    params = (time.time(), task_id, *TERMINAL_STATES)
+
+    def write() -> bool:
+        with db.connect() as con:
+            cur = con.execute(sql, params)
+            con.commit()
+            return cur.rowcount == 1
+
+    return retry_on_locked(write)

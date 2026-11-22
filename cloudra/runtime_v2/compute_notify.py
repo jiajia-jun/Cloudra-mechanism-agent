@@ -268,6 +268,10 @@ class ComputeNotifyBroker:
             if not complete:
                 self._snapshot_retries[task_id] = (project_id, session_id, False)
 
+            if isinstance(session_id, str) and session_id.startswith("host:"):
+                # External host-mode sessions claim terminal compute jobs via the
+                # host watchdog/claim API; never divert them to an internal coordinator.
+                return None
             if isinstance(session_id, str) and session_id in self.core.agents:
                 target_id = session_id
             else:
