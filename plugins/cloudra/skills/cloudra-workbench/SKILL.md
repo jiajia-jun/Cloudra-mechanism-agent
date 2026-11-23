@@ -1,18 +1,22 @@
 ---
 name: cloudra-workbench
-description: Act directly as Cloudra using a running local Cloudra service via the `cloudra` MCP server — call Cloudra's chemistry/compute tools, optionally enable DAG mode, and claim finished compute jobs tracked by the watchdog.
+description: Route tasks on a running local Cloudra service via the `cloudra` MCP server — choose the right chemistry/compute stack (QM, MD, or periodic first-principles), keep DAG mode optional, and claim finished compute jobs via the watchdog.
 ---
 
 # Cloudra Host Workbench (`cloudra` MCP)
 
-Use this skill when the user wants you to run chemistry tools, quantum-chemistry / MD compute jobs, or optional DAG-guided mechanism workflows directly through the local Cloudra service using your own model/subscription instead of delegating to Cloudra's internal runtime.
+Use this skill as the entry point when acting directly as Cloudra over a running local Cloudra service.
 
-1. **Select or create a project**: Call `list_projects` to reuse an existing project, or `create_project` with a name (and optional `workspace_dir`).
-2. **DAG mode is optional**: Projects start in `standard` mode (`enable_dag=false`) so non-computational or ad-hoc tasks incur zero DAG overhead. Only set `enable_dag=true` (or call `set_project_dag_mode`) when the user is doing a formal reaction-mechanism study that benefits from Cloudra's delivery graph.
-3. **Discover and invoke Cloudra tools**: Call `list_cloudra_tools` (pass `include_dag=true` only when DAG mode is enabled; pass `include_schemas=true` or invoke `get_tool_docs` for exact parameter contracts), then execute tools through `run_cloudra_tool(project_id, tool_name, arguments)`.
-4. **Compute job lifecycle & watchdog claiming**:
-   - Jobs submitted via `submit_compute_job` (or TS pipelines) run under Cloudra's detached scheduler/guards and remain alive even if your host session pauses or restarts. Never kill running compute processes; cancel only via `cancel_compute_job`.
-   - Use `watchdog_compute_status` to inspect active jobs and finished jobs awaiting claim.
-   - When the watchdog reports finished compute jobs (or on wake-up), call `claim_compute_jobs` to atomically claim them, inspect their `log_path` / `state` / `last_error`, and parse results with `log_parser` or other Cloudra tools.
-   - If you have active long-running jobs, schedule a background check/timer rather than polling in a tight loop or abandoning them.
-5. **Scientific decisions stay with the user**: Never silently choose chemical methods, functionals, basis sets, or energy thresholds on the user's behalf; confirm scientific choices before submitting formal calculations.
+1. **Route by task type first (do not mix stacks)**:
+   - **Non-computational / general tasks**: Do not force DAG mode or compute tooling; when no compute jobs are submitted, the compute watchdog stays completely silent.
+   - **Small-molecule quantum chemistry, conformers, spectra, TS & reaction mechanisms (Gaussian / ORCA / xTB)** -> activate `cloudra-qm` and query tools with `list_cloudra_tools(domain="qm")`.
+   - **Molecular dynamics, solvent boxes, protein PDB prep & trajectory analysis (GROMACS / Packmol / PDB)** -> activate `cloudra-md` and query tools with `list_cloudra_tools(domain="md")`.
+   - **Periodic crystals, surfaces/slabs, defects, adsorption & periodic NEB first-principles (VASP / CP2K)** -> activate `cloudra-periodic` and query tools with `list_cloudra_tools(domain="periodic")`.
+   - **Full autonomous delegation to Cloudra's own runtime**: use the separate `cloudra-subagent` plugin instead.
+2. **Select or create a project**: Call `list_projects` or `create_project(name=..., workspace_dir=...)`. Projects default to `standard` mode (`enable_dag=false`). Only enable optional DAG mode (`enable_dag=true` or `set_project_dag_mode`) when the user wants a formal mechanism delivery graph, then inspect DAG tools via `list_cloudra_tools(domain="dag")`.
+3. **Use native plugin skills & tool contracts on demand**: Cloudra's domain guides (`dft-calculation`, `molecular-dynamics-simulation`, `first-principles-calculation`, `reaction-mechanisms`, `ts-initial-guess`, `molecular-docking`, `dag-operations`, `peer-review-standards`) are bundled directly in this plugin for your host harness's native skill loader. Use `get_tool_docs` before constructing unfamiliar tool arguments.
+4. **Compute jobs & watchdog claiming**:
+   - Detached compute jobs stay alive under Cloudra's scheduler/guards. Never kill running compute processes; cancel only via `cancel_compute_job`.
+   - Inspect status with `watchdog_compute_status` and claim finished jobs atomically with `claim_compute_jobs`, then parse outputs with `log_parser` or domain-specific analysis tools.
+   - When active jobs are running, schedule a background check/timer instead of polling in a tight loop or abandoning them.
+5. **Scientific decisions stay with the user**: Confirm functionals, basis sets, force fields, pseudopotentials, and energy/convergence thresholds with the user before formal submissions.

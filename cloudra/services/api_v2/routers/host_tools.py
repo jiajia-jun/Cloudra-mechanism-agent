@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cloudra.persistence.database import ComputeDB
 from cloudra.services.host_bridge import (
+    HostToolDomain,
     aclaim_host_compute,
     ainspect_host_compute,
     execute_host_tool,
@@ -39,11 +40,13 @@ def build_router(ctx: ApiContext) -> APIRouter:
 
     @router.get("/api/v2/host/tools", dependencies=ctx.protected)
     async def host_list_tools(
+        domain: HostToolDomain = "all",
         include_dag: bool = False,
         include_schemas: bool = True,
     ) -> dict[str, Any]:
         tools = await asyncio.to_thread(
             list_host_tools,
+            domain=domain,
             include_dag=include_dag,
             include_schemas=include_schemas,
         )

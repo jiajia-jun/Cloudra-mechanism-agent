@@ -159,6 +159,7 @@ class _SetProjectDagMode(_Project):
 
 
 class _ListCloudraTools(_Input):
+    domain: Literal["all", "qm", "md", "periodic", "dag"] = "all"
     include_dag: bool = False
     include_schemas: bool = False
 
@@ -467,11 +468,12 @@ def build_host_server(client: httpx.AsyncClient, *, owner_id: str | None = None)
 
     @server.operation(_ListCloudraTools, HostToolCatalog, read_only=True)
     async def list_cloudra_tools(args: _ListCloudraTools) -> HostToolCatalog:
-        """List available Cloudra chemistry/compute tools (DAG tools are opt-in via include_dag=true)."""
+        """List available Cloudra tools, optionally filtered by domain ('qm', 'md', 'periodic', 'dag', or 'all')."""
         return await server.json_request(
             "GET",
             "/api/v2/host/tools",
             params={
+                "domain": args.domain,
                 "include_dag": args.include_dag,
                 "include_schemas": args.include_schemas,
             },

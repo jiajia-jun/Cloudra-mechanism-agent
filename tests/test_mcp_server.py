@@ -253,7 +253,7 @@ async def test_host_server_exposes_tools_optional_dag_and_compute_claim():
         }
         created = await server.call_tool("create_project", {"name": "demo"})
         assert created.structured_content["orchestration_mode"] == "standard"
-        listed = await server.call_tool("list_cloudra_tools", {})
+        listed = await server.call_tool("list_cloudra_tools", {"domain": "qm"})
         assert listed.structured_content["tools"][0]["name"] == "log_parser"
         ran = await server.call_tool("run_cloudra_tool", {
             "project_id": "P1", "tool_name": "log_parser", "arguments": {"path": "a.log"},

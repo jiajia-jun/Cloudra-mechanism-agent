@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import ValidationError
 
@@ -35,6 +35,42 @@ if TYPE_CHECKING:
 
 HOST_SESSION_PREFIX = "host:"
 DEFAULT_HOST_OWNER = "default"
+HostToolDomain = Literal["all", "qm", "md", "periodic", "dag"]
+
+_MD_TOOLS: frozenset[str] = frozenset(
+    {
+        "md_box",
+        "md_energy",
+        "md_trajectory",
+        "md_rmsd",
+        "md_rmsf",
+        "md_rdf",
+        "md_msd",
+        "pdb_inspect",
+        "pdb_clean",
+    }
+)
+
+_PERIODIC_TOOLS: frozenset[str] = frozenset(
+    {
+        "periodic_model",
+        "periodic_ts",
+    }
+)
+
+_COMMON_HOST_TOOLS: frozenset[str] = frozenset(
+    {
+        "get_tool_docs",
+        "submit_compute_job",
+        "query_compute_job",
+        "query_compute_queue",
+        "cancel_compute_job",
+        "mark_compute_job_failed",
+        "format_converter",
+        "log_parser",
+        "pymol_render",
+    }
+)
 
 # General-purpose / internal runtime orchestration tools that belong to the
 # host agent itself or Cloudra's internal multi-agent kernel rather than the
@@ -50,6 +86,7 @@ _HOST_EXCLUDED_TOOLS: frozenset[str] = frozenset(
         "stop",
         "ask_user",
         "schedule",
+        "get_skill",
         "subagent_launcher",
         "subagent_swarm",
         "get_subagent_report",
@@ -97,29 +134,66 @@ def _is_dag_tool(tool_name: str) -> bool:
     return tool_name.startswith("dag_")
 
 
-def _host_tool_entries(*, include_dag: bool = False) -> list[ToolEntry]:
+def classify_host_tool_domain(tool_name: str) -> Literal["common", "qm", "md", "periodic", "dag"]:
+    """Classify an exposed host tool into its primary technical stack."""
+    if _is_dag_tool(tool_name):
+        return "dag"
+    if tool_name in _COMMON_HOST_TOOLS:
+        return "common"
+    if tool_name in _MD_TOOLS:
+        return "md"
+    if tool_name in _PERIODIC_TOOLS:
+        return "periodic"
+    return "qm"
+
+
+def _host_tool_entries(
+    *,
+    domain: HostToolDomain = "all",
+    include_dag: bool = False,
+) -> list[ToolEntry]:
+    if domain not in {"all", "qm", "md", "periodic", "dag"}:
+        raise ValueError(f"Unsupported host tool domain: {domain!r}")
     entries: list[ToolEntry] = []
     for entry in get_tools_lst():
         name = entry.tool_name
         if name in _HOST_EXCLUDED_TOOLS or name in _HOST_EXCLUDED_DAG_TOOLS:
             continue
-        if _is_dag_tool(name) and not include_dag:
-            continue
         if entry.cls is None:
             continue
+        tool_domain = classify_host_tool_domain(name)
+        if domain == "dag":
+            if tool_domain != "dag":
+                continue
+        elif domain == "all":
+            if tool_domain == "dag" and not include_dag:
+                continue
+        else:
+            if tool_domain == "dag":
+                if not include_dag:
+                    continue
+            elif tool_domain not in {"common", domain}:
+                continue
         entries.append(entry)
     return entries
 
 
-def list_host_tools(*, include_dag: bool = False, include_schemas: bool = True) -> list[dict[str, Any]]:
+def list_host_tools(
+    *,
+    domain: HostToolDomain = "all",
+    include_dag: bool = False,
+    include_schemas: bool = True,
+) -> list[dict[str, Any]]:
     """Project Cloudra's authoritative tool catalog for external host agents."""
     out: list[dict[str, Any]] = []
-    for entry in _host_tool_entries(include_dag=include_dag):
+    for entry in _host_tool_entries(domain=domain, include_dag=include_dag):
+        tool_domain = classify_host_tool_domain(entry.tool_name)
         item: dict[str, Any] = {
             "name": entry.tool_name,
+            "domain": tool_domain,
             "summary": entry.summary or entry.tool_description[:160],
             "description": entry.tool_description,
-            "dag_only": _is_dag_tool(entry.tool_name),
+            "dag_only": tool_domain == "dag",
         }
         if include_schemas:
             item["input_schema"] = (

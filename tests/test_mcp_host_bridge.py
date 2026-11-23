@@ -34,6 +34,7 @@ async def test_host_tools_catalog_hides_dag_and_runtime_controls_by_default(tmp_
         assert "get_tool_docs" in default_names
         # Host-owned generic tools and internal orchestration stay hidden.
         assert "bash" not in default_names
+        assert "get_skill" not in default_names
         assert "subagent_launcher" not in default_names
         # DAG tools are opt-in because DAG mode is optional.
         assert not any(name.startswith("dag_") for name in default_names)
@@ -43,6 +44,35 @@ async def test_host_tools_catalog_hides_dag_and_runtime_controls_by_default(tmp_
         dag_names = {t["name"] for t in dag_resp.json()["tools"]}
         assert "dag_view" in dag_names
         assert "dag_review_step" not in dag_names
+
+        # Domain filtering isolates QM, MD, Periodic, and DAG stacks while keeping common tools.
+        qm_resp = await http.get("/api/v2/host/tools", params={"domain": "qm"})
+        assert qm_resp.status_code == 200
+        qm_names = {t["name"] for t in qm_resp.json()["tools"]}
+        assert {"qm_input_writer", "ts_prepare", "submit_compute_job", "log_parser"} <= qm_names
+        assert "md_box" not in qm_names
+        assert "periodic_model" not in qm_names
+        assert "dag_view" not in qm_names
+
+        md_resp = await http.get("/api/v2/host/tools", params={"domain": "md"})
+        assert md_resp.status_code == 200
+        md_names = {t["name"] for t in md_resp.json()["tools"]}
+        assert {"md_box", "md_rmsd", "pdb_clean", "submit_compute_job"} <= md_names
+        assert "qm_input_writer" not in md_names
+        assert "periodic_model" not in md_names
+
+        periodic_resp = await http.get("/api/v2/host/tools", params={"domain": "periodic"})
+        assert periodic_resp.status_code == 200
+        periodic_names = {t["name"] for t in periodic_resp.json()["tools"]}
+        assert {"periodic_model", "periodic_ts", "submit_compute_job", "format_converter"} <= periodic_names
+        assert "qm_input_writer" not in periodic_names
+        assert "md_box" not in periodic_names
+
+        dag_only_resp = await http.get("/api/v2/host/tools", params={"domain": "dag"})
+        assert dag_only_resp.status_code == 200
+        dag_only_names = {t["name"] for t in dag_only_resp.json()["tools"]}
+        assert "dag_view" in dag_only_names
+        assert all(name.startswith("dag_") for name in dag_only_names)
 
 
 @pytest.mark.asyncio

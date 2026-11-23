@@ -3,6 +3,7 @@
 Turn your host agent (Antigravity, Codex, etc.) into Cloudra by connecting it directly to a running local Cloudra service:
 
 - Reuses Cloudra's authoritative chemistry/compute tools, detached calculation scheduler/guards, and optional DAG ledger.
+- Splits skills and `list_cloudra_tools(domain=...)` by technical stack — `qm` (Gaussian/ORCA/xTB), `md` (GROMACS/Packmol/PDB), and `periodic` (VASP/CP2K) — with `cloudra-workbench` routing tasks to the right stack on demand.
 - Runs on your host agent's own model / subscription (no separate Cloudra LLM runtime required).
 - Keeps **DAG mode optional** (`standard` by default) so general tasks are never blocked by mechanism-graph gates.
 - Includes a lightweight **compute-job claim watchdog** (`hooks.json` -> `cloudra watchdog`) that stays completely silent when no compute jobs exist, reminds you when finished jobs await claiming, and prevents abandoning active detached calculations.
