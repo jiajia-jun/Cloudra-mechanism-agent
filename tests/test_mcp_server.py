@@ -5,13 +5,18 @@ import pytest
 
 pytest.importorskip("mcp.server")
 
-from cloudra.services.mcp_server import build_server, resolve_connection
+from cloudra.services.mcp_server import (
+    build_host_server,
+    build_server,
+    build_subagent_server,
+    resolve_connection,
+)
 
 
 @pytest.mark.asyncio
 async def test_discovery_exposes_flat_strict_tool_arguments():
     async with httpx.AsyncClient() as client:
-        tools = {tool.name: tool for tool in await build_server(client).list_tools()}
+        tools = {tool.name: tool for tool in await build_subagent_server(client).list_tools()}
 
     assert set(tools) == {
         "list_projects", "start_task", "send_message", "answer_question",
@@ -49,7 +54,7 @@ async def test_invalid_tool_arguments_fail_before_http_without_echoing_values(to
         pytest.fail("invalid tool arguments reached the HTTP service")
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
-        result = await build_server(client).call_tool(tool, arguments)
+        result = await build_subagent_server(client).call_tool(tool, arguments)
 
     assert result.is_error
     assert result.structured_content["code"] == "invalid_request"
@@ -92,7 +97,7 @@ async def test_read_and_message_tools_route_to_existing_service():
     async with httpx.AsyncClient(
         base_url="http://127.0.0.1:8000", transport=httpx.MockTransport(respond)
     ) as client:
-        server = build_server(client)
+        server = build_subagent_server(client)
         projects = await server.call_tool("list_projects", {})
         progress = await server.call_tool("get_progress", {"project_id": "P", "include_process": False})
         agent_progress = await server.call_tool("get_agent_progress", {
@@ -145,7 +150,7 @@ async def test_partial_start_retains_recovery_project_without_repeating_the_writ
         headers={"Authorization": "Bearer private-api-token"},
         transport=httpx.MockTransport(respond),
     ) as client:
-        result = await build_server(client).call_tool("start_task", {"name": "study", "task": "explore"})
+        result = await build_subagent_server(client).call_tool("start_task", {"name": "study", "task": "explore"})
 
     assert attempts == [{"name": "study", "task": "explore"}]
     assert result.is_error
@@ -165,7 +170,7 @@ async def test_artifact_resource_download_uses_project_scope_and_preserves_conte
     async with httpx.AsyncClient(
         base_url="http://127.0.0.1:8000", transport=httpx.MockTransport(respond)
     ) as client:
-        server = build_server(client)
+        server = build_subagent_server(client)
         templates = await server.list_resource_templates()
         assert [template.uri_template for template in templates] == [
             "cloudra://projects/{project_id}/artifacts/{artifact_id}",
@@ -189,24 +194,75 @@ def test_remote_connection_never_uses_installation_token(monkeypatch):
 
 
 def test_missing_local_owner_does_not_fall_back_to_a_guessed_address(monkeypatch):
-    from cloudra.services import mcp_server
+    from cloudra.services import local_api_client
 
-    monkeypatch.setattr(mcp_server, "find_store_owner", lambda _: None)
+    monkeypatch.setattr(local_api_client, "find_store_owner", lambda _: None)
     with pytest.raises(RuntimeError, match="running Cloudra"):
         resolve_connection(None)
 
 
 def test_adapter_reads_existing_installation_token_without_creating_a_token(monkeypatch, tmp_path):
-    from cloudra.services import mcp_server
+    from cloudra.services import local_api_client
     from cloudra.services.runtime_ownership import StoreOwner
 
     token_path = tmp_path / ".api_token"
     monkeypatch.delenv("CLOUDRA_API_TOKEN", raising=False)
-    monkeypatch.setattr(mcp_server.paths, "api_token_path", lambda: token_path)
-    monkeypatch.setattr(mcp_server, "find_store_owner", lambda _: StoreOwner(123, 8765, False))
+    monkeypatch.setattr(local_api_client.paths, "api_token_path", lambda: token_path)
+    monkeypatch.setattr(local_api_client, "find_store_owner", lambda _: StoreOwner(123, 8765, False))
 
     assert resolve_connection(None) == ("http://127.0.0.1:8765", None)
     assert not token_path.exists()
 
     token_path.write_text("test-token\n", encoding="utf-8")
     assert resolve_connection(None) == ("http://127.0.0.1:8765", "test-token")
+
+
+@pytest.mark.asyncio
+async def test_host_server_exposes_tools_optional_dag_and_compute_claim():
+    requests = []
+
+    def respond(request):
+        requests.append((request.method, str(request.url), json.loads(request.content or "null")))
+        if request.url.path == "/api/v2/projects" and request.method == "POST":
+            return httpx.Response(201, json={
+                "accepted": True,
+                "data": {
+                    "id": "P1", "name": "demo", "workspace_dir": "/tmp/ws",
+                    "settings": {"orchestration_mode": "standard"},
+                },
+            })
+        if request.url.path == "/api/v2/host/tools":
+            return httpx.Response(200, json={"tools": [{"name": "log_parser", "summary": "Parse logs", "dag_only": False}]})
+        if request.url.path == "/api/v2/projects/P1/host/tools/log_parser":
+            return httpx.Response(200, json={"tool_name": "log_parser", "is_success": True, "data": {}, "summary": "{}"})
+        if request.url.path == "/api/v2/host/compute/watchdog":
+            return httpx.Response(200, json={"active_jobs": [], "unclaimed_terminal_jobs": [{"job_id": 7}]})
+        if request.url.path == "/api/v2/host/compute/claim":
+            return httpx.Response(200, json={"claimed_jobs": [{"job_id": 7}], "active_jobs": []})
+        return httpx.Response(200, json=[])
+
+    async with httpx.AsyncClient(
+        base_url="http://127.0.0.1:8000", transport=httpx.MockTransport(respond)
+    ) as client:
+        server = build_host_server(client, owner_id="agy-session")
+        tools = {tool.name for tool in await server.list_tools()}
+        assert tools == {
+            "list_projects", "create_project", "set_project_dag_mode",
+            "list_cloudra_tools", "run_cloudra_tool",
+            "watchdog_compute_status", "claim_compute_jobs",
+        }
+        created = await server.call_tool("create_project", {"name": "demo"})
+        assert created.structured_content["orchestration_mode"] == "standard"
+        listed = await server.call_tool("list_cloudra_tools", {"domain": "qm"})
+        assert listed.structured_content["tools"][0]["name"] == "log_parser"
+        ran = await server.call_tool("run_cloudra_tool", {
+            "project_id": "P1", "tool_name": "log_parser", "arguments": {"path": "a.log"},
+        })
+        assert ran.structured_content["is_success"] is True
+        watched = await server.call_tool("watchdog_compute_status", {"project_id": "P1"})
+        assert len(watched.structured_content["unclaimed_terminal_jobs"]) == 1
+        claimed = await server.call_tool("claim_compute_jobs", {"project_id": "P1", "job_ids": [7]})
+        assert claimed.structured_content["claimed_jobs"] == [{"job_id": 7}]
+
+    assert build_server(client, mode="host").name == "cloudra"
+    assert build_server(client, mode="subagent").name == "cloudra-subagent"

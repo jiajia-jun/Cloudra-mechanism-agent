@@ -1,12 +1,22 @@
-"""Stdio MCP adapter for an already running Cloudra API."""
+"""Stdio MCP adapters for an already running Cloudra API.
+
+Two complementary server modes share one running Cloudra service:
+
+- ``host`` (server name ``cloudra``, default for ``cloudra mcp``):
+  Lets an external agent (Antigravity, Codex, Claude Code, etc.) act as the
+  reasoning brain while directly calling Cloudra's authoritative chemistry /
+  compute tools, optional DAG mode, and compute-job claim watchdog.
+- ``subagent`` (server name ``cloudra-subagent``, ``cloudra mcp --mode subagent``):
+  Delegates full mechanism research tasks to Cloudra's own ``runtime_v2``
+  agents and retrieves progress, interactions, and final verified outcomes.
+"""
 
 from __future__ import annotations
 
 import asyncio
 import json
-import os
 from collections.abc import Awaitable, Callable
-from typing import Annotated, Any, TypeVar, get_args
+from typing import Annotated, Any, Literal, TypeVar, get_args
 from urllib.parse import urlsplit
 
 import httpx
@@ -23,9 +33,8 @@ from pydantic import (
     TypeAdapter,
     ValidationError,
 )
+from typing_extensions import TypedDict
 
-from cloudra.persistence import paths
-from cloudra.services.api_token import resolve_api_token
 from cloudra.services.delegation_schema import (
     MAX_RESULT_WAIT,
     AgentContext,
@@ -42,10 +51,9 @@ from cloudra.services.delegation_schema import (
     TaskRef,
     TranscriptFilter,
 )
-from cloudra.services.runtime_ownership import find_store_owner
+from cloudra.services.local_api_client import LOOPBACK_HOSTS, resolve_connection
 
 _ERROR_CODES = frozenset(get_args(ErrorCode))
-_LOOPBACK = {"127.0.0.1", "localhost", "::1"}
 _ARTIFACT_URI = "cloudra://projects/{project_id}/artifacts/{artifact_id}"
 _API_ERRORS = {
     400: ("invalid_request", "Cloudra rejected the request."),
@@ -64,7 +72,17 @@ def _check_id(value: str) -> str:
     return value
 
 
+def _check_owner_id(value: str) -> str:
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValueError("owner_id must not be blank")
+    if not cleaned.isascii() or not cleaned.replace("_", "").replace("-", "").replace(":", "").isalnum():
+        raise ValueError("owner_id must contain only ASCII letters, digits, '_', '-', or ':'")
+    return cleaned
+
+
 _Id = Annotated[NonBlank, AfterValidator(_check_id)]
+_OwnerId = Annotated[NonBlank, AfterValidator(_check_owner_id)]
 
 
 class _Input(BaseModel):
@@ -128,6 +146,69 @@ class _Artifact(_Project):
     artifact_id: _Id
 
 
+# ---- Host-mode input / output schemas ----
+
+class _CreateProject(_Input):
+    name: ProjectName
+    workspace_dir: NonBlank | None = None
+    enable_dag: bool = False
+
+
+class _SetProjectDagMode(_Project):
+    enable_dag: bool
+
+
+class _ListCloudraTools(_Input):
+    domain: Literal["all", "qm", "md", "periodic", "dag"] = "all"
+    include_dag: bool = False
+    include_schemas: bool = False
+
+
+class _RunCloudraTool(_Project):
+    tool_name: NonBlank
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    owner_id: _OwnerId | None = None
+
+
+class _WatchdogStatus(_Input):
+    project_id: _Id | None = None
+    owner_id: _OwnerId | None = None
+
+
+class _ClaimComputeJobs(_Input):
+    project_id: _Id | None = None
+    owner_id: _OwnerId | None = None
+    job_ids: list[int] | None = None
+
+
+class HostProjectInfo(TypedDict):
+    project_id: str
+    name: str
+    workspace_dir: str | None
+    orchestration_mode: str
+
+
+class HostToolCatalog(TypedDict):
+    tools: list[dict[str, Any]]
+
+
+class HostToolExecution(TypedDict):
+    tool_name: str
+    is_success: bool
+    data: dict[str, Any]
+    summary: str
+
+
+class HostWatchdogSnapshot(TypedDict):
+    active_jobs: list[dict[str, Any]]
+    unclaimed_terminal_jobs: list[dict[str, Any]]
+
+
+class HostClaimResult(TypedDict):
+    claimed_jobs: list[dict[str, Any]]
+    active_jobs: list[dict[str, Any]]
+
+
 class _ApiError(Exception):
     def __init__(self, code: str, message: str, *, project_id: str | None = None):
         self.info = {"code": code, "message": message}
@@ -172,8 +253,8 @@ _Arguments = TypeVar("_Arguments", bound=BaseModel)
 
 
 class _CloudraMCP(MCPServer):
-    def __init__(self, client: httpx.AsyncClient):
-        super().__init__("cloudra", subscriptions=False)
+    def __init__(self, client: httpx.AsyncClient, *, server_name: str = "cloudra"):
+        super().__init__(server_name, subscriptions=False)
         self.client = client
         self.tools: dict[str, tuple[Tool, type[BaseModel], TypeAdapter, Callable[..., Awaitable[Any]]]] = {}
 
@@ -267,8 +348,9 @@ def _agent_path(args: _Agent) -> str:
     return f"{_project_path(args)}/agents/{args.session_id}"
 
 
-def build_server(client: httpx.AsyncClient) -> MCPServer:
-    server = _CloudraMCP(client)
+def build_subagent_server(client: httpx.AsyncClient) -> MCPServer:
+    """Build the ``cloudra-subagent`` MCP server for delegating tasks to Cloudra."""
+    server = _CloudraMCP(client, server_name="cloudra-subagent")
 
     @server.operation(_Input, ProjectList, read_only=True)
     async def list_projects(_args: _Input) -> ProjectList:
@@ -282,7 +364,7 @@ def build_server(client: httpx.AsyncClient) -> MCPServer:
     @server.operation(_StartTask, TaskRef)
     async def start_task(args: _StartTask) -> TaskRef:
         """Start research with a Coordinator. Use a name for a new project or a project_id for an unstarted one."""
-        if isinstance(args.root, _StartNew) and args.root.workspace_dir and client.base_url.host not in _LOOPBACK:
+        if isinstance(args.root, _StartNew) and args.root.workspace_dir and client.base_url.host not in LOOPBACK_HOSTS:
             raise _ApiError("forbidden", "A remote Cloudra connection uses the service-assigned workspace.")
         return await server.json_request(
             "POST", "/api/v2/tasks", json=args.root.model_dump(exclude_none=True),
@@ -330,32 +412,133 @@ def build_server(client: httpx.AsyncClient) -> MCPServer:
     return server
 
 
-def resolve_connection(api_url: str | None) -> tuple[str, str | None]:
-    if api_url is None:
-        store_path = os.environ.get("CLOUDRA_RUNTIME_STORE") or paths.runtime_db_path()
-        owner = find_store_owner(store_path)
-        if owner is None or owner.port is None:
-            raise RuntimeError("No running Cloudra API owns this runtime store. Start Cloudra or set --api-url.")
-        return f"http://127.0.0.1:{owner.port}", resolve_api_token(create=False)
+def build_host_server(client: httpx.AsyncClient, *, owner_id: str | None = None) -> MCPServer:
+    """Build the ``cloudra`` host-mode MCP server (tools + optional DAG + compute claim watchdog)."""
+    server = _CloudraMCP(client, server_name="cloudra")
 
-    try:
-        url = httpx.URL(api_url)
-    except httpx.InvalidURL:
-        raise RuntimeError("Cloudra API URL must be a valid HTTP or HTTPS base URL.") from None
-    if url.scheme not in {"http", "https"} or not url.host or url.userinfo or url.query or url.fragment:
-        raise RuntimeError("Cloudra API URL must be an HTTP or HTTPS base URL without credentials, query, or fragment.")
-    if url.host in _LOOPBACK:
-        return str(url), resolve_api_token(create=False)
-    if url.scheme != "https":
-        raise RuntimeError("A remote Cloudra API URL must use HTTPS.")
-    token = os.environ.get("CLOUDRA_MCP_API_TOKEN", "").strip()
-    if not token or token == "off":
-        raise RuntimeError("Set CLOUDRA_MCP_API_TOKEN for the configured remote Cloudra API.")
-    return str(url), token
+    @server.operation(_Input, ProjectList, read_only=True)
+    async def list_projects(_args: _Input) -> ProjectList:
+        """List active Cloudra projects and their creation times."""
+        projects = await server.json_request("GET", "/api/v2/projects")
+        return {"projects": [
+            {"project_id": project["id"], "name": project["name"], "created_at": project["created_at"]}
+            for project in projects
+        ]}
+
+    @server.operation(_CreateProject, HostProjectInfo)
+    async def create_project(args: _CreateProject) -> HostProjectInfo:
+        """Create a Cloudra project workspace. DAG mode is optional and defaults to off (standard)."""
+        if args.workspace_dir and client.base_url.host not in LOOPBACK_HOSTS:
+            raise _ApiError("forbidden", "A remote Cloudra connection uses the service-assigned workspace.")
+        payload: dict[str, Any] = {
+            "name": args.name,
+            "settings": {
+                "orchestration_mode": "dag_guided" if args.enable_dag else "standard",
+            },
+        }
+        if args.workspace_dir is not None:
+            payload["workspace_dir"] = args.workspace_dir
+        response = await server.json_request("POST", "/api/v2/projects", json=payload)
+        project = response.get("data", response)
+        settings = project.get("settings") or {}
+        return {
+            "project_id": project["id"],
+            "name": project["name"],
+            "workspace_dir": project.get("workspace_dir"),
+            "orchestration_mode": settings.get("orchestration_mode", "standard"),
+        }
+
+    @server.operation(_SetProjectDagMode, HostProjectInfo)
+    async def set_project_dag_mode(args: _SetProjectDagMode) -> HostProjectInfo:
+        """Enable or disable optional DAG mode for an existing Cloudra project."""
+        mode = "dag_guided" if args.enable_dag else "standard"
+        await server.json_request(
+            "PATCH",
+            _project_path(args),
+            json={"settings": {"orchestration_mode": mode}},
+        )
+        project = await server.json_request("GET", _project_path(args))
+        settings = project.get("settings") or {}
+        return {
+            "project_id": project["id"],
+            "name": project["name"],
+            "workspace_dir": project.get("workspace_dir"),
+            "orchestration_mode": settings.get("orchestration_mode", mode),
+        }
+
+    @server.operation(_ListCloudraTools, HostToolCatalog, read_only=True)
+    async def list_cloudra_tools(args: _ListCloudraTools) -> HostToolCatalog:
+        """List available Cloudra tools, optionally filtered by domain ('qm', 'md', 'periodic', 'dag', or 'all')."""
+        return await server.json_request(
+            "GET",
+            "/api/v2/host/tools",
+            params={
+                "domain": args.domain,
+                "include_dag": args.include_dag,
+                "include_schemas": args.include_schemas,
+            },
+        )
+
+    @server.operation(_RunCloudraTool, HostToolExecution)
+    async def run_cloudra_tool(args: _RunCloudraTool) -> HostToolExecution:
+        """Execute an authoritative Cloudra tool in a project context (compute jobs are tracked for claiming)."""
+        effective_owner = args.owner_id or owner_id
+        payload: dict[str, Any] = {"arguments": args.arguments}
+        if effective_owner is not None:
+            payload["owner_id"] = effective_owner
+        return await server.json_request(
+            "POST",
+            f"{_project_path(args)}/host/tools/{args.tool_name}",
+            json=payload,
+        )
+
+    @server.operation(_WatchdogStatus, HostWatchdogSnapshot, read_only=True)
+    async def watchdog_compute_status(args: _WatchdogStatus) -> HostWatchdogSnapshot:
+        """Inspect active compute jobs and finished jobs awaiting claim (read-only)."""
+        params: dict[str, str] = {}
+        if args.project_id is not None:
+            params["project_id"] = args.project_id
+        effective_owner = args.owner_id or owner_id
+        if effective_owner is not None:
+            params["owner_id"] = effective_owner
+        return await server.json_request("GET", "/api/v2/host/compute/watchdog", params=params)
+
+    @server.operation(_ClaimComputeJobs, HostClaimResult)
+    async def claim_compute_jobs(args: _ClaimComputeJobs) -> HostClaimResult:
+        """Atomically claim finished compute jobs owned by this host and return their logs and status."""
+        payload: dict[str, Any] = {}
+        if args.project_id is not None:
+            payload["project_id"] = args.project_id
+        effective_owner = args.owner_id or owner_id
+        if effective_owner is not None:
+            payload["owner_id"] = effective_owner
+        if args.job_ids is not None:
+            payload["job_ids"] = args.job_ids
+        return await server.json_request("POST", "/api/v2/host/compute/claim", json=payload)
+
+    return server
 
 
-async def run(api_url: str | None = None) -> None:
+def build_server(
+    client: httpx.AsyncClient,
+    *,
+    mode: Literal["host", "subagent"] = "host",
+    owner_id: str | None = None,
+) -> MCPServer:
+    if mode == "subagent":
+        return build_subagent_server(client)
+    if mode == "host":
+        return build_host_server(client, owner_id=owner_id)
+    raise ValueError(f"Unsupported MCP mode: {mode!r}")
+
+
+async def run(
+    api_url: str | None = None,
+    *,
+    mode: Literal["host", "subagent"] = "host",
+    owner_id: str | None = None,
+) -> None:
     base_url, token = await asyncio.to_thread(resolve_connection, api_url)
     headers = {"Authorization": f"Bearer {token}"} if token is not None else {}
-    async with httpx.AsyncClient(base_url=base_url, headers=headers, timeout=30, trust_env=False) as client:
-        await build_server(client).run_stdio_async()
+    async with httpx.AsyncClient(base_url=base_url, headers=headers, timeout=60, trust_env=False) as client:
+        await build_server(client, mode=mode, owner_id=owner_id).run_stdio_async()

@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "cloudra",
+  "version": "0.1.0",
+  "description": "Equip your host agent with Cloudra's local chemistry/compute tools, optional DAG mode, and compute-job claim watchdog."
+}
