@@ -687,9 +687,11 @@ def restore_core(core: Any, store: RuntimeStore) -> dict[str, int]:
             role = RoleProfile.model_validate(data)
             merged[role.role_id] = role
         core.roles = type(core.roles)(tuple(merged.values()))
-        core.runtime_defaults = RuntimeSettings.model_validate(
-            snapshot.get("runtime_defaults", {})
-        )
+        raw_defaults = dict(snapshot.get("runtime_defaults") or {})
+        raw_defaults.pop("api_key_set", None)
+        if raw_defaults.get("api_key") is None:
+            raw_defaults.pop("api_key", None)
+        core.runtime_defaults = RuntimeSettings.model_validate(raw_defaults)
         # 会话级 LLM 上下文投影随快照恢复（快照点之后的 context.* 事件由
         # 下面的增量重放经 apply_event 补上）。
         core.session_contexts = {

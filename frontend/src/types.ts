@@ -130,6 +130,7 @@ export interface RuntimeConfig {
   search_provider: 'deepseek' | 'auto' | 'tavily' | 'brave' | 'bing' | 'duckduckgo';
   deepseek_api_key_set: boolean;
   tool_document_loading: ToolDocumentLoadingConfig;
+  synced_agents?: number;
 }
 
 export interface SemanticConnection {

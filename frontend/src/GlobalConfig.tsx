@@ -78,6 +78,8 @@ function SlotSection({
   presets,
   savedCfg,
   saving,
+  syncExisting,
+  onSyncExistingChange,
   onChange,
   onSave,
   onConnectOpenRouter,
@@ -89,6 +91,8 @@ function SlotSection({
   presets: ProviderPreset[];
   savedCfg: RuntimeConfig;
   saving: boolean;
+  syncExisting: boolean;
+  onSyncExistingChange: (checked: boolean) => void;
   onChange: (patch: Partial<SlotDraft>) => void;
   onSave: (slot: Slot, clearKey: boolean) => void;
   onConnectOpenRouter: (slot: Slot) => void;
@@ -283,6 +287,24 @@ function SlotSection({
         </span>
       </label>
 
+      <label
+        className="field-row"
+        title={
+          lang === 'zh'
+            ? '清除该槽位已有对话中残留的模型、接口地址、密钥与上下文窗口覆盖，使其立即改用当前全局配置'
+            : 'Clear saved model/endpoint/key/context overrides on existing conversations in this slot so they use this global config immediately'
+        }
+      >
+        <input
+          type="checkbox"
+          checked={syncExisting}
+          onChange={(e) => onSyncExistingChange(e.target.checked)}
+        />
+        {lang === 'zh'
+          ? '同时应用到已有对话（清除旧模型/地址覆盖）'
+          : 'Apply to existing conversations (clear per-agent model/endpoint overrides)'}
+      </label>
+
       <div className="modal-actions">
         {keySet && !usesCodex && (
           <button
@@ -313,6 +335,10 @@ export default function GlobalConfig({
   const [drafts, setDrafts] = useState<Record<Slot, SlotDraft>>({
     coordinator: EMPTY_DRAFT,
     follower: EMPTY_DRAFT,
+  });
+  const [syncExisting, setSyncExisting] = useState<Record<Slot, boolean>>({
+    coordinator: true,
+    follower: true,
   });
   const [saving, setSaving] = useState<Slot | null>(null);
 
@@ -445,10 +471,19 @@ export default function GlobalConfig({
       } else if (d.key.trim()) {
         changes.key = d.key.trim();
       }
-      const updated = await api.patchRuntimeConfig(slot, changes);
+      const updated = await api.patchRuntimeConfig(slot, changes, {
+        syncExistingAgents: !clearKey && syncExisting[slot],
+      });
       setCfg(updated);
       setDrafts((prev) => ({ ...prev, [slot]: { ...draftFrom(updated, slot), key: '' } }));
-      onToast('ok', `${slot} config saved — live on the next LLM request`);
+      const synced = updated.synced_agents ?? 0;
+      const syncNote =
+        synced > 0
+          ? lang === 'zh'
+            ? `（已同步 ${synced} 个已有对话）`
+            : ` (synced ${synced} existing conversation${synced === 1 ? '' : 's'})`
+          : '';
+      onToast('ok', `${slot} config saved — live on the next LLM request${syncNote}`);
     } catch (e) {
       onToast('error', e instanceof Error ? e.message : String(e));
     } finally {
@@ -504,6 +539,10 @@ export default function GlobalConfig({
               presets={presets}
               savedCfg={cfg}
               saving={saving === 'coordinator'}
+              syncExisting={syncExisting.coordinator}
+              onSyncExistingChange={(checked) =>
+                setSyncExisting((prev) => ({ ...prev, coordinator: checked }))
+              }
               onChange={(patch) =>
                 setDrafts((prev) => ({ ...prev, coordinator: { ...prev.coordinator, ...patch } }))
               }
@@ -518,6 +557,10 @@ export default function GlobalConfig({
               presets={presets}
               savedCfg={cfg}
               saving={saving === 'follower'}
+              syncExisting={syncExisting.follower}
+              onSyncExistingChange={(checked) =>
+                setSyncExisting((prev) => ({ ...prev, follower: checked }))
+              }
               onChange={(patch) =>
                 setDrafts((prev) => ({ ...prev, follower: { ...prev.follower, ...patch } }))
               }

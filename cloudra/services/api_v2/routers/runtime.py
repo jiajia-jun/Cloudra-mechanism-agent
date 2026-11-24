@@ -122,6 +122,10 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 target.apply_changes({"provider": "openrouter", "key": key})
 
             await asyncio.to_thread(mutate_config, _apply)
+            if body.slot == "coordinator":
+                from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
+
+                ctx.core.runtime_defaults = await asyncio.to_thread(legacy_default_runtime_settings)
 
         return {"key": key, "saved": bool(body.slot)}
 
@@ -228,6 +232,8 @@ def build_router(ctx: ApiContext) -> APIRouter:
         and never returned by the GET endpoint.
         """
         from cloudra.infra.config import mutate_config
+        from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
+        from cloudra.runtime_v2.schemas import Command
 
         slot = body.slot
         changes = body.changes.model_dump(exclude_unset=True)
@@ -237,7 +243,60 @@ def build_router(ctx: ApiContext) -> APIRouter:
             target.apply_changes(changes)
 
         await asyncio.to_thread(mutate_config, _apply)
-        return await runtime_config()
+        if slot == "coordinator":
+            ctx.core.runtime_defaults = await asyncio.to_thread(legacy_default_runtime_settings)
+
+        synced_agents = 0
+        if body.sync_existing_agents:
+            for agent in list(ctx.core.agents.values()):
+                agent_slot = "coordinator" if agent.role_id == "coordinator" else "follower"
+                if agent_slot != slot:
+                    continue
+                clear_patch: dict[str, Any] = {}
+                if agent.settings.model:
+                    clear_patch["model"] = ""
+                if agent.settings.base_url:
+                    clear_patch["base_url"] = ""
+                if agent.settings.api_key_set:
+                    clear_patch["api_key"] = ""
+                if agent.settings.context_window:
+                    clear_patch["context_window"] = 0
+                if agent.settings.timeout:
+                    clear_patch["timeout"] = 0
+                if not clear_patch:
+                    continue
+                await ctx.bus.execute(
+                    Command(
+                        type="agent.settings_update",
+                        target={"session_id": agent.id},
+                        payload=clear_patch,
+                        actor="user",
+                    )
+                )
+                synced_agents += 1
+
+            for project in list(ctx.core.projects.values()):
+                defaults = project.settings.defaults
+                if not any((defaults.model, defaults.base_url, defaults.context_window, defaults.timeout)):
+                    continue
+                updated_settings = project.settings.model_dump(mode="json")
+                updated_defaults = dict(updated_settings.get("defaults") or {})
+                for key in ("model", "base_url", "api_key", "context_window", "timeout"):
+                    updated_defaults.pop(key, None)
+                updated_settings["defaults"] = updated_defaults
+                await ctx.bus.execute(
+                    Command(
+                        type="project.update",
+                        target={"project_id": project.id},
+                        payload={"settings": updated_settings},
+                        actor="user",
+                    )
+                )
+
+        result = await runtime_config()
+        if body.sync_existing_agents:
+            result["synced_agents"] = synced_agents
+        return result
 
     @router.patch("/api/v2/runtime/config/search", dependencies=ctx.protected)
     async def patch_search_config(body: SearchConfigPatch) -> dict[str, Any]:

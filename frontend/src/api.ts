@@ -302,10 +302,20 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(changes),
     }),
-  patchRuntimeConfig: (slot: 'coordinator' | 'follower', changes: Record<string, unknown>) =>
+  patchRuntimeConfig: (
+    slot: 'coordinator' | 'follower',
+    changes: Record<string, unknown>,
+    options?: { syncExistingAgents?: boolean },
+  ) =>
     request<RuntimeConfig>('/api/v2/runtime/config', {
       method: 'PATCH',
-      body: JSON.stringify({ slot, changes }),
+      body: JSON.stringify({
+        slot,
+        changes,
+        ...(options?.syncExistingAgents !== undefined
+          ? { sync_existing_agents: options.syncExistingAgents }
+          : {}),
+      }),
     }),
   approvals: (projectId: string) => request<Array<Record<string, unknown>>>(`/api/v2/projects/${projectId}/approvals`),
   decideApproval: (projectId: string, approvalId: number | string, decision: 'approve' | 'deny', reason = '') =>

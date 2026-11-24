@@ -3,17 +3,40 @@ import { api } from './api';
 import { useI18n } from './i18n';
 import './ComposerModelPicker.css';
 
+export function buildModelPickerPatch(params: {
+  model?: string;
+  effort?: string;
+  slotModel: string;
+  slotProviderModels: string[];
+}): Record<string, unknown> {
+  const { model, effort, slotModel, slotProviderModels } = params;
+  if (effort !== undefined) {
+    return { reasoning_effort: effort };
+  }
+  if (!model) return {};
+  if (slotModel && model === slotModel) {
+    // 选回当前全局槽位默认模型：清除 agent 级覆盖，恢复跟随全局槽位。
+    return { model: '', base_url: '', api_key: '', context_window: 0 };
+  }
+  if (slotProviderModels.includes(model)) {
+    // 选择当前全局供应商下的其他模型：清除可能残留的旧供应商端点/密钥覆盖。
+    return { model, base_url: '', api_key: '', context_window: 0 };
+  }
+  return { model };
+}
+
 export default function ComposerModelPicker({ currentModel, reasoningEffort, slot, onChoose, onConfigure }: {
   currentModel?: string;
   reasoningEffort?: string | null;
   slot: 'coordinator' | 'follower';
-  onChoose: (model: string, effort?: string) => Promise<void>;
+  onChoose: (patch: Record<string, unknown>) => Promise<void>;
   onConfigure: () => void;
 }) {
   const { lang } = useI18n();
   const zh = lang === 'zh';
   const [open, setOpen] = useState(false);
   const [savedModel, setSavedModel] = useState('');
+  const [slotProviderModels, setSlotProviderModels] = useState<string[]>([]);
   const [effort, setEffort] = useState(reasoningEffort ?? '');
   const [groups, setGroups] = useState<Array<{ name: string; models: string[] }>>([]);
   const [search, setSearch] = useState('');
@@ -31,8 +54,11 @@ export default function ComposerModelPicker({ currentModel, reasoningEffort, slo
       if (!active) return;
       const settings = config[slot];
       const provider = providers.find((item) => item.id === settings.provider);
-      setSavedModel(settings.model); setEffort(reasoningEffort ?? settings.reasoning_effort ?? '');
-      setGroups([{ name: provider?.name ?? settings.provider ?? (zh ? '自定义' : 'Custom'), models: [...new Set([currentModel, settings.model, ...(provider?.models ?? [])])].filter((model): model is string => Boolean(model)) }]);
+      const providerModels = provider?.models ?? [];
+      setSavedModel(settings.model);
+      setSlotProviderModels(providerModels);
+      setEffort(reasoningEffort ?? settings.reasoning_effort ?? '');
+      setGroups([{ name: provider?.name ?? settings.provider ?? (zh ? '自定义' : 'Custom'), models: [...new Set([currentModel, settings.model, ...providerModels])].filter((model): model is string => Boolean(model)) }]);
     }).catch(() => { if (active) setError(true); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [currentModel, reasoningEffort, slot, revision, zh]);
@@ -50,10 +76,25 @@ export default function ComposerModelPicker({ currentModel, reasoningEffort, slo
       document.removeEventListener('keydown', escape);
     };
   }, [open]);
-  async function choose(model: string, nextEffort?: string) {
-    if (!model || saving) return;
+  async function choose(model?: string, nextEffort?: string) {
+    if (saving) return;
+    if (nextEffort === undefined && !model) return;
+    const patch = buildModelPickerPatch({
+      model,
+      effort: nextEffort,
+      slotModel: savedModel,
+      slotProviderModels,
+    });
+    if (Object.keys(patch).length === 0) return;
     setSaving(true); setError(false);
-    try { await onChoose(model, nextEffort); setSavedModel(model); if (nextEffort !== undefined) setEffort(nextEffort); else setOpen(false); }
+    try {
+      await onChoose(patch);
+      if (nextEffort !== undefined) {
+        setEffort(nextEffort);
+      } else {
+        setOpen(false);
+      }
+    }
     catch { setError(true); }
     finally { setSaving(false); }
   }
@@ -79,7 +120,7 @@ export default function ComposerModelPicker({ currentModel, reasoningEffort, slo
       <aside className="model-menu-options" aria-label={zh ? '模型选项' : 'Model options'}>
         <h3>{zh ? '选项' : 'Options'}</h3>
         <h3>{zh ? '推理强度' : 'Reasoning effort'}</h3>
-        {levels.map(([value, label]) => <button key={value} type="button" className="model-menu-option" aria-pressed={effort === value} disabled={loading || error || saving || !selectedModel} onClick={() => void choose(selectedModel, value)}><span>{label}</span><span aria-hidden="true">{effort === value ? '✓' : ''}</span></button>)}
+        {levels.map(([value, label]) => <button key={value} type="button" className="model-menu-option" aria-pressed={effort === value} disabled={loading || error || saving || !selectedModel} onClick={() => void choose(undefined, value)}><span>{label}</span><span aria-hidden="true">{effort === value ? '✓' : ''}</span></button>)}
       </aside>
     </div>}
   </div>;

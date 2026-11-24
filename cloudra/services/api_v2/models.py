@@ -129,6 +129,7 @@ class GlobalConfigFieldPatch(BaseModel):
 class GlobalConfigPatch(BaseModel):
     slot: Literal["coordinator", "follower"]
     changes: GlobalConfigFieldPatch
+    sync_existing_agents: bool = False
 
 
 class SearchConfigPatch(BaseModel):
