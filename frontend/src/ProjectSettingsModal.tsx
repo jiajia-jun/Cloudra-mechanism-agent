@@ -18,6 +18,8 @@ interface ProjectSettingsModalProps {
 
 interface AgentEditDraft {
   model: string;
+  base_url: string;
+  api_key: string;
   orchestration_mode: string;
   invocation_protocol: string;
   temperature: string;
@@ -35,6 +37,8 @@ function initAgentDraft(agent: Agent): AgentEditDraft {
   const s = agent.settings;
   return {
     model: s.model || '',
+    base_url: s.base_url || '',
+    api_key: '',
     orchestration_mode: s.orchestration_mode || 'standard',
     invocation_protocol: s.invocation_protocol || 'javascript',
     temperature: s.temperature != null ? String(s.temperature) : '',
@@ -94,8 +98,11 @@ function AgentStrip({
     try {
       const patch: Record<string, unknown> = {};
       for (const [field, value] of Object.entries(submitted)) {
-        if (field === 'model') {
-          patch.model = String(value).trim();
+        if (field === 'model' || field === 'base_url') {
+          patch[field] = String(value).trim();
+        } else if (field === 'api_key') {
+          const trimmed = String(value).trim();
+          if (trimmed) patch.api_key = trimmed;
         } else if (field === 'context_window') {
           patch.context_window = contextWindowValue(String(value));
         } else if (field === 'temperature') {
@@ -169,6 +176,53 @@ function AgentStrip({
                   onChange={(e) => handleFieldChange('model', e.target.value)}
                   placeholder="留空继承全局角色配置…"
                 />
+              </div>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-info">
+                <span className="setting-title">独立接口地址（Base URL）</span>
+                <span className="setting-desc">为此智能体指定专属 API 端点，留空则继承全局角色配置</span>
+              </div>
+              <div className="setting-control">
+                <input
+                  type="text"
+                  className="input"
+                  value={draft.base_url}
+                  onChange={(e) => handleFieldChange('base_url', e.target.value)}
+                  placeholder="留空继承全局接口地址…"
+                />
+              </div>
+            </div>
+
+            <div className="setting-row">
+              <div className="setting-info">
+                <span className="setting-title">
+                  独立 API Key {agent.settings.api_key_set ? '（已设置）' : ''}
+                </span>
+                <span className="setting-desc">
+                  留空则继承全局密钥。注意：单智能体填写的 API Key 当前仅保存在内存中，下一次重启 Cloudra 服务后就会失效——这暂时是个技术债，我们之后会补上持久化。
+                </span>
+              </div>
+              <div className="setting-control-pair">
+                <input
+                  type="password"
+                  autoComplete="off"
+                  className="input"
+                  value={draft.api_key}
+                  onChange={(e) => handleFieldChange('api_key', e.target.value)}
+                  placeholder={agent.settings.api_key_set ? '已设置；留空保持不变…' : '输入独立 API Key…'}
+                />
+                {agent.settings.api_key_set && (
+                  <button
+                    type="button"
+                    className="btn ghost sm"
+                    disabled={saving}
+                    onClick={() => void onSave(agent.id, { api_key: '' })}
+                  >
+                    清除 Key
+                  </button>
+                )}
               </div>
             </div>
 

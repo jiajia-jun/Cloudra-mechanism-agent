@@ -1,4 +1,4 @@
-"""Regression tests for GH #305: cross-provider model switching and config sync."""
+"""Regression tests for GH #305: cross-provider model switching and startup restore."""
 
 from __future__ import annotations
 
@@ -17,10 +17,10 @@ from cloudra.services.api_v2.app import _build_default_v2_app
 
 
 @pytest.mark.asyncio
-async def test_patch_runtime_config_sync_existing_agents_clears_stale_provider_overrides(
+async def test_patch_runtime_config_preserves_explicit_agent_overrides_and_refreshes_runtime_defaults(
     tmp_path, monkeypatch
 ):
-    """Saving global slot with sync_existing_agents clears stale LLM overrides in that slot."""
+    """Global slot save refreshes runtime_defaults without silently overwriting existing agents."""
     from cloudra.infra.config import get_config
 
     cfg = get_config()
@@ -30,10 +30,6 @@ async def test_patch_runtime_config_sync_existing_agents_clears_stale_provider_o
     monkeypatch.setattr(cfg.coordinator, "url", "https://api.deepseek.com")
     monkeypatch.setattr(cfg.coordinator, "key", "sk-deepseek-old")
     monkeypatch.setattr(cfg.coordinator, "context_window", 128_000)
-    monkeypatch.setattr(cfg.follower, "provider", "deepseek")
-    monkeypatch.setattr(cfg.follower, "model", "deepseek-chat")
-    monkeypatch.setattr(cfg.follower, "url", "https://api.deepseek.com")
-    monkeypatch.setattr(cfg.follower, "key", "sk-deepseek-follower")
 
     core = RuntimeCore(strict_events=True)
     app = create_v2_app(core)
@@ -41,21 +37,17 @@ async def test_patch_runtime_config_sync_existing_agents_clears_stale_provider_o
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
         project = (
-            await client.post(
-                "/api/v2/projects",
-                json={
-                    "name": "provider-switch",
-                    "settings": {
-                        "defaults": {
-                            "model": "deepseek-v4-flash",
-                            "base_url": "https://api.deepseek.com",
-                            "yolo": True,
-                        }
-                    },
-                },
-            )
+            await client.post("/api/v2/projects", json={"name": "provider-switch"})
         ).json()["data"]
-        coord_id = (
+        # Agent A: inheriting global slot completely
+        inheriting_id = (
+            await client.post(
+                f"/api/v2/projects/{project['id']}/agents",
+                json={"role_id": "coordinator"},
+            )
+        ).json()["data"]["id"]
+        # Agent B: explicit per-agent override
+        custom_id = (
             await client.post(
                 f"/api/v2/projects/{project['id']}/agents",
                 json={
@@ -64,18 +56,7 @@ async def test_patch_runtime_config_sync_existing_agents_clears_stale_provider_o
                         "model": "deepseek-v4-pro",
                         "base_url": "https://api.deepseek.com",
                         "api_key": "sk-agent-override",
-                        "context_window": 120_000,
-                        "yolo": True,
                     },
-                },
-            )
-        ).json()["data"]["id"]
-        follower_id = (
-            await client.post(
-                f"/api/v2/projects/{project['id']}/agents",
-                json={
-                    "role_id": "researcher",
-                    "settings": {"model": "deepseek-chat", "base_url": "https://api.deepseek.com"},
                 },
             )
         ).json()["data"]["id"]
@@ -84,7 +65,6 @@ async def test_patch_runtime_config_sync_existing_agents_clears_stale_provider_o
             "/api/v2/runtime/config",
             json={
                 "slot": "coordinator",
-                "sync_existing_agents": True,
                 "changes": {
                     "provider": "zhipu",
                     "model": "glm-5.3",
@@ -95,47 +75,31 @@ async def test_patch_runtime_config_sync_existing_agents_clears_stale_provider_o
             },
         )
         assert resp.status_code == 200
-        body = resp.json()
-        assert body["synced_agents"] == 1
-        assert body["coordinator"]["model"] == "glm-5.3"
         assert core.runtime_defaults.model == "glm-5.3"
         assert core.runtime_defaults.base_url == "https://open.bigmodel.cn/api/coding/paas/v4"
 
-        coord = core.agents[coord_id]
-        assert coord.settings.model == ""
-        assert coord.settings.base_url == ""
-        assert coord.settings.api_key_set is False
-        assert coord.settings.context_window == 0
-        assert coord.settings.yolo is True
+        # Inheriting agent immediately uses the new global slot.
+        inh_effective = provider.resolve_effective_settings(core.agents[inheriting_id])
+        assert inh_effective.model == "glm-5.3"
+        assert inh_effective.base_url == "https://open.bigmodel.cn/api/coding/paas/v4"
+        assert inh_effective.api_key == "zhipu-key-new"
 
-        effective = provider.resolve_effective_settings(coord)
-        assert effective.model == "glm-5.3"
-        assert effective.base_url == "https://open.bigmodel.cn/api/coding/paas/v4"
-        assert effective.api_key == "zhipu-key-new"
-        assert effective.context_window == 500_000
+        # Agent with explicit override stays untouched until user explicitly changes it.
+        custom_effective = provider.resolve_effective_settings(core.agents[custom_id])
+        assert custom_effective.model == "deepseek-v4-pro"
+        assert custom_effective.base_url == "https://api.deepseek.com"
+        assert custom_effective.api_key == "sk-agent-override"
 
-        # Follower slot agent must remain untouched when syncing coordinator slot.
-        follower = core.agents[follower_id]
-        assert follower.settings.model == "deepseek-chat"
-        assert follower.settings.base_url == "https://api.deepseek.com"
-
-        # Project defaults must clear stale model/base_url while preserving unrelated flags.
-        updated_project = core.projects[project["id"]]
-        assert updated_project.settings.defaults.model is None
-        assert updated_project.settings.defaults.base_url is None
-        assert updated_project.settings.defaults.yolo is True
-
-        # Newly spawned coordinator in the same project inherits the new global config.
-        fresh_id = (
-            await client.post(
-                f"/api/v2/projects/{project['id']}/agents",
-                json={"role_id": "coordinator"},
-            )
-        ).json()["data"]["id"]
-        fresh_effective = provider.resolve_effective_settings(core.agents[fresh_id])
-        assert fresh_effective.model == "glm-5.3"
-        assert fresh_effective.base_url == "https://open.bigmodel.cn/api/coding/paas/v4"
-        assert fresh_effective.api_key == "zhipu-key-new"
+        # User can clear per-agent override via PATCH /agents/{id}/settings to inherit new global.
+        cleared = await client.patch(
+            f"/api/v2/agents/{custom_id}/settings",
+            json={"model": "", "base_url": "", "api_key": "", "context_window": 0},
+        )
+        assert cleared.status_code == 200
+        after_clear = provider.resolve_effective_settings(core.agents[custom_id])
+        assert after_clear.model == "glm-5.3"
+        assert after_clear.base_url == "https://open.bigmodel.cn/api/coding/paas/v4"
+        assert after_clear.api_key == "zhipu-key-new"
 
 
 def test_startup_restore_keeps_config_yaml_over_stale_snapshot_runtime_defaults(

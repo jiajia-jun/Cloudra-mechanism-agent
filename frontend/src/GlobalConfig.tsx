@@ -16,7 +16,14 @@ import SearchConfigSection from './SearchConfigSection';
 import ToolDocumentLoadingSection from './ToolDocumentLoadingSection';
 import { UpdateCheckInline } from './UpdateCheckSection';
 import { isTrustedAuthMessageOrigin, openRouterCallbackCode } from './runtimeUrl';
-import type { ProviderPreset, RuntimeConfig } from './types';
+import {
+  buildImpactResolutionPatch,
+  findImpactedAgents,
+  normalizedEndpoint,
+  type ImpactDecision,
+  type ImpactedAgent,
+} from './globalConfigImpact';
+import type { Agent, ProviderPreset, RuntimeConfig } from './types';
 import { APPEARANCES, applyAppearance, useAppearance } from './appearance';
 import { useI18n } from './i18n';
 
@@ -64,12 +71,6 @@ function draftFrom(cfg: RuntimeConfig, slot: Slot): SlotDraft {
   };
 }
 
-function normalizedEndpoint(value: string) {
-  let url = value.trim();
-  while (url.endsWith('/')) url = url.slice(0, -1);
-  return url;
-}
-
 function SlotSection({
   title,
   hint,
@@ -78,8 +79,6 @@ function SlotSection({
   presets,
   savedCfg,
   saving,
-  syncExisting,
-  onSyncExistingChange,
   onChange,
   onSave,
   onConnectOpenRouter,
@@ -91,8 +90,6 @@ function SlotSection({
   presets: ProviderPreset[];
   savedCfg: RuntimeConfig;
   saving: boolean;
-  syncExisting: boolean;
-  onSyncExistingChange: (checked: boolean) => void;
   onChange: (patch: Partial<SlotDraft>) => void;
   onSave: (slot: Slot, clearKey: boolean) => void;
   onConnectOpenRouter: (slot: Slot) => void;
@@ -287,24 +284,6 @@ function SlotSection({
         </span>
       </label>
 
-      <label
-        className="field-row"
-        title={
-          lang === 'zh'
-            ? '清除该槽位已有对话中残留的模型、接口地址、密钥与上下文窗口覆盖，使其立即改用当前全局配置'
-            : 'Clear saved model/endpoint/key/context overrides on existing conversations in this slot so they use this global config immediately'
-        }
-      >
-        <input
-          type="checkbox"
-          checked={syncExisting}
-          onChange={(e) => onSyncExistingChange(e.target.checked)}
-        />
-        {lang === 'zh'
-          ? '同时应用到已有对话（清除旧模型/地址覆盖）'
-          : 'Apply to existing conversations (clear per-agent model/endpoint overrides)'}
-      </label>
-
       <div className="modal-actions">
         {keySet && !usesCodex && (
           <button
@@ -336,11 +315,15 @@ export default function GlobalConfig({
     coordinator: EMPTY_DRAFT,
     follower: EMPTY_DRAFT,
   });
-  const [syncExisting, setSyncExisting] = useState<Record<Slot, boolean>>({
-    coordinator: true,
-    follower: true,
-  });
   const [saving, setSaving] = useState<Slot | null>(null);
+  const [pendingImpact, setPendingImpact] = useState<{
+    slot: Slot;
+    changes: Record<string, unknown>;
+    oldSlot: RuntimeConfig[Slot];
+    items: ImpactedAgent[];
+    decisions: Record<string, ImpactDecision>;
+    manualKeys: Record<string, string>;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -440,6 +423,13 @@ export default function GlobalConfig({
     }
   }
 
+  async function commitSlotSave(slot: Slot, changes: Record<string, unknown>) {
+    const updated = await api.patchRuntimeConfig(slot, changes);
+    setCfg(updated);
+    setDrafts((prev) => ({ ...prev, [slot]: { ...draftFrom(updated, slot), key: '' } }));
+    onToast('ok', `${slot} config saved — live on the next LLM request`);
+  }
+
   async function save(slot: Slot, clearKey: boolean) {
     if (!cfg) return;
     if (
@@ -471,19 +461,71 @@ export default function GlobalConfig({
       } else if (d.key.trim()) {
         changes.key = d.key.trim();
       }
-      const updated = await api.patchRuntimeConfig(slot, changes, {
-        syncExistingAgents: !clearKey && syncExisting[slot],
-      });
-      setCfg(updated);
-      setDrafts((prev) => ({ ...prev, [slot]: { ...draftFrom(updated, slot), key: '' } }));
-      const synced = updated.synced_agents ?? 0;
-      const syncNote =
-        synced > 0
-          ? lang === 'zh'
-            ? `（已同步 ${synced} 个已有对话）`
-            : ` (synced ${synced} existing conversation${synced === 1 ? '' : 's'})`
-          : '';
-      onToast('ok', `${slot} config saved — live on the next LLM request${syncNote}`);
+
+      if (!clearKey && normalizedEndpoint(cfg[slot].url) !== normalizedEndpoint(d.url)) {
+        try {
+          const projects = await api.listProjects(false);
+          const entries = await Promise.all(
+            projects.map(async (project) => {
+              const agents = await api.listAgents(project.id).catch(() => [] as Agent[]);
+              return [project.id, agents] as const;
+            }),
+          );
+          const agentsByProject = Object.fromEntries(entries);
+          const impacted = findImpactedAgents({
+            slot,
+            oldSlot: cfg[slot],
+            newUrl: d.url,
+            projects,
+            agentsByProject,
+          });
+          if (impacted.length > 0) {
+            const decisions: Record<string, ImpactDecision> = {};
+            for (const item of impacted) {
+              decisions[item.agent.id] = 'use_new_global';
+            }
+            setPendingImpact({
+              slot,
+              changes,
+              oldSlot: cfg[slot],
+              items: impacted,
+              decisions,
+              manualKeys: {},
+            });
+            return;
+          }
+        } catch {
+          // 列表查询失败时不阻塞全局配置保存
+        }
+      }
+
+      await commitSlotSave(slot, changes);
+    } catch (e) {
+      onToast('error', e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  async function confirmPendingImpact() {
+    if (!pendingImpact) return;
+    const { slot, changes, oldSlot, items, decisions, manualKeys } = pendingImpact;
+    setSaving(slot);
+    try {
+      for (const item of items) {
+        const decision = decisions[item.agent.id] ?? 'keep_as_is';
+        const patch = buildImpactResolutionPatch({
+          item,
+          decision,
+          oldSlot,
+          manualApiKey: manualKeys[item.agent.id],
+        });
+        if (patch) {
+          await api.patchSettings(item.agent.id, patch);
+        }
+      }
+      await commitSlotSave(slot, changes);
+      setPendingImpact(null);
     } catch (e) {
       onToast('error', e instanceof Error ? e.message : String(e));
     } finally {
@@ -539,10 +581,6 @@ export default function GlobalConfig({
               presets={presets}
               savedCfg={cfg}
               saving={saving === 'coordinator'}
-              syncExisting={syncExisting.coordinator}
-              onSyncExistingChange={(checked) =>
-                setSyncExisting((prev) => ({ ...prev, coordinator: checked }))
-              }
               onChange={(patch) =>
                 setDrafts((prev) => ({ ...prev, coordinator: { ...prev.coordinator, ...patch } }))
               }
@@ -557,10 +595,6 @@ export default function GlobalConfig({
               presets={presets}
               savedCfg={cfg}
               saving={saving === 'follower'}
-              syncExisting={syncExisting.follower}
-              onSyncExistingChange={(checked) =>
-                setSyncExisting((prev) => ({ ...prev, follower: checked }))
-              }
               onChange={(patch) =>
                 setDrafts((prev) => ({ ...prev, follower: { ...prev.follower, ...patch } }))
               }
@@ -601,6 +635,116 @@ export default function GlobalConfig({
           </>
         )}
       </div>
+      {pendingImpact && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label={lang === 'zh' ? '已有对话配置冲突提醒' : 'Existing conversation config warning'}>
+          <div className="modal" style={{ maxWidth: 640 }}>
+            <div className="modal-head">
+              <span className="modal-title">
+                {lang === 'zh' ? '以下已有对话的配置尚未完整' : 'Incomplete overrides on existing conversations'}
+              </span>
+            </div>
+            <div className="modal-sub">
+              {lang === 'zh'
+                ? '你正在更改全局接口地址，但下列智能体只覆盖了部分字段、其余仍在继承旧全局配置。直接保存会导致模型与新地址错配或缺少密钥，请为每个智能体选择处理方式：'
+                : 'You are changing the global API endpoint, but the agents below only override part of their LLM settings and rely on the old global slot for the rest. Choose how to handle each agent before saving:'}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: '50vh', overflowY: 'auto' }}>
+              {pendingImpact.items.map((item) => {
+                const decision = pendingImpact.decisions[item.agent.id] ?? 'use_new_global';
+                const missingLabels = item.missingFields.map((f) =>
+                  f === 'base_url'
+                    ? (lang === 'zh' ? '接口地址' : 'base URL')
+                    : f === 'api_key'
+                      ? 'API Key'
+                      : (lang === 'zh' ? '模型名' : 'model'),
+                );
+                return (
+                  <div key={item.agent.id} className="modal-section" style={{ marginBottom: 0 }}>
+                    <div className="modal-section-title">
+                      {item.projectName} / {item.agent.display_name} ({item.agent.role_id})
+                    </div>
+                    <div className="muted-note">
+                      {lang === 'zh'
+                        ? `当前覆盖：模型=${item.agent.settings.model || '继承全局'}，地址=${item.agent.settings.base_url || '继承全局'}；缺少独立${missingLabels.join('、')}。`
+                        : `Current override: model=${item.agent.settings.model || 'inherit'}, base_url=${item.agent.settings.base_url || 'inherit'}; missing standalone ${missingLabels.join(', ')}.`}
+                    </div>
+                    <label className="field" style={{ marginTop: 8, marginBottom: 4 }}>
+                      {lang === 'zh' ? '处理方式' : 'Action'}
+                      <select
+                        className="input"
+                        value={decision}
+                        onChange={(e) => {
+                          const next = e.target.value as ImpactDecision;
+                          setPendingImpact((prev) =>
+                            prev ? { ...prev, decisions: { ...prev.decisions, [item.agent.id]: next } } : null,
+                          );
+                        }}
+                      >
+                        <option value="use_new_global">
+                          {lang === 'zh'
+                            ? '覆盖为新全局设置（清除旧模型/地址覆盖）'
+                            : 'Use new global config (clear stale overrides)'}
+                        </option>
+                        <option value="complete_old">
+                          {lang === 'zh'
+                            ? `补齐旧配置（保留在 ${pendingImpact.oldSlot.url}）`
+                            : `Complete old config (keep on ${pendingImpact.oldSlot.url})`}
+                        </option>
+                        <option value="keep_as_is">
+                          {lang === 'zh' ? '暂不改动此智能体' : 'Leave this agent unchanged'}
+                        </option>
+                      </select>
+                    </label>
+                    {decision === 'complete_old' && item.missingFields.includes('api_key') && (
+                      <label className="field" style={{ marginTop: 6, marginBottom: 0 }}>
+                        {lang === 'zh' ? '旧供应商独立 API Key（可选）' : 'Standalone API key for old endpoint (optional)'}
+                        <input
+                          className="input"
+                          type="password"
+                          autoComplete="off"
+                          placeholder={lang === 'zh' ? '输入旧供应商的 API Key…' : 'Enter API key for old endpoint…'}
+                          value={pendingImpact.manualKeys[item.agent.id] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setPendingImpact((prev) =>
+                              prev ? { ...prev, manualKeys: { ...prev.manualKeys, [item.agent.id]: val } } : null,
+                            );
+                          }}
+                        />
+                        <span className="field-hint">
+                          {lang === 'zh'
+                            ? '注意：单智能体 API Key 当前仅保存在内存中，下次重启 Cloudra 服务后会失效（这是暂时遗留的技术债，后续会补上持久化）。'
+                            : 'Note: per-agent API keys are currently memory-only and will expire on the next Cloudra service restart (known technical debt to be persisted in a future update).'}
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="modal-actions" style={{ marginTop: 12 }}>
+              <button
+                type="button"
+                className="btn ghost sm"
+                disabled={saving !== null}
+                onClick={() => setPendingImpact(null)}
+              >
+                {lang === 'zh' ? '取消' : 'Cancel'}
+              </button>
+              <button
+                type="button"
+                className="btn primary sm"
+                disabled={saving !== null}
+                onClick={() => void confirmPendingImpact()}
+              >
+                {saving !== null
+                  ? (lang === 'zh' ? '保存中…' : 'Saving…')
+                  : (lang === 'zh' ? '确认并保存全局设置' : 'Confirm & Save Global Config')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
