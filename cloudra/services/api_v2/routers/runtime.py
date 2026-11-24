@@ -122,6 +122,10 @@ def build_router(ctx: ApiContext) -> APIRouter:
                 target.apply_changes({"provider": "openrouter", "key": key})
 
             await asyncio.to_thread(mutate_config, _apply)
+            if body.slot == "coordinator":
+                from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
+
+                ctx.core.runtime_defaults = await asyncio.to_thread(legacy_default_runtime_settings)
 
         return {"key": key, "saved": bool(body.slot)}
 
@@ -228,6 +232,7 @@ def build_router(ctx: ApiContext) -> APIRouter:
         and never returned by the GET endpoint.
         """
         from cloudra.infra.config import mutate_config
+        from cloudra.runtime_v2.adapters import legacy_default_runtime_settings
 
         slot = body.slot
         changes = body.changes.model_dump(exclude_unset=True)
@@ -237,6 +242,9 @@ def build_router(ctx: ApiContext) -> APIRouter:
             target.apply_changes(changes)
 
         await asyncio.to_thread(mutate_config, _apply)
+        if slot == "coordinator":
+            ctx.core.runtime_defaults = await asyncio.to_thread(legacy_default_runtime_settings)
+
         return await runtime_config()
 
     @router.patch("/api/v2/runtime/config/search", dependencies=ctx.protected)

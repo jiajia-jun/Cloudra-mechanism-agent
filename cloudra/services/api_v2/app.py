@@ -503,6 +503,9 @@ def _build_default_v2_app(*, store_path: str | None) -> FastAPI:
     attach_plugins(core)
     if core.store is not None:
         restore_core(core, core.store)
+        # config.yaml 是全局槽位的唯一事实源；restore_core 从旧快照恢复出的
+        # runtime_defaults 不能盖过重启前改好的全局配置。
+        core.runtime_defaults = legacy_default_runtime_settings()
     # Optional single-port browser mode: serve the built SPA from the same
     # uvicorn process.  Static mount is added last so /api/* routes win.
     serve_dir = os.environ.get("CLOUDRA_FRONTEND_SERVE_DIR", "").strip()

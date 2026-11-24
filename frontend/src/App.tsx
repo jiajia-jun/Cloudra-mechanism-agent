@@ -2861,15 +2861,20 @@ export default function App() {
                   reasoningEffort={activeAgent ? activeAgent.settings.reasoning_effort : activeProject.settings.defaults?.reasoning_effort}
                   slot={activeAgent && activeAgent.role_id !== 'coordinator' ? 'follower' : 'coordinator'}
                   onConfigure={() => setGlobalOpen(true)}
-                  onChoose={async (model, effort) => {
-                    const changes = effort === undefined ? { model } : { model, reasoning_effort: effort };
+                  onChoose={async (changes) => {
                     if (activeAgent) {
                       await handleSaveAgentSettings(activeAgent.id, changes);
                     } else {
+                      const merged: Record<string, unknown> = { ...activeProject.settings.defaults, ...changes };
+                      delete merged.api_key;
+                      for (const key of ['model', 'base_url', 'reasoning_effort']) {
+                        if (merged[key] === '') delete merged[key];
+                      }
+                      if (merged.context_window === 0) delete merged.context_window;
                       const response = await api.patchProject(activeProject.id, {
                         settings: {
                           orchestration_mode: activeProject.settings.orchestration_mode,
-                          defaults: { ...activeProject.settings.defaults, ...changes },
+                          defaults: merged,
                         },
                       });
                       setProjects((prev) => prev.map((project) => project.id === activeProject.id ? mergeProjectSnapshot(project, response.data) : project));
