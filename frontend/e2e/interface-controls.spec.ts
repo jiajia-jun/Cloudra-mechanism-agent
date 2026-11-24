@@ -89,7 +89,7 @@ test('an existing agent clears ultra reasoning back to default and Escape closes
   const menu = page.getByRole('dialog', { name: '模型选择', exact: true });
   await menu.getByRole('button', { name: '默认', exact: true }).click();
   await expect(menu.getByRole('button', { name: '默认', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  expect(patches).toEqual([{ model: 'test-model', reasoning_effort: '' }]);
+  expect(patches).toEqual([{ reasoning_effort: '' }]);
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
   await page.getByRole('button', { name: '选择模型', exact: true }).click();
