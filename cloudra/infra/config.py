@@ -22,6 +22,7 @@ from pydantic import (
     ConfigDict,
     Field,
     FiniteFloat,
+    PrivateAttr,
     StrictInt,
     TypeAdapter,
     ValidationError,
@@ -78,6 +79,7 @@ class LLMConfig(BaseSettings):
     # （minimal/low/medium/high 等），None = 不传该参数。空 per-agent
     # settings 经 legacy_default_settings 回落到本槽位。
     reasoning_effort: str | None = None
+    _key_from_env: bool = PrivateAttr(default=False)
 
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
@@ -90,8 +92,14 @@ class LLMConfig(BaseSettings):
         for name, value in changes.items():
             if name != "provider" or not applied_preset:
                 setattr(self, name, value)
-        if "key" not in changes:
-            self.key = previous_key if same_model_endpoint(previous_url, self.url) else ""
+        if "key" in changes:
+            self._key_from_env = False
+        else:
+            if same_model_endpoint(previous_url, self.url):
+                self.key = previous_key
+            else:
+                self.key = ""
+                self._key_from_env = False
         if not self.provider or ("url" in changes and "provider" not in changes):
             detected = detect_provider_from_url(self.url)
             self.provider = detected.id if detected else "custom"
@@ -337,6 +345,7 @@ class CloudraConfig(BaseSettings):
             self.coordinator.url = os.getenv("COORDINATOR_URL")
         if os.getenv("COORDINATOR_KEY"):
             self.coordinator.key = os.getenv("COORDINATOR_KEY")
+            self.coordinator._key_from_env = True
         if os.getenv("FOLLOWER_PROVIDER"):
             self.follower.provider = os.getenv("FOLLOWER_PROVIDER")
         if os.getenv("FOLLOWER_MODEL"):
@@ -345,6 +354,7 @@ class CloudraConfig(BaseSettings):
             self.follower.url = os.getenv("FOLLOWER_URL")
         if os.getenv("FOLLOWER_KEY"):
             self.follower.key = os.getenv("FOLLOWER_KEY")
+            self.follower._key_from_env = True
 
         # Email legacy envs
         if os.getenv("SMTP_USER"):

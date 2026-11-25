@@ -881,3 +881,33 @@ async def test_restart_command_emits_context_reset_event():
     assert len(resets) == 1
     assert resets[0].data["reason"] == "restart_command"
     assert resets[0].data["previous_outcome"] == "succeeded"
+
+
+@pytest.mark.asyncio
+async def test_llm_failed_records_request_context_and_status_code():
+    class FailingAuthLLM:
+        def resolve_request_context(self, agent):
+            return {
+                "model": "glm-5.3",
+                "base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
+                "credential_source": "global_slot:coordinator",
+            }
+
+        async def complete(self, agent, messages, tools, on_delta=None):
+            exc = RuntimeError("Error code: 401 - 令牌已过期或验证不正确")
+            exc.status_code = 401
+            raise exc
+
+    core, _, agent = await _setup(FailingAuthLLM())
+    await _wait_state(agent, "failed")
+
+    failed_events = [
+        e for e in core.event_log.query_session(agent.id) if e.type == "llm.failed"
+    ]
+    assert len(failed_events) == 1
+    data = failed_events[0].data
+    assert data["model"] == "glm-5.3"
+    assert data["base_url"] == "https://open.bigmodel.cn/api/coding/paas/v4"
+    assert data["credential_source"] == "global_slot:coordinator"
+    assert data["status_code"] == 401
+    assert "401" in data["error"]

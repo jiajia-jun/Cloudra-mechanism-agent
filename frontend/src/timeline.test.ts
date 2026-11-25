@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   applyStreamEvent,
   buildTimeline,
+  formatLlmFailed,
   formatToolArgs,
   type MessageItem,
   type NoteItem,
@@ -496,3 +497,41 @@ assert.equal(unrelatedMessage.streamText, 'Actual current reply.', 'an unrelated
 assert.equal(cancelledStream.frozen[0].incomplete, true, 'uncommitted partial text is visibly marked incomplete');
 
 console.log('timeline.message-consistency ok');
+
+/* ------------------------------------------- llm.failed request provenance */
+{
+  const authFailed = buildTimeline(
+    [
+      ev('llm.failed', 1, {
+        error: 'Error code: 401 - 令牌已过期或验证不正确',
+        model: 'glm-5.3',
+        base_url: 'https://open.bigmodel.cn/api/coding/paas/v4',
+        credential_source: 'global_slot:coordinator',
+        status_code: 401,
+      }),
+    ],
+    [],
+  );
+  assert.equal(authFailed.length, 1);
+  assert.equal(authFailed[0].kind, 'note');
+  const noteText = (authFailed[0] as NoteItem).text;
+  assert.ok(noteText.includes('令牌已过期或验证不正确'));
+  assert.ok(noteText.includes('model=glm-5.3'));
+  assert.ok(noteText.includes('endpoint=https://open.bigmodel.cn/api/coding/paas/v4'));
+  assert.ok(noteText.includes('key=global coordinator slot'));
+  assert.ok(noteText.includes('verify this credential matches the endpoint'));
+
+  const nonAuth = formatLlmFailed({
+    error: 'Rate limit exceeded',
+    model: 'deepseek-chat',
+    base_url: 'https://api.deepseek.com/',
+    credential_source: 'env:COORDINATOR_KEY',
+    status_code: 429,
+  });
+  assert.ok(nonAuth.includes('key=env COORDINATOR_KEY'));
+  assert.ok(!nonAuth.includes('verify this credential'));
+
+  const legacyOnly = formatLlmFailed({ error: 'plain network error' });
+  assert.equal(legacyOnly, 'plain network error');
+  console.log('timeline.llm-failed-context ok');
+}

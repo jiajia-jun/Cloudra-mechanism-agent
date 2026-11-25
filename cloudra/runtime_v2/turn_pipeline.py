@@ -467,11 +467,19 @@ class TurnPipeline:
         # provider 侧桥接填充（LegacyLLMProvider 从 config 槽位补全）。遥测
         # 要记的是生效模型，经 provider 的可选钩子解析；无钩子的 provider
         # （测试 fake 等）原样记快照值。
-        model = settings.model
-        if not model:
+        request_context: dict[str, str] = {}
+        context_resolver = getattr(self.llm, "resolve_request_context", None)
+        if context_resolver is not None:
+            request_context = dict(context_resolver(agent) or {})
+        model = settings.model or request_context.get("model", "")
+        base_url = settings.base_url or request_context.get("base_url", "")
+        credential_source = request_context.get("credential_source", "")
+        if not model or not base_url:
             resolver = getattr(self.llm, "resolve_effective_settings", None)
             if resolver is not None:
-                model = resolver(agent).model
+                resolved = resolver(agent)
+                model = model or resolved.model
+                base_url = base_url or resolved.base_url
         request_event = self.event_log.append(
             "llm.request_started",
             stream="agent",
@@ -505,13 +513,26 @@ class TurnPipeline:
         try:
             response = await self.llm.complete(agent, messages, capabilities.tools, on_delta=on_delta)
         except Exception as exc:
+            failed_data: dict[str, Any] = {
+                "error": str(exc),
+                "latency_ms": int((time.monotonic() - started) * 1000),
+            }
+            if model:
+                failed_data["model"] = model
+            if base_url:
+                failed_data["base_url"] = base_url
+            if credential_source:
+                failed_data["credential_source"] = credential_source
+            status_code = getattr(exc, "status_code", None)
+            if isinstance(status_code, int) and not isinstance(status_code, bool):
+                failed_data["status_code"] = status_code
             self.event_log.append(
                 "llm.failed",
                 stream="agent",
                 project_id=agent.project_id,
                 session_id=agent.id,
                 run_id=run_id,
-                data={"error": str(exc), "latency_ms": int((time.monotonic() - started) * 1000)},
+                data=failed_data,
             )
             raise
         self.event_log.append(
