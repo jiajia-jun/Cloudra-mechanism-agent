@@ -56,7 +56,7 @@ This example holds the cell fixed. Choose the SCF, smearing, dispersion and forc
 SYSTEM = Slab_Adsorption_Production
 PREC   = Accurate
 ENCUT  = 450           # >= 1.3 * max(ENMAX)
-LREAL  = Auto          # Real-space projection recommended for large slab systems
+LREAL  = Auto          # Faster on large slabs; switch to .FALSE. (+ test ADDGRID=.TRUE.) for tight forces/Hessians to avoid egg-box noise
 ISYM   = 0             # Disable symmetry to prevent artificial zero-force traps on adsorbates
 
 # --- Electronic SCF ---

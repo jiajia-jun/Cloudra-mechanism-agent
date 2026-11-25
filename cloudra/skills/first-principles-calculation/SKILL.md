@@ -12,6 +12,7 @@ When planning and executing periodic first-principles calculations (VASP / CP2K)
 - **Periodic transition states**. Load `get_skill("first-principles-calculation", reference="periodic-ts.md")` for fixed-cell NEB, dimer refinement and independent saddle verification with VASP or CP2K.
 - **Extended methodology & reference library**: Before starting surface modeling, reaction network construction, or production runs, load the detailed reference guides:
   - Surface & Slab Modeling SOP: `get_skill("first-principles-calculation", reference="surface-modeling-sop.md")` (bulk lattice relaxation, slab thickness/vacuum convergence, Tasker surface polarity, adsorption site catalogs, placement, and staged molecular adsorption relaxation).
+  - Slab Force Convergence, Egg-Box & Engine Pitfalls: `get_skill("first-principles-calculation", reference="slab-force-convergence-and-pitfalls.md")` (plane-wave vs. CP2K GPW metallic-slab selection, egg-box/grid diagnostics, dipole-cut grid-aligned shifts, SCF-reuse force-floor fixes, dispersion/reference-state traps, and post-convergence audit checks).
   - Heterogeneous Catalysis & CHE Electrocatalysis: `get_skill("first-principles-calculation", reference="heterogeneous-catalysis-mechanisms.md")` (LH/ER/MvK models, CHE standard free energy corrections, HER/OER/CO2RR/NRR reaction networks, and scaling relations).
   - Production INCAR / CP2K Blueprints & Troubleshooting: `get_skill("first-principles-calculation", reference="vasp-cp2k-production-blueprints.md")` (bulk opt, slab relaxation, PDOS/d-band center, DFT+U table, HSE06 two-stage acceleration, and failure diagnosis decision trees).
   - ASE code library: `get_skill("first-principles-calculation", reference="ase-guide.md")` and `examples/` (`adsorption_energy.py`, `lattice_optimization.py`, `neb_barrier.py`, `che_electrocatalysis.py`).
@@ -54,6 +55,7 @@ Numeric settings below are **production starting points**. A number is accepted 
 | Polar Tasker III surface without compensation | Model compensation or refuse that surface energy. |
 | Functional / U / dispersion differs from the user's current requirements, or from an active Benchmark task's actual MethodPolicy | Do not change the requested method silently. Ordinary research projects have no default method/basis whitelist; global configuration, examples and earlier tasks do not create one. |
 | CO/CO₂/O₂ empirical correction needed but scheme/functional mismatched | Do not apply a foreign offset; state the scheme or refuse the thermodynamic cycle. |
+| Slab force noise floor, egg-box ripple, dipole-cut blow-up, or CP2K `Specific L-BFGS convergence` false positive | Inspect native raw forces and grid/SCF sensitivity before accepting; follow `slab-force-convergence-and-pitfalls.md`. |
 
 **Literature-backed judgment:** for U values, empirical corrections, and scaling relations, search literature (researcher) before inventing numbers. Record functional + correction scheme in every thermodynamic cycle.
 
@@ -134,8 +136,10 @@ When a VASP/CP2K calculation fails or diverges, follow this diagnosis hierarchy:
    - *Corrupt wavefunctions*: Delete `WAVECAR`/`CHGCAR` and restart with `ISTART = 0, ICHARG = 2`.
 4. **Out-of-Memory (OOM) / SIGKILL**:
    - Reduce `KPAR` (e.g. from 4 to 2 or 1) to conserve RAM per node.
-   - Enable `LREAL = Auto` to reduce plane-wave projection memory.
+   - Enable `LREAL = Auto` to reduce plane-wave projection memory (switch back to `LREAL = .FALSE.` for tight force/Hessian refinement to avoid egg-box noise).
    - Set `PRECFOCK = Fast` for HSE06 calculations.
+5. **Slab Force Plateaus, Egg-Box Noise & Engine-Specific Traps**:
+   - Load `slab-force-convergence-and-pitfalls.md` whenever slab forces stall at `0.05–0.25 eV/Å`, reused SCF exits in `≤ 5` steps with uphill `dE > 0`, dipole correction explodes (ensure `> 5 Å` clearance from `z = 0/c` and shift by integer fine-grid steps `k / N_z_fine * c`), or CP2K metallic slabs show `Specific L-BFGS convergence` or large cutoff/k-point force jumps.
 
 ---
 
@@ -143,6 +147,7 @@ When a VASP/CP2K calculation fails or diverges, follow this diagnosis hierarchy:
 
 Load domain references as needed:
 - `surface-modeling-sop.md`: Detailed surface cleavage, Tasker rules, slab thickness/vacuum convergence, adsorbate placement, and staged optimization for adsorption and coadsorption.
+- `slab-force-convergence-and-pitfalls.md`: Plane-wave vs. CP2K GPW metallic-slab selection, egg-box and FFT-grid diagnostics, dipole-cut grid-aligned shifting, SCF-reuse noise floors, dispersion/reference-state traps, DCD/Bader grid hygiene, and post-convergence audit checklist.
 - `heterogeneous-catalysis-mechanisms.md`: LH, ER, MvK mechanisms, CHE electrocatalysis equations, gas-phase thermodynamic corrections, and scaling relations.
 - `periodic-ts.md`: Periodic endpoint correspondence, native NEB and dimer inputs, output evidence, and saddle verification.
 - `vasp-cp2k-production-blueprints.md`: Production INCAR / CP2K .inp parameter templates, d-band center calculations, and failure diagnosis tables.
