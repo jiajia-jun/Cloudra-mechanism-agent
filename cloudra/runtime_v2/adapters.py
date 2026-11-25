@@ -107,19 +107,36 @@ def unwire_search_name(calls: list[ToolCall], *, rename_search: bool) -> list[To
     ]
 
 
-def legacy_default_settings(agent: AgentSession) -> RuntimeSettings:
-    """Fill empty settings fields from the existing global config.
+def _resolve_legacy_settings_and_context(agent: AgentSession) -> tuple[RuntimeSettings, dict[str, str]]:
+    """Fill empty settings fields from the existing global config and report
+    non-secret request provenance (model, base_url, credential_source).
 
     Coordinator is selected by role id only because the legacy config has two
     named slots; this is a bridge detail, not a runtime privilege.
     """
+    from cloudra.infra.codex_auth import is_codex_url
+
+    slot = "coordinator" if agent.role_id == "coordinator" else "follower"
     legacy = role_model_config(agent.role_id)
     settings = agent.settings.model_copy(deep=True)
     settings.model = settings.model or legacy.model
     settings.base_url = settings.base_url or legacy.url
     settings.api_key = settings.api_key_for(settings.base_url)
-    if not settings.api_key and same_model_endpoint(settings.base_url, legacy.url):
+
+    if is_codex_url(settings.base_url):
+        credential_source = "codex_oauth"
+    elif settings.api_key:
+        credential_source = "agent_override"
+    elif same_model_endpoint(settings.base_url, legacy.url) and legacy.key:
         settings.api_key = legacy.key
+        if getattr(legacy, "_key_from_env", False):
+            env_name = "COORDINATOR_KEY" if slot == "coordinator" else "FOLLOWER_KEY"
+            credential_source = f"env:{env_name}"
+        else:
+            credential_source = f"global_slot:{slot}"
+    else:
+        credential_source = "missing"
+
     settings.context_window = settings.context_window or legacy.context_window
     settings.timeout = settings.timeout or legacy.timeout
     # native_search 的 v2 默认值就是 "auto"，无法区分"显式 auto"与默认值；
@@ -132,7 +149,17 @@ def legacy_default_settings(agent: AgentSession) -> RuntimeSettings:
     # Kimi Coding 订阅端点只接受 temperature=1，其余值直接 400 拒绝
     if "kimi-for-coding" in (settings.model or ""):
         settings.temperature = 1.0
-    return settings
+    context = {
+        "model": settings.model,
+        "base_url": settings.base_url,
+        "credential_source": credential_source,
+    }
+    return settings, context
+
+
+def legacy_default_settings(agent: AgentSession) -> RuntimeSettings:
+    """Fill empty settings fields from the existing global config."""
+    return _resolve_legacy_settings_and_context(agent)[0]
 
 
 def _native_search_adapter_for(settings: RuntimeSettings):
@@ -645,6 +672,10 @@ class LegacyLLMProvider:
         空串，而真实模型在这个桥接层才解析出来。
         """
         return legacy_default_settings(agent)
+
+    def resolve_request_context(self, agent: AgentSession) -> dict[str, str]:
+        """Non-secret request provenance for failure diagnostics."""
+        return _resolve_legacy_settings_and_context(agent)[1]
 
     async def select_tool_names(self, agent, messages, *, resolved_settings):
         """A no-tool auxiliary request using the current effective model."""

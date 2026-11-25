@@ -36,6 +36,7 @@ import { collectPending, diffNewItems, type PendingAttention, type ProjectPendin
 import {
   applyStreamEvent,
   buildTimeline,
+  formatLlmFailed,
   type MessageItem,
   type StreamView,
   type ThinkingItem,
@@ -995,7 +996,7 @@ export default function App() {
           ));
           bufferEvent(event);
           if (event.type === 'llm.failed' && !replaying) {
-            pushToast('error', `LLM failed: ${short(event.data.error ?? event.data.message ?? '', 100)}`);
+            pushToast('error', `LLM failed: ${short(formatLlmFailed(event.data), 220)}`);
           }
         }
       },

@@ -95,6 +95,31 @@ export function fullText(value: unknown): string {
   }
 }
 
+function formatCredentialSource(source: unknown): string {
+  if (typeof source !== 'string' || !source) return '';
+  if (source === 'agent_override') return 'agent override';
+  if (source === 'codex_oauth') return 'Codex OAuth';
+  if (source === 'missing') return 'missing';
+  if (source.startsWith('global_slot:')) return `global ${source.slice('global_slot:'.length)} slot`;
+  if (source.startsWith('env:')) return `env ${source.slice('env:'.length)}`;
+  return source;
+}
+
+export function formatLlmFailed(data: Record<string, unknown>): string {
+  const raw = fullText(data.message ?? data.error ?? 'llm.failed');
+  const parts: string[] = [];
+  if (typeof data.model === 'string' && data.model) parts.push(`model=${data.model}`);
+  if (typeof data.base_url === 'string' && data.base_url) parts.push(`endpoint=${data.base_url}`);
+  const keySource = formatCredentialSource(data.credential_source);
+  if (keySource) parts.push(`key=${keySource}`);
+  if (parts.length === 0) return raw;
+  const status = typeof data.status_code === 'number' ? data.status_code : null;
+  const hint = status === 401 || status === 403
+    ? ' — verify this credential matches the endpoint.'
+    : '';
+  return `${raw}\n[${parts.join(' | ')}]${hint}`;
+}
+
 function short(text: unknown, max = 80): string {
   const s = typeof text === 'string' ? text : JSON.stringify(text);
   if (!s) return '';
@@ -602,7 +627,15 @@ export function buildTimeline(events: EventEnvelope[], pendingUserMessages: Mess
     } else if (event.type === 'agent.completion_gate') {
       items.push({kind: 'note', id: event.event_id, seq, level: 'info',
         text: `Completion gate (${String(event.data.action ?? 'unknown')}): ${String(event.data.reason ?? '')}`});
-    } else if (event.type === 'agent.warning' || event.type === 'llm.failed' || event.type === 'tool.blocked') {
+    } else if (event.type === 'llm.failed') {
+      items.push({
+        kind: 'note',
+        id: event.event_id,
+        seq,
+        level: 'warn',
+        text: formatLlmFailed(event.data),
+      });
+    } else if (event.type === 'agent.warning' || event.type === 'tool.blocked') {
       items.push({
         kind: 'note',
         id: event.event_id,
