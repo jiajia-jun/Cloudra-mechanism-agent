@@ -1049,14 +1049,16 @@ def test_agent_endpoint_override_inherits_only_matching_slot_key(monkeypatch):
 
 def test_resolve_request_context_reports_provenance_without_leaking_key(monkeypatch):
     from cloudra.infra.codex_auth import CODEX_BASE_URL
-    from cloudra.infra.config import get_config
+    from cloudra.infra.config import LLMConfig, get_config
 
     provider = LegacyLLMProvider()
-    slot = get_config().coordinator
-    monkeypatch.setattr(slot, "model", "glm-5.3")
-    monkeypatch.setattr(slot, "url", "https://open.bigmodel.cn/api/coding/paas/v4")
-    monkeypatch.setattr(slot, "key", "sk-secret-value-must-not-leak")
-    monkeypatch.setattr(slot, "_key_from_env", False)
+    slot = LLMConfig(
+        model="glm-5.3",
+        url="https://open.bigmodel.cn/api/coding/paas/v4",
+        key="sk-secret-value-must-not-leak",
+    )
+    slot._key_from_env = False
+    monkeypatch.setattr(get_config(), "coordinator", slot)
 
     agent = SimpleNamespace(role_id="coordinator", settings=RuntimeSettings())
     ctx = provider.resolve_request_context(agent)
@@ -1067,7 +1069,7 @@ def test_resolve_request_context_reports_provenance_without_leaking_key(monkeypa
     }
     assert "sk-secret" not in str(ctx)
 
-    monkeypatch.setattr(slot, "_key_from_env", True)
+    slot._key_from_env = True
     assert provider.resolve_request_context(agent)["credential_source"] == "env:COORDINATOR_KEY"
 
     agent.settings.base_url = "https://other.invalid/v1"
